@@ -37,5 +37,6 @@ let package = Package(
         .testTarget(name: "DeeLLMTests", dependencies: ["DeeLLM", "DeeCore"]),
         .testTarget(name: "DeeSenseTests", dependencies: ["DeeSense"]),
         .testTarget(name: "DeeMindTests", dependencies: ["DeeMind", "DeeCore"]),
+        .testTarget(name: "DeeVoiceTests", dependencies: ["DeeVoice", "DeeCore"]),
     ]
 )

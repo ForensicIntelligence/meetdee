@@ -101,6 +101,18 @@ public enum Expressions {
             f.color = FaceColor(hex: 0xFFD86F)
             f.sparkles = 1
             f.ears = 1
+        // Placeholder targets until the v0.4 expression pass lands.
+        case .content, .proud: return target(for: .happy)
+        case .playful, .mischievous: return target(for: .smug)
+        case .shy, .pleading, .lonely: return target(for: .sad)
+        case .skeptical, .determined: return target(for: .angry)
+        case .awe: return target(for: .surprised)
+        case .bored: return target(for: .sleepy)
+        case .dizzy: return target(for: .confused)
+        case .worried, .hurt, .overwhelmed, .hopeful: return target(for: .sad)
+        case .grumpy, .unimpressed: return target(for: .smug)
+        case .giddy: return target(for: .joy)
+        case .dreamy, .relieved: return target(for: .happy)
         }
         return f
     }
