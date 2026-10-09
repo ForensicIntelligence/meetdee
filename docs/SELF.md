@@ -26,7 +26,7 @@ Every flaw the judges raised is fixed in place. §15 lists each fix.
 | D1 | **One shared state.** A new target **`DeeSelf`** owns `Moment` (three timescales) and `Cortex`, a pure reducer built from small sub-reducers, each with its own tests. `Stance.resolve(Moment)` gives **the** interpretation of now. Every expressive output (expression, voice style, gaze, performance, the LLM cue) is a pure function of `Stance`. |
 | D2 | **One writer of `<dee_state>`.** `CueWriter` owns it: the existing mood sentence (byte-identical port of `Mind.cue`) plus **at most two parenthesised notes**. Hard cap **120 tokens per turn**, typically 45–70. No `key: value` lines and no delta encoding. |
 | D3 | **The system prompt is frozen per conversation.** A self block of ≤70 tokens plus ≤45 tokens of fixed rule lines are added once at `newConversation`. A test checks the system prompt is byte-identical on every turn. |
-| D4 | **No LLM is needed for state.** Every update is deterministic. Reflection is deterministic (`Reflector`). An optional LLM polish pass comes last (S7). It is grammar-constrained, cancellable, and reads structured records only, **never the transcript**. |
+| D4 | **No LLM is needed for state.** Every update is deterministic. Reflection is deterministic (`Reflector`). The planned optional LLM polish pass was dropped in 0.6 (§8.2); nothing about state ever reads **the transcript**. |
 | D5 | **Time away carries no relationship penalty.** The neglect→affection rule is deleted. While the user is away, affection and trust may only relax *upward* toward baseline, never downward. Loneliness shows only as reunion joy. Nothing that expires while the user is away is ever mentioned. |
 | D6 | **Memory changes behaviour through parameters first, words second.** A lesson changes a deterministic parameter (inference gain, pause scale, note choice) and only then, optionally, a short note. "Memory changes behaviour" is therefore testable without the LLM. |
 | D7 | **One SQLite file.** The `DeeSelf` tables live in the DeeMemory database (`MemoryStore.defaultURL()`), with `ON DELETE CASCADE` to `people(id)`. No transcripts, no utterances. Stored strings are labels, ≤4-word subjects, names, or template output. |
@@ -71,7 +71,7 @@ Example walk-through: the brief's "shown something you made".
 2. The `Beats` sub-reducer starts the **examine** beat: gaze drops and narrows toward the back camera, and her `thinking` mannerism plays.
 3. Recall finds the episode "John is learning watercolor", so the **recognise** step plays (`doubleTake`), then **brighten** (expression `excited`, intensity +0.2).
 4. `CueWriter` emits the mood sentence plus `(You remember: they're learning watercolor.)` and `(Ask about one choice they made in it.)`.
-5. The beat runs while the LLM prefills, so the prefill time reads as examining.
+5. The beat runs while the model prepares its reply, so that wait reads as examining.
 6. At turn end, `EpisodeBuilder` records "John showed me a painting" with `why: "they seemed proud"`, and an `Intention(.followUp, "painting")` if John said he would finish it.
 
 ---
@@ -80,7 +80,7 @@ Example walk-through: the brief's "shown something you made".
 
 New SwiftPM target **`DeeSelf`**: `Packages/DeeKit/Sources/DeeSelf`, with tests in `Tests/DeeSelfTests`.
 
-- **Depends on:** `DeeCore` (`Emotion`, `TextGenerator`), `DeeMind` (`MindSnapshot`, `MindCode`, `Appraisal`, `Appraiser`, `Rand`/SplitMix64), and `DeeMemory` (`Person` ids, `Fact`, `FactExtractor`, and the database file URL). It links `sqlite3`.
+- **Depends on:** `DeeCore` (`Emotion`, `Persona`), `DeeMind` (`MindSnapshot`, `MindCode`, `Appraisal`, `Appraiser`, `Rand`/SplitMix64), and `DeeMemory` (`Person` ids, `Fact`, `FactExtractor`, and the database file URL). It links `sqlite3`.
 - **Does not depend on** `DeeFace`, `DeeVoice` or `DeeSense`. Its projections emit neutral intents (`ExpressionIntent`, `VoiceIntent`, `GazeIntent`, `Mannerism`). `App/Sources/Projector.swift` maps them to `FaceInputs`, `VoiceStyle.forMood` and `PerformanceRequest`. That file is mechanical: no conditionals beyond 1:1 mapping, about 60 lines. `Mannerism` mirrors `Performance` raw values, and a `DeeSelfTests` test pins the raw-value list.
 - **Why a new module rather than DeeMind:** DeeMind is a stable, well-tested emotion engine with its own store. `DeeSelf` needs people (DeeMemory) and must not drag those into Mind. Mind stays the source of feeling, and `DeeSelf` interprets.
 
@@ -89,7 +89,7 @@ New SwiftPM target **`DeeSelf`**: `Packages/DeeKit/Sources/DeeSelf`, with tests 
 | Module | Change |
 |---|---|
 | DeeMind | Delete the neglect rule. Affection and trust relax only upward while away (§11). `CuriosityDirector` gains `avoid: Set<String>` and `candidates(at:snapshot:userPresent:busy:) -> [Candidate]`. `nextPrompt` stays as a wrapper for compatibility. Reunion greeting variants lose "lonely without them" wording. `Appraisal.internal(relief:pride:)` is a tiny new appraisal for resolved expectations and completed intentions. |
-| DeeCore | `Persona` gains `selfLines: [String]` and `ruleLines: [String]`, appended after the personality line. `OutputParser` gains a dev-only "leak" flag that fires when a reply contains `<dee_state>` or a parenthesised note verbatim. |
+| DeeCore | `Persona` gains `selfLines: [String]` and `ruleLines: [String]`, appended after the personality line. A dev-only cue-leak check (`CueLeak` / `CueLeakWatch` since 0.6) fires when a reply contains `<dee_state>` or a parenthesised note verbatim. |
 | DeeVoice | `TurnPredictor` (inside `ListeningCore`). `EndpointDetector.setQuietInterval(_:)`, clamped to 0.35…2.5. `ListeningCore.pauseScale` (set per person). `VoiceEvent.pause(turnEnd: Double, hesitation: Double)` (additive). `SentenceChunker` drops text inside `( … )` and `<…>` before speaking. S7 only: `VoiceService.backchannel(_:)` and graded barge-in. |
 | DeeSense | `SenseUpdate.head(yaw: Double, pitch: Double)` (additive, from the face observation already computed). `CameraSense.glanceNow(_ side: CameraSide)`, a one-shot that bypasses the sight pacer. |
 | DeeFace | `FaceInputs.listenValence` and `listenIntensity` (0…1, default 0). The animator blends them into the `.listening` target. |
@@ -484,7 +484,7 @@ public enum Percept: Sendable, Equatable {
 }
 
 public enum Effect: Sendable, Equatable {
-    case reply(userText: String?, cue: String)             // → ConversationAgent.respond(to:state:)
+    case reply(userText: String?, cue: String)             // → ReplyEngine.respond(_:state:effort:)
     case initiative(cue: String)                           // Dee speaks first (userText nil)
     case say(String)                                       // canned line, no LLM (VoiceService.say)
     case stopSpeaking
@@ -556,14 +556,14 @@ func perceive(_ p: Percept) async {
 
 | Channel | Reads (from `Stance` only) | Function | Plugs in at |
 |---|---|---|---|
-| **Words** | `notes`, plus the mood sentence from `mind` (same snapshot `seq` as the stance) | `CueWriter.cue(stance:mind:)` | `ConversationAgent.respond(to:state:)`, replacing `snapshot.cue` |
+| **Words** | `notes`, plus the mood sentence from `mind` (same snapshot `seq` as the stance) | `CueWriter.cue(stance:mind:)` | `ReplyEngine.respond(_:state:effort:)`, replacing `snapshot.cue` |
 | **Voice** | `expression`, `intensity`, `energy`, `age` | `VoiceStyle.forMood(emotion:age:energy:)`, then pitch × (1 + 0.08·(intensity − 0.5)) | `DeeModel.voiceStyle` |
 | **Expression** | `expression`, `intensity`, `regard` (tint), `listen` | `Projector.face` | `FaceInputs.emotion`, `.tint`, `.listenValence`, `.listenIntensity` |
 | **Gaze** | `gaze` (resolved from `focus`, `floor` and `beatStep`; priority below) | `Projector.face` | `FaceInputs.lookAt` |
 | **Performances** | `mannerism` | `Projector.face` → `PerformanceRequest(id: ++n)` | `FaceInputs.performance`. The idle director runs only while `floor == .idle && beat == nil` (`FaceInputs.mood` is suppressed to neutral otherwise) |
 | **Listening** | `floor`, `listen`, backchannel mannerisms | face-only in S2. Vocal clips only in S7 with AEC | `FaceInputs`; `VoiceService.backchannel` (S7) |
 | **Attention / sensors** | effects `glanceNow`, `lookAround` | | `CameraSense` |
-| **Initiative** | `IntentionBoard` → `.initiative(cue)` | | `ConversationAgent.respond(to: nil-equivalent)`, as today's `perceive(.initiative)` |
+| **Initiative** | `IntentionBoard` → `.initiative(cue)` | | `ReplyEngine.respond(.initiative(""), state: cue, effort:)`, as today's `perceive(.initiative)` |
 | **Memory** | `Moment` deltas + `Stance` | `EpisodeBuilder`, `Learner` → `SelfWrite` | `SelfStore` (and `MemoryStore` for facts) |
 
 **Gaze priority** (resolved in `Stance.resolve`):
@@ -593,7 +593,7 @@ func perceive(_ p: Percept) async {
 
 - **Mood sentence:** a byte-identical port of today's `MindSnapshot.cue` body: `Toward your human: … Mood: … Lately you've become … [age]`. Measured at 25–55 tokens. S1 keeps it byte-identical, which a golden test checks. `MindSnapshot.cue` stays for compatibility, and `CueWriter.mood(_:)` is the new source.
 - **Notes:** zero to two parenthesised, concrete, present-tense lines, each ≤30 tokens. **At most one note is an *aim*** (something to do). The other, if present, is *context* (something true now).
-- **Hard cap: 120 tokens.** Estimated as `ceil(chars / 3)` in unit tests (worst case). `SelfBudget` uses the real `TextGenerator.tokenCount` at runtime. If over the cap, the context note is dropped first, then the aim. The mood sentence always stays.
+- **Hard cap: 120 tokens.** Estimated as `ceil(chars / 3)` (worst case; `CueWriter.estimateTokens`), in tests and at runtime: there is no local tokenizer since 0.6. If over the cap, the context note is dropped first, then the aim. The mood sentence always stays.
 - **No delta encoding.** The cue is self-contained every turn. This avoids the stale `aim:` problem in append-only history:
   - notes are one-shot events, not standing state;
   - an aim note is emitted at most twice (§7.6);
@@ -656,24 +656,27 @@ All notes are templates with ≤4-word slots. Variants are picked by seeded RNG 
 - one lesson for the identified person ("Lately you've learned: John jokes with a straight face.");
 - user boundaries, ≤3 topics (`Don't bring up: X, Y.`, ≤15 tokens, counted separately).
 
-**Never** in the self block: open intentions, secret projects, or topical tastes that are not yet revealed. This avoids the broken-record effect a judge flagged. `SelfBudget` drops lines in reverse priority (lesson, limit, tastes, humour; values always stay) to fit.
+**Never** in the self block: open intentions, secret projects, or topical tastes that are not yet revealed. This avoids the broken-record effect a judge flagged. The self-block budget drops lines in reverse priority (lesson, limit, tastes, humour; values always stay) to fit.
 
 Example (≈62 tokens):
 > About you: you value honesty, kindness, and people being their own person. Your humour is deadpan understatement. You love rain sounds and find vacuum cleaners suspicious. You can't see anything when the phone is face down. Lately you've learned that John jokes with a straight face.
 
-### 6.5 Context budget (4096)
+### 6.5 Prompt budget
 
-| Block | Chat | Thinking |
-|---|---:|---:|
-| System persona (existing, incl. 34 tags) | ~330 | ~330 |
-| Tools (0.6) | ~700 | ~700 |
-| Rule lines + self block + boundaries | ≤125 | ≤125 |
-| `promptMemories(limit: 6)` | ≤90 | ≤90 |
-| Reply reserve | 640 | 1600 |
-| **History, incl. cues** | **~2210** | **~1250** |
+Since 0.6 the brain is the realtime model, with a 128k-token session context,
+server-side truncation and a rollover before the 60-minute cap, so history is no longer
+squeezed into a small window. The budgets still matter, for cost, latency and how well
+the model follows its notes:
 
-- At an average of about 60 cue tokens per turn plus ~50 for the user line and ~60 for the reply, chat history holds about 13 turns before `oldestDroppableRange` compaction. That is the same order as today.
-- Thinking mode uses an identical cue.
+| Block | Budget |
+|---|---:|
+| System persona (session instructions) | ~330 |
+| Rule lines + self block + boundaries | ≤125 |
+| `promptMemories(limit: 6)` | ≤90 |
+| Per-turn cue | ≤120 |
+
+- The per-turn cue goes with each response, never into the instructions.
+- Thinking mode uses an identical cue; it only raises that response's reasoning effort.
 - **Test:** the system prompt is byte-identical across all turns of a conversation, and a new `Persona` is accepted only at `newConversation`.
 
 ---
@@ -720,7 +723,7 @@ TurnPredictor reuses the existing YIN f0 and the dB ring buffer.
 
 **Calibration.** The weights above are hand-set defaults. In Debug builds, `TurnPredictor` logs **feature vectors only** (no text) with the label "user continued within 2 s". `scripts/fit-turn.py` (S2) fits the logistic weights offline. New weights ship as constants only if the false cut-off rate on the logged set does not rise.
 
-**Speculative prefill is not done.** The hybrid-recurrent Qwen3.5 cannot roll back, `n_seq_max = 1`, and the cue depends on the final appraisal. The latency win comes from shorter holds (0.8 → 0.45 s when confident), plus a **ready face**: at `turnEnd ≥ 0.6` the eyes lift and widen slightly.
+**No speculative reply.** The cue depends on the final appraisal, so the reply is requested only once the turn has ended. The latency win comes from shorter holds (0.8 → 0.45 s when confident), plus a **ready face**: at `turnEnd ≥ 0.6` the eyes lift and widen slightly.
 
 ### 7.2 Listening face and backchannels (`Listener`)
 
@@ -997,31 +1000,12 @@ It runs in `SelfStore` as a single transaction, takes milliseconds, and uses no 
 7. Prune episodes to 300 per person and 1,000 total by lowest `salience × recency`. Folded episodes go into `digest.lowSalience`.
 8. Recompute the **self block preview**, which is used at the next `newConversation`.
 
-### 8.2 Optional LLM polish (S7; off by default)
+### 8.2 Optional language polish (dropped in 0.6)
 
-**Allowed outputs only:**
-- (a) a smoother rewording of a gist, ≤100 chars;
-- (b) a ≤8-word in-character reason for a newly crystallised taste.
-
-**Input:** structured records only (gists, slots, topics, names, tastes), **never** conversation messages. Paraphrase leakage of user speech is therefore impossible by construction.
-
-**Grammar:** GBNF-constrained line grammar. This requires adding `grammar:` to `GenerationOptions` and the llama sampler chain.
-```
-GIST <id>: <text ≤100>
-REASON <facet-id>: <text ≤8 words>
-NONE
-```
-
-**Parser grounding:** every content lemma must appear in that record's slots or the person's names. Lines over their caps are dropped, as are lines that contradict a value. ≤2 facet reasons per pass. Unparseable output → nothing changes.
-
-**Scheduling:** only while asleep ≥ 300 s **and** charging **and** thermal `.nominal` or `.fair`. ≤4 passes per day. ≤600 prompt tokens and ≤120 decode tokens.
-
-**Cancellation:**
-- A wake percept calls `engine.cancel()`.
-- The pass is discarded.
-- `setPinnedPrefix` of the next conversation re-prefills the system prompt, which is required anyway after sleep ≥ 300 s.
-
-**Gate:** an on-device latency test (p95 < 8 s on an A17 Pro) before enabling.
+A night-time pass that reworded gists and gave short in-character reasons for new tastes
+was planned for a local model (S7, off by default). There is no local model any more,
+and running it in the cloud would send stored records about people to the provider, so
+it is not planned. Gists and reasons stay template-made.
 
 ---
 
@@ -1120,6 +1104,15 @@ CREATE TABLE digest (day TEXT, person_id TEXT, conversations INTEGER, low_salien
 - `deeSaid` sentences;
 - the reflection input.
 
+"Never stored" is about this device. Since 0.6 the realtime model hears and answers
+her, so while she is online the provider (OpenAI) receives the user's audio and
+transcripts, her replies, the session instructions and each turn's Dee DNA (her personality,
+feelings, self and relationship, the person's name, a few words about what she sees,
+recalled facts and memories; `docs/DNA.md`). All microphone audio is streamed while
+she is online, whoever is talking. API data is not used for
+training; the provider keeps abuse-monitoring logs for up to 30 days. Camera frames,
+face prints, the MindCode and these tables never leave the device.
+
 **Stored strings come only from:**
 - sight/sound labels;
 - NLTagger noun lemmas;
@@ -1171,7 +1164,7 @@ CREATE TABLE digest (day TEXT, person_id TEXT, conversations INTEGER, low_salien
 | `Learner` | Taste crystallise/flip hysteresis. Lesson minting at 2 misreads in 14 days. Profile EWMAs with floors. |
 | `SelfSeeder` | Same (seed, personality) → identical values, humour, signature and innate tastes (golden). |
 | `TurnPredictor` (DeeVoiceTests) | Synthetic f0 ramps and dB envelopes. Monotonicity (trailing "and" < plain clause < falling clause). Hold bounds 0.35…2.5. Hesitation ≥ 1.8 s. Per-person scale with shrinkage. |
-| `CueWriter` | **Golden parity:** mood sentence byte-identical to `MindSnapshot.cue` for 500 random MindCodes. Every note template with the longest slots ≤30 tokens (`ceil(chars/3)`). Whole cue ≤120. Real-tokenizer check in `DeeLLMTests`. |
+| `CueWriter` | **Golden parity:** mood sentence byte-identical to `MindSnapshot.cue` for 500 random MindCodes. Every note template with the longest slots ≤30 tokens (`ceil(chars/3)`). Whole cue ≤120. |
 | `SelfBlock` | ≤70 tokens. Drop order. Never contains unrevealed facets or open intentions. |
 | `EmotionEngine` (DeeMindTests) | The §9 absence tests. Neglect test removed. |
 
@@ -1191,7 +1184,7 @@ Each sub-reducer has fixtures in `Tests/DeeSelfTests/Fixtures/<reducer>/*.json`.
 
 ### 12.4 Multi-session scenario tests
 
-A `Scenario` DSL with a `SimClock`, a `ScriptedGenerator: TextGenerator` (canned replies), an in-memory `SelfStore`, and an in-memory `Mind(databaseURL: nil)`. Sessions are separated by clock jumps through `Mind.catchUp` and `Cortex` re-init from the store, so they exercise persistence round-trips.
+Scenario tests (`ScenarioTests`) with a `SimClock`, scripted user lines and canned replies (no model), an in-memory `SelfStore`, and an in-memory `Mind(databaseURL: nil)`. Sessions are separated by clock jumps through `Mind.catchUp` and `Cortex` re-init from the store, so they exercise persistence round-trips.
 
 ```swift
 scenario("interview follow-through", seed: 7) {
@@ -1262,13 +1255,13 @@ scenario("interview follow-through", seed: 7) {
 ### 12.5 Safety and invariant tests
 
 - **No-transcript fuzz:** 1,000 random utterances from a word list (seeded) are run through full sessions. The DB file bytes and all text columns contain no 5-word sequence from any utterance (subjects are ≤4 words).
-- **System prompt stability:** byte-identical system prompt on every turn of every scenario. `ConversationAgent` receives a `Persona` only at `newConversation`.
+- **System prompt stability:** byte-identical system prompt on every turn of every scenario. The brain receives a `Persona` only at `newConversation`.
 - **Determinism:** each scenario run twice with the same seed gives an identical trace hash. A different seed changes it.
 - **Lint:** no `Date()`, `Double.random` or `UUID()` in pure `DeeSelf` code. IDs come from `rng.uuid()`.
 
 ### 12.6 Non-gating evaluations (on device or Mac)
 
-- **LLM adherence** (Mac, real GGUF, fixed seed, temperature 0; not bit-exact with phone Metal, so treated as indicative). 50 cue/reply pairs scored for:
+- **LLM adherence** (the realtime model through the voice harness; sampled, so treated as indicative). 50 cue/reply pairs scored for:
   - aim followed;
   - note not read aloud;
   - tag in band;
@@ -1285,7 +1278,7 @@ scenario("interview follow-through", seed: 7) {
 | Step | Theme | Scope | Visible result |
 |---|---|---|---|
 | **0.5.1** | **One Moment + self-model core** | `DeeSelf` target. Types. `Cortex` with `FloorKeeper` and `Stance.resolve`. `Projector`. Delete `spokenEmotion`/`refreshEmotion`/`flash`. `CueWriter` (golden parity plus notes infrastructure). Tag reconciliation. `SelfSeeder` (values, humour, signature repertoire). `SelfStore` v1 plus migrations. `SelfBlock` plus `Persona.selfLines`/`ruleLines`. `SentenceChunker` parenthesis filter. **Neglect removal and bond freeze (§9).** | Face and voice always agree. Her own consistent thinking and amused mannerisms. She knows her values and humour. No penalty for absence. |
-| **0.5.2** | **Coordinated listening** | `TurnPredictor` plus `setQuietInterval`/`pauseScale`. `VoiceEvent.pause`. `Listener` (preview face, visual backchannels, hesitation, silence model). `FaceInputs.listen*`. Gaze priority (listening/speaking aversion, ready face). `Beats` (examine/recognize/brighten run during prefill). Clipped-speaker apology with seeded variants. Debug feature logging for calibration. | Her face reacts while you talk, she nods at pauses, waits through "um", and answers faster when you're clearly done. |
+| **0.5.2** | **Coordinated listening** | `TurnPredictor` plus `setQuietInterval`/`pauseScale`. `VoiceEvent.pause`. `Listener` (preview face, visual backchannels, hesitation, silence model). `FaceInputs.listen*`. Gaze priority (listening/speaking aversion, ready face). `Beats` (examine/recognize/brighten run while the reply is prepared). Clipped-speaker apology with seeded variants. Debug feature logging for calibration. | Her face reacts while you talk, she nods at pauses, waits through "um", and answers faster when you're clearly done. |
 | **0.5.3** | **Memory that changes behaviour** | `Interpreter` (hypotheses, corrections, `PlanDetector`, `RepairDetector`). `IntentionBoard` (curiosity candidates, follow-ups, follow-through). `EpisodeBuilder` plus recall note. `Learner` (lessons, profiles, interests). Deterministic `Reflector`. Scenarios 1–4, 9. | "How did the interview go?" She stops guessing your mood after being corrected, and remembers what you showed her. |
 | **0.5.4** | Shared attention | `SenseUpdate.head`, mutual-gaze gating, referents, `glanceNow`, deixis notes, triadic gaze, common-ground wording. Scenario 9 (full). | "What's this?" works. She looks where you're showing her and asks when unsure. |
 | **0.5.5** | Repair and boundaries | `RepairKeeper`, awkwardness, user/Dee boundaries, `CuriosityDirector.avoid`. Scenarios 7–8. | She makes up gracefully, respects "don't ask me about that", and stands up for herself once. |
@@ -1300,8 +1293,8 @@ Ordering rationale: the brief's top three (self-model, coordinated listening, me
 
 | Risk | Mitigation |
 |---|---|
-| **The 4B model ignores, quotes or over-applies notes** | Two notes at most, parenthesised concrete imperatives, one aim. `SentenceChunker` drops parenthesised text before speech. `OutputParser` leak flag. Every must-happen behaviour (gaze, beats, nods, memory, follow-through bookkeeping) is independent of the LLM. Mac adherence eval. |
-| **Stale notes in append-only history** | No standing `key:` state. Notes are one-shot events. The aim is issued at most twice, then dropped. The rule line says "now, once". Compaction drops the oldest turns. |
+| **The model ignores, quotes or over-applies notes** | Two notes at most, parenthesised concrete imperatives, one aim. `SentenceChunker` drops parenthesised text before speech. `CueLeakWatch` leak flag. Every must-happen behaviour (gaze, beats, nods, memory, follow-through bookkeeping) is independent of the LLM. Mac adherence eval. |
+| **Stale notes in append-only history** | No standing `key:` state. Notes are one-shot events. The aim is issued at most twice, then dropped. The rule line says "now, once". Server-side truncation and session rollover drop the oldest turns. |
 | **Prompt cache invalidation** | The system prompt is frozen, a test asserts byte identity, and `Persona` only changes at `newConversation`. Reflection never shares the sequence mid-conversation. |
 | **Hand-set timing weights clip slow speakers** | Hesitation floor 1.8 s, per-person `pauseScale` with shrinkage, clipped-speaker recovery (+0.1), offline calibration from feature logs, false cut-off target < 5%. |
 | **Weak vision (scene labels are not objects)** | Deixis prefers asking. `glanceNow`. Pointing is a weak bump only. `uncertainty` is surfaced on the face (squint). |

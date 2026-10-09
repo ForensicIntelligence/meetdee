@@ -61,10 +61,12 @@ import Testing
         for c in clean { #expect(Self.lint(c, file: "x").isEmpty, "false positive: \(c)") }
     }
 
-    @Test func deeSelfDoesNotImportFaceVoiceOrSense() throws {
+    /// DeeSelf (Dee DNA included) only describes her; it never talks to the network
+    /// (review F9: DeeRealtime is the one module that does).
+    @Test func deeSelfDoesNotImportFaceVoiceSenseOrRealtime() throws {
         for f in try Self.swiftFiles() {
             let text = try String(contentsOf: f, encoding: .utf8)
-            for m in ["import DeeFace", "import DeeVoice", "import DeeSense", "import DeeLLM"] {
+            for m in ["import DeeFace", "import DeeVoice", "import DeeSense", "import DeeRealtime", "import Network"] {
                 #expect(!text.contains(m), "\(f.lastPathComponent): \(m)")
             }
         }

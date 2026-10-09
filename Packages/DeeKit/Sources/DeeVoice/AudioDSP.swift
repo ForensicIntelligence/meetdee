@@ -1,3 +1,4 @@
+import Accelerate
 import Foundation
 
 // Pure audio analysis: levels, an adaptive energy VAD, YIN pitch, and prosody
@@ -83,7 +84,9 @@ public struct EnergyVAD: Sendable {
 
     public init() {}
 
-    public mutating func process(frameDB db: Double, frameDuration dt: Double) -> Bool {
+    /// `allowRise: false` holds the floor where it is through sound that is known
+    /// not to be the room (her own echo); it can still fall.
+    public mutating func process(frameDB db: Double, frameDuration dt: Double, allowRise: Bool = true) -> Bool {
         let level = db.isFinite ? max(db, -160) : -160
         if !primed {
             noiseFloorDB = min(max(level, -90), -30)
@@ -102,7 +105,7 @@ public struct EnergyVAD: Sendable {
         // Floor tracking.
         if level < noiseFloorDB {
             noiseFloorDB += (level - noiseFloorDB) * 0.25
-        } else {
+        } else if allowRise {
             let rate = isVoiced ? riseWhileVoiced : riseWhileQuiet
             noiseFloorDB = min(noiseFloorDB + rate * dt, level)
         }
@@ -123,21 +126,38 @@ public enum PitchDetector {
     /// f0 in Hz, or nil when the frame is unvoiced/aperiodic.
     public static func yin(_ x: [Float], sampleRate: Double, minHz: Double = 70, maxHz: Double = 500,
                            threshold: Double = 0.15) -> Double? {
-        guard sampleRate > 0, minHz > 0, maxHz > minHz else { return nil }
+        analyze(x, sampleRate: sampleRate, minHz: minHz, maxHz: maxHz, threshold: threshold, looseThreshold: threshold).f0
+    }
+
+    /// One YIN pass: `f0` with the strict `threshold`, and whether the frame is
+    /// periodic at all at `looseThreshold` (voicing, where real speech's pitch
+    /// glides within a frame). The difference function runs on Accelerate.
+    public static func analyze(_ x: [Float], sampleRate: Double, minHz: Double = 70, maxHz: Double = 500,
+                               threshold: Double = 0.15, looseThreshold: Double) -> (f0: Double?, periodic: Bool) {
+        guard sampleRate > 0, minHz > 0, maxHz > minHz else { return (nil, false) }
         let maxLag = Int(sampleRate / minHz)
         let minLag = max(2, Int(sampleRate / maxHz))
         let w = x.count - maxLag - 1
-        guard w >= minLag * 2, maxLag > minLag else { return nil }
+        guard w >= minLag * 2, maxLag > minLag else { return (nil, false) }
 
-        // Difference function d(τ) and cumulative mean normalised d'(τ).
+        // d(τ) = Σ x[j]² + Σ x[j+τ]² − 2 Σ x[j]·x[j+τ] over j < w.
         var d = [Double](repeating: 0, count: maxLag + 2)
-        for tau in 1...(maxLag + 1) {
-            var s = 0.0
-            for j in 0..<w {
-                let diff = Double(x[j]) - Double(x[j + tau])
-                s += diff * diff
+        var energy0: Float = 0
+        var energyTau: Float = 0
+        x.withUnsafeBufferPointer { p in
+            let base = p.baseAddress!
+            vDSP_svesq(base, 1, &energy0, vDSP_Length(w))
+            vDSP_svesq(base + 1, 1, &energyTau, vDSP_Length(w))
+            for tau in 1...(maxLag + 1) {
+                if tau > 1 {
+                    // Slide the window [tau, tau + w): drop x[tau-1]², add x[tau+w-1]².
+                    let out = base[tau - 1], inn = base[tau + w - 1]
+                    energyTau += inn * inn - out * out
+                }
+                var cross: Float = 0
+                vDSP_dotpr(base, 1, base + tau, 1, &cross, vDSP_Length(w))
+                d[tau] = max(0, Double(energy0) + Double(energyTau) - 2 * Double(cross))
             }
-            d[tau] = s
         }
         var cmnd = [Double](repeating: 1, count: maxLag + 2)
         var running = 0.0
@@ -145,10 +165,11 @@ public enum PitchDetector {
             running += d[tau]
             cmnd[tau] = running > 0 ? d[tau] * Double(tau) / running : 1
         }
-        // First dip under the threshold, then walk to its local minimum.
+        var periodic = false
         var tauEstimate = -1
         var tau = minLag
         while tau <= maxLag {
+            if cmnd[tau] < looseThreshold { periodic = true }
             if cmnd[tau] < threshold {
                 while tau + 1 <= maxLag, cmnd[tau + 1] < cmnd[tau] { tau += 1 }
                 tauEstimate = tau
@@ -156,7 +177,7 @@ public enum PitchDetector {
             }
             tau += 1
         }
-        guard tauEstimate > 0 else { return nil }
+        guard tauEstimate > 0 else { return (nil, periodic) }
         // Parabolic interpolation for sub-sample precision.
         let t = tauEstimate
         var refined = Double(t)
@@ -165,9 +186,9 @@ public enum PitchDetector {
             let denom = a - 2 * b + c
             if abs(denom) > 1e-12 { refined = Double(t) + 0.5 * (a - c) / denom }
         }
-        guard refined > 0 else { return nil }
+        guard refined > 0 else { return (nil, true) }
         let f = sampleRate / refined
-        return (minHz * 0.9...maxHz * 1.1).contains(f) ? f : nil
+        return ((minHz * 0.9...maxHz * 1.1).contains(f) ? f : nil, true)
     }
 
     /// Box-filter decimation to at most `targetRate` (keeps YIN cheap at 48 kHz).
@@ -222,6 +243,20 @@ public struct ProsodyAccumulator: Sendable {
         let f0 = PitchDetector.yin(small, sampleRate: rate)
         if let f0 { pitches.append(f0) }
         return f0
+    }
+
+    /// Adds a frame already measured elsewhere (sum of squares, sample count, peak
+    /// amplitude, voiced, f0): prosody over a stretch of frames logged earlier.
+    public mutating func add(energy: Double, samples: Int, peak: Float, voiced: Bool, f0: Double?, sampleRate: Double) {
+        guard samples > 0, sampleRate > 0 else { return }
+        allEnergy += energy
+        allSamples += samples
+        guard voiced else { return }
+        self.peak = max(self.peak, peak)
+        voicedEnergy += energy
+        voicedSamples += samples
+        voicedDuration += Double(samples) / sampleRate
+        if let f0, f0.isFinite, f0 > 0 { pitches.append(f0) }
     }
 
     public var isEmpty: Bool { allSamples == 0 }

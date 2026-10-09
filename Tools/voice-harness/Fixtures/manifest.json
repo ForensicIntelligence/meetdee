@@ -1,0 +1,1973 @@
+{
+  "generatedAt" : "2026-10-09T20:31:13Z",
+  "impulseResponses" : [
+    {
+      "file" : "ir/room.wav",
+      "id" : "room",
+      "levelDB" : -28.14943940862966,
+      "provenance" : "Synthesized (HarnessCore Beds.roomImpulse, seed 0x1A0): unit direct path, 5 early reflections (3–23 ms), exponentially decaying low-passed diffuse tail, RT60 ≈ 0.35 s, 0.4 s long, peak-normalized.",
+      "seconds" : 0.4
+    }
+  ],
+  "noise" : [
+    {
+      "file" : "noise/fan.wav",
+      "id" : "fan",
+      "levelDB" : -30.00456541533973,
+      "provenance" : "Synthesized (HarnessCore Beds.fan, seed 0xFA11): low-passed noise rush, 31 Hz blade-pass hum + harmonics, 120 Hz motor whine, 0.7 Hz beat. No recorded material.",
+      "seconds" : 19.95
+    },
+    {
+      "file" : "noise/kitchen.wav",
+      "id" : "kitchen",
+      "levelDB" : -29.989306123918947,
+      "provenance" : "Synthesized (HarnessCore Beds.kitchen, seed 0xC0C0): band-passed running tap with gurgle (two stretches), 60/180 Hz fridge hum, random dish clinks (decaying inharmonic partials). No recorded material.",
+      "seconds" : 19.95
+    },
+    {
+      "file" : "noise/tv.wav",
+      "id" : "tv",
+      "levelDB" : -29.99991919888892,
+      "provenance" : "Rendered with macOS `say` (voices Daniel, Samantha, Fred, Kathy; original text written for the harness), staggered and summed, band-limited 180 Hz–5 kHz like a small TV speaker, plus a soft synthesized chord drone (HarnessCore Beds.tv, seed 0x7E1E).",
+      "seconds" : 19.95
+    }
+  ],
+  "notes" : "24 kHz mono PCM16. User voices are gpt-4o-mini-tts (alloy, ash, ballad, coral, echo, sage, shimmer, verse; never Dee's marin/cedar) and macOS say. Each spoken segment is trimmed to its voiced extent (±30 ms), normalized to its style's active level, and joined with exact digital-silence pauses; 0.15 s lead, 0.4 s tail. onsetSample / endOfSpeechSample / spans come from a 10 ms energy detector on the final file (threshold max(−55 dBFS, loudest − 38 dB), gaps < 200 ms bridged).",
+  "sampleRate" : 24000,
+  "ttsModel" : "gpt-4o-mini-tts",
+  "utterances" : [
+    {
+      "activeLevelDB" : -24.000000147837927,
+      "category" : "short_question",
+      "endOfSpeechSample" : 37440,
+      "engine" : "openai",
+      "file" : "utterances/q01.wav",
+      "id" : "q01",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 47760,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 37440,
+          "start" : 3840
+        }
+      ],
+      "style" : "neutral",
+      "text" : "What's your favorite color?",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -23.999999906388396,
+      "category" : "short_question",
+      "endOfSpeechSample" : 23040,
+      "engine" : "say",
+      "file" : "utterances/q02.wav",
+      "id" : "q02",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 33360,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 23040,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Are you awake?",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -32.000000220207376,
+      "category" : "short_question",
+      "endOfSpeechSample" : 47040,
+      "engine" : "openai",
+      "file" : "utterances/q03.wav",
+      "id" : "q03",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 57360,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 8160,
+          "start" : 3840
+        },
+        {
+          "end" : 31200,
+          "start" : 18960
+        },
+        {
+          "end" : 47040,
+          "start" : 37440
+        }
+      ],
+      "style" : "soft",
+      "text" : "What time is it?",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -23.968201709754005,
+      "category" : "short_question",
+      "endOfSpeechSample" : 36720,
+      "engine" : "openai",
+      "file" : "utterances/q04.wav",
+      "id" : "q04",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 47280,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 36720,
+          "start" : 4080
+        }
+      ],
+      "style" : "child",
+      "text" : "Do you like music?",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -23.96486157561465,
+      "category" : "short_question",
+      "endOfSpeechSample" : 33120,
+      "engine" : "say",
+      "file" : "utterances/q05.wav",
+      "id" : "q05",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 43680,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 33120,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Can you hear me okay?",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -24.00000017684917,
+      "category" : "short_question",
+      "endOfSpeechSample" : 53040,
+      "engine" : "openai",
+      "file" : "utterances/q06.wav",
+      "id" : "q06",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 63360,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 53040,
+          "start" : 3840
+        }
+      ],
+      "style" : "fast",
+      "text" : "What did you do today?",
+      "voice" : "ash"
+    },
+    {
+      "activeLevelDB" : -24.000000211033875,
+      "category" : "short_question",
+      "endOfSpeechSample" : 49920,
+      "engine" : "openai",
+      "file" : "utterances/q07.wav",
+      "id" : "q07",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 60240,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 49920,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Is it going to rain tomorrow?",
+      "voice" : "sage"
+    },
+    {
+      "activeLevelDB" : -23.94250538950523,
+      "category" : "short_question",
+      "endOfSpeechSample" : 22320,
+      "engine" : "say",
+      "file" : "utterances/q08.wav",
+      "id" : "q08",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 32880,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 22320,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Who made you?",
+      "voice" : "Flo (English (US))"
+    },
+    {
+      "activeLevelDB" : -24.000000170297255,
+      "category" : "long_turn",
+      "endOfSpeechSample" : 268800,
+      "engine" : "openai",
+      "file" : "utterances/l01.wav",
+      "id" : "l01",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 279120,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 63600,
+          "start" : 3840
+        },
+        {
+          "end" : 114720,
+          "start" : 72720
+        },
+        {
+          "end" : 159840,
+          "start" : 126480
+        },
+        {
+          "end" : 222960,
+          "start" : 170640
+        },
+        {
+          "end" : 268800,
+          "start" : 237600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "So I've been thinking about getting a dog, but my apartment is pretty small and I work long hours, so I'm not sure it would be fair to the dog. What do you think I should do?",
+      "voice" : "verse"
+    },
+    {
+      "activeLevelDB" : -24.00000022411,
+      "category" : "long_turn",
+      "endOfSpeechSample" : 328560,
+      "engine" : "openai",
+      "file" : "utterances/l02.wav",
+      "id" : "l02",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 338880,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 13680,
+          "start" : 3840
+        },
+        {
+          "end" : 53040,
+          "start" : 27360
+        },
+        {
+          "end" : 128880,
+          "start" : 61200
+        },
+        {
+          "end" : 164400,
+          "start" : 137520
+        },
+        {
+          "end" : 265680,
+          "start" : 182400
+        },
+        {
+          "end" : 289680,
+          "start" : 272640
+        },
+        {
+          "end" : 328560,
+          "start" : 295200
+        }
+      ],
+      "style" : "fast",
+      "text" : "Okay so today at work my boss called a meeting at four thirty on a Friday, which nobody wanted, and then she spent the whole hour talking about a new filing system that honestly nobody is going to use.",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -24.000000300199694,
+      "category" : "long_turn",
+      "endOfSpeechSample" : 265200,
+      "engine" : "openai",
+      "file" : "utterances/l03.wav",
+      "id" : "l03",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 275520,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 15840,
+          "start" : 3600
+        },
+        {
+          "end" : 42720,
+          "start" : 27360
+        },
+        {
+          "end" : 122880,
+          "start" : 54720
+        },
+        {
+          "end" : 180480,
+          "start" : 135600
+        },
+        {
+          "end" : 265200,
+          "start" : 190320
+        }
+      ],
+      "style" : "child",
+      "text" : "Dee, guess what, at school today we made volcanoes with baking soda and mine exploded the biggest and the teacher said it was the best one in the whole class!",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -23.999999838108373,
+      "category" : "long_turn",
+      "endOfSpeechSample" : 199920,
+      "engine" : "say",
+      "file" : "utterances/l04.wav",
+      "id" : "l04",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 210240,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 68640,
+          "start" : 3600
+        },
+        {
+          "end" : 109920,
+          "start" : 73920
+        },
+        {
+          "end" : 148080,
+          "start" : 114720
+        },
+        {
+          "end" : 199920,
+          "start" : 153840
+        }
+      ],
+      "style" : "neutral",
+      "text" : "I'm trying to plan a little garden on my balcony. I want tomatoes and basil, maybe some strawberries, but I don't know how much sun they need.",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -31.917714370064182,
+      "category" : "long_turn",
+      "endOfSpeechSample" : 216240,
+      "engine" : "openai",
+      "file" : "utterances/l05.wav",
+      "id" : "l05",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 226800,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 45120,
+          "start" : 4320
+        },
+        {
+          "end" : 149040,
+          "start" : 59280
+        },
+        {
+          "end" : 178080,
+          "start" : 165600
+        },
+        {
+          "end" : 216240,
+          "start" : 184080
+        }
+      ],
+      "style" : "soft",
+      "text" : "I couldn't sleep last night. I kept going over a conversation with my brother in my head, wondering if I said the wrong thing.",
+      "voice" : "ballad"
+    },
+    {
+      "activeLevelDB" : -24.00000036173458,
+      "category" : "long_turn",
+      "endOfSpeechSample" : 186720,
+      "engine" : "openai",
+      "file" : "utterances/l06.wav",
+      "id" : "l06",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 197040,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 109680,
+          "start" : 4080
+        },
+        {
+          "end" : 186720,
+          "start" : 118560
+        }
+      ],
+      "style" : "neutral",
+      "text" : "My grandmother used to make this soup every winter with barley and carrots, and I finally found her recipe card in a box in the attic.",
+      "voice" : "echo"
+    },
+    {
+      "activeLevelDB" : -23.99999989461946,
+      "category" : "pause_0.6",
+      "endOfSpeechSample" : 107760,
+      "engine" : "openai",
+      "file" : "utterances/p06a.wav",
+      "id" : "p06a",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 118080,
+      "scriptedPauses" : [
+        0.6
+      ],
+      "spans" : [
+        {
+          "end" : 38400,
+          "start" : 4320
+        },
+        {
+          "end" : 107760,
+          "start" : 54240
+        }
+      ],
+      "style" : "neutral",
+      "text" : "I was going to say that the movie was better than the book.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -23.999999854205925,
+      "category" : "pause_0.6",
+      "endOfSpeechSample" : 92640,
+      "engine" : "say",
+      "file" : "utterances/p06b.wav",
+      "id" : "p06b",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 102960,
+      "scriptedPauses" : [
+        0.6
+      ],
+      "spans" : [
+        {
+          "end" : 52800,
+          "start" : 3600
+        },
+        {
+          "end" : 92640,
+          "start" : 68160
+        }
+      ],
+      "style" : "neutral",
+      "text" : "My favorite thing about weekends is sleeping in late.",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -24.083993050552387,
+      "category" : "pause_0.6",
+      "endOfSpeechSample" : 105840,
+      "engine" : "openai",
+      "file" : "utterances/p06c.wav",
+      "id" : "p06c",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 115680,
+      "scriptedPauses" : [
+        0.6
+      ],
+      "spans" : [
+        {
+          "end" : 39600,
+          "start" : 4080
+        },
+        {
+          "end" : 105840,
+          "start" : 54240
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Can you remind me what we talked about yesterday?",
+      "voice" : "sage"
+    },
+    {
+      "activeLevelDB" : -24.062524273319312,
+      "category" : "pause_1.2",
+      "endOfSpeechSample" : 133200,
+      "engine" : "openai",
+      "file" : "utterances/p12a.wav",
+      "id" : "p12a",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 143280,
+      "scriptedPauses" : [
+        1.2
+      ],
+      "spans" : [
+        {
+          "end" : 57360,
+          "start" : 3600
+        },
+        {
+          "end" : 133200,
+          "start" : 86400
+        }
+      ],
+      "style" : "neutral",
+      "text" : "So yesterday I went to the farmers market with my sister.",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -32.00000022855798,
+      "category" : "pause_1.2",
+      "endOfSpeechSample" : 116400,
+      "engine" : "openai",
+      "file" : "utterances/p12b.wav",
+      "id" : "p12b",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 126720,
+      "scriptedPauses" : [
+        1.2
+      ],
+      "spans" : [
+        {
+          "end" : 39600,
+          "start" : 4320
+        },
+        {
+          "end" : 116400,
+          "start" : 69840
+        }
+      ],
+      "style" : "soft",
+      "text" : "The thing is I don't really like my job anymore.",
+      "voice" : "ballad"
+    },
+    {
+      "activeLevelDB" : -23.97835309839742,
+      "category" : "pause_1.2",
+      "endOfSpeechSample" : 82080,
+      "engine" : "say",
+      "file" : "utterances/p12c.wav",
+      "id" : "p12c",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 92400,
+      "scriptedPauses" : [
+        1.2
+      ],
+      "spans" : [
+        {
+          "end" : 34320,
+          "start" : 3600
+        },
+        {
+          "end" : 82080,
+          "start" : 64800
+        }
+      ],
+      "style" : "neutral",
+      "text" : "I think the answer is forty two.",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -24.00000000746057,
+      "category" : "pause_2.0",
+      "endOfSpeechSample" : 159840,
+      "engine" : "openai",
+      "file" : "utterances/p20a.wav",
+      "id" : "p20a",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 170160,
+      "scriptedPauses" : [
+        2
+      ],
+      "spans" : [
+        {
+          "end" : 55200,
+          "start" : 3840
+        },
+        {
+          "end" : 159840,
+          "start" : 104400
+        }
+      ],
+      "style" : "neutral",
+      "text" : "What I really want to know is whether robots can dream.",
+      "voice" : "verse"
+    },
+    {
+      "activeLevelDB" : -23.999999967303477,
+      "category" : "pause_2.0",
+      "endOfSpeechSample" : 141120,
+      "engine" : "openai",
+      "file" : "utterances/p20b.wav",
+      "id" : "p20b",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 151440,
+      "scriptedPauses" : [
+        2
+      ],
+      "spans" : [
+        {
+          "end" : 36480,
+          "start" : 4320
+        },
+        {
+          "end" : 141120,
+          "start" : 85680
+        }
+      ],
+      "style" : "neutral",
+      "text" : "I'm going to visit my parents next weekend.",
+      "voice" : "ash"
+    },
+    {
+      "activeLevelDB" : -24.000000152150612,
+      "category" : "pause_2.0",
+      "endOfSpeechSample" : 147360,
+      "engine" : "say",
+      "file" : "utterances/p20c.wav",
+      "id" : "p20c",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 157680,
+      "scriptedPauses" : [
+        2
+      ],
+      "spans" : [
+        {
+          "end" : 23520,
+          "start" : 3600
+        },
+        {
+          "end" : 85200,
+          "start" : 72240
+        },
+        {
+          "end" : 147360,
+          "start" : 90240
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Let me think. Okay, tell me a fun fact about octopuses.",
+      "voice" : "Flo (English (US))"
+    },
+    {
+      "activeLevelDB" : -23.986988133823974,
+      "category" : "filler",
+      "endOfSpeechSample" : 116640,
+      "engine" : "openai",
+      "file" : "utterances/f01.wav",
+      "id" : "f01",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 127200,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 35040,
+          "start" : 4320
+        },
+        {
+          "end" : 52800,
+          "start" : 42960
+        },
+        {
+          "end" : 73440,
+          "start" : 59520
+        },
+        {
+          "end" : 116640,
+          "start" : 91200
+        }
+      ],
+      "style" : "neutral",
+      "text" : "So I went to the… um… store, and they were out of milk.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -24.260631493871397,
+      "category" : "filler",
+      "endOfSpeechSample" : 123120,
+      "engine" : "openai",
+      "file" : "utterances/f02.wav",
+      "id" : "f02",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 133200,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 18960,
+          "start" : 4320
+        },
+        {
+          "end" : 42960,
+          "start" : 29280
+        },
+        {
+          "end" : 77520,
+          "start" : 55200
+        },
+        {
+          "end" : 97680,
+          "start" : 87600
+        },
+        {
+          "end" : 123120,
+          "start" : 105600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Uh, I don't know, maybe, like, we could watch a movie?",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -23.986331828937576,
+      "category" : "filler",
+      "endOfSpeechSample" : 90960,
+      "engine" : "openai",
+      "file" : "utterances/f03.wav",
+      "id" : "f03",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 101520,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 35040,
+          "start" : 4320
+        },
+        {
+          "end" : 90960,
+          "start" : 45600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hmm, what's the, uh, the name of that big red planet?",
+      "voice" : "echo"
+    },
+    {
+      "activeLevelDB" : -24.13524409156116,
+      "category" : "filler",
+      "endOfSpeechSample" : 94080,
+      "engine" : "openai",
+      "file" : "utterances/f04.wav",
+      "id" : "f04",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 103920,
+      "scriptedPauses" : [
+        0.5,
+        0.6
+      ],
+      "spans" : [
+        {
+          "end" : 39120,
+          "start" : 3600
+        },
+        {
+          "end" : 61680,
+          "start" : 52080
+        },
+        {
+          "end" : 94080,
+          "start" : 76800
+        }
+      ],
+      "style" : "neutral",
+      "text" : "So I went to the um store.",
+      "voice" : "sage"
+    },
+    {
+      "activeLevelDB" : -24.000000399904447,
+      "category" : "filler",
+      "endOfSpeechSample" : 81120,
+      "engine" : "say",
+      "file" : "utterances/f05.wav",
+      "id" : "f05",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 91440,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 13920,
+          "start" : 3600
+        },
+        {
+          "end" : 81120,
+          "start" : 18720
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Well, er, I suppose I could try again tomorrow.",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -23.99999972182127,
+      "category" : "trailing",
+      "endOfSpeechSample" : 74640,
+      "engine" : "openai",
+      "file" : "utterances/t01.wav",
+      "id" : "t01",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 84960,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 47040,
+          "start" : 3840
+        },
+        {
+          "end" : 74640,
+          "start" : 62640
+        }
+      ],
+      "style" : "neutral",
+      "text" : "I had pasta for dinner, and…",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -24.00000043140175,
+      "category" : "trailing",
+      "endOfSpeechSample" : 95040,
+      "engine" : "openai",
+      "file" : "utterances/t02.wav",
+      "id" : "t02",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 105360,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 33120,
+          "start" : 3840
+        },
+        {
+          "end" : 76800,
+          "start" : 42240
+        },
+        {
+          "end" : 95040,
+          "start" : 85920
+        }
+      ],
+      "style" : "child",
+      "text" : "We went to the beach and then we got ice cream and…",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -23.97647181039298,
+      "category" : "trailing",
+      "endOfSpeechSample" : 47760,
+      "engine" : "say",
+      "file" : "utterances/t03.wav",
+      "id" : "t03",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 58320,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 47760,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "I was going to call my mom and",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -24.124161366930768,
+      "category" : "two_part",
+      "endOfSpeechSample" : 59280,
+      "engine" : "openai",
+      "file" : "utterances/two01.wav",
+      "id" : "two01",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 69360,
+      "scriptedPauses" : [
+        0.5
+      ],
+      "spans" : [
+        {
+          "end" : 22800,
+          "start" : 4080
+        },
+        {
+          "end" : 59280,
+          "start" : 35520
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hi Dee. How was your day?",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -24.013124746032545,
+      "category" : "two_part",
+      "endOfSpeechSample" : 114240,
+      "engine" : "openai",
+      "file" : "utterances/two02.wav",
+      "id" : "two02",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 124560,
+      "scriptedPauses" : [
+        0.8
+      ],
+      "spans" : [
+        {
+          "end" : 6000,
+          "start" : 4320
+        },
+        {
+          "end" : 56400,
+          "start" : 26400
+        },
+        {
+          "end" : 114240,
+          "start" : 66480
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Okay. Tell me a story about a brave little robot.",
+      "voice" : "verse"
+    },
+    {
+      "activeLevelDB" : -23.999999714416166,
+      "category" : "two_part",
+      "endOfSpeechSample" : 102000,
+      "engine" : "say",
+      "file" : "utterances/two03.wav",
+      "id" : "two03",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 112320,
+      "scriptedPauses" : [
+        0.7
+      ],
+      "spans" : [
+        {
+          "end" : 13440,
+          "start" : 3600
+        },
+        {
+          "end" : 46800,
+          "start" : 30960
+        },
+        {
+          "end" : 71040,
+          "start" : 51600
+        },
+        {
+          "end" : 102000,
+          "start" : 76320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Wait. Actually, never mind. What's the weather like?",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -24.000000256514884,
+      "category" : "two_part",
+      "endOfSpeechSample" : 61920,
+      "engine" : "openai",
+      "file" : "utterances/two04.wav",
+      "id" : "two04",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 72240,
+      "scriptedPauses" : [
+        0.6
+      ],
+      "spans" : [
+        {
+          "end" : 24960,
+          "start" : 4320
+        },
+        {
+          "end" : 61920,
+          "start" : 40800
+        }
+      ],
+      "style" : "child",
+      "text" : "Good morning! Did you sleep well?",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -16.999999666548693,
+      "category" : "command",
+      "endOfSpeechSample" : 18240,
+      "engine" : "openai",
+      "file" : "utterances/c01.wav",
+      "id" : "c01",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 28560,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 18240,
+          "start" : 4320
+        }
+      ],
+      "style" : "loud",
+      "text" : "Stop.",
+      "voice" : "ash"
+    },
+    {
+      "activeLevelDB" : -24.0000001305157,
+      "category" : "command",
+      "endOfSpeechSample" : 48720,
+      "engine" : "openai",
+      "file" : "utterances/c02.wav",
+      "id" : "c02",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 59040,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 22800,
+          "start" : 4320
+        },
+        {
+          "end" : 48720,
+          "start" : 34080
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Don't stop, keep going.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -24.844115240930307,
+      "category" : "command",
+      "endOfSpeechSample" : 59760,
+      "engine" : "openai",
+      "file" : "utterances/c03.wav",
+      "id" : "c03",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 69840,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 59760,
+          "start" : 4080
+        }
+      ],
+      "style" : "fast",
+      "text" : "Wait, stop talking for a second.",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -24.00000010405586,
+      "category" : "command",
+      "endOfSpeechSample" : 34560,
+      "engine" : "say",
+      "file" : "utterances/c04.wav",
+      "id" : "c04",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 44880,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 18720,
+          "start" : 3600
+        },
+        {
+          "end" : 34560,
+          "start" : 23760
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Be quiet, please.",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -32.0000000464457,
+      "category" : "command",
+      "endOfSpeechSample" : 66480,
+      "engine" : "openai",
+      "file" : "utterances/c05.wav",
+      "id" : "c05",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 76800,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 15840,
+          "start" : 4320
+        },
+        {
+          "end" : 32880,
+          "start" : 22080
+        },
+        {
+          "end" : 66480,
+          "start" : 48000
+        }
+      ],
+      "style" : "soft",
+      "text" : "Keep going, I'm listening.",
+      "voice" : "sage"
+    },
+    {
+      "activeLevelDB" : -24.0000000257478,
+      "category" : "command",
+      "endOfSpeechSample" : 38640,
+      "engine" : "openai",
+      "file" : "utterances/c06.wav",
+      "id" : "c06",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 48960,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 16800,
+          "start" : 4320
+        },
+        {
+          "end" : 38640,
+          "start" : 25200
+        }
+      ],
+      "style" : "fast",
+      "text" : "Hold on, hold on.",
+      "voice" : "echo"
+    },
+    {
+      "activeLevelDB" : -24.09683196193026,
+      "category" : "name",
+      "endOfSpeechSample" : 56880,
+      "engine" : "openai",
+      "file" : "utterances/n01.wav",
+      "id" : "n01",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 67200,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 20880,
+          "start" : 3840
+        },
+        {
+          "end" : 56880,
+          "start" : 30480
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hi Dee, my name is Priya.",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -24.000000245007804,
+      "category" : "name",
+      "endOfSpeechSample" : 106560,
+      "engine" : "openai",
+      "file" : "utterances/n02.wav",
+      "id" : "n02",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 116880,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 36720,
+          "start" : 3600
+        },
+        {
+          "end" : 62880,
+          "start" : 47760
+        },
+        {
+          "end" : 90000,
+          "start" : 69360
+        },
+        {
+          "end" : 106560,
+          "start" : 95760
+        }
+      ],
+      "style" : "neutral",
+      "text" : "I'm Marcus, and this is my daughter Lily.",
+      "voice" : "ash"
+    },
+    {
+      "activeLevelDB" : -24.00000038218192,
+      "category" : "name",
+      "endOfSpeechSample" : 65280,
+      "engine" : "say",
+      "file" : "utterances/n03.wav",
+      "id" : "n03",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 75600,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 37920,
+          "start" : 3600
+        },
+        {
+          "end" : 65280,
+          "start" : 42960
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Do you remember my name? It's Tomasz.",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -23.982743876374812,
+      "category" : "name",
+      "endOfSpeechSample" : 63840,
+      "engine" : "openai",
+      "file" : "utterances/n04.wav",
+      "id" : "n04",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 74400,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 63840,
+          "start" : 3600
+        }
+      ],
+      "style" : "child",
+      "text" : "My name is Emma and I'm seven!",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -24.02500775096137,
+      "category" : "name",
+      "endOfSpeechSample" : 45840,
+      "engine" : "openai",
+      "file" : "utterances/m01.wav",
+      "id" : "m01",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 56160,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 45840,
+          "start" : 4080
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Do you remember what my name is?",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -23.999999801513017,
+      "category" : "name",
+      "endOfSpeechSample" : 95040,
+      "engine" : "openai",
+      "file" : "utterances/n05.wav",
+      "id" : "n05",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 105360,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 54240,
+          "start" : 4320
+        },
+        {
+          "end" : 95040,
+          "start" : 60000
+        }
+      ],
+      "style" : "neutral",
+      "text" : "This is my friend Oluwaseun, he's visiting from Lagos.",
+      "voice" : "verse"
+    },
+    {
+      "activeLevelDB" : -16.999999876919436,
+      "category" : "rudeness",
+      "endOfSpeechSample" : 94560,
+      "engine" : "openai",
+      "file" : "utterances/r01.wav",
+      "id" : "r01",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 104880,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 38400,
+          "start" : 4080
+        },
+        {
+          "end" : 94560,
+          "start" : 49200
+        }
+      ],
+      "style" : "angry",
+      "text" : "You're so stupid, you never understand anything.",
+      "voice" : "ash"
+    },
+    {
+      "activeLevelDB" : -17.000000124120774,
+      "category" : "rudeness",
+      "endOfSpeechSample" : 28560,
+      "engine" : "openai",
+      "file" : "utterances/r02.wav",
+      "id" : "r02",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 38880,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 28560,
+          "start" : 4320
+        }
+      ],
+      "style" : "angry",
+      "text" : "Shut up, Dee.",
+      "voice" : "echo"
+    },
+    {
+      "activeLevelDB" : -23.999999923498212,
+      "category" : "rudeness",
+      "endOfSpeechSample" : 42960,
+      "engine" : "say",
+      "file" : "utterances/r03.wav",
+      "id" : "r03",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 53280,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 11520,
+          "start" : 3600
+        },
+        {
+          "end" : 42960,
+          "start" : 17280
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Ugh, you're useless today.",
+      "voice" : "Reed (English (US))"
+    },
+    {
+      "activeLevelDB" : -31.93200067420353,
+      "category" : "apology",
+      "endOfSpeechSample" : 113040,
+      "engine" : "openai",
+      "file" : "utterances/r04.wav",
+      "id" : "r04",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 124080,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 68160,
+          "start" : 3600
+        },
+        {
+          "end" : 113040,
+          "start" : 86640
+        }
+      ],
+      "style" : "soft",
+      "text" : "I'm sorry I yelled at you earlier, Dee. That wasn't fair.",
+      "voice" : "ash"
+    },
+    {
+      "activeLevelDB" : -31.963953077778694,
+      "category" : "apology",
+      "endOfSpeechSample" : 89040,
+      "engine" : "openai",
+      "file" : "utterances/r05.wav",
+      "id" : "r05",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 99600,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 15600,
+          "start" : 4320
+        },
+        {
+          "end" : 48720,
+          "start" : 23520
+        },
+        {
+          "end" : 89040,
+          "start" : 68160
+        }
+      ],
+      "style" : "soft",
+      "text" : "Sorry, I was in a bad mood. Can we start over?",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -23.95533295119591,
+      "category" : "joke",
+      "endOfSpeechSample" : 189360,
+      "engine" : "openai",
+      "file" : "utterances/j01.wav",
+      "id" : "j01",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 200640,
+      "scriptedPauses" : [
+        1
+      ],
+      "spans" : [
+        {
+          "end" : 29520,
+          "start" : 4320
+        },
+        {
+          "end" : 88800,
+          "start" : 43200
+        },
+        {
+          "end" : 131760,
+          "start" : 113760
+        },
+        {
+          "end" : 189360,
+          "start" : 138960
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Want to hear a joke? Why did the scarecrow win an award? Because he was outstanding in his field!",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -23.948636785459843,
+      "category" : "joke",
+      "endOfSpeechSample" : 24000,
+      "engine" : "openai",
+      "file" : "utterances/j02.wav",
+      "id" : "j02",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 34560,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 24000,
+          "start" : 3840
+        }
+      ],
+      "style" : "child",
+      "text" : "Knock knock.",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -31.78503825009223,
+      "category" : "sad_news",
+      "endOfSpeechSample" : 55200,
+      "engine" : "openai",
+      "file" : "utterances/s01.wav",
+      "id" : "s01",
+      "onsetSample" : 4560,
+      "sampleRate" : 24000,
+      "samples" : 67200,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 30720,
+          "start" : 4560
+        },
+        {
+          "end" : 55200,
+          "start" : 38880
+        }
+      ],
+      "style" : "soft",
+      "text" : "My cat died this morning.",
+      "voice" : "ballad"
+    },
+    {
+      "activeLevelDB" : -32.23122348579074,
+      "category" : "sad_news",
+      "endOfSpeechSample" : 92880,
+      "engine" : "openai",
+      "file" : "utterances/s02.wav",
+      "id" : "s02",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 102720,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 12240,
+          "start" : 3600
+        },
+        {
+          "end" : 31680,
+          "start" : 17040
+        },
+        {
+          "end" : 92880,
+          "start" : 37680
+        }
+      ],
+      "style" : "soft",
+      "text" : "I didn't get the job I interviewed for.",
+      "voice" : "sage"
+    },
+    {
+      "activeLevelDB" : -31.978462757128717,
+      "category" : "sad_news",
+      "endOfSpeechSample" : 51840,
+      "engine" : "say",
+      "file" : "utterances/s03.wav",
+      "id" : "s03",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 62400,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 51840,
+          "start" : 3600
+        }
+      ],
+      "style" : "soft",
+      "text" : "My grandpa is in the hospital again.",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -24.0700376858238,
+      "category" : "plan",
+      "endOfSpeechSample" : 86160,
+      "engine" : "openai",
+      "file" : "utterances/d01.wav",
+      "id" : "d01",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 96240,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 66000,
+          "start" : 4080
+        },
+        {
+          "end" : 86160,
+          "start" : 73200
+        }
+      ],
+      "style" : "neutral",
+      "text" : "I have a dentist appointment next Tuesday at three.",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -24.010700765958646,
+      "category" : "plan",
+      "endOfSpeechSample" : 122400,
+      "engine" : "openai",
+      "file" : "utterances/d02.wav",
+      "id" : "d02",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 132480,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 37680,
+          "start" : 3840
+        },
+        {
+          "end" : 76560,
+          "start" : 44160
+        },
+        {
+          "end" : 122400,
+          "start" : 91200
+        }
+      ],
+      "style" : "neutral",
+      "text" : "My sister's wedding is on June twelfth, and I'm giving a speech.",
+      "voice" : "verse"
+    },
+    {
+      "activeLevelDB" : -23.99999985059583,
+      "category" : "plan",
+      "endOfSpeechSample" : 62880,
+      "engine" : "say",
+      "file" : "utterances/d03.wav",
+      "id" : "d03",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 73200,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 62880,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "We're flying to Lisbon on the fourth of March.",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -23.99999982649006,
+      "category" : "plan",
+      "endOfSpeechSample" : 87840,
+      "engine" : "openai",
+      "file" : "utterances/d04.wav",
+      "id" : "d04",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 98160,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 62640,
+          "start" : 4320
+        },
+        {
+          "end" : 87840,
+          "start" : 68400
+        }
+      ],
+      "style" : "fast",
+      "text" : "I have a big exam on Friday morning and I'm nervous.",
+      "voice" : "echo"
+    },
+    {
+      "activeLevelDB" : -23.987291517357107,
+      "category" : "plan",
+      "endOfSpeechSample" : 85680,
+      "engine" : "openai",
+      "file" : "utterances/d05.wav",
+      "id" : "d05",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 96240,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 85680,
+          "start" : 3840
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Remind me to ask you how my sister's interview went on Thursday.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -24.00000037270327,
+      "category" : "continuation",
+      "endOfSpeechSample" : 78240,
+      "engine" : "openai",
+      "file" : "utterances/k01.wav",
+      "id" : "k01",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 88560,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 14400,
+          "start" : 4320
+        },
+        {
+          "end" : 78240,
+          "start" : 21600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "then I had a huge slice of chocolate cake.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -24.000000019714463,
+      "category" : "continuation",
+      "endOfSpeechSample" : 83760,
+      "engine" : "openai",
+      "file" : "utterances/k02.wav",
+      "id" : "k02",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 94080,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 83760,
+          "start" : 4320
+        }
+      ],
+      "style" : "child",
+      "text" : "a seagull stole my brother's ice cream right out of his hand!",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -23.984851279692055,
+      "category" : "continuation",
+      "endOfSpeechSample" : 78720,
+      "engine" : "say",
+      "file" : "utterances/k03.wav",
+      "id" : "k03",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 89280,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 37680,
+          "start" : 3600
+        },
+        {
+          "end" : 78720,
+          "start" : 44160
+        }
+      ],
+      "style" : "neutral",
+      "text" : "tell her about my new job. Do you think she'll be happy?",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -24.00000008715752,
+      "category" : "continuation",
+      "endOfSpeechSample" : 59520,
+      "engine" : "openai",
+      "file" : "utterances/k04.wav",
+      "id" : "k04",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 69840,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 23760,
+          "start" : 4320
+        },
+        {
+          "end" : 59520,
+          "start" : 34320
+        }
+      ],
+      "style" : "fast",
+      "text" : "Okay, sorry. What's your favorite animal?",
+      "voice" : "echo"
+    },
+    {
+      "activeLevelDB" : -24.000000318528198,
+      "category" : "continuation",
+      "endOfSpeechSample" : 18720,
+      "engine" : "openai",
+      "file" : "utterances/k05.wav",
+      "id" : "k05",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 29040,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 18720,
+          "start" : 4080
+        }
+      ],
+      "style" : "child",
+      "text" : "Lettuce.",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -24.00000000703646,
+      "category" : "continuation",
+      "endOfSpeechSample" : 80640,
+      "engine" : "openai",
+      "file" : "utterances/k06.wav",
+      "id" : "k06",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 90960,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 20640,
+          "start" : 4080
+        },
+        {
+          "end" : 38640,
+          "start" : 29280
+        },
+        {
+          "end" : 80640,
+          "start" : 48480
+        }
+      ],
+      "style" : "child",
+      "text" : "Lettuce in, it's cold out here!",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -31.963960228829574,
+      "category" : "continuation",
+      "endOfSpeechSample" : 78960,
+      "engine" : "openai",
+      "file" : "utterances/k07.wav",
+      "id" : "k07",
+      "onsetSample" : 4560,
+      "sampleRate" : 24000,
+      "samples" : 89280,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 32160,
+          "start" : 4560
+        },
+        {
+          "end" : 78960,
+          "start" : 49200
+        }
+      ],
+      "style" : "soft",
+      "text" : "Thanks, Dee. I really miss her.",
+      "voice" : "ballad"
+    }
+  ],
+  "version" : 1
+}

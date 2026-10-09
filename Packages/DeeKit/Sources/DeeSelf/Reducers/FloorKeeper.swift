@@ -14,6 +14,10 @@ import Foundation
 /// Status: complete for 0.5.1 (+ 0.5.1 review fixes: the reconciled tag is capped and
 /// refreshed per sentence, `.deeSpeaking` times out, a late `.deeSaid` after a barge-in
 /// is ignored, and a barge-in during the user's own turn keeps the user's floor).
+/// Voice-loop fixes (audit C3): Dee's own sound during the user's turn does not end
+/// it, and a pause after a barge-in hands the floor to the user (not a timed yield).
+/// Review fix (M2): `.userSpeaking` times out too, when their words never arrive as
+/// `.heard` (a spoken command, an utterance she did not answer).
 public struct FloorKeeper: SubReducer {
     public static let name = "FloorKeeper"
 
@@ -27,6 +31,9 @@ public struct FloorKeeper: SubReducer {
     /// Failsafes so a lost event can't wedge the floor.
     public static let yieldingTimeout: TimeInterval = 2
     public static let pausedTimeout: TimeInterval = 12
+    /// No partial or pause for this long while `.userSpeaking` (their final words
+    /// never reached the Cortex: a spoken command, an utterance not answered) → idle.
+    public static let userSpeakingTimeout: TimeInterval = 8
     public static let thinkingTimeout: TimeInterval = 45
     /// No sentence for this long while `.deeSpeaking` (a lost `speakingFinished`) → idle.
     public static let speakingTimeout: TimeInterval = 20
@@ -41,6 +48,8 @@ public struct FloorKeeper: SubReducer {
     public private(set) var lastVerdict: TagReconciler.Verdict?
     /// When Dee last started a sentence (speaking timeout).
     public private(set) var lastSentenceAt: Date?
+    /// When the user's turn last showed life: a partial or a pause (speaking timeout).
+    public private(set) var lastUserSignAt: Date?
     /// The current tag is lingering after speech ended (never refreshed by a sentence).
     var tagLingering = false
 
@@ -51,14 +60,23 @@ public struct FloorKeeper: SubReducer {
         var effects: [Effect] = []
         switch p {
         case .partial:
+            lastUserSignAt = now
             userResumed(&m, now: now, effects: &effects)
 
         case .pause(let turnEnd, let hesitation):
+            lastUserSignAt = now
             switch m.momentary.floor {
             case .userSpeaking:
                 m.momentary.floor = .userPaused(since: now, turnEnd: turnEnd, hesitation: hesitation)
             case .userPaused(let since, _, _):
                 m.momentary.floor = .userPaused(since: since, turnEnd: turnEnd, hesitation: hesitation)
+            case .yielding:
+                // They barged in and are mid-turn (a voice without live partials only
+                // reports their pauses): their floor, not a 2 s yield that times out
+                // to idle while they are still talking.
+                userTurnStarted = userTurnStarted ?? now
+                m.momentary.floorEvents.append(.userStarted)
+                m.momentary.floor = .userPaused(since: now, turnEnd: turnEnd, hesitation: hesitation)
             default:
                 break   // a stale pause estimate after the turn ended
             }
@@ -76,7 +94,13 @@ public struct FloorKeeper: SubReducer {
             sentencesThisReply = 0
 
         case .speakingStarted:
-            if case .deeSpeaking = m.momentary.floor {} else { m.momentary.floor = .deeSpeaking(since: now) }
+            // A sound while the user holds the floor (a laugh, a canned line) is an
+            // interjection, not Dee taking her turn: their turn stays open, so their
+            // next words are not misread as them interrupting her (audit C3). Her
+            // reply's sentences (`.deeSaid`) still take the floor.
+            if !m.momentary.floor.isUserTurn {
+                if case .deeSpeaking = m.momentary.floor {} else { m.momentary.floor = .deeSpeaking(since: now) }
+            }
             m.ongoing.cutOff = false
 
         case .deeSaid(let tag, _):
@@ -144,6 +168,9 @@ public struct FloorKeeper: SubReducer {
             case .yielding(let since) where now.timeIntervalSince(since) > Self.yieldingTimeout:
                 m.momentary.floor = .idle
             case .userPaused(let since, _, _) where now.timeIntervalSince(since) > Self.pausedTimeout:
+                m.momentary.floor = .idle
+                userTurnStarted = nil
+            case .userSpeaking(let since) where now.timeIntervalSince(max(since, lastUserSignAt ?? since)) > Self.userSpeakingTimeout:
                 m.momentary.floor = .idle
                 userTurnStarted = nil
             case .deeThinking(let since) where now.timeIntervalSince(since) > Self.thinkingTimeout:

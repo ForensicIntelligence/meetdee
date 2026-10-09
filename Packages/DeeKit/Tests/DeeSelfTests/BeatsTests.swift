@@ -228,8 +228,10 @@ struct BeatsStage: SubReducer {
     }
 
     /// Review finding 14: while the user already has the floor she does not talk over them
-    /// again to apologise: the sheepish look and the nod only. Free floor: the line, and
-    /// `"sorrySaid"` so RepairKeeper does not ask for a second apology later.
+    /// again to apologise: the sheepish look and the nod only. Idle floor: the line, and
+    /// `"sorrySaid"` so RepairKeeper does not ask for a second apology later. Audit C3:
+    /// `.yielding` is not free — she yields *because* they are talking — so the line waits
+    /// for the floor to go idle (see VoiceLoopFixTests for the waiting rules).
     @Test func sorryLineOnlyWhenTheFloorIsFree() {
         var talking = ReducerRun(Beats())
         talking.m.momentary.floor = .userSpeaking(since: Kit.t0)
@@ -238,7 +240,11 @@ struct BeatsStage: SubReducer {
         #expect(!talking.m.momentary.signals.contains { $0.name == "sorrySaid" })
         var yielding = ReducerRun(Beats())
         yielding.m.momentary.floor = .yielding(since: Kit.t0)
-        let said = yielding.step(.bargeIn, at: 1, events: [.deeInterrupted, .cutOff])
+        let held = yielding.step(.bargeIn, at: 1, events: [.deeInterrupted, .cutOff])
+        #expect(Self.kind(yielding.m) == .sorryGoOn && Self.say(held).isEmpty, "not over the user who just barged in")
+        #expect(!yielding.m.momentary.signals.contains { $0.name == "sorrySaid" })
+        yielding.m.momentary.floor = .idle
+        let said = yielding.step(.tick, at: 3)
         #expect(Self.say(said).count == 1)
         #expect(yielding.m.momentary.signals.contains { $0.name == "sorrySaid" && $0.owner == Beats.name })
     }

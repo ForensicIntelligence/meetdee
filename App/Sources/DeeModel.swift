@@ -1,8 +1,9 @@
+import DeeBrain
 import DeeCore
 import DeeFace
-import DeeLLM
 import DeeMemory
 import DeeMind
+import DeeRealtime
 import DeeSelf
 import DeeSense
 import DeeVoice
@@ -21,13 +22,18 @@ struct TranscriptItem: Identifiable, Equatable {
 
 /// The app's I/O shell around Dee's one mind.
 ///
-/// v0.5 ("Someone"): DeeModel no longer decides how Dee looks or sounds. Every
-/// stimulus — speech, pauses, touch, gestures, sights, sounds, who's there, her own
-/// sentences — becomes a `Percept` for the Cortex (DeeSelf), which keeps one shared
-/// interpretation of the moment (`Stance`). The face, the voice style, the gaze,
-/// the little performances and the language model's `<dee_state>` cue are all
-/// projected from that one Stance, so they can never disagree. DeeModel runs the
-/// devices, the language model and the stores, and executes the Cortex's effects.
+/// Every stimulus — speech, pauses, touch, gestures, sights, sounds, who's there,
+/// her own sentences — becomes a `Percept` for the Cortex (DeeSelf), which keeps one
+/// shared interpretation of the moment (`Stance`). The face, the voice style, the
+/// gaze, the little performances and the Dee DNA sent with every response are all
+/// projected from that one state, so they can never disagree.
+///
+/// v0.6: her ears, thinking and voice are one OpenAI realtime session (`CloudVoice`)
+/// driven by `RealtimeBrain` (DeeBrain). The brain decides when she answers spoken
+/// turns and calls back here (`BrainHost`) for the words' normal path (commands,
+/// "is this for me?", people, Mind, Cortex) and for the DNA inputs. Initiatives,
+/// event lines and typed text still start here (`startTurn` → `brain.respond`).
+/// Offline she stays alive — eyes, touch, camera — with a visible "no connection".
 @Observable @MainActor
 final class DeeModel {
     enum LoadState: Equatable {
@@ -52,6 +58,12 @@ final class DeeModel {
 
     // Brain
     private(set) var loadState: LoadState = .idle
+    /// What is wrong with her cloud voice, in words for the status chip (Release too).
+    var cloudStatus: CloudStatus? { CloudStatus(voiceProblem) }
+    /// A short notice next to the chip (a pasted key was refused, a setting needs a relaunch).
+    private(set) var notice: String?
+    /// The one-time AI-voice disclosure, shown while she says it.
+    private(set) var disclosure: String?
     private(set) var transcript: [TranscriptItem] = []
     private(set) var thinkingMode = false
     private(set) var isResponding = false
@@ -67,6 +79,7 @@ final class DeeModel {
     private(set) var sleeping = false {
         didSet {
             guard oldValue != sleeping else { return }
+            if !sleeping { lastWokeAt = Date() }
             camera.isDozing = sleeping
             updateListening()
             sense(.asleep(sleeping))
@@ -92,7 +105,17 @@ final class DeeModel {
     private(set) var isSpeaking = false
     private(set) var voiceReady = false
     private(set) var microphoneAllowed = true
-    private var lastHeardPartialAt = Date.distantPast
+    /// What is wrong with her ears or voice, for the screen (audit C11): permission
+    /// off, the speech model still downloading, recognition or audio failing.
+    private(set) var voiceProblem: VoiceProblem?
+    /// Her ears are the cloud voice: no on-device speech recognition to wait for.
+    private var voiceHealth: VoiceHealth = {
+        var health = VoiceHealth()
+        health.onDeviceSpeech = false
+        return health
+    }()
+    /// The user's turn as her ears saw it (who holds the floor, audit C3).
+    private var userFloor = UserFloor()
     private var lastPartialForwarded = Date.distantPast
     private var absentSince: Date? = Date()
     private var asleepSince: Date?
@@ -100,12 +123,34 @@ final class DeeModel {
     private var curiosity = CuriosityDirector()
     private var lastInitiativeAt = Date.distantPast
 
-    private var engine: LlamaEngine?
-    private var agent: ConversationAgent?
+    /// Whatever writes her replies: the cloud realtime brain (`makeReplyEngine`).
+    /// Without a key or a connection Dee is silent but alive: she sees, hears sounds,
+    /// feels and reacts with her face.
+    private var brain: (any ReplyEngine)?
+    private var realtime: RealtimeBrain?
     private var responseTask: Task<Void, Never>?
     private var persona = Persona()
     private let camera = CameraSense()
-    private let voice = VoiceService()
+    /// Settings › Dee (voice, model, share memories), read at launch.
+    private var settings: CloudSettings
+    private let keyStore: KeyStore
+    /// Laughs and short lines, rendered once in her voice.
+    private let clips: ClipCache
+    /// Her ears and voice: one OpenAI realtime session (the key comes from the
+    /// Keychain). It never answers by itself; the brain asks it to.
+    private let voice: CloudVoice
+    /// The session's current speech speed (mood), so it is only updated on a change.
+    private var sessionSpeed = 1.0
+    /// For the DNA (§1.8): the last touch and when she last woke.
+    private var lastTouch: TouchInput?
+    private var lastWokeAt: Date?
+    /// The Mind's voice baseline, refreshed after each heard turn.
+    private var baseline = Appraiser.VoiceBaseline()
+    private var dailyCache: (at: Date, days: [DNADay])?
+    /// The notes a Cortex initiative issued (its aim), for that initiative's DNA.
+    private var initiativeNotes: [Note]?
+    /// The spoken AI-voice disclosure is being tried right now.
+    private var disclosing = false
     private var moodClock: Task<Void, Never>?
     private var touchClock: Task<Void, Never>?
     private var mind: Mind?
@@ -113,10 +158,45 @@ final class DeeModel {
     /// Extra stage-direction notes for the next turn's cue (identity checks, care).
     private var pendingNotes: [String] = []
 
+    // Turns (audit C1–C3, C8, C9)
+    /// When someone last engaged Dee: in view, or spoke to her by name. She answers
+    /// whatever she hears until `engagedGrace` after that; later only speech that
+    /// addresses her ("Dee, …", "wake up"), so a TV or people talking to each other
+    /// get no answers. Listening itself never depends on the face (C1).
+    private var lastEngagedAt = Date()
+    /// Dee's current (or last) reply — how much of it was heard, whether it gives
+    /// way to the user — and the user's words carried over from a withdrawn turn
+    /// (C2: "Hi Dee." … "How was your day?" are answered together).
+    private var ledger = TurnLedger()
+    /// The brain is being brought in line with a stopped reply, or is starting a new
+    /// conversation; the next turn waits.
+    private var settling: Task<Void, Never>?
+    /// Words that arrived while a reply was still being prepared or cut short; they
+    /// start the next turn as soon as that one has wound down (C2: never dropped).
+    private var queuedUtterance: QueuedUtterance?
+    /// "Start over" arrived mid-reply: do it once the turn has wound down.
+    private var freshStartPending = false
+    /// When Dee was last stopped (barge-in, hush): "stop" right after is a command.
+    private var lastStoppedAt = Date.distantPast
+
+    init() {
+        let settings = CloudSettings(defaults: .standard)
+        let keys = KeyStore()
+        let clips = ClipCache(voice: .named(settings.voice), keyStore: keys)
+        // The session carries the Dee DNA itself (docs/DNA.md §4.1: one per connection).
+        let session = RealtimeSession(config: settings.sessionConfig(), auth: RealtimeAuth(keyStore: keys))
+        self.settings = settings
+        self.keyStore = keys
+        self.clips = clips
+        voice = CloudVoice(session: session, clips: clips)
+    }
+
     /// How long nobody may be in view before Dee falls asleep, and how long she
     /// must sleep before the next visit counts as a new conversation.
     static let sleepAfter: TimeInterval = 180
     static let newConversationAfterSleeping: TimeInterval = 300
+    /// How long after the last face (or her name) Dee still answers anything she hears.
+    static let engagedGrace: TimeInterval = 60
 
     // MARK: - Projection (face / voice from the one Stance)
 
@@ -136,6 +216,13 @@ final class DeeModel {
         }
         if sleeping { inputs.activity = .sleeping }
         if loadState != .ready, !sleeping { inputs.activity = .thinking }
+        if let status = cloudStatus, status.cloudOff, !sleeping {
+            // No cloud voice: a quieter, slightly puzzled look (her eyes, touch and
+            // camera stay alive; only her words are away).
+            inputs.lidSoften = max(inputs.lidSoften, 0.3)
+            inputs.tilt = inputs.tilt == 0 ? 0.18 : inputs.tilt
+            inputs.tint = FaceColor(0.55, 0.62, 0.72)
+        }
         inputs.speechLevel = speechLevel
         inputs.micLevel = micLevel
         inputs.performance = performance
@@ -172,6 +259,12 @@ final class DeeModel {
         stanceVersion &+= 1
         performanceCounter += 1
         if let p = Projector.performance(driver.stance, id: performanceCounter) { performance = p }
+        // Her speaking speed follows her mood (the session applies it between turns).
+        let speed = voiceStyle.sessionSpeed
+        if abs(speed - sessionSpeed) >= 0.04 {
+            sessionSpeed = speed
+            Task { [voice] in await voice.session.updateSession(speed: speed) }
+        }
     }
 
     private func execute(_ effect: Effect) {
@@ -179,9 +272,18 @@ final class DeeModel {
         case .reply(let userText, let cue):
             if let userText { perceive(.spoken(userText, prosody: nil)) } else { perceive(.cortexInitiative(cue: cue)) }
         case .initiative(let cue):
+            // The aim was issued into the Stance on this very step; the next steps
+            // reset `stance.notes`, so the DNA gets these.
+            initiativeNotes = selfDriver?.stance.notes
             perceive(.cortexInitiative(cue: cue))
         case .say(let line):
-            voice.say(line, style: voiceStyle)
+            // Canned lines (the sorry line, …) never start over the user: speaking
+            // would close their turn mid-thought (audit C3).
+            guard !userHoldsFloor else {
+                transcript.append(TranscriptItem(kind: .note, text: "Held back (the user has the floor): \(line)"))
+                break
+            }
+            sayAside(line, style: voiceStyle)
         case .stopSpeaking:
             stop()
         case .setPauseScale(let scale):
@@ -226,40 +328,96 @@ final class DeeModel {
         }
         wirePeople()
         startMoodClock()
+        // The key pasted in Settings goes to the Keychain before the voice connects.
+        await absorbKey()
+        prepareClips()
+        // The brain configures the session (instructions, tools) before it connects.
+        let realtime = makeReplyEngine()
+        self.realtime = realtime
+        self.brain = realtime
+        await realtime.start()
         startVoice()
         await startCamera()
         await loadIfNeeded()
     }
 
+    /// Her body is ready at once (there is no model to load); the brain starts its
+    /// first conversation.
     func loadIfNeeded() async {
-        guard loadState == .idle || { if case .failed = loadState { true } else { false } }() else { return }
-        guard let url = ModelLocator.locate() else {
-            loadState = .failed(ModelLocator.Problem.notFound.localizedDescription)
-            return
+        guard loadState == .idle else { return }
+        await startConversation(brain)
+        loadState = .ready
+        statusLine = "Cloud voice: \(settings.model), \(settings.voice)"
+        updateListening()
+        #if DEBUG
+        // `-DeeAutoPrompt "text"`: send a message on launch (screenshots, UI tests).
+        if let auto = UserDefaults.standard.string(forKey: "DeeAutoPrompt"), !auto.isEmpty {
+            send(auto)
         }
-        do {
-            try ModelLocator.checkMemory()
-            loadState = .loading(0)
-            let engine = try await LlamaEngine.load(.init(modelPath: url.path(percentEncoded: false))) { [weak self] p in
-                Task { @MainActor in
-                    if case .loading = self?.loadState { self?.loadState = .loading(p) }
-                }
-            }
-            let agent = ConversationAgent(generator: engine, tools: memoryTools(), persona: persona)
-            self.engine = engine
-            self.agent = agent
-            await startConversation(agent)
-            loadState = .ready
-            statusLine = engine.modelDescription
-            updateListening()
-            #if DEBUG
-            // `-DeeAutoPrompt "text"`: send a message on launch (screenshots, UI tests).
-            if let auto = UserDefaults.standard.string(forKey: "DeeAutoPrompt"), !auto.isEmpty {
-                send(auto)
-            }
-            #endif
-        } catch {
-            loadState = .failed(error.localizedDescription)
+        #endif
+    }
+
+    /// The brain: RealtimeBrain on `voice`, with the memory tools (unless memories
+    /// are private) and the device tools.
+    private func makeReplyEngine() -> RealtimeBrain {
+        RealtimeBrain(voice: voice, host: self, toolbox: toolbox())
+    }
+
+    private func toolbox() -> BrainToolbox {
+        var tools: [any AgentTool] = []
+        if let people {
+            let current: @Sendable () async -> UUID? = { await MainActor.run { people.currentID } }
+            tools += BrainToolbox.memoryTools(store: people.store, currentPerson: current, share: settings.shareMemories)
+        }
+        tools += DeviceTools.all()
+        return BrainToolbox(tools: tools)
+    }
+
+    // MARK: - Cloud settings and key
+
+    /// Settings › Dee "OpenAI API key": validated, moved to the Keychain, cleared
+    /// from Settings (UserDefaults is not encrypted). Then the voice reconnects.
+    private func absorbKey() async {
+        switch await KeyIntake(keyStore: keyStore).absorb(from: .standard) {
+        case .nothing:
+            break
+        case .stored(let validated):
+            show(notice: validated ? "OpenAI key saved." : "OpenAI key saved (not checked: offline).")
+            voice.reconnect()
+            prepareClips()
+        case .rejected(let why):
+            show(notice: why)
+        }
+    }
+
+    /// Renders her laughs and short lines once a key exists (cheap when they are on disk).
+    private func prepareClips() {
+        guard keyStore.hasKey else { return }
+        let d = UserDefaults.standard
+        if let last = d.string(forKey: CloudSettings.Key.lastVoice), last != settings.voice {
+            clips.removeOtherVoices()
+        }
+        d.set(settings.voice, forKey: CloudSettings.Key.lastVoice)
+        Task.detached { [clips] in _ = await clips.prepare() }
+    }
+
+    /// Settings changed while she was in the background.
+    private func applyCloudSettings() async {
+        let fresh = CloudSettings(defaults: .standard)
+        guard fresh != settings else { return }
+        let needsRelaunch = fresh.voice != settings.voice || fresh.model != settings.model
+        let shareChanged = fresh.shareMemories != settings.shareMemories
+        settings = fresh
+        if shareChanged { await realtime?.setToolbox(toolbox()) }
+        if needsRelaunch { show(notice: "Her new voice or model starts the next time Dee opens.") }
+    }
+
+    private func show(notice text: String) {
+        notice = text
+        transcript.append(TranscriptItem(kind: .note, text: text))
+        Task {
+            try? await Task.sleep(for: .seconds(8))
+            if self.notice == text { self.notice = nil }
         }
     }
 
@@ -277,6 +435,7 @@ final class DeeModel {
             self.mind = mind
             await applyAgeSettings()
             accept(await mind.tick(userPresent: someoneHere, asleep: false))
+            baseline = await mind.voiceBaseline
         } catch {
             // A corrupt database must never brick Dee: move it aside (kept for
             // diagnosis, never deleted) and start a fresh one; in-memory as a last resort.
@@ -332,8 +491,10 @@ final class DeeModel {
     @discardableResult
     private func react(_ appraisal: Appraisal, then percept: Percept? = .tick) async -> MindSnapshot? {
         guard let mind else { return nil }
+        let before = mindSnapshot?.code
         let snap = await mind.react(appraisal)
         accept(snap)
+        if let before { realtime?.noteMind(appraisal, before: before, after: snap.code) }
         if let percept { sense(percept) }
         return snap
     }
@@ -347,14 +508,21 @@ final class DeeModel {
         if active {
             let away = backgroundedAt
             backgroundedAt = nil
-            accept(await mind.catchUp(lastSeenUserAt: someoneHere ? away : nil))
+            let before = mindSnapshot?.code
+            let snap = await mind.catchUp(lastSeenUserAt: someoneHere ? away : nil)
+            accept(snap)
+            if let before { realtime?.noteCause(sleeping ? .rest : .timeAlone, before: before, after: snap.code) }
             await applyAgeSettings()
+            await applyCloudSettings()
+            await absorbKey()
             sense(.tick)
             updateListening()
         } else if backgroundedAt == nil {
             backgroundedAt = Date()
             voice.listeningEnabled = false
-            voice.stopSpeaking()
+            stop(hush: true)
+            // The guard corpus and prosody frames are RAM for this session only.
+            realtime?.backgrounded()
             touch.cancelAll()
             touchPoint = nil
             accept(await mind.tick(userPresent: someoneHere, asleep: sleeping))
@@ -379,53 +547,118 @@ final class DeeModel {
         Task { await voice.start() }
     }
 
-    /// Listen whenever someone could be talking to Dee and she's awake. The voice
-    /// service pauses recognition by itself while Dee is speaking.
+    /// Listen whenever Dee is loaded and in the foreground — not only while a face
+    /// is in view (audit C1: glancing away for 1.5 s used to deafen her and erase the
+    /// sentence in progress), and also while she sleeps, so her name can wake her
+    /// (the old wake-on-speech path could never fire). *Whether* she answers is
+    /// decided per utterance (`engaged`). Her own echo never counts as the user
+    /// (the cloud voice cancels it).
     private func updateListening() {
-        voice.listeningEnabled = loadState == .ready && someoneHere && !sleeping && backgroundedAt == nil
+        let on = loadState == .ready && backgroundedAt == nil
+        voice.listeningEnabled = on
+        voiceHealth.listeningWanted(since: on && voiceReady ? (voiceHealth.waitingForEarsSince ?? Date()) : nil)
+        refreshVoiceProblem()
+    }
+
+    /// Someone is with Dee: in view, or was (or said her name) within `engagedGrace`.
+    var isEngaged: Bool { someoneHere || Date().timeIntervalSince(lastEngagedAt) < Self.engagedGrace }
+
+    /// The user has the floor: talking, mid-pause with words not yet delivered, or
+    /// Dee has just yielded to them. Her own sounds — initiatives, events, laughs,
+    /// canned lines — wait (audit C3: any speech she starts closes the user's turn).
+    /// Raw voice activity counts only while someone is engaged (a TV in an empty
+    /// room must not keep her awake), and a Cortex floor left at "user speaking" by
+    /// words that never reached it as `.heard` (a command) does not (`UserFloor`).
+    private var userHoldsFloor: Bool {
+        let floor = selfDriver?.stance.floor
+        let yielding: Bool = if case .yielding? = floor { true } else { false }
+        return userFloor.holds(at: Date(), voiceActive: voice.userIsSpeaking, engaged: isEngaged && !sleeping,
+                               cortexUserTurn: floor?.isUserTurn ?? false, cortexYielding: yielding)
+    }
+
+    /// Spoken to by name (or asked to wake up) while asleep or with nobody in view.
+    private func wokenByVoice() {
+        lastEngagedAt = Date()
+        guard sleeping else { return }
+        let sleptLongEnough = asleepSince.map { Date().timeIntervalSince($0) >= Self.newConversationAfterSleeping } ?? false
+        sleeping = false
+        asleepSince = nil
+        if sleptLongEnough { newConversation() }
+    }
+
+
+    private func refreshVoiceProblem() {
+        // No connection (no key, refused key, network down) is shown like any
+        // other problem with her ears or voice.
+        voiceHealth.cloudVoice(voice.problem)
+        var problem = voiceHealth.problem(at: Date())
+        // Her ears close while she talks: not a reason to start saying they aren't ready.
+        if problem == .preparingEars, isSpeaking, voiceProblem != .preparingEars { problem = nil }
+        guard problem != voiceProblem else { return }
+        voiceProblem = problem
+        if let problem { transcript.append(TranscriptItem(kind: .note, text: problem.message)) }
     }
 
     private func handle(_ event: VoiceEvent) {
         switch event {
-        case .permission(let mic, _):
+        case .permission(let mic, let speech):
             microphoneAllowed = mic
-            if !mic {
-                transcript.append(TranscriptItem(kind: .note, text: "Microphone access is off — Dee can't hear you. Turn it on in Settings › Dee."))
-            }
+            voiceHealth.permission(microphone: mic, speech: speech)
+            refreshVoiceProblem()
         case .ready:
             voiceReady = true
             updateListening()
-        case .listening:
-            break
+        case .listening(let open):
+            if open, !voiceHealth.earsOpened || voiceProblem != nil {
+                voiceHealth.earsWorking()
+                refreshVoiceProblem()
+            }
         case .partial(let text):
+            if !voiceHealth.earsOpened || voiceProblem != nil { voiceHealth.earsWorking(); refreshVoiceProblem() }
+            if !isEngaged || sleeping {
+                // Speech nobody aimed at her: no captions, no listening face — unless
+                // it is her name, which wakes her and gets her attention.
+                guard SpokenCommand.addressesDee(text) else { return }
+                wokenByVoice()
+            }
             heard = text
-            lastHeardPartialAt = Date()
-            if sleeping { sleeping = false; asleepSince = nil }
+            userFloor.partial(at: Date())
+            // The user started talking: an initiative or event line she has not started
+            // saying gives way.
+            yieldToUser()
             // Forward partials at ≤ 2 Hz: the listening face previews her reaction.
             if Date().timeIntervalSince(lastPartialForwarded) >= 0.5 {
                 lastPartialForwarded = Date()
                 sense(.partial(text))
             }
         case .pause(let turnEnd, let hesitation):
+            guard isEngaged, !sleeping else { return }
+            userFloor.paused(at: Date())
             sense(.pause(turnEnd: turnEnd, hesitation: hesitation))
-        case .heard(let utterance):
-            lastHeardPartialAt = .distantPast
-            let p = utterance.prosody
-            let prosody = Prosody(loudnessDB: p.loudnessDB, peakDB: p.peakDB, speechRate: p.speechRate, pitchVariability: p.pitchVariability)
-            pendingHeardDuration = utterance.duration
-            perceive(.spoken(utterance.text, prosody: prosody))
+        case .heard:
+            // Their turn is over whatever becomes of the words (answered, a command,
+            // not for her): the floor is no longer theirs (M2). The words themselves
+            // reach the brain as the server's transcript, which runs `heard(_:)`
+            // below; this event never starts or stops a reply (the reply to it was
+            // usually requested at the commit, before these words arrived).
+            userFloor.closed(at: Date())
+            if !voiceHealth.earsOpened || voiceProblem != nil { voiceHealth.earsWorking(); refreshVoiceProblem() }
         case .sound(let sound):
             heardSound(sound)
         case .micLevel(let level):
             micLevel = level
         case .speakingStarted:
             isSpeaking = true
+            if voiceProblem != nil { voiceHealth.audioWorking(); refreshVoiceProblem() }
+            ledger.speakingStarted(at: Date())
             sense(.speakingStarted)
         case .speechLevel(let level):
             speechLevel = level
+            ledger.speechLevel(level, at: Date())
         case .speakingFinished:
             isSpeaking = false
             speechLevel = 0
+            ledger.speakingFinished(at: Date())
             curiosity.note(.deeSpoke, at: Date())
             sense(.speakingFinished)
         case .bargeIn:
@@ -434,19 +667,19 @@ final class DeeModel {
             sense(.bargeIn)
         case .error(let message):
             transcript.append(TranscriptItem(kind: .note, text: "Voice: \(message)"))
+            if voiceHealth.error(message) { refreshVoiceProblem() }
         }
     }
 
-    private var pendingHeardDuration = 0.0
 
     private func heardSound(_ sound: HeardSound) {
         let loudness = max(0, min(1, (sound.loudnessDB + 50) / 40))
         // Social sounds are never "unexpected", but they matter most: laughter is
         // contagious, crying gets concern, applause delights.
         if sound.kind.isSocial {
-            let quietMoment = !isSpeaking && !isResponding && !voice.userIsSpeaking
+            let quietMoment = !isSpeaking && !isResponding && !userHoldsFloor
             if sound.kind == .laughter, quietMoment, !sleeping {
-                voice.laugh(intensity: 0.5, age: mindSnapshot?.age, energy: mindSnapshot?.mood.energy ?? 0.7)
+                laughAside(intensity: 0.5)
             }
             Task { await react(.sound(label: sound.label, unexpected: false, loudness: loudness), then: .sound(label: sound.label, unexpected: false)) }
             return
@@ -527,7 +760,8 @@ final class DeeModel {
         case .tickle(let duration):
             kind = .tickle(seconds: duration)
             line = duration > 1.5 ? "(Your human is tickling you!)" : nil
-            if duration > 0.6, !isSpeaking { voice.laugh(intensity: 0.7, age: mindSnapshot?.age, energy: mindSnapshot?.mood.energy ?? 0.7) }
+            // Never over the user's turn: a giggle mid-sentence would end it (audit C3).
+            if duration > 0.6, !isSpeaking, !userHoldsFloor { laughAside(intensity: 0.7) }
         }
         let gentle: Bool = switch gesture {
         case .pet, .hold, .tap, .doubleTap, .tickle: true
@@ -535,7 +769,8 @@ final class DeeModel {
         }
         let appraisal = Appraisal.touch(kind)
         let percept = Percept.touch(kind: kind.word, gentle: gentle, at: at)
-        if let line, !isResponding, !isSpeaking, loadState == .ready {
+        lastTouch = TouchInput(kind: kind.word, gentle: gentle, at: Date())
+        if let line, !isResponding, !isSpeaking, !userHoldsFloor, loadState == .ready {
             // Answered right now — don't also let curiosity bring it up again.
             Task { await react(appraisal, then: percept) }
             perceive(.event(appraisal, line: line), alreadyAppraised: true)
@@ -601,8 +836,9 @@ final class DeeModel {
             pendingNotes.append("(They're introducing \(names.joined(separator: " and ")) to you. Say hello to them.)")
         case .wellbeingConcern:
             pendingNotes.append("(They may be going through something painful. Be warm and gentle; encourage them to reach out to someone they trust or a local crisis line.)")
-        case .askWhich(let facts):
-            pendingNotes.append("(Ask gently which one they mean: \(facts.prefix(3).joined(separator: "; ")).)")
+        case .askWhich:
+            // Never their words in the DNA (privacy guard): the model heard them.
+            pendingNotes.append("(Several things you remember match what they said. Ask gently which one they mean.)")
         }
     }
 
@@ -616,16 +852,6 @@ final class DeeModel {
             p = driver.persona(p, person: people?.currentName == nil ? nil : people?.currentID)
         }
         return p
-    }
-
-    private func memoryTools() -> ToolRegistry {
-        guard let people else { return ToolRegistry() }
-        let current: @Sendable () async -> UUID? = { await MainActor.run { people.currentID } }
-        return ToolRegistry([
-            RememberTool(store: people.store, currentPerson: current),
-            RecallTool(store: people.store, currentPerson: current),
-            ForgetTool(store: people.store, currentPerson: current),
-        ])
     }
 
     // MARK: - Camera: presence, gaze, gestures, sight
@@ -662,6 +888,7 @@ final class DeeModel {
         switch update {
         case .presence(.arrived):
             someoneHere = true
+            lastEngagedAt = Date()
             let sleptLongEnough = asleepSince.map { Date().timeIntervalSince($0) >= Self.newConversationAfterSleeping } ?? false
             absentSince = nil
             if sleeping {
@@ -675,6 +902,7 @@ final class DeeModel {
         case .presence(.left):
             someoneHere = false
             absentSince = Date()
+            lastEngagedAt = Date()
             updateListening()
             sense(.faceLost)
             sense(.presence(arrived: false))
@@ -700,7 +928,7 @@ final class DeeModel {
         switch gesture {
         case .wave:
             if sleeping { sleeping = false; asleepSince = nil }
-            if !isResponding, !isSpeaking, loadState == .ready {
+            if !isResponding, !isSpeaking, !userHoldsFloor, loadState == .ready {
                 Task { await react(.wave, then: .gesture("wave")) }
                 perceive(.event(.wave, line: "(The user waves at you.)"), alreadyAppraised: true)
             } else {
@@ -708,7 +936,7 @@ final class DeeModel {
             }
         case .palm:
             // "Hush": stop talking now.
-            stop()
+            stop(hush: true)
             sense(.gesture("palm"))
         case .thumbsUp:
             Task { await react(.thumbsUp, then: .gesture("thumbsUp")) }
@@ -726,13 +954,18 @@ final class DeeModel {
                 ticks += 1
                 guard self.backgroundedAt == nil else { continue }
                 if ticks % 6 == 0, let mind = self.mind {
-                    self.accept(await mind.tick(userPresent: self.someoneHere, asleep: self.sleeping))
+                    let snap = await mind.tick(userPresent: self.someoneHere, asleep: self.sleeping)
+                    self.accept(snap)
+                    self.realtime?.noteMood(snap.code)
                 }
                 self.sense(.tick)
                 self.curiosity.asleepSince = self.asleepSince
+                self.refreshVoiceProblem()
+                self.withdrawSilentReply()
                 if ticks % 4 == 0 { self.considerInitiative() }
-                guard !self.isResponding, !self.isSpeaking, let since = self.absentSince else { continue }
-                if Date().timeIntervalSince(since) >= Self.sleepAfter, !self.sleeping {
+                // Never fall asleep on someone talking off-camera, or just after they said her name.
+                guard !self.isResponding, !self.isSpeaking, !self.userHoldsFloor, let since = self.absentSince else { continue }
+                if Date().timeIntervalSince(max(since, self.lastEngagedAt)) >= Self.sleepAfter, !self.sleeping {
                     self.people?.newSession()
                     self.sleeping = true
                     self.asleepSince = Date()
@@ -747,35 +980,41 @@ final class DeeModel {
     private func considerInitiative() {
         guard loadState == .ready, backgroundedAt == nil, !sleeping, let snap = mindSnapshot else { return }
         guard Date().timeIntervalSince(lastInitiativeAt) > 20 else { return }
-        let userTalking = voice.userIsSpeaking || Date().timeIntervalSince(lastHeardPartialAt) < 2.5
-        let busy = isResponding || isSpeaking || userTalking
+        let busy = isResponding || isSpeaking || ledger.awaitingVoice || userHoldsFloor || (realtime?.isBusy ?? false)
+            || voiceProblem != nil
         guard let prompt = curiosity.nextPrompt(at: Date(), snapshot: snap, userPresent: someoneHere, busy: busy) else { return }
         perceive(.initiative(prompt))
     }
 
     // MARK: - Conversation
 
+    private struct QueuedUtterance {
+        var text: String
+        var prosody: Prosody?
+        var duration: Double
+    }
+
     /// Debug-only text entry (the shipping app is voice and camera only).
     func send(_ raw: String) {
         perceive(.spoken(raw, prosody: nil))
     }
 
-    /// Spoken commands handled without the language model.
+    /// Spoken commands handled without the language model. Whole utterances only
+    /// (audit C8: "don't stop", "it's so quiet" used to silence her), and "stop" only
+    /// while there is something to stop.
     private func command(in text: String) -> Bool {
-        let t = text.lowercased().trimmingCharacters(in: .punctuationCharacters.union(.whitespaces))
-        func has(_ phrases: [String]) -> Bool { phrases.contains { t == $0 || t.hasPrefix($0 + " ") || t.hasSuffix(" " + $0) } }
-        if has(["start over", "let's start over", "new conversation", "start a new conversation", "fresh start", "let's start fresh"]) {
-            newConversation()
-            voice.say("Okay! Fresh start.", style: voiceStyle)
+        let talking = isSpeaking || isResponding || Date().timeIntervalSince(lastStoppedAt) < 3
+        switch SpokenCommand.match(text, deeIsTalking: talking) {
+        case .newConversation?:
+            stop(hush: true)
+            if isResponding { freshStartPending = true } else { freshStart() }
             return true
-        }
-        if has(["stop", "stop talking", "be quiet", "shush", "shh", "hush", "quiet"]) {
-            stop()
+        case .stop?:
+            stop(hush: true)
             return true
-        }
-        if has(["go to sleep", "goodnight dee", "good night dee", "time to sleep", "nap time"]) {
-            stop()
-            voice.say("Okay. Goodnight!", style: VoiceStyle.forMood(emotion: .sleepy, age: mindSnapshot?.age, energy: 0.2))
+        case .sleep?:
+            stop(hush: true)
+            sayAside("Okay. Goodnight!", style: VoiceStyle.forMood(emotion: .sleepy, age: mindSnapshot?.age, energy: 0.2))
             perform(.yawn)
             Task {
                 try? await Task.sleep(for: .seconds(2))
@@ -783,19 +1022,24 @@ final class DeeModel {
                 self.asleepSince = Date()
             }
             return true
+        case nil:
+            return false
         }
-        return false
+    }
+
+    private func freshStart() {
+        newConversation()
+        sayAside("Okay! Fresh start.", style: voiceStyle)
     }
 
     func perceive(_ stimulus: Stimulus, alreadyAppraised: Bool = false) {
         let text: String
         var appraisal: Appraisal?
-        var prosody: Prosody?
-        var shouldAppraise = false
-        var isInitiative = false
-        var readyCue: String?
+        var isUser = false
+        var kind = TurnLedger.Kind.event
         switch stimulus {
-        case .spoken(let raw, let p):
+        case .spoken(let raw, _):
+            // Typed in Debug (spoken words reach the brain as transcripts instead).
             text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { return }
             heard = text
@@ -803,136 +1047,153 @@ final class DeeModel {
             curiosity.note(.userSpoke, at: Date())
             if sleeping { sleeping = false; asleepSince = nil }
             if command(in: text) { return }
-            prosody = p
-            shouldAppraise = true
+            isUser = true
         case .event(let a, let line):
             text = line
             appraisal = alreadyAppraised ? nil : a
         case .initiative(let line):
             text = line
-            isInitiative = true
-        case .cortexInitiative(let cue):
+            kind = .initiative
+        case .cortexInitiative:
+            // The Cortex already issued its aim into the Stance; the DNA carries it.
             text = ""
-            readyCue = cue
-            isInitiative = true
+            kind = .initiative
         }
-        guard let agent, loadState == .ready else {
-            if shouldAppraise { Task { await self.hear(text, prosody: prosody) } }
+        guard brain != nil, loadState == .ready else {
+            if isUser { Task { await self.hear(text, prosody: nil, duration: 0) } }
             return
         }
-        if isResponding || isSpeaking {
-            // Busy: still let the words land emotionally, but don't start a new turn
-            // (barge-in handles interruptions).
-            if shouldAppraise { Task { await self.hear(text, prosody: prosody) } }
-            else if let appraisal { Task { await self.react(appraisal) } }
+        if isUser {
+            // Typed words: whatever Dee was about to say, or was saying, gives way,
+            // and the words are always answered (C2).
+            let utterance = QueuedUtterance(text: text, prosody: nil, duration: 0)
+            stopReply(hush: false)
+            if isSpeaking { _ = voice.stopClip() }   // a laugh or canned line
+            if isResponding {
+                if var q = queuedUtterance {
+                    q.text += " " + utterance.text
+                    queuedUtterance = q
+                } else {
+                    queuedUtterance = utterance
+                }
+                return
+            }
+            startTurn(user: utterance)
             return
         }
-        if isInitiative, voice.userIsSpeaking { return }
-        if isInitiative { lastInitiativeAt = Date() }
+        // Her own initiatives and non-verbal events never start over the user (C3,
+        // gate 1 of 3: at send time) or while she is busy; they still land emotionally.
+        if isResponding || isSpeaking || ledger.awaitingVoice || userHoldsFloor || (realtime?.isBusy ?? false) {
+            if let appraisal { Task { await self.react(appraisal) } }
+            return
+        }
+        startTurn(text: text, appraisal: appraisal, kind: kind)
+    }
+
+    /// Starts one turn the app asked for: typed words (`user`), or her initiative /
+    /// an event line (`text`). Spoken turns are started by the brain itself
+    /// (`brainStartedReply`).
+    private func startTurn(user: QueuedUtterance? = nil, text: String = "", appraisal: Appraisal? = nil,
+                           kind: TurnLedger.Kind = .reply) {
+        guard let brain else { return }
+        if kind == .initiative { lastInitiativeAt = Date() }
         isResponding = true
         caption = ""
         if asleepSince != nil { asleepSince = nil }
+        let (id, previous) = ledger.begin(kind, rate: Double(voiceStyle.rate), at: Date())
 
         responseTask = Task {
-            if shouldAppraise, let people, let event = await people.heard(text) { handle(event) }
-            if shouldAppraise {
-                await hear(text, prosody: prosody)
+            await self.settling?.value
+            if let previous { await self.settle(previous) }
+            var request = ReplyRequest.initiative(text)
+            if let user {
+                var sent = user.text
+                if let earlier = ledger.takeCarryOver(at: Date()) { sent = earlier + " " + user.text }
+                ledger.setUserText(sent, for: id)
+                // The brain runs the words' normal path (people, Mind, Cortex) itself.
+                request = .user(words: sent)
             } else if let appraisal {
                 await react(appraisal)
             }
-            // The cue: the Cortex's <dee_state> (mood sentence + its notes), plus any
-            // identity/care notes from the people layer.
-            var cue: String?
-            if let readyCue {
-                cue = readyCue
-            } else if let driver = selfDriver {
-                sense(.promptSubmitted)
-                let (state, fx) = driver.cue()
-                for e in fx { execute(e) }
-                cue = state
-            } else {
-                cue = mindSnapshot?.cue
+            // Gate 2 of 3 for her initiatives and event lines: the user started talking
+            // while it was prepared (L1).
+            if ledger.mustGiveWay(userHoldsFloor: userHoldsFloor) { stopReply(hush: false) }
+            guard ledger.isLive(id) else {
+                await endTurn(id)
+                return
             }
-            if readyCue != nil { sense(.promptSubmitted) }
-            if !pendingNotes.isEmpty {
-                cue = ([cue].compactMap { $0 } + pendingNotes.prefix(2)).joined(separator: "\n")
-                pendingNotes.removeAll()
-            }
-            await run(agent: agent, text: text, cue: cue, initiative: isInitiative)
+            ledger.enteredHistory(id)
+            // The effort is the brain's (its ThinkingMode); the DNA is its, too.
+            await consume(brain.respond(request, state: nil, effort: ThinkingMode.chatEffort), id: id)
         }
     }
 
-    /// The user's words: appraised by the mind (what + how), then interpreted by
-    /// the Cortex. The face starts reacting before the model has said a word.
-    private func hear(_ text: String, prosody: Prosody?) async {
-        guard let mind else { return }
-        let (appraisal, snap) = await mind.hear(text, prosody: prosody)
+    /// The user's words: appraised by the mind (what + how, adjusted by the Cortex),
+    /// then interpreted by the Cortex. The face starts reacting at once.
+    @discardableResult
+    private func hear(_ text: String, prosody: Prosody?, duration: Double) async -> Appraisal? {
+        guard let mind else { return nil }
+        let before = mindSnapshot?.code
+        let cortex = selfDriver?.cortex
+        let (appraisal, snap) = await mind.hear(text, prosody: prosody, adjust: { a in cortex?.adjust(a) ?? a })
         accept(snap)
+        baseline = await mind.voiceBaseline
+        if let before { realtime?.noteMind(appraisal, before: before, after: snap.code) }
         let loudness = prosody.map { ($0.loudnessDB + 32) / 12 } ?? 0
-        sense(.heard(text: text, durationS: pendingHeardDuration, loudnessVsBaseline: loudness, appraisal: appraisal))
-        pendingHeardDuration = 0
+        sense(.heard(text: text, durationS: duration, loudnessVsBaseline: loudness, appraisal: appraisal))
+        return appraisal
     }
 
-    /// - Parameter initiative: Dee spoke up on her own — her words wait politely if
-    ///   the user starts talking meanwhile (a reply to the user never waits).
-    private func run(agent: ConversationAgent, text: String, cue: String?, initiative: Bool) async {
+    /// One reply's events. Her audio is the session's: the voice plays it and
+    /// reports `.speakingStarted` / `.speakingFinished`; the events here are its
+    /// transcript, placed on what was actually played.
+    private func consume(_ events: AsyncThrowingStream<ReplyEvent, Error>, id: Int) async {
         var deeIndex: Int?
-        var sentence = ""
-        var pendingTag: Emotion?
         var full = ""
+        /// This reply is still the one to show (not stopped, not superseded).
+        func live() -> Bool { ledger.isLive(id) }
         func deeItem() -> Int {
             if let deeIndex { return deeIndex }
             transcript.append(TranscriptItem(kind: .dee, text: "", isStreaming: true))
             deeIndex = transcript.count - 1
             return deeIndex!
         }
-        /// Each finished sentence goes to the Cortex (tag reconciliation, floor).
-        func flushSentence(force: Bool) {
-            let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty || pendingTag != nil else { return }
-            guard force || trimmed.last.map({ ".!?…".contains($0) }) == true else { return }
-            sense(.deeSaid(tag: pendingTag, sentence: trimmed))
-            pendingTag = nil
-            sentence = ""
-        }
         do {
-            for try await event in agent.respond(to: text, state: cue) {
+            for try await event in events {
+                // What she did say was said, even after the reply was stopped or
+                // superseded: the Cortex hears it (the session's history holds it too).
+                if case .sentenceFinished(let sentence, true) = event {
+                    sense(.deeSaid(tag: nil, sentence: sentence))
+                }
+                guard live() else { continue }
                 switch event {
-                case .thinkingModeChanged(let on):
-                    thinkingMode = on
-                    transcript.append(TranscriptItem(kind: .note, text: on ? "Thinking mode on for this conversation" : "Thinking mode off"))
-                case .generationStarted:
-                    deeIndex = nil
-                case .reasoning(let s):
-                    transcript[deeItem()].reasoning += s
                 case .content(let s):
+                    if ledger.mustGiveWay(userHoldsFloor: userHoldsFloor) {
+                        // Gate 3 of 3 for initiatives and event lines, until her voice
+                        // starts: the user started talking (C3).
+                        stopReply(hush: false)
+                        continue
+                    }
+                    showDisclosureCaption()
                     let i = deeItem()
                     if transcript[i].text.isEmpty { caption = "" }
                     transcript[i].text += s
                     caption += s
                     full += s
-                    sentence += s
-                    flushSentence(force: false)
-                    voice.stream(s, style: voiceStyle, deferWhileUserSpeaks: initiative)
-                case .emotion(let e):
-                    // The model's tag goes through the Cortex, which may reconcile it
-                    // with how Dee actually feels (she can't beam love while hurt —
-                    // unless a joke just made her laugh).
-                    flushSentence(force: true)
-                    pendingTag = e
+                    ledger.streamed(s, id: id, voiceSpeaking: isSpeaking, at: Date())
+                case .sentenceFinished:
+                    break
+                case .emotion:
+                    break
                 case .toolCall(let call):
                     transcript.append(TranscriptItem(kind: .tool, text: "⚙︎ \(call.name)"))
-                case .toolResult, .reasoningBudgetExhausted:
+                case .toolResult, .turnCompleted:
                     break
-                case .turnCompleted:
-                    voice.endStream()
-                case .compacted(let n):
-                    transcript.append(TranscriptItem(kind: .note, text: "Forgot \(n) older messages to make room"))
                 case .messageCompleted(let message):
                     if let i = deeIndex {
                         transcript[i].isStreaming = false
-                        transcript[i].text = message.content
-                        if transcript[i].text.isEmpty, transcript[i].reasoning.isEmpty { transcript.remove(at: i) }
+                        if !message.isEmpty { transcript[i].text = message }
+                        if transcript[i].text.isEmpty { transcript.remove(at: i) }
                     }
                     deeIndex = nil
                 }
@@ -941,40 +1202,276 @@ final class DeeModel {
         } catch {
             transcript.append(TranscriptItem(kind: .note, text: error.localizedDescription))
         }
-        flushSentence(force: true)
         sense(.deeTurnFinished(text: full))
-        voice.endStream()
+        await endTurn(id)
+    }
+
+    /// The turn's model work is over: settle a stopped reply, then take the next
+    /// queued utterance (or the pending fresh start).
+    private func endTurn(_ id: Int) async {
         for i in transcript.indices where transcript[i].isStreaming { transcript[i].isStreaming = false }
-        isResponding = false
-        if let engine {
-            statusLine = String(format: "%@ · %.0f tok/s", engine.modelDescription, engine.stats.generateTokensPerSecond)
+        if let stopped = ledger.generationEnded(id, voiceSpeaking: isSpeaking, at: Date()) { await settle(stopped) }
+        // Another reply may have started meanwhile (the brain answers spoken turns
+        // on its own): only the current one decides whether she is responding.
+        if ledger.reply?.id == id || ledger.reply == nil { isResponding = false }
+        discloseIfStillOwed()
+        if freshStartPending {
+            freshStartPending = false
+            queuedUtterance = nil
+            freshStart()
+        } else if let q = queuedUtterance {
+            queuedUtterance = nil
+            startTurn(user: q)
         }
     }
 
-    func stop() {
-        voice.stopSpeaking()
-        guard let agent else { return }
-        Task { await agent.cancel() }
+    // MARK: - What was actually said (audit C9)
+
+    /// A one-off line (canned reply, the sorry line). Its audio is not a reply's (L2).
+    /// The brain has the session speak it out of band in her voice (docs/DNA.md
+    /// §4.2); offline, or over the user, it is dropped.
+    private func sayAside(_ line: String, style: VoiceStyle) {
+        guard let realtime else { return }
+        let seconds = Double(line.count) / SpokenReply.charactersPerSecond(rate: Double(style.rate)) + 0.4
+        ledger.asideRequested(duration: seconds, voiceSpeaking: isSpeaking, at: Date())
+        showDisclosureCaption()
+        Task { _ = await realtime.say(line) }
+    }
+
+    // MARK: - AI-voice disclosure (OpenAI usage policy)
+
+    private var voiceDisclosed: Bool { UserDefaults.standard.bool(forKey: CloudSettings.Key.disclosed) }
+
+    /// The caption, the first time anything in her AI voice plays (a reply, a laugh,
+    /// a canned line) while the spoken disclosure is still owed.
+    private func showDisclosureCaption() {
+        guard !voiceDisclosed, disclosure == nil else { return }
+        disclosure = AIVoiceDisclosure.caption
+    }
+
+    /// After a turn: she says the disclosure line at the next quiet moment, until it
+    /// has actually been played through; only then is it remembered as done.
+    private func discloseIfStillOwed() {
+        guard !voiceDisclosed, !disclosing, disclosure != nil, let realtime else { return }
+        disclosing = true
+        Task {
+            defer { self.disclosing = false }
+            try? await Task.sleep(for: .seconds(1))
+            guard !self.isResponding, !self.userHoldsFloor, !self.isSpeaking else { return }
+            if await realtime.say(AIVoiceDisclosure.line) == .played {
+                UserDefaults.standard.set(true, forKey: CloudSettings.Key.disclosed)
+                try? await Task.sleep(for: .seconds(4))
+                self.disclosure = nil
+            }
+        }
+    }
+
+    /// A short laugh, as an aside — not while a reply waits for her voice: her voice
+    /// drops held initiative speech for anything else, and a reply still being
+    /// synthesised should not start with a giggle.
+    private func laughAside(intensity: Double) {
+        guard !ledger.awaitingVoice else { return }
+        ledger.asideRequested(duration: 1.5, voiceSpeaking: isSpeaking, at: Date())
+        showDisclosureCaption()
+        voice.laugh(intensity: intensity, age: mindSnapshot?.age, energy: mindSnapshot?.mood.energy ?? 0.7)
+    }
+
+    /// Stops Dee's current reply where it is: her voice (the session is told how
+    /// much was played) and the brain.
+    private func stopReply(hush: Bool) {
+        switch ledger.stop(hush: hush, at: Date()) {
+        case .nothing:
+            break
+        case .cancelGeneration:
+            stopVoice()
+            if let brain { Task { await brain.cancel() } }
+        case .settle(let taken):
+            stopVoice()
+            let before = settling
+            settling = Task { await before?.value; await self.settle(taken) }
+        }
+    }
+
+    /// Settles a stopped reply. The voice has already told the session how much of
+    /// it was played, so the conversation holds what was heard; a reply nobody heard
+    /// counts as withdrawn, and its user words carry over to what they say next (C2).
+    private func settle(_ r: TurnLedger.Reply) async {
+        var withdrawn = !r.inHistory
+        if r.inHistory, ledger.settlement(of: r, at: Date()) == .retract {
+            withdrawn = true
+            transcript.append(TranscriptItem(kind: .note, text: "Nothing of that reply was heard"))
+        }
+        ledger.settled(r, withdrawn: withdrawn, at: Date())
+    }
+
+    /// The user started talking while Dee's initiative or event line was still being
+    /// written or held for her voice: it gives way before her first word (C3).
+    private func yieldToUser() {
+        if ledger.mustGiveWay(userHoldsFloor: true) { stopReply(hush: false) }
+    }
+
+    /// A finished reply her voice never started (it held an initiative and dropped
+    /// it, or synthesis failed) is withdrawn, so history doesn't keep unsaid words.
+    private func withdrawSilentReply() {
+        if ledger.isSilentTooLong(at: Date()) { stopReply(hush: false) }
+    }
+
+    func stop() { stop(hush: false) }
+
+    /// Stops her voice. Through the brain when there is one, so its next request
+    /// waits out the stop (`RealtimeBrain.stopVoice`).
+    private func stopVoice() {
+        if let realtime { realtime.stopVoice() } else { voice.stopSpeaking() }
+    }
+
+    /// - Parameter hush: the user asked for quiet (palm, "stop"): what she was
+    ///   answering is not carried over to their next words.
+    private func stop(hush: Bool) {
+        lastStoppedAt = Date()
+        stopReply(hush: hush)
+        stopVoice()
+        // A barge-in keeps the words that interrupted her; a hush drops what came before it.
+        if let realtime {
+            Task { await realtime.cancel(hush: hush) }
+        } else if let brain {
+            Task { await brain.cancel() }
+        }
     }
 
     func newConversation() {
-        guard let agent, !isResponding else { return }
+        guard !isResponding else { return }
+        let brain = brain
         transcript.removeAll()
         thinkingMode = false
         caption = ""
         heard = ""
-        Task { await self.startConversation(agent) }
+        ledger.newConversation()
+        queuedUtterance = nil
+        // The next turn waits for the fresh start: a turn woken by her name must not
+        // have its history wiped while it is being answered (L3).
+        let before = settling
+        settling = Task { await before?.value; await self.startConversation(brain) }
     }
 
-    private func startConversation(_ agent: ConversationAgent) async {
-        sense(.conversationStarted(Date()))
-        await agent.newConversation(persona: await currentPersona())
+    /// A new conversation for the Cortex, and for the brain if there is one.
+    private func startConversation(_ brain: (any ReplyEngine)?) async {
+        let now = Date()
+        sense(.conversationStarted(now))
+        await brain?.newConversation(persona: await currentPersona(), now: now)
     }
 
+    /// The debug toggle: thinking mode on or off for the rest of the conversation.
     func toggleThinking() {
-        guard let agent else { return }
-        thinkingMode.toggle()
-        let on = thinkingMode
-        Task { await agent.setThinking(on) }
+        realtime?.setThinking(!thinkingMode)
+    }
+}
+
+// MARK: - BrainHost (what RealtimeBrain needs from the app)
+
+extension DeeModel: BrainHost {
+    /// Answer at the commit only when someone is with her and she is awake; else the
+    /// brain waits for the words and `heard` decides (her name wakes her, a TV doesn't).
+    var answersOnCommit: Bool {
+        loadState == .ready && backgroundedAt == nil && isEngaged && !sleeping
+    }
+
+    var voiceBaseline: Appraiser.VoiceBaseline { baseline }
+
+    func modeSignals(at now: Date) -> CueModeSignals {
+        guard let driver = selfDriver else { return CueModeSignals() }
+        return CueModeSignals(moment: driver.cortex.moment, identified: people?.currentName != nil, at: now)
+    }
+
+    /// The words' normal path. Spoken words get the floor, "is this for me?" and
+    /// command checks here (typed words had them in `perceive`). Never stops a reply
+    /// on its own: only a command does.
+    func heard(_ turn: HeardTurn) async -> HeardVerdict {
+        let text = turn.text
+        if case .voice = turn.source {
+            userFloor.closed(at: Date())
+            if !voiceHealth.earsOpened || voiceProblem != nil { voiceHealth.earsWorking(); refreshVoiceProblem() }
+            let addressed = SpokenCommand.addressesDee(text)
+            if !isEngaged || sleeping {
+                guard addressed else {
+                    transcript.append(TranscriptItem(kind: .note, text: "Not answered (not addressed to Dee, nobody in view): \(text)"))
+                    return .ignored
+                }
+                wokenByVoice()
+            } else if addressed {
+                lastEngagedAt = Date()   // talking to her off-camera keeps her listening
+            }
+            heard = text
+            transcript.append(TranscriptItem(kind: .user, text: text))
+            curiosity.note(.userSpoke, at: Date())
+            if sleeping { sleeping = false; asleepSince = nil }
+            if command(in: text) { return .handled }
+        }
+        if let people, let event = await people.heard(text) { handle(event) }
+        let appraisal = await hear(text, prosody: turn.prosody, duration: turn.duration)
+        return .answer(appraisal)
+    }
+
+    /// No words for that utterance: the user's floor closes anyway.
+    func wordsFailed() {
+        userFloor.closed(at: Date())
+    }
+
+    /// docs/DNA.md §4.1 step 1: the notes are picked (`Cortex.cue`) and their
+    /// bookkeeping runs, then everything the DNA reads is gathered.
+    func dnaParts(_ r: DNARequest) async -> DNAParts? {
+        guard let driver = selfDriver, let mind else { return nil }
+        sense(.promptSubmitted)
+        if r.pickNotes {
+            let (_, effects) = driver.cue(at: r.now)
+            for e in effects { execute(e) }
+        }
+        var person: PersonInputs?
+        if let people, let id = people.currentID, let p = await people.store.person(id) {
+            let lines = settings.shareMemories ? await people.store.promptMemories(for: id, limit: 9, now: r.now) : []
+            person = PersonInputs(person: p, promptMemories: lines)
+        }
+        let state = await mind.state
+        let body = BodyInputs(someoneHere: someoneHere, asleep: sleeping, wokeAt: lastWokeAt, touch: lastTouch,
+                              lastUserTurnAt: r.lastUserTurnAt, lastContact: person?.lastSeen)
+        let context = DNAContext(aging: AgingInputs(state.age), inner: InnerStateCounters(state), rings: r.rings, body: body,
+                                 daily: await daily(mind, at: r.now), shareMemories: settings.shareMemories,
+                                 guardCorpus: r.corpus)
+        var inputs = driver.cortex.dnaInputs(at: r.now, memories: person, turn: r.turn, appraisal: r.appraisal, context: context)
+        // A Cortex initiative's own aim, for that initiative's DNA only (a DNA
+        // re-rendered after `forget` or for a retry must not take it).
+        if r.turn.kind == .initiative, !r.pickNotes {
+            if let issued = initiativeNotes { inputs.stance.notes = issued }
+            initiativeNotes = nil
+        }
+        let notes = Array(pendingNotes.prefix(2))
+        pendingNotes.removeAll()
+        return DNAParts(inputs: inputs, extraNotes: notes)
+    }
+
+    /// `Mind.history(days: 30)`, at most once a minute (it reads SQLite).
+    private func daily(_ mind: Mind, at now: Date) async -> [DNADay] {
+        if let c = dailyCache, now.timeIntervalSince(c.at) < 60 { return c.days }
+        let days = await mind.history(days: 30).map { DNADay(day: $0.day, interactions: $0.interactions, regard: $0.regard) }
+        dailyCache = (now, days)
+        return days
+    }
+
+    /// A spoken turn the brain answered on its own: shown and settled like any reply.
+    func brainStartedReply(_ reply: BrainReply) {
+        if sleeping { sleeping = false; asleepSince = nil }
+        isResponding = true
+        caption = ""
+        let (id, previous) = ledger.begin(.reply, rate: Double(voiceStyle.rate), at: Date())
+        ledger.enteredHistory(id)
+        Task {
+            if let previous { await self.settle(previous) }
+            await self.consume(reply.events, id: id)
+        }
+    }
+
+    func thinkingModeChanged(_ on: Bool) {
+        guard on != thinkingMode else { return }
+        thinkingMode = on
+        transcript.append(TranscriptItem(kind: .note, text: on ? "Thinking mode on for this conversation" : "Thinking mode off"))
     }
 }

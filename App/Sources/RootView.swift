@@ -1,3 +1,4 @@
+import DeeBrain
 import DeeCore
 import DeeFace
 import SwiftUI
@@ -37,6 +38,37 @@ struct RootView: View {
     // MARK: - Status
 
     private var statusBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            topRow
+            cloudChip
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+    }
+
+    /// Release too: why she can't talk right now (no key, refused key, offline, rate
+    /// limited), a short notice (key saved / refused), or the one-time AI-voice
+    /// disclosure. Her face keeps living underneath (the "cloud off" look).
+    @ViewBuilder private var cloudChip: some View {
+        let line: (text: String, symbol: String, urgent: Bool)? = {
+            if let d = model.disclosure { return (d, "waveform", false) }
+            if let n = model.notice { return (n, "key", false) }
+            if let s = model.cloudStatus { return (s.message, s.symbol, s.needsUser) }
+            return nil
+        }()
+        if let line {
+            Label(line.text, systemImage: line.symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(line.urgent ? Color.orange : Color.white.opacity(0.8))
+                .lineLimit(2)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(Color.white.opacity(0.08), in: .capsule)
+                .accessibilityIdentifier("cloudStatus")
+                .transition(.opacity)
+        }
+    }
+
+    private var topRow: some View {
         HStack(spacing: 12) {
             if model.thinkingMode {
                 Label("Thinking", systemImage: "brain.fill")
@@ -58,8 +90,6 @@ struct RootView: View {
             .accessibilityIdentifier("debugToggle")
             #endif
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 12)
         .animation(.spring, value: model.thinkingMode)
     }
 

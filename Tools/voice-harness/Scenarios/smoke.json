@@ -1,0 +1,27 @@
+{
+  "scenarios": [
+    {
+      "name": "smoke-turns",
+      "description": "Plain turns over a fan, no echo: a name, a 1.2 s mid-sentence pause, a long question interrupted 1.2 s into her reply, and a memory probe.",
+      "noise": {"bed": "fan", "snrDb": 15},
+      "steps": [
+        {"say": "n01"},
+        {"say": "p12a"},
+        {"say": "l01", "bargeIn": {"say": "c03", "atMs": 1200}},
+        {"say": "m01", "expectMention": ["Priya"]}
+      ]
+    },
+    {
+      "name": "smoke-echo",
+      "description": "Kitchen noise with her own voice fed back at -20 dB / 80 ms through the room IR: two echo-only lines (must not self-trigger), a filler turn, and a barge-in over her echo.",
+      "noise": {"bed": "kitchen", "snrDb": 15},
+      "echo": {"gainDB": -20, "delayMs": 80, "reverb": true},
+      "steps": [
+        {"deeSays": "Did you know octopuses have three hearts? Two pump blood to the gills, and one pumps it to the rest of the body."},
+        {"say": "f01"},
+        {"say": "d02", "instructions": "Answer warmly in two or three sentences.", "bargeIn": {"say": "c06", "atMs": 900}},
+        {"deeSays": "Here is a little poem. The kettle sings, the window hums, and somewhere far a soft rain comes."}
+      ]
+    }
+  ]
+}

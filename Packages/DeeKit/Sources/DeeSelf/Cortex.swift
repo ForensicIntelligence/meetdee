@@ -111,7 +111,7 @@ public struct Cortex: Sendable {
     /// Effects of a `cueText(at:)` call, returned (first) by the next `step`.
     public private(set) var queuedEffects: [Effect] = []
     /// Budget and counter for cues Cortex builds itself (initiative) and the default for
-    /// `cue(at:)`. The app sets the real tokenizer here (`SelfBudget`).
+    /// `cue(at:)`. The counter is the worst-case estimate; there is no local tokenizer.
     public var cueBudget = CueWriter.maxTokens
     public var tokenCounter: @Sendable (String) -> Int = CueWriter.estimateTokens
 

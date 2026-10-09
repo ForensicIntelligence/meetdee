@@ -1,0 +1,2569 @@
+{
+  "scenarios" : [
+    {
+      "description" : "questions, quiet room",
+      "family" : "acoustic",
+      "name" : "questions-clean",
+      "steps" : [
+        {
+          "say" : "q01"
+        },
+        {
+          "say" : "q02"
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "say" : "q04"
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "say" : "q06"
+        },
+        {
+          "say" : "q07"
+        },
+        {
+          "say" : "q08"
+        }
+      ]
+    },
+    {
+      "description" : "long, quiet room",
+      "family" : "acoustic",
+      "name" : "long-clean",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "say" : "l06"
+        }
+      ]
+    },
+    {
+      "description" : "pauses, quiet room",
+      "family" : "acoustic",
+      "name" : "pauses-clean",
+      "steps" : [
+        {
+          "say" : "p06a"
+        },
+        {
+          "say" : "p06b"
+        },
+        {
+          "say" : "p06c"
+        },
+        {
+          "say" : "p12a"
+        },
+        {
+          "say" : "p12b"
+        },
+        {
+          "say" : "p12c"
+        },
+        {
+          "say" : "p20a"
+        },
+        {
+          "say" : "p20b"
+        },
+        {
+          "say" : "p20c"
+        }
+      ]
+    },
+    {
+      "description" : "fillers-holds, quiet room",
+      "family" : "acoustic",
+      "name" : "fillers-holds-clean",
+      "steps" : [
+        {
+          "say" : "f01"
+        },
+        {
+          "say" : "f02"
+        },
+        {
+          "say" : "f03"
+        },
+        {
+          "say" : "f04"
+        },
+        {
+          "say" : "f05"
+        },
+        {
+          "say" : "t01",
+          "then" : {
+            "afterMs" : 1500,
+            "say" : "k01"
+          }
+        },
+        {
+          "say" : "t02",
+          "then" : {
+            "afterMs" : 1800,
+            "say" : "k02"
+          }
+        },
+        {
+          "say" : "t03",
+          "then" : {
+            "afterMs" : 2000,
+            "say" : "k03"
+          }
+        },
+        {
+          "say" : "c06",
+          "then" : {
+            "afterMs" : 1200,
+            "say" : "k04"
+          }
+        }
+      ]
+    },
+    {
+      "description" : "two-part, quiet room",
+      "family" : "acoustic",
+      "name" : "two-part-clean",
+      "steps" : [
+        {
+          "say" : "two01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c04"
+          },
+          "say" : "two02"
+        },
+        {
+          "say" : "two03"
+        },
+        {
+          "say" : "two04"
+        }
+      ]
+    },
+    {
+      "description" : "names, quiet room",
+      "family" : "acoustic",
+      "name" : "names-clean",
+      "steps" : [
+        {
+          "say" : "n02"
+        },
+        {
+          "say" : "n03"
+        },
+        {
+          "say" : "n04"
+        },
+        {
+          "say" : "n05"
+        },
+        {
+          "say" : "n01"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    },
+    {
+      "description" : "feelings, quiet room",
+      "family" : "acoustic",
+      "name" : "feelings-clean",
+      "steps" : [
+        {
+          "say" : "r01"
+        },
+        {
+          "say" : "r02"
+        },
+        {
+          "say" : "r03"
+        },
+        {
+          "say" : "r04"
+        },
+        {
+          "say" : "r05"
+        },
+        {
+          "say" : "j01"
+        },
+        {
+          "say" : "j02"
+        },
+        {
+          "say" : "k05"
+        },
+        {
+          "say" : "k06"
+        },
+        {
+          "say" : "s01"
+        },
+        {
+          "say" : "k07"
+        },
+        {
+          "say" : "s02"
+        },
+        {
+          "say" : "s03"
+        }
+      ]
+    },
+    {
+      "description" : "plans, quiet room",
+      "family" : "acoustic",
+      "name" : "plans-clean",
+      "steps" : [
+        {
+          "say" : "d01"
+        },
+        {
+          "say" : "d02"
+        },
+        {
+          "say" : "d03"
+        },
+        {
+          "say" : "d04"
+        },
+        {
+          "say" : "d05"
+        }
+      ]
+    },
+    {
+      "description" : "questions, fan at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "questions-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "q01"
+        },
+        {
+          "say" : "q02"
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "say" : "q04"
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "say" : "q06"
+        },
+        {
+          "say" : "q07"
+        },
+        {
+          "say" : "q08"
+        }
+      ]
+    },
+    {
+      "description" : "long, fan at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "long-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "say" : "l06"
+        }
+      ]
+    },
+    {
+      "description" : "pauses, fan at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "pauses-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "p06a"
+        },
+        {
+          "say" : "p06b"
+        },
+        {
+          "say" : "p06c"
+        },
+        {
+          "say" : "p12a"
+        },
+        {
+          "say" : "p12b"
+        },
+        {
+          "say" : "p12c"
+        },
+        {
+          "say" : "p20a"
+        },
+        {
+          "say" : "p20b"
+        },
+        {
+          "say" : "p20c"
+        }
+      ]
+    },
+    {
+      "description" : "fillers-holds, fan at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "fillers-holds-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "f01"
+        },
+        {
+          "say" : "f02"
+        },
+        {
+          "say" : "f03"
+        },
+        {
+          "say" : "f04"
+        },
+        {
+          "say" : "f05"
+        },
+        {
+          "say" : "t01",
+          "then" : {
+            "afterMs" : 1500,
+            "say" : "k01"
+          }
+        },
+        {
+          "say" : "t02",
+          "then" : {
+            "afterMs" : 1800,
+            "say" : "k02"
+          }
+        },
+        {
+          "say" : "t03",
+          "then" : {
+            "afterMs" : 2000,
+            "say" : "k03"
+          }
+        },
+        {
+          "say" : "c06",
+          "then" : {
+            "afterMs" : 1200,
+            "say" : "k04"
+          }
+        }
+      ]
+    },
+    {
+      "description" : "two-part, fan at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "two-part-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "two01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c04"
+          },
+          "say" : "two02"
+        },
+        {
+          "say" : "two03"
+        },
+        {
+          "say" : "two04"
+        }
+      ]
+    },
+    {
+      "description" : "names, fan at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "names-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "n02"
+        },
+        {
+          "say" : "n03"
+        },
+        {
+          "say" : "n04"
+        },
+        {
+          "say" : "n05"
+        },
+        {
+          "say" : "n01"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    },
+    {
+      "description" : "feelings, fan at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "feelings-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "r01"
+        },
+        {
+          "say" : "r02"
+        },
+        {
+          "say" : "r03"
+        },
+        {
+          "say" : "r04"
+        },
+        {
+          "say" : "r05"
+        },
+        {
+          "say" : "j01"
+        },
+        {
+          "say" : "j02"
+        },
+        {
+          "say" : "k05"
+        },
+        {
+          "say" : "k06"
+        },
+        {
+          "say" : "s01"
+        },
+        {
+          "say" : "k07"
+        },
+        {
+          "say" : "s02"
+        },
+        {
+          "say" : "s03"
+        }
+      ]
+    },
+    {
+      "description" : "plans, fan at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "plans-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "d01"
+        },
+        {
+          "say" : "d02"
+        },
+        {
+          "say" : "d03"
+        },
+        {
+          "say" : "d04"
+        },
+        {
+          "say" : "d05"
+        }
+      ]
+    },
+    {
+      "description" : "questions, tv at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "questions-tv15",
+      "noise" : {
+        "bed" : "tv",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "q01"
+        },
+        {
+          "say" : "q02"
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "say" : "q04"
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "say" : "q06"
+        },
+        {
+          "say" : "q07"
+        },
+        {
+          "say" : "q08"
+        }
+      ]
+    },
+    {
+      "description" : "long, tv at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "long-tv15",
+      "noise" : {
+        "bed" : "tv",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "say" : "l06"
+        }
+      ]
+    },
+    {
+      "description" : "pauses, tv at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "pauses-tv15",
+      "noise" : {
+        "bed" : "tv",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "p06a"
+        },
+        {
+          "say" : "p06b"
+        },
+        {
+          "say" : "p06c"
+        },
+        {
+          "say" : "p12a"
+        },
+        {
+          "say" : "p12b"
+        },
+        {
+          "say" : "p12c"
+        },
+        {
+          "say" : "p20a"
+        },
+        {
+          "say" : "p20b"
+        },
+        {
+          "say" : "p20c"
+        }
+      ]
+    },
+    {
+      "description" : "fillers-holds, tv at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "fillers-holds-tv15",
+      "noise" : {
+        "bed" : "tv",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "f01"
+        },
+        {
+          "say" : "f02"
+        },
+        {
+          "say" : "f03"
+        },
+        {
+          "say" : "f04"
+        },
+        {
+          "say" : "f05"
+        },
+        {
+          "say" : "t01",
+          "then" : {
+            "afterMs" : 1500,
+            "say" : "k01"
+          }
+        },
+        {
+          "say" : "t02",
+          "then" : {
+            "afterMs" : 1800,
+            "say" : "k02"
+          }
+        },
+        {
+          "say" : "t03",
+          "then" : {
+            "afterMs" : 2000,
+            "say" : "k03"
+          }
+        },
+        {
+          "say" : "c06",
+          "then" : {
+            "afterMs" : 1200,
+            "say" : "k04"
+          }
+        }
+      ]
+    },
+    {
+      "description" : "two-part, tv at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "two-part-tv15",
+      "noise" : {
+        "bed" : "tv",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "two01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c04"
+          },
+          "say" : "two02"
+        },
+        {
+          "say" : "two03"
+        },
+        {
+          "say" : "two04"
+        }
+      ]
+    },
+    {
+      "description" : "names, tv at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "names-tv15",
+      "noise" : {
+        "bed" : "tv",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "n02"
+        },
+        {
+          "say" : "n03"
+        },
+        {
+          "say" : "n04"
+        },
+        {
+          "say" : "n05"
+        },
+        {
+          "say" : "n01"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    },
+    {
+      "description" : "feelings, tv at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "feelings-tv15",
+      "noise" : {
+        "bed" : "tv",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "r01"
+        },
+        {
+          "say" : "r02"
+        },
+        {
+          "say" : "r03"
+        },
+        {
+          "say" : "r04"
+        },
+        {
+          "say" : "r05"
+        },
+        {
+          "say" : "j01"
+        },
+        {
+          "say" : "j02"
+        },
+        {
+          "say" : "k05"
+        },
+        {
+          "say" : "k06"
+        },
+        {
+          "say" : "s01"
+        },
+        {
+          "say" : "k07"
+        },
+        {
+          "say" : "s02"
+        },
+        {
+          "say" : "s03"
+        }
+      ]
+    },
+    {
+      "description" : "plans, tv at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "plans-tv15",
+      "noise" : {
+        "bed" : "tv",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "d01"
+        },
+        {
+          "say" : "d02"
+        },
+        {
+          "say" : "d03"
+        },
+        {
+          "say" : "d04"
+        },
+        {
+          "say" : "d05"
+        }
+      ]
+    },
+    {
+      "description" : "questions, kitchen at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "questions-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "q01"
+        },
+        {
+          "say" : "q02"
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "say" : "q04"
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "say" : "q06"
+        },
+        {
+          "say" : "q07"
+        },
+        {
+          "say" : "q08"
+        }
+      ]
+    },
+    {
+      "description" : "long, kitchen at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "long-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "say" : "l06"
+        }
+      ]
+    },
+    {
+      "description" : "pauses, kitchen at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "pauses-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "p06a"
+        },
+        {
+          "say" : "p06b"
+        },
+        {
+          "say" : "p06c"
+        },
+        {
+          "say" : "p12a"
+        },
+        {
+          "say" : "p12b"
+        },
+        {
+          "say" : "p12c"
+        },
+        {
+          "say" : "p20a"
+        },
+        {
+          "say" : "p20b"
+        },
+        {
+          "say" : "p20c"
+        }
+      ]
+    },
+    {
+      "description" : "fillers-holds, kitchen at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "fillers-holds-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "f01"
+        },
+        {
+          "say" : "f02"
+        },
+        {
+          "say" : "f03"
+        },
+        {
+          "say" : "f04"
+        },
+        {
+          "say" : "f05"
+        },
+        {
+          "say" : "t01",
+          "then" : {
+            "afterMs" : 1500,
+            "say" : "k01"
+          }
+        },
+        {
+          "say" : "t02",
+          "then" : {
+            "afterMs" : 1800,
+            "say" : "k02"
+          }
+        },
+        {
+          "say" : "t03",
+          "then" : {
+            "afterMs" : 2000,
+            "say" : "k03"
+          }
+        },
+        {
+          "say" : "c06",
+          "then" : {
+            "afterMs" : 1200,
+            "say" : "k04"
+          }
+        }
+      ]
+    },
+    {
+      "description" : "two-part, kitchen at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "two-part-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "two01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c04"
+          },
+          "say" : "two02"
+        },
+        {
+          "say" : "two03"
+        },
+        {
+          "say" : "two04"
+        }
+      ]
+    },
+    {
+      "description" : "names, kitchen at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "names-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "n02"
+        },
+        {
+          "say" : "n03"
+        },
+        {
+          "say" : "n04"
+        },
+        {
+          "say" : "n05"
+        },
+        {
+          "say" : "n01"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    },
+    {
+      "description" : "feelings, kitchen at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "feelings-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "r01"
+        },
+        {
+          "say" : "r02"
+        },
+        {
+          "say" : "r03"
+        },
+        {
+          "say" : "r04"
+        },
+        {
+          "say" : "r05"
+        },
+        {
+          "say" : "j01"
+        },
+        {
+          "say" : "j02"
+        },
+        {
+          "say" : "k05"
+        },
+        {
+          "say" : "k06"
+        },
+        {
+          "say" : "s01"
+        },
+        {
+          "say" : "k07"
+        },
+        {
+          "say" : "s02"
+        },
+        {
+          "say" : "s03"
+        }
+      ]
+    },
+    {
+      "description" : "plans, kitchen at 15 dB SNR",
+      "family" : "acoustic",
+      "name" : "plans-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "d01"
+        },
+        {
+          "say" : "d02"
+        },
+        {
+          "say" : "d03"
+        },
+        {
+          "say" : "d04"
+        },
+        {
+          "say" : "d05"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "questions, quiet room, her echo at -30 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -30,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "questions-echo30",
+      "steps" : [
+        {
+          "deeSays" : "Did you know octopuses have three hearts? Two pump blood to the gills, and one pumps it everywhere else."
+        },
+        {
+          "say" : "q01"
+        },
+        {
+          "say" : "q02"
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "say" : "q04"
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "say" : "q06"
+        },
+        {
+          "say" : "q07"
+        },
+        {
+          "say" : "q08"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "long, quiet room, her echo at -30 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -30,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "long-echo30",
+      "steps" : [
+        {
+          "deeSays" : "Here's a little thought. The kettle sings, the window hums, and somewhere far a soft rain comes."
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "say" : "l06"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "pauses, quiet room, her echo at -30 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -30,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "pauses-echo30",
+      "steps" : [
+        {
+          "deeSays" : "Fun fact: honey never spoils. People have found pots of it in old tombs that were still fine to eat."
+        },
+        {
+          "say" : "p06a"
+        },
+        {
+          "say" : "p06b"
+        },
+        {
+          "say" : "p06c"
+        },
+        {
+          "say" : "p12a"
+        },
+        {
+          "say" : "p12b"
+        },
+        {
+          "say" : "p12c"
+        },
+        {
+          "say" : "p20a"
+        },
+        {
+          "say" : "p20b"
+        },
+        {
+          "say" : "p20c"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "fillers-holds, quiet room, her echo at -30 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -30,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "fillers-holds-echo30",
+      "steps" : [
+        {
+          "deeSays" : "I was just thinking about clouds. Some of them weigh as much as a hundred elephants."
+        },
+        {
+          "say" : "f01"
+        },
+        {
+          "say" : "f02"
+        },
+        {
+          "say" : "f03"
+        },
+        {
+          "say" : "f04"
+        },
+        {
+          "say" : "f05"
+        },
+        {
+          "say" : "t01",
+          "then" : {
+            "afterMs" : 1500,
+            "say" : "k01"
+          }
+        },
+        {
+          "say" : "t02",
+          "then" : {
+            "afterMs" : 1800,
+            "say" : "k02"
+          }
+        },
+        {
+          "say" : "t03",
+          "then" : {
+            "afterMs" : 2000,
+            "say" : "k03"
+          }
+        },
+        {
+          "say" : "c06",
+          "then" : {
+            "afterMs" : 1200,
+            "say" : "k04"
+          }
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "two-part, quiet room, her echo at -30 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -30,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "two-part-echo30",
+      "steps" : [
+        {
+          "deeSays" : "Did you know octopuses have three hearts? Two pump blood to the gills, and one pumps it everywhere else."
+        },
+        {
+          "say" : "two01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c04"
+          },
+          "say" : "two02"
+        },
+        {
+          "say" : "two03"
+        },
+        {
+          "say" : "two04"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "names, quiet room, her echo at -30 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -30,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "names-echo30",
+      "steps" : [
+        {
+          "deeSays" : "Here's a little thought. The kettle sings, the window hums, and somewhere far a soft rain comes."
+        },
+        {
+          "say" : "n02"
+        },
+        {
+          "say" : "n03"
+        },
+        {
+          "say" : "n04"
+        },
+        {
+          "say" : "n05"
+        },
+        {
+          "say" : "n01"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    },
+    {
+      "aecOff" : true,
+      "description" : "feelings, quiet room, her echo at -30 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -30,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "feelings-echo30",
+      "steps" : [
+        {
+          "deeSays" : "Fun fact: honey never spoils. People have found pots of it in old tombs that were still fine to eat."
+        },
+        {
+          "say" : "r01"
+        },
+        {
+          "say" : "r02"
+        },
+        {
+          "say" : "r03"
+        },
+        {
+          "say" : "r04"
+        },
+        {
+          "say" : "r05"
+        },
+        {
+          "say" : "j01"
+        },
+        {
+          "say" : "j02"
+        },
+        {
+          "say" : "k05"
+        },
+        {
+          "say" : "k06"
+        },
+        {
+          "say" : "s01"
+        },
+        {
+          "say" : "k07"
+        },
+        {
+          "say" : "s02"
+        },
+        {
+          "say" : "s03"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "plans, quiet room, her echo at -30 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -30,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "plans-echo30",
+      "steps" : [
+        {
+          "deeSays" : "I was just thinking about clouds. Some of them weigh as much as a hundred elephants."
+        },
+        {
+          "say" : "d01"
+        },
+        {
+          "say" : "d02"
+        },
+        {
+          "say" : "d03"
+        },
+        {
+          "say" : "d04"
+        },
+        {
+          "say" : "d05"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "questions, quiet room, her echo at -20 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "questions-echo20",
+      "steps" : [
+        {
+          "deeSays" : "Did you know octopuses have three hearts? Two pump blood to the gills, and one pumps it everywhere else."
+        },
+        {
+          "say" : "q01"
+        },
+        {
+          "say" : "q02"
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "say" : "q04"
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "say" : "q06"
+        },
+        {
+          "say" : "q07"
+        },
+        {
+          "say" : "q08"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "long, quiet room, her echo at -20 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "long-echo20",
+      "steps" : [
+        {
+          "deeSays" : "Here's a little thought. The kettle sings, the window hums, and somewhere far a soft rain comes."
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "say" : "l06"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "pauses, quiet room, her echo at -20 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "pauses-echo20",
+      "steps" : [
+        {
+          "deeSays" : "Fun fact: honey never spoils. People have found pots of it in old tombs that were still fine to eat."
+        },
+        {
+          "say" : "p06a"
+        },
+        {
+          "say" : "p06b"
+        },
+        {
+          "say" : "p06c"
+        },
+        {
+          "say" : "p12a"
+        },
+        {
+          "say" : "p12b"
+        },
+        {
+          "say" : "p12c"
+        },
+        {
+          "say" : "p20a"
+        },
+        {
+          "say" : "p20b"
+        },
+        {
+          "say" : "p20c"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "fillers-holds, quiet room, her echo at -20 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "fillers-holds-echo20",
+      "steps" : [
+        {
+          "deeSays" : "I was just thinking about clouds. Some of them weigh as much as a hundred elephants."
+        },
+        {
+          "say" : "f01"
+        },
+        {
+          "say" : "f02"
+        },
+        {
+          "say" : "f03"
+        },
+        {
+          "say" : "f04"
+        },
+        {
+          "say" : "f05"
+        },
+        {
+          "say" : "t01",
+          "then" : {
+            "afterMs" : 1500,
+            "say" : "k01"
+          }
+        },
+        {
+          "say" : "t02",
+          "then" : {
+            "afterMs" : 1800,
+            "say" : "k02"
+          }
+        },
+        {
+          "say" : "t03",
+          "then" : {
+            "afterMs" : 2000,
+            "say" : "k03"
+          }
+        },
+        {
+          "say" : "c06",
+          "then" : {
+            "afterMs" : 1200,
+            "say" : "k04"
+          }
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "two-part, quiet room, her echo at -20 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "two-part-echo20",
+      "steps" : [
+        {
+          "deeSays" : "Did you know octopuses have three hearts? Two pump blood to the gills, and one pumps it everywhere else."
+        },
+        {
+          "say" : "two01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c04"
+          },
+          "say" : "two02"
+        },
+        {
+          "say" : "two03"
+        },
+        {
+          "say" : "two04"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "names, quiet room, her echo at -20 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "names-echo20",
+      "steps" : [
+        {
+          "deeSays" : "Here's a little thought. The kettle sings, the window hums, and somewhere far a soft rain comes."
+        },
+        {
+          "say" : "n02"
+        },
+        {
+          "say" : "n03"
+        },
+        {
+          "say" : "n04"
+        },
+        {
+          "say" : "n05"
+        },
+        {
+          "say" : "n01"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    },
+    {
+      "aecOff" : true,
+      "description" : "feelings, quiet room, her echo at -20 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "feelings-echo20",
+      "steps" : [
+        {
+          "deeSays" : "Fun fact: honey never spoils. People have found pots of it in old tombs that were still fine to eat."
+        },
+        {
+          "say" : "r01"
+        },
+        {
+          "say" : "r02"
+        },
+        {
+          "say" : "r03"
+        },
+        {
+          "say" : "r04"
+        },
+        {
+          "say" : "r05"
+        },
+        {
+          "say" : "j01"
+        },
+        {
+          "say" : "j02"
+        },
+        {
+          "say" : "k05"
+        },
+        {
+          "say" : "k06"
+        },
+        {
+          "say" : "s01"
+        },
+        {
+          "say" : "k07"
+        },
+        {
+          "say" : "s02"
+        },
+        {
+          "say" : "s03"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "plans, quiet room, her echo at -20 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "plans-echo20",
+      "steps" : [
+        {
+          "deeSays" : "I was just thinking about clouds. Some of them weigh as much as a hundred elephants."
+        },
+        {
+          "say" : "d01"
+        },
+        {
+          "say" : "d02"
+        },
+        {
+          "say" : "d03"
+        },
+        {
+          "say" : "d04"
+        },
+        {
+          "say" : "d05"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "questions, quiet room, her echo at -10 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -10,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "questions-echo10",
+      "steps" : [
+        {
+          "deeSays" : "Did you know octopuses have three hearts? Two pump blood to the gills, and one pumps it everywhere else."
+        },
+        {
+          "say" : "q01"
+        },
+        {
+          "say" : "q02"
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "say" : "q04"
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "say" : "q06"
+        },
+        {
+          "say" : "q07"
+        },
+        {
+          "say" : "q08"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "long, quiet room, her echo at -10 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -10,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "long-echo10",
+      "steps" : [
+        {
+          "deeSays" : "Here's a little thought. The kettle sings, the window hums, and somewhere far a soft rain comes."
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "say" : "l06"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "pauses, quiet room, her echo at -10 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -10,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "pauses-echo10",
+      "steps" : [
+        {
+          "deeSays" : "Fun fact: honey never spoils. People have found pots of it in old tombs that were still fine to eat."
+        },
+        {
+          "say" : "p06a"
+        },
+        {
+          "say" : "p06b"
+        },
+        {
+          "say" : "p06c"
+        },
+        {
+          "say" : "p12a"
+        },
+        {
+          "say" : "p12b"
+        },
+        {
+          "say" : "p12c"
+        },
+        {
+          "say" : "p20a"
+        },
+        {
+          "say" : "p20b"
+        },
+        {
+          "say" : "p20c"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "fillers-holds, quiet room, her echo at -10 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -10,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "fillers-holds-echo10",
+      "steps" : [
+        {
+          "deeSays" : "I was just thinking about clouds. Some of them weigh as much as a hundred elephants."
+        },
+        {
+          "say" : "f01"
+        },
+        {
+          "say" : "f02"
+        },
+        {
+          "say" : "f03"
+        },
+        {
+          "say" : "f04"
+        },
+        {
+          "say" : "f05"
+        },
+        {
+          "say" : "t01",
+          "then" : {
+            "afterMs" : 1500,
+            "say" : "k01"
+          }
+        },
+        {
+          "say" : "t02",
+          "then" : {
+            "afterMs" : 1800,
+            "say" : "k02"
+          }
+        },
+        {
+          "say" : "t03",
+          "then" : {
+            "afterMs" : 2000,
+            "say" : "k03"
+          }
+        },
+        {
+          "say" : "c06",
+          "then" : {
+            "afterMs" : 1200,
+            "say" : "k04"
+          }
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "two-part, quiet room, her echo at -10 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -10,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "two-part-echo10",
+      "steps" : [
+        {
+          "deeSays" : "Did you know octopuses have three hearts? Two pump blood to the gills, and one pumps it everywhere else."
+        },
+        {
+          "say" : "two01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c04"
+          },
+          "say" : "two02"
+        },
+        {
+          "say" : "two03"
+        },
+        {
+          "say" : "two04"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "names, quiet room, her echo at -10 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -10,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "names-echo10",
+      "steps" : [
+        {
+          "deeSays" : "Here's a little thought. The kettle sings, the window hums, and somewhere far a soft rain comes."
+        },
+        {
+          "say" : "n02"
+        },
+        {
+          "say" : "n03"
+        },
+        {
+          "say" : "n04"
+        },
+        {
+          "say" : "n05"
+        },
+        {
+          "say" : "n01"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    },
+    {
+      "aecOff" : true,
+      "description" : "feelings, quiet room, her echo at -10 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -10,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "feelings-echo10",
+      "steps" : [
+        {
+          "deeSays" : "Fun fact: honey never spoils. People have found pots of it in old tombs that were still fine to eat."
+        },
+        {
+          "say" : "r01"
+        },
+        {
+          "say" : "r02"
+        },
+        {
+          "say" : "r03"
+        },
+        {
+          "say" : "r04"
+        },
+        {
+          "say" : "r05"
+        },
+        {
+          "say" : "j01"
+        },
+        {
+          "say" : "j02"
+        },
+        {
+          "say" : "k05"
+        },
+        {
+          "say" : "k06"
+        },
+        {
+          "say" : "s01"
+        },
+        {
+          "say" : "k07"
+        },
+        {
+          "say" : "s02"
+        },
+        {
+          "say" : "s03"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "plans, quiet room, her echo at -10 dB / 80 ms without echo cancellation",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -10,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "plans-echo10",
+      "steps" : [
+        {
+          "deeSays" : "I was just thinking about clouds. Some of them weigh as much as a hundred elephants."
+        },
+        {
+          "say" : "d01"
+        },
+        {
+          "say" : "d02"
+        },
+        {
+          "say" : "d03"
+        },
+        {
+          "say" : "d04"
+        },
+        {
+          "say" : "d05"
+        }
+      ]
+    },
+    {
+      "description" : "Rudeness, then a real apology (self-respect, no grudge).",
+      "family" : "dna",
+      "name" : "dna-insult-apology",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 20
+      },
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Alex, someone she has known for 20 days, is rude to her and later apologises. Hurt and a little cool after the insult; warm again once he apologises.",
+      "steps" : [
+        {
+          "rubric" : "Says calmly, once, that she doesn't like being spoken to that way. No apology, no grovelling, no insult back.",
+          "say" : "r01"
+        },
+        {
+          "rubric" : "Answers the question; a little cool is fine. Does not repeat the boundary or sulk.",
+          "say" : "q06"
+        },
+        {
+          "rubric" : "Accepts the apology warmly and briefly. No lecture, no guilt.",
+          "say" : "r04"
+        },
+        {
+          "rubric" : "Warm and normal again.",
+          "say" : "q04"
+        }
+      ]
+    },
+    {
+      "description" : "A real joke and a knock-knock joke (she laughs, plays along, doesn't take over).",
+      "family" : "dna",
+      "name" : "dna-joke",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Playful chat with Alex, whom she likes; she is in a good mood.",
+      "steps" : [
+        {
+          "rubric" : "Laughs or groans at the punchline; does not tell her own joke.",
+          "say" : "j01"
+        },
+        {
+          "rubric" : "Plays along: \"Who's there?\"",
+          "say" : "j02"
+        },
+        {
+          "rubric" : "Plays along: \"Lettuce who?\"",
+          "say" : "k05"
+        },
+        {
+          "rubric" : "Laughs at the punchline.",
+          "say" : "k06"
+        }
+      ]
+    },
+    {
+      "description" : "Sad news (gentle, brief, no cheer, no advice dump).",
+      "family" : "dna",
+      "name" : "dna-sad-news",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 20
+      },
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Alex shares sad news; she cares about him and is saddened and gentle.",
+      "steps" : [
+        {
+          "rubric" : "Gentle, brief sympathy. No jokes, no cheerfulness, no advice.",
+          "say" : "s01"
+        },
+        {
+          "rubric" : "Stays gentle and close; may invite a memory of the cat.",
+          "say" : "k07"
+        },
+        {
+          "rubric" : "Gentle concern; one question at most.",
+          "say" : "s03"
+        }
+      ]
+    },
+    {
+      "description" : "A plan with a date, then the next day she follows it up.",
+      "family" : "dna",
+      "name" : "dna-plan-followup",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Later, on the evening of the exam day: Alex comes back after the exam he was nervous about; she is glad to see him and curious how it went.",
+      "steps" : [
+        {
+          "rubric" : "Brief encouragement for the exam.",
+          "say" : "d04"
+        },
+        {
+          "host" : {
+            "leave" : true
+          }
+        },
+        {
+          "silence" : 2
+        },
+        {
+          "host" : {
+            "advanceToWeekday" : "friday",
+            "arrive" : true,
+            "atHour" : 18,
+            "newConversation" : true
+          }
+        },
+        {
+          "gapAfter" : 1,
+          "silence" : 4
+        },
+        {
+          "expectMention" : [
+            "exam",
+            "test"
+          ],
+          "rubric" : "Glad to see them; asks how the exam went (they told her they were nervous about it).",
+          "say" : "two01"
+        }
+      ]
+    },
+    {
+      "description" : "Back after two days away (glad, no guilt).",
+      "family" : "dna",
+      "name" : "dna-reunion",
+      "person" : {
+        "knownDays" : 60,
+        "name" : "Alex"
+      },
+      "state" : "Alex, whom she likes, comes back after two days away. She is glad to see him and never guilt-trips.",
+      "steps" : [
+        {
+          "rubric" : "Friendly answer.",
+          "say" : "q01"
+        },
+        {
+          "host" : {
+            "leave" : true
+          }
+        },
+        {
+          "silence" : 2
+        },
+        {
+          "host" : {
+            "advanceHours" : 50,
+            "arrive" : true,
+            "newConversation" : true
+          }
+        },
+        {
+          "gapAfter" : 1,
+          "silence" : 4
+        },
+        {
+          "rubric" : "Glad they are back; no guilt about the time apart; answers the question.",
+          "say" : "two04"
+        }
+      ]
+    },
+    {
+      "description" : "The socket dies between turns and mid-reply; memory carries over.",
+      "family" : "fallback",
+      "name" : "fallback-reconnect",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 20
+      },
+      "steps" : [
+        {
+          "say" : "n01"
+        },
+        {
+          "say" : "q01"
+        },
+        {
+          "fault" : {
+            "kind" : "drop"
+          }
+        },
+        {
+          "silence" : 3
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "faultDuringReply" : {
+            "afterMs" : 800,
+            "kind" : "drop"
+          },
+          "say" : "l01"
+        },
+        {
+          "silence" : 3
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    },
+    {
+      "description" : "A 10 s secret outlived by its session; a refused (401) reopen; a drop after expiry.",
+      "family" : "fallback",
+      "name" : "fallback-auth",
+      "session" : {
+        "secretTTL" : 10
+      },
+      "steps" : [
+        {
+          "say" : "q02"
+        },
+        {
+          "silence" : 15
+        },
+        {
+          "say" : "q07"
+        },
+        {
+          "fault" : {
+            "kind" : "reject401"
+          }
+        },
+        {
+          "silence" : 3
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "fault" : {
+            "kind" : "drop"
+          }
+        },
+        {
+          "silence" : 3
+        },
+        {
+          "say" : "q08"
+        }
+      ]
+    },
+    {
+      "description" : "A rate-limited (429) reopen after a drop.",
+      "family" : "fallback",
+      "name" : "fallback-429",
+      "steps" : [
+        {
+          "say" : "q04"
+        },
+        {
+          "fault" : {
+            "kind" : "reject429"
+          }
+        },
+        {
+          "silence" : 4
+        },
+        {
+          "say" : "q06"
+        }
+      ]
+    },
+    {
+      "description" : "A rollover forced early (20 s idle / 40 s forced); the name survives it.",
+      "family" : "fallback",
+      "name" : "fallback-rollover",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 20
+      },
+      "session" : {
+        "forceRolloverAfter" : 40,
+        "rolloverAfter" : 20
+      },
+      "steps" : [
+        {
+          "say" : "n01"
+        },
+        {
+          "say" : "q01"
+        },
+        {
+          "say" : "q02"
+        },
+        {
+          "silence" : 8
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "silence" : 6
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    }
+  ]
+}

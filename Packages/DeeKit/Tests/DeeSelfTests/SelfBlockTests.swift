@@ -98,17 +98,15 @@ import Testing
         #expect(after.contains("Don't bring up: job."))
     }
 
-    /// The system prompt is byte-identical on every turn of a conversation, while the
-    /// per-turn cue changes; a new Persona is applied only at newConversation.
+    /// The system prompt (the session instructions) is byte-identical on every turn
+    /// of a conversation, while the per-turn cue changes; a new Persona is applied
+    /// only at a new conversation.
     @Test func systemPromptByteIdenticalAcrossTurns() async throws {
         var cx = Kit.cortex()
-        let gen = RecordingGenerator(replies: ["[happy] Hi!", "[curious] Oh?", "[playful] Ha.", "[content] Nice."])
         let start = Kit.t0
         let persona = cx.persona(Persona(userName: "John"), person: Kit.john, at: start)
         #expect(persona.ruleLines == SelfBlock.ruleLines)
-        let agent = ConversationAgent(generator: gen, persona: persona, now: start)
-        await agent.newConversation(persona: persona, now: start)
-        let system = await agent.messages[0].content
+        let system = persona.systemPrompt(date: start)
         #expect(system.contains("About you: you value"))
         var cues: [String] = []
         var mind = Kit.snap()
@@ -121,17 +119,13 @@ import Testing
             e.seed = UInt64(turn)
             cx.setEnduring(e)
             _ = cx.step(.promptSubmitted, mind: mind, at: t)
-            let cue = cx.cueText(at: t)
-            cues.append(cue)
-            for try await _ in agent.respond(to: "hello", state: cue) {}
-            #expect(await agent.messages[0].content == system)
+            cues.append(cx.cueText(at: t))
+            let now = cx.persona(Persona(userName: "John"), person: Kit.john, at: t)
+            #expect(now == persona, "turn \(turn): frozen for the conversation")
+            #expect(now.systemPrompt(date: start) == system)
+            #expect(!system.contains(cues.last!), "the cue goes with the turn, never into the prompt")
         }
         #expect(Set(cues).count > 1, "the cue does change per turn")
-        let prompts = gen.prompts
-        #expect(prompts.count == 4)
-        let systemBlock = String(prompts[0].prefix(upTo: prompts[0].range(of: "<|im_end|>")!.upperBound))
-        #expect(systemBlock.contains("About you: you value"))
-        for p in prompts { #expect(p.hasPrefix(systemBlock)) }
         #expect(cx.persona(Persona(userName: "John"), person: Kit.john, at: start) == persona, "still frozen")
     }
 }

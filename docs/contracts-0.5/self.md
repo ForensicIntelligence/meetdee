@@ -8,7 +8,7 @@ issued-note effects, forget / merge / forget-person, schema v2 (no cascade from
 
 New SwiftPM target `DeeSelf` (`Packages/DeeKit/Sources/DeeSelf`, tests in
 `Tests/DeeSelfTests`). It depends on DeeCore, DeeMind and DeeMemory and links
-`sqlite3`. It does **not** import DeeFace, DeeVoice, DeeSense or DeeLLM (a test
+`sqlite3`. It does **not** import DeeFace, DeeVoice or DeeSense (a test
 enforces this). Pure code never reads the clock, never uses global randomness and
 never calls `UUID()`. Time comes in as `at now: Date`, randomness is the seeded
 `Rand`, and ids come from `rng.uuid()`. A lint test enforces all three. Only
@@ -36,7 +36,7 @@ cortex.cueBudget = SelfBudget.cueTokens; cortex.tokenCounter = SelfBudget.count 
 ```swift
 for e in cortex.step(.conversationStarted(now), mind: snap, at: now) { await execute(e) }
 let persona = cortex.persona(basePersona, person: personID, at: now)   // mutating: records who the prompt is for
-await agent.newConversation(persona: persona, now: now)
+await brain.newConversation(persona: persona, now: now)   // ReplyEngine
 ```
 
 - Do **not** reload `Enduring` from the store here: Cortex's `moment.enduring` is the authority while it runs (every learnt change flows through it and out as `.persist`). `setEnduring` is only for an external edit, after `flush(at:)` and applying every pending write.
@@ -58,7 +58,7 @@ for e in effects { await execute(e) }   // in order; batch .persist writes per t
 
 - The transcript shows `cortex.reconciledTag`, not the raw LLM tag.
 - After `.stopSpeaking`, sentences that were already in flight are neither spoken nor shown (FloorKeeper ignores a `.deeSaid` while yielding).
-- `.initiative(cue:)` is a complete `<dee_state>`: call `agent.respond(to: nil-equivalent, state: cue)` as today's `perceive(.initiative)`, then `.promptSubmitted`. Do not call `cue(at:)` for it.
+- `.initiative(cue:)` is a complete `<dee_state>`: call `brain.respond(.initiative(""), state: cue, effort: ThinkingMode.chatEffort)` (`ReplyEngine`) as today's `perceive(.initiative)`, then `.promptSubmitted`. Do not call `cue(at:)` for it.
 
 ### Per LLM turn
 
@@ -66,7 +66,7 @@ for e in effects { await execute(e) }   // in order; batch .persist writes per t
 _ = cortex.step(.promptSubmitted, mind: snap, at: now)
 let (state, fx) = cortex.cue(at: now)       // the whole <dee_state>…</dee_state>; replaces snapshot.cue
 for e in fx { await execute(e) }            // issued-note bookkeeping: .persist(intention / facet / recalled / gag)
-agent.respond(to: text, state: state)
+brain.respond(.user(words: text), state: state, effort: thinking.turn(for: text).reasoningEffort)
 // per spoken sentence: cortex.step(.deeSaid(tag:sentence:)); at the end: .deeTurnFinished(text:)
 ```
 
@@ -458,10 +458,10 @@ The time is dominated by `AgreementPropertyTests` (§12.3 fixes it at 10,000 × 
 | ProjectionTests | core | Face and voice agree for every emotion; listen caps; lids; idle director; pass-through |
 | CueWriterTests | core | Mood parity with `MindSnapshot.cue`; every template ≤ 30 tokens; cue ≤ 120; fit and drop order; NotePicker generic rules; no reproach words |
 | SelfSeederTests | core | Determinism; values; humour; signature; capability facets; innate tastes; golden `SelfSeeder/default-seed7.json` |
-| SelfBlockTests | core | Budgets; drop order; per-person lines; frozen per conversation; system prompt byte-identical across turns through a real `ConversationAgent` |
+| SelfBlockTests | core | Budgets; drop order; per-person lines; frozen per conversation; system prompt byte-identical across turns while the per-turn cue changes |
 | SelfStoreTests | core | Seeds once; round-trip of every `SelfWrite`; reopen; no cascade on a `people` delete; `forgetPerson`; orphan sweep; `merge` clash rules (checked against `Moment.merge`); v1 → v2 migration keeps rows; newer schema refused; `forgetAll` == `keepingSeeded()`; `forget(subject:)` across every table; `recalled`; identity re-derived from the stored seed; carried misreads window; sessions; failed writes reported |
 | CortexTests | core | Pipeline order; newest-sequence rule; monotonic clock; reflex 4 s + reaction, restamped reflexes; cue parity; issued-note effects; `cueText` queueing; no third issue across relaunches; initiative; per-reducer streams; sessions; conversation hooks; persona recording; signals exactly once; forget / forgetAll / merge / forgetPerson in RAM; deterministic replay |
 | GoldenTraceTests | core | Harness; Cortex `laugh-while-upset` |
 | AgreementPropertyTests | core | 10,000 seeded sequences × 200 steps; the §12.3 invariants at every step |
 | ScenarioTests | integration | §12.4 multi-session scenarios through a real in-memory `Mind`, the full Cortex, an in-memory `SelfStore` and a relaunch between sessions (`SimDee`, `SimClock`): follow-through and the ignored aim; no penalty or guilt after 7 + 5 days away; misread → lesson → no more guessing; show-and-tell remembered; user boundary across conversations; rudeness → boundary → apology → reconciliation; taste reveal over weeks; gag callback then retirement; good-morning ritual; coordinated listening; identity over 60 days with 3 people; deterministic replay. Every persisted write is checked for 5-word transcript fragments. `DEE_SCENARIO_LOG=1` prints the cues |
-| PolicyTests | core | Lint (clock, randomness, UUIDs, `.now`, `Hasher`, unsorted Dictionary/Set iteration) with a planted-violation canary; no DeeFace/DeeVoice/DeeSense/DeeLLM import; 1,000-utterance no-transcript fuzz over every persisted effect (cue and flush included) with a planted-leak canary |
+| PolicyTests | core | Lint (clock, randomness, UUIDs, `.now`, `Hasher`, unsorted Dictionary/Set iteration) with a planted-violation canary; no DeeFace/DeeVoice/DeeSense import; 1,000-utterance no-transcript fuzz over every persisted effect (cue and flush included) with a planted-leak canary |

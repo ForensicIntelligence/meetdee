@@ -315,30 +315,3 @@ struct PredictorHarness {
         #expect(l.scale == 1)
     }
 }
-
-@Suite struct QuietIntervalTests {
-    @Test func setQuietIntervalClamps() {
-        var e = EndpointDetector()
-        #expect(e.quietInterval == 0.8)
-        e.setQuietInterval(0.1)
-        #expect(e.quietInterval == 0.35)
-        e.setQuietInterval(9)
-        #expect(e.quietInterval == 2.5)
-        e.setQuietInterval(1.2)
-        #expect(e.quietInterval == 1.2)
-        e.setQuietInterval(.nan)
-        #expect(e.quietInterval == 1.2)
-        e.setQuietInterval(.infinity)
-        #expect(e.quietInterval == 1.2)
-    }
-
-    @Test func longerHoldWaitsLonger() {
-        var e = EndpointDetector()
-        e.setQuietInterval(1.8)
-        e.final("I was um", at: 0)
-        e.voice(true, at: 0)
-        #expect(e.check(at: 1.0) == .wait)
-        #expect(e.check(at: 1.79) == .wait)
-        #expect(e.check(at: 1.81) == .endUtterance("I was um"))
-    }
-}

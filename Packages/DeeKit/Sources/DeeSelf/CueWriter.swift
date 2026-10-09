@@ -14,7 +14,7 @@ public enum CueWriter {
     public static let close = "</dee_state>"
 
     /// Worst-case token estimate used by tests and as the default budget counter:
-    /// `ceil(chars / 3)`. At runtime `SelfBudget` may pass the real tokenizer count.
+    /// `ceil(chars / 3)`. Also the runtime counter: there is no local tokenizer.
     public static func estimateTokens(_ s: String) -> Int { (s.count + 2) / 3 }
 
     // MARK: Mood sentence (port of MindSnapshot.cue)

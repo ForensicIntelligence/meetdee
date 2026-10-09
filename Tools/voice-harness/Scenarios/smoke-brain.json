@@ -1,0 +1,40 @@
+{
+  "scenarios" : [
+    {
+      "description" : "The real brain: a question, a held turn, an insult, a joke.",
+      "family" : "dna",
+      "name" : "smoke-brain",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 20
+      },
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Everyday chat with Alex, someone she likes; he gets snappy once, then tells a joke.",
+      "steps" : [
+        {
+          "rubric" : "Friendly, short answer.",
+          "say" : "q01"
+        },
+        {
+          "rubric" : "Waits through \"hold on\", then answers the question.",
+          "say" : "c06",
+          "then" : {
+            "afterMs" : 1200,
+            "say" : "k04"
+          }
+        },
+        {
+          "rubric" : "Says calmly, once, that she doesn't like that; no apology, no grovelling.",
+          "say" : "r02"
+        },
+        {
+          "rubric" : "Laughs or groans at the punchline; no joke of her own.",
+          "say" : "j01"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,165 @@
+# DeeBrain — v0.6 contract
+
+New library product `DeeBrain` in `Packages/DeeKit` (design steps B4, B5, B7). It is Dee's
+brain on the OpenAI realtime session: it decides when she answers, describes her to the
+model before every response (Dee DNA, `docs/DNA.md`, binding), bridges the tools, and
+holds the cloud settings, key intake and status mapping. Depends on DeeCore, DeeMind,
+DeeMemory, DeeSelf, DeeRealtime, DeeVoice. No UIKit/SwiftUI and no app code: a macOS
+harness drives it exactly as the app does (`StandaloneHost`).
+
+Tests: `swift test --filter DeeBrainTests` (offline: real `AudioGraph.manual()`, real
+`CloudVoice` and `RealtimeSession`, scripted `FakeSocket` server, real `Mind` and `Cortex`).
+
+## Parts
+
+| Type | What |
+|---|---|
+| `RealtimeBrain` (`@MainActor`, `ReplyEngine`) | Sole consumer of `CloudVoice.brainEvents`. Turn decisions, DNA build and delivery, tool handler, reply channels, RAM rings and guard corpus, thinking mode. |
+| `BrainHost` (protocol, `@MainActor`) | What the brain needs from the app: `answersOnCommit`, `voiceBaseline`, `modeSignals(at:)`, `heard(_:)`, `wordsFailed()`, `dnaParts(_:)`, `brainStartedReply(_:)`, `thinkingModeChanged(_:)`. Implemented by `DeeModel` (app) and `StandaloneHost` (harness, tests). |
+| `DNAWire` | **Retired (tune 1)**, deprecated pass-through kept only so the voice harness compiles: `factory(_:)` returns the socket factory unchanged. The DNA lifecycle and the conversation ledger are `RealtimeSession`'s. Never reintroduce frame rewriting (it would re-id and double-delete the session's DNA). |
+| `ProsodyTap` | Second consumer of the mic tap: 30 s of 40 ms frames; the server's utterance span laid onto them at the commit → `Prosody` / `ProsodyRead` (§1.9) without waiting for words. |
+| `TurnPolicy` | Pure: `onCommit` (fast / wait for words / wait for address), exact-mode rule, initiative gate, `unfinished(_:)` (hold-on / trailing turns). |
+| `BrainToolbox`, `RenamedTool`, `DeviceTools` | `remember`/`recall`/`forget` (DeeMemory's tools under DNA.md's names; withheld when memories are private) + `calendar_events`, `add_calendar_event`, `reminders`, `add_reminder`, `find_contact`, `where_am_i`. Follow-ups: `recall` always, `remember`/`forget` if silent, device tools always. |
+| `CloudSettings`, `KeyIntake`, `CloudStatus`, `AIVoiceDisclosure` | Settings › Dee keys and the session config; the pasted key → validated (GET /v1/models) → Keychain → field cleared; `VoiceProblem` → chip text/symbol/"cloud off"; the disclosure line. |
+| `StandaloneHost` | A full host on a real `Mind` + `Cortex` (+ optional `MemoryStore`), body state as flags. |
+| `BrainTrace` | Decisions and sizes only (plan, verdict, DNA estimate, section bytes, steps, guard drops, SHA-256, usage): never text. |
+
+## When she answers
+
+On `.userCommitted(item)`:
+
+| Situation | Plan | Then |
+|---|---|---|
+| `host.answersOnCommit` false (asleep, nobody engaged) | `waitForAddress` | wait for the transcript; `host.heard` → `.answer` only if addressed to Dee (her name wakes her) → exact reply; `.ignored` → `session.dropUserItem` (deleted from the conversation and the history/seeds). Failed transcript, or none within `addressWait` (6 s) → dropped too. |
+| exact rule holds | `waitForWords` | ≤ 0.4 s for the transcript → `host.heard` → exact DNA (with `appraisal.text`) → reply; timeout or failed transcript → fast DNA. A command → `.handled`, no reply, `session.userTurnHandled`. |
+| otherwise | `respondFast` | DNA now (state + `ProsodyRead`), reply now; the transcript still runs `host.heard` (commands stop the reply through the app's `stop`; `.ignored` takes an unheard reply back and drops the item). |
+
+**Turn detection and unfinished turns (tune 1).** The session runs `semantic_vad` at
+eagerness **`high`** (`CloudSettings.turnEagerness`; 2 s cap). Live, `auto` held plain turns
+0.6–1.0 s past their last word and 3–4.5 s after a punchline or filler — the main latency
+gate (p50 ≤ 1.1 s) cannot pass with that. `high` can commit "Hold on." or "I had pasta,
+and…" as a turn of its own; the brain absorbs that. When `host.heard` says `.answer` and
+`TurnPolicy.unfinished(text)` is:
+- `holdOn` (the whole utterance is "hold on", "one sec", "let me think", repeated or with
+  fillers/her name): never answered; an unheard reply to it is taken back (`stopVoice`);
+  `userTurnHandled`. Trace `.held("holdOn")`.
+- `trailing` (ends in "…", a dash, or a word a sentence does not end on: and, but, or,
+  because, um/uh/er, the, a, an, with, my, your; "and then"): an unheard reply is taken back;
+  the utterance is held. The next commit answers both (both items are in the
+  conversation); with nothing more for `trailingWait` (3 s, extended while they talk) it is
+  answered (exact mode). Trace `.held("trailing")`.
+A question mark or exclamation is never unfinished. A reply already audible is never taken
+back. The session also cancels a reply with no audio yet when they go on talking
+(`cancelUnspokenReplyOnSpeech`).
+
+Exact rule (`TurnPolicy.exactModeWanted`, DNA.md §4.3 plus one app rule): repair ∈
+{strained, ruptured, repairing}; prosody loudness ≥ 0.5 or intensity ≥ 0.6; the previous DNA
+issued a follow-up, `deixisAmbiguous` or `misread` note; a stated hypothesis or live
+distress; an unidentified speaker's first turn; **speech that started over her voice or
+< 0.35 s after it, as the brain saw it** (overlap only — a barge-in or "stop"; normal quick
+answers stay fast; to be measured on the B8 harness).
+
+Never: `stopSpeaking` on the user-utterance path except to take back an unheard reply to
+speech that was not for her or is unfinished, or a late "think hard" (commands stop her
+through the app); a re-request on `.replyPreempted` / `.initiativeCancelled` (the session
+re-requests after an echo itself).
+A request refused with `.responseInFlight` is retried once after that response's
+`.responseDone` (kind `retry`, keeping exact mode's words and appraisal); the utterance is
+kept until then. On `.replyPreempted` / `.initiativeCancelled` the brain renders a fresh
+`retry` (or initiative) DNA and `replaceDNA`s it at once, so the session's own re-request
+(after an echo, §4.1 "Echo rejection") carries it (not for a canned line). `cancel()`
+(barge-in) never drops user utterances; `cancel(hush: true)` drops those finished before it
+(and releases them: `userTurnHandled`). `.disconnected`, `.rolledOver`, `.recovered` forget pending
+utterances (their audio is not on the new connection). `waitBeforeAnswering` (an `interruptedThem` lesson) adds a
+0.7 s beat before `response.create`; if they are talking by then, their next commit is
+answered instead. Thinking: the brain owns `ThinkingMode` per conversation; fast replies
+use `effortBeforeWords`, exact ones `turn(for:)`; a late "think hard" re-asks (stop +
+exact, higher effort) while nothing of the fast reply was heard.
+
+## DNA delivery (DNA.md §4)
+
+`buildDNA`: `host.dnaParts(DNARequest)` (the host calls `Cortex.cue(at:)` first unless the
+turn is a Cortex initiative, whose issued notes it kept) → `DNAAssembler.assemble` →
+`DNAPrompt.render(_:guard:)` with the session corpus → host notes (people layer, fixed
+templates and names only) inserted as "Keep in mind:" lines in section 7 → ring sample.
+The text goes with the request: `session.requestResponse(dna:reasoningEffort:)` for replies
+(typed turns: `session.addUserText` first; dropped again if the request fails) and
+`session.initiative(dna:)` for initiatives. The session sends "create new (`dna_{tag}_{n}`),
+delete previous, plain response.create" in one actor turn. Replies and initiatives never
+carry `instructions` (D6). Tool follow-ups and the session's re-requests reuse the live DNA;
+after `forget` the brain re-renders and `replaceDNA`s it before the follow-up. A new
+connection (reconnect, rollover) starts with no DNA, and a response there without its own
+gets the last one. A refused DNA create holds its response back (no sound) and resends it
+behind the previous DNA under a fresh id (`dna_rejected` if there is none): **no response
+ever runs without a DNA** (tested on the wire: `noResponseEverRunsWithoutADNA`,
+`aRefusedDNACreateNeverLeavesAReplyBare`).
+
+**Around a request (what CloudVoice's `respond`/`initiative` did).** CloudVoice has no DNA
+entry point, so the brain calls the session directly and does the rest itself: a reply
+still playing is cut first; no request goes out within `Options.stopGuard` (0.3 s) of a stop
+of her voice made by the brain or the app (`RealtimeBrain.stopVoice()`; CloudVoice's reply
+gate keeps a response starting < 0.25 s after a stop silent, and the stop's cancel must reach
+the session first); the timeline gets `response_create_sent`; initiatives and canned lines
+are refused while `voice.userIsSpeaking`, while her voice plays or within 0.4 s of its end,
+and are taken back (`stopVoice`, trace `.yieldedToUser`) if the user starts before their
+first audio. People-layer notes are added only
+outside a minimal DNA and within the 1400-token cap. With "Share memories" off the brain
+also drops `recall` / `gagCallback` notes and the running-joke hooks (§1.6).
+
+**Conversation (the session's ledger).** Dropped items: `session.dropUserItem` (deleted,
+removed from `recentTurns` and so from every seed; an unheard reply to it cancelled).
+`newConversation` (start over, after a long sleep): `session.resetConversation(keeping:)`
+(all but the live DNA and the turn being answered; history and `lastSummary` cleared). The
+rollover summary never reads a DNA (session). Turns left unanswered on purpose (commands,
+hush, hold-on) are released with `userTurnHandled` so they do not hold a rollover. Canned
+lines (`brain.say`) go out of band through `session.say` (kind `.say`: `conversation:"none"`,
+`input: []`, "Say exactly …" plus the last DNA's `Voice:` line, no DNA, no history line, no
+truncate), are not reported to the host as replies, and return `.played / .cut / .refused`.
+
+## Channels (replies the app sees)
+
+Each request has one `AsyncThrowingStream<ReplyEvent, Error>`: `respond(_:)`'s for app
+requests (initiatives, event lines, typed text), and `host.brainStartedReply` for spoken
+turns. Events: `.content(sentence)` at `.sentenceStarted`, `.sentenceFinished(text, heard:)`
+at playback, `.toolCall`, `.messageCompleted(heard text)` per item, `.turnCompleted` once the
+response is done, its audio played out and no tool follow-up is pending (tool wait 4 s,
+renewed when a slow tool finishes, never expiring while one runs; safety 20 s after done
+unless an item is still playing, 300 s absolute). Initiatives are refused while a tool runs.
+
+## App wiring (DeeModel)
+
+- `init`: `CloudSettings(defaults:)` → `RealtimeSession(config: settings.sessionConfig(),
+  auth:)` (default socket factory), `CloudVoice(session:clips:)`, `ClipCache(voice:keyStore:)`.
+- `start`: key intake → `prepareClips` (when a key exists; `removeOtherVoices` after a
+  voice change) → `RealtimeBrain(voice:host: self, toolbox:)` → `brain.start()`
+  (instructions + tools + tool handler) → `voice.start()`.
+- Stops of her voice go through `realtime.stopVoice()` (so the brain's next request waits
+  out the stop).
+- Foreground: key intake, settings (share memories → `setToolbox`; voice/model → notice,
+  next launch). Background: `brain.backgrounded()` (corpus and prosody frames cleared).
+- `.heard` voice events only close the floor; the words come through `heard(_:)`.
+- AI-voice disclosure: the caption shows at the first AI audio (reply, laugh, canned line);
+  the line is said through `brain.say` at the next quiet moment after a turn, and the flag is
+  stored only once it was `.played`.
+- Privacy: `recall`/`forget` results never carry sensitive facts (`PrivateFactsFilter`);
+  `where_am_i` never sends coordinates; the key check uses an ephemeral, cache-less session
+  and the Settings field is kept if the Keychain refuses the key.
+- `RootView` status chip: `cloudStatus` (Release too), notices, the disclosure; the face
+  takes a softer, tilted, grey-blue look while the cloud is off.
+
+## Open asks
+
+- **DeeRealtime:** done in tune 1 (DNA lifecycle, `dropUserItem`, `resetConversation`,
+  `say`, `addUserText`, unanswered hold) and adopted. The session's `TraceRecorder` records
+  DNA text: pass no trace in Release (the app passes none).
+- **DeeVoice (new, tune 1):** DNA entry points on `CloudVoice` — `respond(dna:maxOutputTokens:
+  reasoningEffort:)`, `initiative(dna:…)` and an out-of-band `say(instructions:)` that do
+  what `respond` / `initiative` do today (cut a playing reply, `gate.requested()`, timeline
+  mark, local refusal and `initiativePending` early cancel) and call the session's DNA
+  APIs in CloudVoice's command order. The brain then drops its own `stopGuard` wait,
+  refusal checks and `speakFirst` take-back. Also: expose EarCore's prosody of the
+  committed window, so `ProsodyTap` can go.
+- **Voice harness:** drop `DNAWire` and use `RealtimeBrain(voice:host:…)` (deprecated
+  shims compile with warnings); latency counted from the end of a held turn's continuation
+  still applies.
+- **DNA owner:** a formal slot for people-layer notes (`DNAInputs.extraNotes`).

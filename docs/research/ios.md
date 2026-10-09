@@ -78,34 +78,26 @@
 | Mic / Speech | as above | `NSMicrophoneUsageDescription`, `NSSpeechRecognitionUsageDescription` (UNVERIFIED for SpeechTranscriber; include it) |
 | App Intents | `AppShortcutsProvider` | none |
 
-**Required for the 2.7 GB model**
-- `com.apple.developer.kernel.increased-memory-limit` (iOS 15+). It is a capability, not something Apple reviews or grants separately.
-- The docs say the higher limit exists "only on some device models", and the app must behave correctly without it.
-- Add `com.apple.developer.kernel.extended-virtual-addressing` (iOS 14+, the "Extended Virtual Addressing" capability) for mmapped weights.
-- Check `os_proc_available_memory()` at runtime. Device RAM thresholds are UNVERIFIED.
-
-**Foundation Models as a fallback**
+**Foundation Models (not used; Dee's brain is the cloud realtime model since 0.6)**
 - `SystemLanguageModel.default.availability` must be `.available`.
 - The 26.x context is 4096 tokens. Read `SystemLanguageModel.contextSize` at runtime instead of hard-coding it, because the model versions differ (26.0–26.3, 26.4, 27.0).
 - It supports `Tool` calling and `@Generable` guided output.
-- Good uses: a fallback while the Qwen download is pending, intent classification, and summarizing a conversation for memory.
+- Possible uses: intent classification and summarizing a conversation for memory.
 
 ## 4. iOS 27 (WWDC26)
 - **Foundation Models:**
   - New public `LanguageModel` protocol (iOS 27), with an `Executor`, `capabilities` and `executorConfiguration`. Apple's docs tell implementers to "distribute your solution with Swift Package Manager", and the protocol is open to third-party implementations. Its conformers include `SystemLanguageModel` and `PrivateCloudComputeLanguageModel`. https://developer.apple.com/documentation/foundationmodels/languagemodel
-  - Implication: a llama.cpp/Qwen executor can sit behind the FM session/`Tool` API. Fit with a 4096-token context and Qwen's chat template is UNVERIFIED.
   - Also new: multimodal prompts, Vision tools, Dynamic Profiles, and an Evaluations framework. https://developer.apple.com/wwdc26/guides/ios/, https://www.fonearena.com/blog/484623/apple-wwdc26-foundation-models-gemini-support-xcode-27-agentic-coding-tools.html
   - Private Cloud Compute is free for Small Business Program apps (UNVERIFIED; secondary source).
-- **Core AI:** a Swift API for running your own models on-device. GGUF support is UNVERIFIED and likely absent.
+- **Core AI:** a Swift API for running your own models on-device.
 - **App Intents:** intent schemas without predefined phrases, entity schemas, a View Annotations API, and a Testing framework.
 - **NowPlaying** and **Music Understanding** frameworks.
 - I found no iOS 27 changes to Speech, AVSpeechSynthesizer, AlarmKit, EventKit or HealthKit (UNVERIFIED that none exist).
 
-**App size (verified):**
+**App size (verified; no longer a constraint since 0.6, which ships no model file):**
 - On iOS 9+, the limit is 4 GB uncompressed after app thinning, and the executable's `__TEXT` sections are limited to 80 MB. https://developer.apple.com/help/app-store-connect/reference/maximum-build-file-sizes
-- A ~2.7 GB GGUF fits in the bundle. Apple recommends Background Assets for large assets.
 
-Sources: as above, plus https://developer.apple.com/documentation/speech/assetinventory · https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.kernel.increased-memory-limit · https://developer.apple.com/documentation/avfaudio/avaudiosession/categoryoptions-swift.struct/allowbluetoothhfp · https://antongubarenko.substack.com/p/ios-26-speechanalyzer-guide · https://dev.to/arshtechpro/wwdc-2025-wake-up-to-the-alarmkit-api-ios-26-4e67
+Sources: as above, plus https://developer.apple.com/documentation/speech/assetinventory · https://developer.apple.com/documentation/avfaudio/avaudiosession/categoryoptions-swift.struct/allowbluetoothhfp · https://antongubarenko.substack.com/p/ios-26-speechanalyzer-guide · https://dev.to/arshtechpro/wwdc-2025-wake-up-to-the-alarmkit-api-ios-26-4e67
 
 ## Corrections
 1. `bestAvailableAudioFormat(compatibleWith:)` returns `AVAudioFormat?`, which is `nil` when assets are missing. `assetInstallationRequest(supporting:)` is `async throws` and returns an optional (`nil` when already installed). The "fails silently" wording is replaced with the documented fact that the analyzer does not convert audio.
@@ -113,5 +105,5 @@ Sources: as above, plus https://developer.apple.com/documentation/speech/assetin
 3. `SpeechDetector` results need `reportResults: true` and only report errors. The levels are low/medium/high, with `.medium` recommended rather than described as the default.
 4. `.allowBluetoothHFP` is confirmed in the docs. `.allowBluetooth` is still listed and not deprecated, so "renamed, UNVERIFIED" is resolved.
 5. The `LanguageModel` protocol (iOS 27) is confirmed open to third-party SPM implementations through an `Executor`, so the UNVERIFIED is resolved.
-6. The increased-memory-limit entitlement is iOS 15+ and only raises the limit on some device models. The extended-virtual-addressing entitlement is iOS 14+.
+6. The increased-memory-limit entitlement is iOS 15+ and only raises the limit on some device models. The extended-virtual-addressing entitlement is iOS 14+. (Moot since 0.6: Dee holds no large model in memory and uses neither entitlement.)
 7. The app size limit is confirmed at 4 GB uncompressed after thinning, with an 80 MB `__TEXT` limit. FM context size should be read from `contextSize` at runtime. `NSAlarmKitUsageDescription` is confirmed as required.

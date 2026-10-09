@@ -1,0 +1,154 @@
+{
+  "scenarios" : [
+    {
+      "description" : "The socket dies between turns and mid-reply; memory carries over.",
+      "family" : "fallback",
+      "name" : "fallback-reconnect",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 20
+      },
+      "steps" : [
+        {
+          "say" : "n01"
+        },
+        {
+          "say" : "q01"
+        },
+        {
+          "fault" : {
+            "kind" : "drop"
+          }
+        },
+        {
+          "silence" : 3
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "faultDuringReply" : {
+            "afterMs" : 800,
+            "kind" : "drop"
+          },
+          "say" : "l01"
+        },
+        {
+          "silence" : 3
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    },
+    {
+      "description" : "A 10 s secret outlived by its session; a refused (401) reopen; a drop after expiry.",
+      "family" : "fallback",
+      "name" : "fallback-auth",
+      "session" : {
+        "secretTTL" : 10
+      },
+      "steps" : [
+        {
+          "say" : "q02"
+        },
+        {
+          "silence" : 15
+        },
+        {
+          "say" : "q07"
+        },
+        {
+          "fault" : {
+            "kind" : "reject401"
+          }
+        },
+        {
+          "silence" : 3
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "fault" : {
+            "kind" : "drop"
+          }
+        },
+        {
+          "silence" : 3
+        },
+        {
+          "say" : "q08"
+        }
+      ]
+    },
+    {
+      "description" : "A rate-limited (429) reopen after a drop.",
+      "family" : "fallback",
+      "name" : "fallback-429",
+      "steps" : [
+        {
+          "say" : "q04"
+        },
+        {
+          "fault" : {
+            "kind" : "reject429"
+          }
+        },
+        {
+          "silence" : 4
+        },
+        {
+          "say" : "q06"
+        }
+      ]
+    },
+    {
+      "description" : "A rollover forced early (20 s idle / 40 s forced); the name survives it.",
+      "family" : "fallback",
+      "name" : "fallback-rollover",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 20
+      },
+      "session" : {
+        "forceRolloverAfter" : 40,
+        "rolloverAfter" : 20
+      },
+      "steps" : [
+        {
+          "say" : "n01"
+        },
+        {
+          "say" : "q01"
+        },
+        {
+          "say" : "q02"
+        },
+        {
+          "silence" : 8
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "silence" : 6
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    }
+  ]
+}

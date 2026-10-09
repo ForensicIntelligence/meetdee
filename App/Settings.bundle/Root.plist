@@ -8,6 +8,79 @@
 	<array>
 		<dict>
 			<key>Type</key><string>PSGroupSpecifier</string>
+			<key>Title</key><string>Cloud Voice (OpenAI)</string>
+			<key>FooterText</key><string>Dee hears, thinks and speaks through OpenAI's realtime voice. Paste your OpenAI API key here: Dee checks it, moves it into the Keychain on this device and clears this field. While Dee is open and online, everything her microphone picks up is streamed to OpenAI, together with a short description of how she feels and what she knows about you. Her voice is AI-generated.</string>
+		</dict>
+		<dict>
+			<key>Type</key><string>PSTextFieldSpecifier</string>
+			<key>Title</key><string>OpenAI API key</string>
+			<key>Key</key><string>openAIKey</string>
+			<key>DefaultValue</key><string></string>
+			<key>IsSecure</key><true/>
+			<key>KeyboardType</key><string>Alphabet</string>
+			<key>AutocapitalizationType</key><string>None</string>
+			<key>AutocorrectionType</key><string>No</string>
+		</dict>
+		<dict>
+			<key>Type</key><string>PSMultiValueSpecifier</string>
+			<key>Title</key><string>Voice</string>
+			<key>Key</key><string>cloudVoice</string>
+			<key>DefaultValue</key><string>marin</string>
+			<key>Titles</key>
+			<array>
+				<string>Marin (recommended)</string>
+				<string>Cedar (recommended)</string>
+				<string>Alloy</string>
+				<string>Ash</string>
+				<string>Ballad</string>
+				<string>Coral</string>
+				<string>Echo</string>
+				<string>Sage</string>
+				<string>Shimmer</string>
+				<string>Verse</string>
+			</array>
+			<key>Values</key>
+			<array>
+				<string>marin</string>
+				<string>cedar</string>
+				<string>alloy</string>
+				<string>ash</string>
+				<string>ballad</string>
+				<string>coral</string>
+				<string>echo</string>
+				<string>sage</string>
+				<string>shimmer</string>
+				<string>verse</string>
+			</array>
+		</dict>
+		<dict>
+			<key>Type</key><string>PSMultiValueSpecifier</string>
+			<key>Title</key><string>Model</string>
+			<key>Key</key><string>cloudModel</string>
+			<key>DefaultValue</key><string>gpt-realtime-2.1-mini</string>
+			<key>Titles</key>
+			<array>
+				<string>Mini (fast, lower cost)</string>
+				<string>Full (richer, about 3× the cost)</string>
+			</array>
+			<key>Values</key>
+			<array>
+				<string>gpt-realtime-2.1-mini</string>
+				<string>gpt-realtime-2.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>Type</key><string>PSToggleSwitchSpecifier</string>
+			<key>Title</key><string>Share Memories with Cloud Voice</string>
+			<key>Key</key><string>shareMemoriesWithCloud</string>
+			<key>DefaultValue</key><true/>
+		</dict>
+		<dict>
+			<key>Type</key><string>PSGroupSpecifier</string>
+			<key>FooterText</key><string>Voice and model changes take effect the next time Dee opens. With memory sharing off, the facts and shared moments Dee remembers about people stay on this device; she still knows their name.</string>
+		</dict>
+		<dict>
+			<key>Type</key><string>PSGroupSpecifier</string>
 			<key>Title</key><string>Age</string>
 			<key>FooterText</key><string>When age is on, Dee's personality and moods depend on how old it is: young Dees are playful and quick to forgive, teens are touchy, elders are patient and calm.</string>
 		</dict>

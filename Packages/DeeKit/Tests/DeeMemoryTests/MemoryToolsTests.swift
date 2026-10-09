@@ -22,7 +22,7 @@ struct MemoryToolsTests {
             ForgetTool(store: s, currentPerson: { nil }),
         ]
         #expect(tools.map(\.spec.name) == ["remember_fact", "recall", "forget_fact"])
-        let total = tools.map(\.spec.templateJSON.count).reduce(0, +)
+        let total = tools.map(\.spec.functionJSON.count).reduce(0, +)
         #expect(total < 1000, "tool specs cost context: \(total) chars")
         #expect(tools[0].spec.parameters.first { $0.name == "category" }?.required == false)
         #expect(tools[0].spec.parameters.first { $0.name == "category" }?.allowed?.count == Fact.Category.allCases.count)

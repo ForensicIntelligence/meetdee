@@ -98,35 +98,31 @@ entries are trimmed, and blank entries are skipped. With both empty the prompt i
 byte-identical to v0.4 (pinned by `V05CoreTests`). Set them only at `newConversation`
 (the system prompt is frozen per conversation).
 
-### `OutputParser` (dev-only leak flag)
+### Cue leaks (dev-only; `CueLeak` / `CueLeakWatch` since 0.6)
+
+0.5 shipped this check inside the local model's output parser. 0.6 removed the local
+model and kept the check as a standalone DeeCore type, fed with the realtime
+transcript:
 
 ```swift
-public enum Leak: Sendable, Equatable, Hashable {
-    case stateTag               // "dee_state" anywhere in visible text
+public enum CueLeak: Sendable, Equatable, Hashable {
+    case stateTag               // "dee_state" anywhere in what she said
     case moodSentence           // "Toward your human:"
     case note(String)           // a watched note repeated verbatim (carries the note as given)
+    public static let minimumNoteLength: Int   // 12 (shorter note bodies are ignored)
+    public static func find(in reply: String, notes: [String] = []) -> [CueLeak]  // order: stateTag, moodSentence, notes
+    public static func notes(inCue cue: String) -> [String]   // top-level "( … )" segments, parens kept
 }
-public var watchedNotes: [String]             // set per turn; setting it re-checks
-public private(set) var leaks: [Leak]         // order: stateTag, moodSentence, notes (in watchedNotes order)
-public var leaked: Bool
-public private(set) var visibleText: String   // concatenated .content events
-public static let minimumLeakNoteLength: Int  // 12 (shorter note bodies are ignored)
-public static func leaks(in reply: String, notes: [String] = []) -> [Leak]
-public static func notes(inState state: String) -> [String]   // top-level "( … )" segments, parens kept
+public struct CueLeakWatch {
+    public init(notes: [String] = []), init(cue: String)
+    public var notes: [String]                // setting it re-checks
+    public mutating func feed(_ piece: String)
+    public private(set) var text: String, leaks: [CueLeak]
+    public var leaked: Bool
+}
 ```
 
-- Only `.content` is checked (reasoning is never spoken). Matching is
-  case-insensitive, whitespace-collapsed, with typographic quotes straightened; a note
-  matches with or without its parentheses.
-- Purely diagnostic: the event stream is identical with or without watched notes.
-  `OutputEvent` is unchanged (no new case).
-
-### `ConversationAgent`
-
-```swift
-public private(set) var lastReplyLeaks: [OutputParser.Leak]   // reset at the start of each turn
-```
-
-Each turn watches the notes found in the `state:` string passed to
-`respond(to:state:)` (via `OutputParser.notes(inState:)`); leaks from every assistant
-message of the turn are merged (deduplicated). History is not modified.
+- Matching is case-insensitive, whitespace-collapsed, with typographic quotes
+  straightened; a note matches with or without its parentheses.
+- Purely diagnostic: nothing is filtered, and history is not modified. The brain keeps
+  one watch per reply, made from that turn's cue.

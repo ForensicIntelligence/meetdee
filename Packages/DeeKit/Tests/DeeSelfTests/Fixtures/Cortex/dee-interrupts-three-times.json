@@ -28,7 +28,6 @@
     {
       "effects" : [
         "stopSpeaking",
-        "say",
         "persist(misread)"
       ],
       "percept" : "bargeIn",
@@ -121,8 +120,7 @@
     },
     {
       "effects" : [
-        "stopSpeaking",
-        "say"
+        "stopSpeaking"
       ],
       "percept" : "bargeIn",
       "slice" : {

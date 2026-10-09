@@ -166,9 +166,10 @@ final class People {
         return nil
     }
 
-    /// Short lines for the system prompt (~300 tokens max).
-    func memories() async -> [String] {
+    /// Short lines for the system prompt (~300 tokens max). `limit` lets a caller with
+    /// a tighter budget (the cloud voice's session instructions) ask for fewer.
+    func memories(limit: Int = 10) async -> [String] {
         guard let id = current?.id else { return [] }
-        return await store.promptMemories(for: id, limit: 10)
+        return await store.promptMemories(for: id, limit: limit)
     }
 }

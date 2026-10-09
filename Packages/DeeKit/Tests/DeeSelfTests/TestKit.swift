@@ -203,27 +203,3 @@ struct ReducerRun<R: SubReducer> {
     @discardableResult
     mutating func issue(_ n: Note) -> [Effect] { r.noteIssued(n, &m) }
 }
-
-/// A scripted `TextGenerator` that records every prompt.
-final class RecordingGenerator: TextGenerator, @unchecked Sendable {
-    private let lock = NSLock()
-    private var replies: [String]
-    private var _prompts: [String] = []
-    init(replies: [String]) { self.replies = replies }
-    var prompts: [String] { lock.withLock { _prompts } }
-    var contextLength: Int { 4096 }
-    var lastStopWasEndOfGeneration: Bool { true }
-    func generate(prompt: String, options: GenerationOptions) -> AsyncThrowingStream<String, Error> {
-        let reply: String = lock.withLock {
-            _prompts.append(prompt)
-            return replies.isEmpty ? "[neutral] Okay." : replies.removeFirst()
-        }
-        return AsyncThrowingStream { c in
-            c.yield(reply)
-            c.finish()
-        }
-    }
-    func tokenCount(_ text: String) async throws -> Int { (text.count + 3) / 4 }
-    func cancel() {}
-    func reset() async {}
-}

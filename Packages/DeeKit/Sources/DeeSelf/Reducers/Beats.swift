@@ -15,9 +15,12 @@ import Foundation
 ///   an examine: `doubleTake`, then `excited` +0.2 (also held through the prefill);
 /// - `listenHesitant` — requested by Listener: soft lids (`lidSoften` at `.beat`);
 /// - `sorryGoOn` — Dee interrupted the user (FloorKeeper's `.deeInterrupted`): a sheepish
-///   look and a "go on" nod, plus — only when the floor is free (idle or yielding), never
-///   over the user — one canned line (`.say`) from a seeded variant table for her humour
-///   style (≥ 4 per style, never the same twice in a row) and the `"sorrySaid"` signal;
+///   look and a "go on" nod, plus — only on an idle floor, never over the user — one
+///   canned line (`.say`) from a seeded variant table for her humour style (≥ 4 per
+///   style, never the same twice in a row) and the `"sorrySaid"` signal. While the floor
+///   is yielding (she just stopped *because* they are talking) the line waits; it is said
+///   if the floor goes idle within `sorryWait` with nobody talking, and dropped the moment
+///   the user has the floor (RepairKeeper's cue note covers the apology then) (audit C3);
 /// - `reunion` — requested, or Learner's signal `"reunion"`: a glad bounce and a greeting glance.
 ///
 /// Who may preempt whom: a beat starts when none runs, or when its priority is higher
@@ -50,6 +53,8 @@ public struct Beats: SubReducer {
     public static let reexamineAfter: TimeInterval = 30
     /// One apology per this long (a partial and the barge-in both flag the interruption).
     public static let sorryCooldown: TimeInterval = 3
+    /// A sorry line owed while yielding is said only if the floor goes idle this soon.
+    public static let sorryWait: TimeInterval = FloorKeeper.yieldingTimeout + 1
     public static let hesitantLids = 0.5
 
     /// Who wins when beats compete (higher preempts lower).
@@ -76,6 +81,8 @@ public struct Beats: SubReducer {
     var examined: [(subject: Subject, at: Date)] = []
     var lastFocus: Focus = .none
     var lastSorry: Date?
+    /// The sorry line is owed but waits for an idle floor (since when).
+    public private(set) var sorryOwedSince: Date?
     /// The last canned line variant (no immediate repeat).
     public private(set) var lastLineVariant: Int?
 
@@ -90,6 +97,7 @@ public struct Beats: SubReducer {
             m.momentary.beat = nil
             queue = []
             activePriority = 0
+            sorryOwedSince = nil
         default:
             break
         }
@@ -97,16 +105,30 @@ public struct Beats: SubReducer {
         finishIfDone(&m, now: now, rng: &rng)
         cancelIfStale(&m)
 
-        // Dee interrupted the user: say sorry, go on. The words only when the floor is
-        // free (idle or yielding to them); while they are already talking, the sheepish
-        // look and the "go on" nod say it without talking over them again (finding 14).
+        // Dee interrupted the user: say sorry, go on. The words only on an idle floor;
+        // while they are talking — or she is yielding to them, which means they are —
+        // the sheepish look and the "go on" nod say it without talking over them again
+        // (finding 14, audit C3: speaking over them closes their turn).
         if m.momentary.floorEvents.contains(.deeInterrupted), lastSorry.map({ now.timeIntervalSince($0) >= Self.sorryCooldown }) ?? true {
             if start(.sorryGoOn, priority: Self.defaultPriority(.sorryGoOn), &m, now: now, rng: &rng) {
                 lastSorry = now
+                sorryOwedSince = nil
                 if Self.floorFree(m.momentary.floor) {
-                    effects.append(.say(sorryLine(m.enduring.humour, rng: &rng)))
-                    m.signal("sorrySaid", by: Self.name)
+                    sayingSorry(&m, rng: &rng, into: &effects)
+                } else if case .yielding = m.momentary.floor {
+                    sorryOwedSince = now
                 }
+            }
+        } else if let owed = sorryOwedSince {
+            if m.momentary.floor.isUserTurn || m.momentary.floorEvents.contains(.userStarted) || now.timeIntervalSince(owed) > Self.sorryWait {
+                sorryOwedSince = nil
+            } else if Self.floorFree(m.momentary.floor) {
+                sorryOwedSince = nil
+                sayingSorry(&m, rng: &rng, into: &effects)
+            } else if case .yielding = m.momentary.floor {
+                // still waiting
+            } else {
+                sorryOwedSince = nil   // Dee is thinking or speaking again: the moment passed
             }
         }
 
@@ -226,11 +248,15 @@ public struct Beats: SubReducer {
         m.momentary.beat = b
     }
 
+    /// Only an idle floor is free for a canned line: `.yielding` means the user just
+    /// started talking over her.
     static func floorFree(_ f: Floor) -> Bool {
-        switch f {
-        case .idle, .yielding: true
-        default: false
-        }
+        if case .idle = f { true } else { false }
+    }
+
+    mutating func sayingSorry(_ m: inout Moment, rng: inout Rand, into effects: inout [Effect]) {
+        effects.append(.say(sorryLine(m.enduring.humour, rng: &rng)))
+        m.signal("sorrySaid", by: Self.name)
     }
 
     func shareCreationLive(_ m: Moment, now: Date) -> Bool {

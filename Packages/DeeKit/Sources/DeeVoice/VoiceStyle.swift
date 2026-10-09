@@ -1,18 +1,29 @@
 import DeeCore
 
-/// How Dee's voice sounds for one utterance. Values map 1:1 onto `AVSpeechUtterance`.
+/// How Dee's voice sounds right now, from her mood (`Projector.voice`). The
+/// realtime voice can't take pitch or volume per sentence; `sessionSpeed` maps
+/// the rate onto the session's `audio.output.speed` (applied between turns), and
+/// the mood itself reaches the model through the per-turn cue.
 public struct VoiceStyle: Sendable, Equatable {
-    /// `AVSpeechUtterance.pitchMultiplier`, 0.5…2.
+    /// Pitch multiplier, 0.5…2 (1 = her natural voice).
     public var pitch: Float
-    /// `AVSpeechUtterance.rate` (AVSpeechUtteranceMinimumSpeechRate 0 … Maximum 1, default 0.5).
+    /// Speaking rate on a 0…1 scale (0.5 = typical); see `sessionSpeed`.
     public var rate: Float
-    /// `AVSpeechUtterance.volume`, 0…1.
+    /// Volume, 0…1.
     public var volume: Float
 
     public init(pitch: Float, rate: Float, volume: Float) {
         self.pitch = pitch
         self.rate = rate
         self.volume = volume
+    }
+
+    /// `rate` as a realtime `audio.output.speed`: the resting rate is 1.0, the
+    /// slowest (sleepy, sad) ≈ 0.85 and the quickest (giddy, excited) ≈ 1.15.
+    public var sessionSpeed: Double {
+        let r = Double(rate).isFinite ? Double(rate) : Self.baseRate
+        let k = 0.15 / (Self.rateRange.upperBound - Self.baseRate)
+        return Self.clamp(1 + (r - Self.baseRate) * k, 0.8...1.2)
     }
 
     /// Dee's resting voice: cute, a touch high, a touch quick.

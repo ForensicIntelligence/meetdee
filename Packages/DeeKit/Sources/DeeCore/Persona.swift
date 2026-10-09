@@ -1,7 +1,7 @@
 import Foundation
 
-/// Who Dee is. The system prompt is kept short on purpose: with a 4096-token window
-/// every sentence here is a sentence of conversation Dee can't remember.
+/// Who Dee is. The system prompt is kept short on purpose: it is sent with every
+/// session, and a short, stable prompt keeps her in character and caches well.
 public struct Persona: Sendable, Equatable {
     public var name: String
     public var userName: String?

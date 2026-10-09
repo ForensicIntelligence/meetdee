@@ -111,7 +111,7 @@ public enum SelfWrite: Sendable, Equatable {
 
 /// What DeeModel must do after a step, in order.
 public enum Effect: Sendable, Equatable {
-    /// → ConversationAgent.respond(to:state:)
+    /// → ReplyEngine.respond(_:state:effort:) (DeeCore)
     case reply(userText: String?, cue: String)
     /// Dee speaks first (userText nil).
     case initiative(cue: String)

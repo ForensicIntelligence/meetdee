@@ -54,8 +54,8 @@ final class SimDee {
         cortex.tokenCounter = Self.tokens
     }
 
-    /// The app sets the real tokenizer (`SelfBudget.count`); Qwen averages about four
-    /// characters per English token, which this stands in for (the worst-case
+    /// A realistic count: tokenizers average about four characters per English token,
+    /// which this stands in for (the worst-case
     /// `ceil(chars/3)` default drops self-block lines the real prompt keeps).
     static let tokens: @Sendable (String) -> Int = { ($0.count + 3) / 4 }
 

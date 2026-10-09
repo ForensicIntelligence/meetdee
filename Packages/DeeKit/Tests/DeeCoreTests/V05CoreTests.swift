@@ -2,15 +2,15 @@ import Foundation
 import Testing
 @testable import DeeCore
 
-/// v0.5 DeeCore additions (SELF.md §2): `Persona.selfLines` / `ruleLines` and the
-/// dev-only `OutputParser` leak flag.
+/// v0.5 DeeCore additions (SELF.md §2): `Persona.selfLines` / `ruleLines`, and the
+/// dev-only cue-leak check (`CueLeak`, `CueLeakWatch`).
 @Suite struct V05CoreTests {
     static let date = Date(timeIntervalSince1970: 1_790_000_000)   // Monday 21 September 2026, UTC
     static let locale = Locale(identifier: "en_US_POSIX")
     static let utc = TimeZone(identifier: "UTC")!
 
     /// The base system prompt (v0.5), spelled out line by line. If this test fails the
-    /// prompt prefix (and with it every cached KV state) changed.
+    /// prompt changed (and with it the session instructions every conversation sends).
     static func v04Prompt(userName: String?, memories: [String]) -> String {
         let tags = Emotion.modelChoosable.map { "[\($0.rawValue)]" }.joined(separator: " ")
         var lines = [
@@ -72,20 +72,18 @@ import Testing
         #expect(Persona() != Persona(ruleLines: ["x"]))
     }
 
-    // MARK: OutputParser leak flag
+    // MARK: Cue leaks
 
-    static func run(_ text: String, notes: [String] = [], thinking: Bool = false, piece: Int = 3) -> (events: [OutputEvent], parser: OutputParser) {
-        var p = OutputParser(thinking: thinking)
-        p.watchedNotes = notes
-        var events: [OutputEvent] = []
+    /// Feeds `text` in pieces of `piece` characters, like transcript deltas.
+    static func watch(_ text: String, notes: [String] = [], piece: Int = 3) -> CueLeakWatch {
+        var w = CueLeakWatch(notes: notes)
         var i = text.startIndex
         while i < text.endIndex {
             let j = text.index(i, offsetBy: piece, limitedBy: text.endIndex) ?? text.endIndex
-            events += p.feed(String(text[i..<j]))
+            w.feed(String(text[i..<j]))
             i = j
         }
-        events += p.finish()
-        return (events, p)
+        return w
     }
 
     static let note1 = "(Ask how their interview went. They were nervous about it.)"
@@ -93,109 +91,73 @@ import Testing
     static let cue = "<dee_state>Toward your human: fond of them. Mood: cheerful, curious. \(note1) \(note2)</dee_state>"
 
     @Test func aCleanReplyHasNoLeak() {
-        let r = Self.run("[happy] Hey! How did the interview go? I hope it went well.", notes: [Self.note1, Self.note2])
-        #expect(r.parser.leaks.isEmpty)
-        #expect(!r.parser.leaked)
-        #expect(r.parser.visibleText == "Hey! How did the interview go? I hope it went well.")
+        let w = Self.watch("Hey! How did the interview go? I hope it went well.", notes: [Self.note1, Self.note2])
+        #expect(w.leaks.isEmpty)
+        #expect(!w.leaked)
+        #expect(w.text == "Hey! How did the interview go? I hope it went well.")
     }
 
     @Test func theStateTagIsALeakEvenAcrossPieces() {
         for piece in [1, 2, 3, 5, 64] {
-            let r = Self.run("[happy] <dee_state>fond</dee_state> hi", piece: piece)
-            #expect(r.parser.leaks == [.stateTag], "piece \(piece): \(r.parser.leaks)")
+            let w = Self.watch("<dee_state>fond</dee_state> hi", piece: piece)
+            #expect(w.leaks == [.stateTag], "piece \(piece): \(w.leaks)")
         }
-        #expect(Self.run("Closing tag only </DEE_STATE> here").parser.leaks == [.stateTag])
+        #expect(Self.watch("Closing tag only </DEE_STATE> here").leaks == [.stateTag])
     }
 
     @Test func theMoodSentenceIsALeak() {
-        let r = Self.run("[sad] Toward your human: wary of them. Mood: low.")
-        #expect(r.parser.leaks == [.moodSentence])
+        #expect(Self.watch("Toward your human: wary of them. Mood: low.").leaks == [.moodSentence])
     }
 
     @Test func aNoteRepeatedVerbatimIsALeak() {
         // With parentheses.
-        var r = Self.run("[curious] \(Self.note1) So, how was it?", notes: [Self.note1, Self.note2])
-        #expect(r.parser.leaks == [.note(Self.note1)])
+        var w = Self.watch("\(Self.note1) So, how was it?", notes: [Self.note1, Self.note2])
+        #expect(w.leaks == [.note(Self.note1)])
         // Without them, different case, extra whitespace and a curly apostrophe.
-        r = Self.run("[happy] you  remember: THEY’RE learning\nwatercolor. Nice!", notes: [Self.note1, Self.note2])
-        #expect(r.parser.leaks == [.note(Self.note2)])
+        w = Self.watch("you  remember: THEY’RE learning\nwatercolor. Nice!", notes: [Self.note1, Self.note2])
+        #expect(w.leaks == [.note(Self.note2)])
         // Both notes and the tag at once, in a fixed order.
-        r = Self.run("<dee_state> \(Self.note2) \(Self.note1)", notes: [Self.note1, Self.note2])
-        #expect(r.parser.leaks == [.stateTag, .note(Self.note1), .note(Self.note2)])
+        w = Self.watch("<dee_state> \(Self.note2) \(Self.note1)", notes: [Self.note1, Self.note2])
+        #expect(w.leaks == [.stateTag, .note(Self.note1), .note(Self.note2)])
     }
 
     @Test func paraphraseAndShortNotesAreNotLeaks() {
-        let r = Self.run("[happy] So how did your interview go? You seemed nervous.", notes: [Self.note1])
-        #expect(r.parser.leaks.isEmpty, "acting on a note is the point; only verbatim repeats count")
-        let short = Self.run("[happy] Ask which.", notes: ["(Ask which.)"])
-        #expect(short.parser.leaks.isEmpty, "notes under \(OutputParser.minimumLeakNoteLength) chars are too generic")
+        let w = Self.watch("So how did your interview go? You seemed nervous.", notes: [Self.note1])
+        #expect(w.leaks.isEmpty, "acting on a note is the point; only verbatim repeats count")
+        let short = Self.watch("Ask which.", notes: ["(Ask which.)"])
+        #expect(short.leaks.isEmpty, "notes under \(CueLeak.minimumNoteLength) chars are too generic")
     }
 
-    @Test func reasoningIsNeverCountedAsALeak() {
-        let r = Self.run("The <dee_state> says \(Self.note1)</think>\n\n[happy] How did it go?", notes: [Self.note1], thinking: true)
-        #expect(r.parser.leaks.isEmpty)
-        #expect(r.parser.visibleText == "How did it go?")
+    @Test func settingNotesLateRechecks() {
+        var w = CueLeakWatch()
+        w.feed("\(Self.note2) yes")
+        #expect(w.leaks.isEmpty)
+        w.notes = [Self.note2]
+        #expect(w.leaks == [.note(Self.note2)])
     }
 
-    @Test func leakDetectionNeverChangesTheEvents() {
-        let text = "[happy] <dee_state>x</dee_state> \(Self.note1) [sad] ok <tool_call>\n<function=clock>\n</function>\n</tool_call> done"
-        for piece in [1, 4, 7] {
-            let watched = Self.run(text, notes: [Self.note1], piece: piece)
-            var plain = OutputParser(thinking: false)
-            var events: [OutputEvent] = []
-            var i = text.startIndex
-            while i < text.endIndex {
-                let j = text.index(i, offsetBy: piece, limitedBy: text.endIndex) ?? text.endIndex
-                events += plain.feed(String(text[i..<j]))
-                i = j
-            }
-            events += plain.finish()
-            #expect(watched.events == events)
-            #expect(watched.parser.leaked)
-            #expect(plain.leaks == [.stateTag], "the tag is caught even without watched notes")
-        }
-    }
-
-    @Test func settingWatchedNotesLateRechecks() {
-        var p = OutputParser(thinking: false)
-        _ = p.feed("[happy] \(Self.note2) yes")
-        _ = p.finish()
-        #expect(p.leaks.isEmpty)
-        p.watchedNotes = [Self.note2]
-        #expect(p.leaks == [.note(Self.note2)])
+    @Test func aWatchMadeFromTheCueWatchesItsNotes() {
+        let w = CueLeakWatch(cue: Self.cue)
+        #expect(w.notes == [Self.note1, Self.note2])
     }
 
     @Test func staticCheckMatchesTheStreamingOne() {
-        #expect(OutputParser.leaks(in: "", notes: [Self.note1]).isEmpty)
-        #expect(OutputParser.leaks(in: "fine, thanks", notes: [Self.note1]).isEmpty)
-        #expect(OutputParser.leaks(in: "x dee_state y") == [.stateTag])
+        #expect(CueLeak.find(in: "", notes: [Self.note1]).isEmpty)
+        #expect(CueLeak.find(in: "fine, thanks", notes: [Self.note1]).isEmpty)
+        #expect(CueLeak.find(in: "x dee_state y") == [.stateTag])
         // Duplicate notes are reported once.
-        #expect(OutputParser.leaks(in: Self.note1, notes: [Self.note1, Self.note1]) == [.note(Self.note1)])
+        #expect(CueLeak.find(in: Self.note1, notes: [Self.note1, Self.note1]) == [.note(Self.note1)])
+        let text = "<dee_state>x</dee_state> \(Self.note1) ok"
+        for piece in [1, 4, 7] {
+            #expect(Self.watch(text, notes: [Self.note1], piece: piece).leaks == CueLeak.find(in: text, notes: [Self.note1]))
+        }
     }
 
     @Test func notesAreExtractedFromTheCue() {
-        #expect(OutputParser.notes(inState: Self.cue) == [Self.note1, Self.note2])
-        #expect(OutputParser.notes(inState: "<dee_state>Mood: calm.</dee_state>").isEmpty)
-        #expect(OutputParser.notes(inState: "(\"That\" might be the (red) mug; ask which.) tail (unclosed")
+        #expect(CueLeak.notes(inCue: Self.cue) == [Self.note1, Self.note2])
+        #expect(CueLeak.notes(inCue: "<dee_state>Mood: calm.</dee_state>").isEmpty)
+        #expect(CueLeak.notes(inCue: "(\"That\" might be the (red) mug; ask which.) tail (unclosed")
                 == ["(\"That\" might be the (red) mug; ask which.)"])
-        #expect(OutputParser.notes(inState: ") stray (a note here.)") == ["(a note here.)"])
-    }
-
-    // MARK: ConversationAgent
-
-    @Test func agentReportsLeaksOfTheTurnsNotes() async throws {
-        let gen = ScriptedGenerator([
-            "[happy] \(Self.note1) So?",
-            "[happy] It went well, then!",
-        ])
-        let agent = ConversationAgent(generator: gen, now: Self.date)
-        for try await _ in agent.respond(to: "hi", state: Self.cue) {}
-        #expect(await agent.lastReplyLeaks == [.note(Self.note1)])
-        // The next turn starts clean.
-        for try await _ in agent.respond(to: "it went great", state: "<dee_state>Mood: glad.</dee_state>") {}
-        #expect(await agent.lastReplyLeaks.isEmpty)
-        // The history is untouched by the check.
-        let replies = await agent.messages.filter { $0.role == .assistant }.map(\.content)
-        #expect(replies == ["\(Self.note1) So?", "It went well, then!"])
+        #expect(CueLeak.notes(inCue: ") stray (a note here.)") == ["(a note here.)"])
     }
 }

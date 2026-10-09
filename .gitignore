@@ -1,6 +1,4 @@
 # Large/derived artifacts — never commit
-Models/*.gguf
-Packages/DeeKit/Binaries/
 build/
 DerivedData/
 .build/
@@ -8,3 +6,8 @@ DerivedData/
 xcuserdata/
 .swiftpm/
 .DS_Store
+
+# Voice harness run outputs (regenerated per run)
+Tools/voice-harness/Traces/
+Tools/voice-harness/Reports/
+Tools/voice-harness/.build/

@@ -1,7 +1,7 @@
 import Foundation
 
 // Predictive end of turn (docs/SELF.md §7.1). Pure value types, no audio framework:
-// `ListeningCore` feeds frames and partial text; at every in-turn pause longer than
+// `EarCore` feeds frames (and partial text, when there is any); at every in-turn pause longer than
 // 150 ms it asks for an `Estimate` (turn-end and hesitation probabilities plus the
 // hold time the endpoint detector should wait).
 
