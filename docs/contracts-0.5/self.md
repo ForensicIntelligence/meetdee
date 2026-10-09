@@ -41,6 +41,8 @@ await agent.newConversation(persona: persona, now: now)
 
 - Do **not** reload `Enduring` from the store here: Cortex's `moment.enduring` is the authority while it runs (every learnt change flows through it and out as `.persist`). `setEnduring` is only for an external edit, after `flush(at:)` and applying every pending write.
 - Call `persona` after identification when you can. If it ran before the face was identified (`person: nil`), RepairKeeper raises that person's "Don't bring up" topics as a context note on each of their turns, because the frozen prompt lacks the line.
+- When someone is identified (and once at launch with `person: nil`), hand their stored episodes to Cortex: `cortex.prefetch(episodes: try await selfStore.episodes(person: id, limit: 20))`. Without it, episodes of an earlier launch are scored but never recalled (the index holds no gists).
+- Identification goes through Interpreter's §10.3 gate: three consecutive face matches, or `.identified(id, distance: 0)` after a name confirmation. A single `.identified(id, 0.2)` does not set `ongoing.person`.
 
 ### Every percept (SELF.md §4.3)
 
@@ -73,7 +75,7 @@ agent.respond(to: text, state: state)
 ### Persistence
 
 - `.persist(w)` effects: collect per turn, then `try await selfStore.apply(writes)`. The result lists any failed write (`ApplyResult.failed`); in DEBUG a failure also asserts.
-- On background, sleep and quit: `for e in cortex.flush(at: now) { … }`, then apply the batch.
+- On background, sleep and quit: `for e in cortex.flush(at: now) { … }`, then apply the batch. A quit loses all RAM state, so `flush` also closes the open episode segment (episode or digest; the conversation is counted once) and counts this conversation's taste exposures (once per subject per conversation).
 
 ### Forget and people (call order matters)
 
@@ -111,10 +113,11 @@ public struct Cortex: Sendable {
     public mutating func step(_ p: Percept, mind: MindSnapshot, at now: Date) -> [Effect]
     public mutating func cue(at now: Date, budget: Int? = nil, count: (@Sendable (String) -> Int)? = nil) -> (cue: String, effects: [Effect])
     public mutating func cueText(at now: Date, budget: Int? = nil, count: (@Sendable (String) -> Int)? = nil) -> String
-    public func selfLines(person: PersonID?, at now: Date) -> [String]   // self block (+ "Don't bring up:" line)
+    public func selfLines(person: PersonID?, at now: Date) -> [String]   // self block (+ "Don't bring up:" line), measured with tokenCounter
     public mutating func persona(_ base: Persona, person: PersonID?, at now: Date) -> Persona
     public var reconciledTag: Emotion? { get }
     public mutating func setEnduring(_ e: Enduring)            // external edits only; flush first
+    public mutating func prefetch(episodes: [Episode])         // gists for recall (at identification)
     public mutating func flush(at now: Date) -> [Effect]
     public func adjust(_ appraisal: Appraisal) -> Appraisal    // reducers' pre-commit pass (see Open items)
     public mutating func forget(subject: Subject)
@@ -246,7 +249,7 @@ public struct NotePicker {
 ```
 
 Notes are raised with `m.ongoing.raise(note, by: Self.name)` into `ongoing.noteCandidates`, each already past its raiser's own gates. `Cortex.cue(at:)` then:
-1. runs `NotePicker`, which applies only the generic rules: the §6.3 cooldowns (recall 1 per 4 turns and not the same episode within 2 days; one taste reveal per conversation; a gag at most once per 2 days; hypothesis 1 per 3 turns), the distress drop (taste/gag/recall/intention), "context must not contradict the aim" (and no gag unless repair is fine), the §6.2 priority order, the seeded variant (never the same twice in a row) and the budget;
+1. runs `NotePicker`, which applies only the generic rules: never a note (other than the user-boundary note itself) that names one of the speaker's active user boundaries; the §6.3 cooldowns (recall 1 per 4 turns and not the same episode within 2 days; one taste reveal per conversation; a gag at most once per 2 days; hypothesis 1 per 3 turns), the distress drop (taste/gag/recall/intention), "context must not contradict the aim" (and no gag unless repair is fine), the §6.2 priority order, the seeded variant (never the same twice in a row) and the budget;
 2. sets `stance.notes`;
 3. hands every issued note to every reducer's `noteIssued` and returns their effects;
 4. clears `noteCandidates`.
@@ -370,7 +373,8 @@ Use the priority that matches the §5 table row of *why* you want it, not the on
 | `seed(from:_:)` | once, in `Cortex.init` | take your part of `Carried` |
 | `conversationStarted(at:_:_:)` | after all reducers reduced `.conversationStarted` | reset your conversation-scoped fields |
 | `noteIssued(_:_:)` | per issued note | bookkeeping + `.persist` |
-| `flush(_:)` | `Cortex.flush(at:)` (background, sleep) | write throttled state (profiles: at most every 60 s, plus flush) |
+| `flush(_:)` | `Cortex.flush(at:)` (background, sleep, quit) | write throttled state (profiles: at most every 60 s, plus flush) |
+| `flush(_:_:)` | the same, with your stream (default: calls `flush(_:)`) | persist what needs fresh ids before RAM is lost (EpisodeBuilder: the open segment; Learner: taste exposures) |
 | `forget(subject:_:)`, `forgetPerson(_:_:)`, `merge(from:into:_:)`, `forgetAll(_:)` | privacy calls | scrub or re-point **private** state; Cortex already did every shared `Moment` field |
 | `adjust(_:_:)` | `Cortex.adjust(_:)` | pre-commit appraisal changes (e.g. `tookLiterally` softening hostility) |
 | `slice(of:)` | golden traces | your owned fields as stable strings |
@@ -388,7 +392,7 @@ Use the priority that matches the §5 table row of *why* you want it, not the on
 2. **The DeeSelf type is called `Projection`, not `Projector`.** This avoids a name clash with the app's `Projector.swift`, which maps the intents.
 3. **Additive state fields:**
    - `Momentary` gains `floorEvents`, `recentMannerisms` (for the no-3-in-a-row rule), `beatStepShown` (one mannerism per beat step), `aversionUntil`, `touchPoint`, and the request channels `gazeRequests`, `faceRequests`, `mannerismRequests`, `uncertaintyRequests`, `initiative`, `beatRequests`, `signals`. `uncertainty`, `reaction` and `backchannel` are read-only views of this step's requests;
-   - `Ongoing` gains `noteCandidates`, `recentMisreads`, `promptPerson`, `promptRendered`;
+   - `Ongoing` gains `noteCandidates`, `recentMisreads`, `promptPerson`, `promptRendered`, and the derived `effectivePersonality` (recomputed only when the snapshot's personality bytes or age change) and `feeling(_:)` (one feeling without decoding all; reducers read these every step);
    - `Stance` gains `face: FaceModifiers` (ready face, lid softening, tilt) and `ExpressionIntent` the same three fields;
    - `Note` gains `owner`; `SelfWrite` gains `recalled(episode:at:)`; `Carried` gains `misreads`;
    - `Expectation` gains `episode`;
@@ -424,12 +428,26 @@ Use the priority that matches the §5 table row of *why* you want it, not the on
 25. **Identity hysteresis.** Interpreter clears `person` only after 3 non-matching identifications in a row (one bad frame no longer flaps it); a confident match switches at once. The full §10.3 gate (name confirmation or ≥ 3 matches) stays a 0.5.3 TODO.
 26. **Follow-through checks only the intentions aimed this turn** (IntentionBoard remembers the ids `noteIssued` marked), so a later mention of an older issued intention is not counted as follow-through.
 
+27. **Integration pass (all eight reducers together, §12.4 scenarios).** Fixed while wiring the reducers through the full stack:
+    - `Cortex.prefetch(episodes:)` (EpisodeBuilder's gists were unreachable from the app);
+    - `flush` closes the open episode and counts taste exposures (a relaunch used to drop the whole last conversation: no episode, no digest, no taste evidence);
+    - EpisodeBuilder never recalls an episode on a topic under the speaker's user boundary, and NotePicker drops any note naming one (a "we talked about job" recall reached the cue the day after "don't ask me about my job");
+    - Learner never touches interests or taste exposures for a boundary topic (it stored `interest(job)` from the boundary sentence itself);
+    - Attention treats a look request ("look what I made") as a strong deixis trigger while something is in view, so focus moves to the shown thing and the examine beat runs (§1 walk-through); without visual context it stays a figure of speech;
+    - a show-and-tell beat chain closes the segment only when it is already salient (the beats end during Dee's first reply; closing there dropped the showing and stored the explanation as a plain "we talked about" episode);
+    - IntentionBoard consumes the director's arrival greeting when Learner performs the morning / welcome-home ritual (Dee said the ritual line and then greeted again);
+    - Listener's preview adds a small tone lexicon (the lexicon-only appraiser hears no everyday "lovely" / "awful", so the preview face stayed neutral) and reuses the appraisal of a repeated partial; the text is dropped at the end of the turn;
+    - Interpreter's topic phrase stops at a past-tense verb ("my cat knocked over…" → "cat");
+    - `selfLines` measures the block with `tokenCounter` (the app's real tokenizer was never used for it).
+
 ## Open items
 
 - **Appraisal ordering (§4.3, review 2g).** The app hands the appraisal to `Mind.hear` / `Mind.react` before `Cortex.step`, so a lesson cannot soften it after the fact. `Cortex.adjust(_:)` (each reducer's `adjust` hook) is the agreed pre-commit pass; using it needs a DeeMind entry point that appraises heard text without committing (or commits a given appraisal for it, keeping the daily aggregate). Owner: DeeMind + Interpreter, before 0.5.3 scenario 4.
 - **Face modifiers in DeeFace.** `readyFace`, `lidSoften` and `tilt` reach `ExpressionIntent`; `FaceInputs` has no inputs for them yet (owner: DeeFace, with Listener 0.5.2).
 
-## Tests (`swift test --filter DeeSelfTests`: 157 tests, about 30 s)
+## Tests (`swift test --filter DeeSelfTests`: 452 tests, about 85 s wall on an M3 Ultra)
+
+The time is dominated by `AgreementPropertyTests` (§12.3 fixes it at 10,000 × 200 = 2 M Cortex steps, ≈ 1,300 CPU-s in a debug build, 16 parallel chunks ≈ 80 s wall); about a third of a step is DeeMind's lexicon appraiser in Listener's preview. Everything else finishes within 20 s.
 
 | Suite | Owner | What it covers |
 |---|---|---|
@@ -445,4 +463,5 @@ Use the priority that matches the §5 table row of *why* you want it, not the on
 | CortexTests | core | Pipeline order; newest-sequence rule; monotonic clock; reflex 4 s + reaction, restamped reflexes; cue parity; issued-note effects; `cueText` queueing; no third issue across relaunches; initiative; per-reducer streams; sessions; conversation hooks; persona recording; signals exactly once; forget / forgetAll / merge / forgetPerson in RAM; deterministic replay |
 | GoldenTraceTests | core | Harness; Cortex `laugh-while-upset` |
 | AgreementPropertyTests | core | 10,000 seeded sequences × 200 steps; the §12.3 invariants at every step |
+| ScenarioTests | integration | §12.4 multi-session scenarios through a real in-memory `Mind`, the full Cortex, an in-memory `SelfStore` and a relaunch between sessions (`SimDee`, `SimClock`): follow-through and the ignored aim; no penalty or guilt after 7 + 5 days away; misread → lesson → no more guessing; show-and-tell remembered; user boundary across conversations; rudeness → boundary → apology → reconciliation; taste reveal over weeks; gag callback then retirement; good-morning ritual; coordinated listening; identity over 60 days with 3 people; deterministic replay. Every persisted write is checked for 5-word transcript fragments. `DEE_SCENARIO_LOG=1` prints the cues |
 | PolicyTests | core | Lint (clock, randomness, UUIDs, `.now`, `Hasher`, unsorted Dictionary/Set iteration) with a planted-violation canary; no DeeFace/DeeVoice/DeeSense/DeeLLM import; 1,000-utterance no-transcript fuzz over every persisted effect (cue and flush included) with a planted-leak canary |

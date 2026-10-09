@@ -33,12 +33,19 @@ final class People {
     }
 
     let store: MemoryStore
-    private(set) var current: Person?
+    private(set) var current: Person? {
+        didSet { if oldValue?.id != current?.id { onCurrentChanged?(current) } }
+    }
     private var session = UUID()
     private var facesInView = 0
     private var recognisedAt: [UUID: Date] = [:]
     /// Pending "have we met?" question: name and the existing person.
     private var pendingSameAs: (name: String, existing: UUID, placeholder: UUID)?
+
+    /// Keeps DeeSelf in step with identity changes the memory store makes.
+    var onMerged: ((_ from: UUID, _ into: UUID) -> Void)?
+    var onDiscarded: ((UUID) -> Void)?
+    var onCurrentChanged: ((Person?) -> Void)?
 
     var currentID: UUID? { current?.id }
     var currentName: String? { current.flatMap { $0.isPlaceholder ? nil : $0.name } }
@@ -53,8 +60,7 @@ final class People {
         session = UUID()
         pendingSameAs = nil
         if let c = current, c.isPlaceholder {
-            let id = c.id
-            Task { await store.discardPlaceholder(id) }
+            onDiscarded?(c.id)
             current = nil
         }
     }
@@ -75,7 +81,7 @@ final class People {
             let person = match.person
             await store.noteEncounter(person.id, at: Date())
             if current?.id != person.id {
-                if let c = current, c.isPlaceholder { await store.discardPlaceholder(c.id) }
+                if let c = current, c.isPlaceholder { onDiscarded?(c.id) }
                 current = person
                 pendingSameAs = nil
                 // Don't re-greet someone who just stepped out of frame for a moment.
@@ -132,7 +138,11 @@ final class People {
 
     private func adopt(_ result: ConfirmResult, name: String) -> Event? {
         switch result {
-        case .named(let p, _), .merged(let p):
+        case .named(let p, _):
+            current = p
+            return .learnedName(p.name)
+        case .merged(let p):
+            if let from = current?.id, from != p.id { onMerged?(from, p.id) }
             current = p
             return .learnedName(p.name)
         case .mergeCandidate(let placeholder, let existing):

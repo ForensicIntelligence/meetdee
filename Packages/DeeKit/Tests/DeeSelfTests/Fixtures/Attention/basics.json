@@ -92,7 +92,7 @@
       ],
       "percept" : "tick",
       "slice" : {
-        "focus" : "none",
+        "focus" : "referent(guitar,back)",
         "mutualGaze" : "yes",
         "referents" : "guitar:0.21,lamp:0.06"
       },
@@ -104,7 +104,7 @@
       ],
       "percept" : "faceLost",
       "slice" : {
-        "focus" : "none",
+        "focus" : "referent(guitar,back)",
         "mutualGaze" : "no",
         "referents" : "guitar:0.20,lamp:0.06"
       },

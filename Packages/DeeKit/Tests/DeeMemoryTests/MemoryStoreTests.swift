@@ -380,3 +380,18 @@ struct MemoryStoreTests {
         #expect(FacePrint(blob: fp.blob) == fp)
     }
 }
+
+@Test func pastEventsStayAWeekInThePastTense() async throws {
+    var utc = Calendar(identifier: .gregorian)
+    utc.timeZone = TimeZone(identifier: "UTC")!
+    let store = try MemoryStore(databaseURL: nil, faceMatching: FaceMatching(), calendar: utc)
+    let t0 = Date(timeIntervalSince1970: 1_791_000_000)
+    let john = try #require(await store.addPerson(named: "John", at: t0))
+    _ = await store.learn(from: "I have a job interview tomorrow.", about: john.id, at: t0)
+    let before = await store.promptMemories(for: john.id, limit: 6, now: t0)
+    #expect(before.contains { $0.contains("John has a job interview") })
+    let after = await store.promptMemories(for: john.id, limit: 6, now: t0.addingTimeInterval(3 * 86_400))
+    #expect(after.contains { $0.contains("John had a job interview") }, "\(after)")
+    let gone = await store.promptMemories(for: john.id, limit: 6, now: t0.addingTimeInterval(10 * 86_400))
+    #expect(!gone.contains { $0.contains("interview") })
+}

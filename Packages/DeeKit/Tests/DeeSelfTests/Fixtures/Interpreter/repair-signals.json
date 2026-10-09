@@ -1,0 +1,118 @@
+{
+  "name" : "repair-signals",
+  "reducer" : "Interpreter",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "identified(000A,0.00)",
+      "slice" : {
+        "hypotheses" : "",
+        "misread" : "-",
+        "notes" : "",
+        "person" : "00000000",
+        "signals" : "",
+        "topic" : "",
+        "uncertainty" : "-"
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "hypotheses" : "",
+        "misread" : "-",
+        "notes" : "",
+        "person" : "00000000",
+        "signals" : "hostility(hostile)",
+        "topic" : "",
+        "uncertainty" : "-"
+      },
+      "t" : 1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "hypotheses" : "",
+        "misread" : "tookLiterally:serious",
+        "notes" : "(You misread them: not serious. Own it in a few words, then check what they meant.)",
+        "person" : "00000000",
+        "signals" : "correction(joking)",
+        "topic" : "",
+        "uncertainty" : "0.8"
+      },
+      "t" : 5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "hypotheses" : "",
+        "misread" : "-",
+        "notes" : "(You misread them: not serious. Own it in a few words, then check what they meant.)",
+        "person" : "00000000",
+        "signals" : "reconciliationBid(areWeOk)",
+        "topic" : "",
+        "uncertainty" : "0.8"
+      },
+      "t" : 9
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "hypotheses" : "",
+        "misread" : "-",
+        "notes" : "(You misread them: not serious. Own it in a few words, then check what they meant.)",
+        "person" : "00000000",
+        "signals" : "reconciliationBid(apology)",
+        "topic" : "",
+        "uncertainty" : "0.8"
+      },
+      "t" : 12
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "hypotheses" : "",
+        "misread" : "-",
+        "notes" : "(You misread them: not serious. Own it in a few words, then check what they meant.)",
+        "person" : "00000000",
+        "signals" : "userBoundary(job)",
+        "topic" : "job",
+        "uncertainty" : "0.8"
+      },
+      "t" : 20
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "hypotheses" : "",
+        "misread" : "-",
+        "notes" : "(You misread them: not serious. Own it in a few words, then check what they meant.)",
+        "person" : "00000000",
+        "signals" : "userBoundaryLifted(job)",
+        "topic" : "job",
+        "uncertainty" : "-"
+      },
+      "t" : 30
+    }
+  ]
+}

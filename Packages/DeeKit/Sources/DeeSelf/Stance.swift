@@ -200,8 +200,7 @@ extension Moment {
     /// §3.5: playfulness·humorReceptiveness > 0.3 && repair == .fine && no distress
     /// hypothesis. Reducers gate playful notes on this (it equals `stance.playGate`).
     public var playGate: Bool {
-        let mind = ongoing.mind
-        let playfulness = EmotionEngine.effective(mind.code.personality, age: mind.age)[.playfulness]
+        let playfulness = ongoing.effectivePersonality[.playfulness]
         return playfulness * profile.humorReceptiveness > 0.3 && ongoing.repair == .fine && !ongoing.distressLive(at: now)
     }
 }

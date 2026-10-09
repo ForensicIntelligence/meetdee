@@ -1,0 +1,127 @@
+{
+  "name" : "awkwardness",
+  "reducer" : "RepairKeeper",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(playful)",
+      "slice" : {
+        "awkwardness" : "0.000",
+        "repair" : "fine"
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(playful)",
+      "slice" : {
+        "awkwardness" : "0.000",
+        "repair" : "fine"
+      },
+      "t" : 0.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "awkwardness" : "0.000",
+        "repair" : "fine"
+      },
+      "t" : 2
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(mischievous)",
+      "slice" : {
+        "awkwardness" : "0.000",
+        "repair" : "fine"
+      },
+      "t" : 3
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "awkwardness" : "0.200",
+        "repair" : "fine"
+      },
+      "t" : 5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(giddy)",
+      "slice" : {
+        "awkwardness" : "0.199",
+        "repair" : "fine"
+      },
+      "t" : 6
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(giddy)",
+      "slice" : {
+        "awkwardness" : "0.199",
+        "repair" : "fine"
+      },
+      "t" : 6.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "awkwardness" : "0.398",
+        "repair" : "fine"
+      },
+      "t" : 8
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "awkwardness" : "0.326",
+        "repair" : "fine"
+      },
+      "t" : 60
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "awkwardness" : "0.129",
+        "repair" : "fine"
+      },
+      "t" : 300
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "awkwardness" : "0.041",
+        "repair" : "fine"
+      },
+      "t" : 600
+    }
+  ]
+}

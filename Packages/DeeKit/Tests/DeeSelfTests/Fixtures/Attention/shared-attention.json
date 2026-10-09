@@ -1,0 +1,170 @@
+{
+  "name" : "shared-attention",
+  "reducer" : "Attention",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "presence(true)",
+      "slice" : {
+        "focus" : "person",
+        "mutualGaze" : "no",
+        "referents" : ""
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "faceLost",
+      "slice" : {
+        "focus" : "none",
+        "mutualGaze" : "no",
+        "referents" : ""
+      },
+      "t" : 1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "sight(front,mug,novel:mug)",
+      "slice" : {
+        "focus" : "none",
+        "mutualGaze" : "no",
+        "referents" : "mug:1.00*"
+      },
+      "t" : 1.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "focus" : "none",
+        "mutualGaze" : "no",
+        "referents" : "mug:0.98*"
+      },
+      "t" : 2
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "focus" : "referent(mug,front)",
+        "mutualGaze" : "no",
+        "referents" : "mug:0.95*"
+      },
+      "t" : 3
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "presence(true)",
+      "slice" : {
+        "focus" : "referent(mug,front)",
+        "mutualGaze" : "no",
+        "referents" : "mug:0.92*"
+      },
+      "t" : 4
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "focus" : "referent(mug,front)",
+        "mutualGaze" : "no",
+        "referents" : "mug:0.26*"
+      },
+      "t" : 40
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "sight(back,guitar+lamp,novel:guitar+lamp)",
+      "slice" : {
+        "focus" : "referent(mug,front)",
+        "mutualGaze" : "no",
+        "referents" : "mug:0.25*,guitar:0.50,lamp:0.50"
+      },
+      "t" : 41
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "focus" : "person",
+        "mutualGaze" : "no",
+        "notes" : "deixisAmbiguous(guitar|lamp)",
+        "referents" : "mug:0.23*,guitar:0.45,lamp:0.45",
+        "uncertainty" : "0.6"
+      },
+      "t" : 44
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "focus" : "person",
+        "mutualGaze" : "no",
+        "notes" : "deixisAmbiguous(guitar|lamp)",
+        "referents" : "mug:0.23*,guitar:0.44,lamp:0.44",
+        "uncertainty" : "0.6"
+      },
+      "t" : 44.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "focus" : "person",
+        "mutualGaze" : "no",
+        "notes" : "deixisAmbiguous(guitar|lamp)",
+        "referents" : "mug:0.21*,guitar:0.42,lamp:0.42",
+        "uncertainty" : "0.6"
+      },
+      "t" : 46
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "focus" : "referent(lamp,back)",
+        "mutualGaze" : "no",
+        "notes" : "deixisAmbiguous(guitar|lamp)",
+        "referents" : "mug:0.20*,guitar:0.39,lamp:0.99*"
+      },
+      "t" : 48
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "focus" : "referent(lamp,back)",
+        "mutualGaze" : "no",
+        "notes" : "deixisAmbiguous(guitar|lamp)",
+        "referents" : "mug:0.19*,guitar:0.38,lamp:0.96*"
+      },
+      "t" : 49
+    }
+  ]
+}

@@ -26,7 +26,7 @@ public enum CueWriter {
 
     public static func regardWords(_ r: Double) -> String {
         switch r {
-        case ..<(-0.6): "furious with them"
+        case ..<(-0.6): "very upset with them"
         case ..<(-0.3): "upset with them"
         case ..<(-0.1): "a bit annoyed with them"
         case ..<0.15: "no strong feelings about them yet"
@@ -36,7 +36,8 @@ public enum CueWriter {
         }
     }
 
-    public static func mood(code: MindCode, age: Double?) -> String {
+    /// `omit`: mood words left out (the reunion turn drops "lonely"; §9, review finding 3).
+    public static func mood(code: MindCode, age: Double?, omit: Set<String> = []) -> String {
         let f = code.feelings
         let regard = EmotionEngine.regard(f)
         let stage = age.map(LifeStage.init(age:))
@@ -47,7 +48,7 @@ public enum CueWriter {
             ("bored", f[.boredom] - 0.35), ("lonely", f[.loneliness] - 0.3), ("tired", 0.35 - f[.energy]),
             ("grateful", f[.gratitude] - 0.3), ("still holding a grudge", f[.resentment] - 0.2),
         ]
-        moods = moods.filter { $0.1 > 0 }.sorted { $0.1 > $1.1 }
+        moods = moods.filter { $0.1 > 0 && !omit.contains($0.0) }.sorted { $0.1 > $1.1 }
         let moodText = moods.prefix(3).map(\.0).joined(separator: ", ")
 
         var traits: [String] = []
@@ -136,6 +137,10 @@ public struct NotePicker: Sendable, Equatable {
     public static let recallSameEpisodeCooldown: TimeInterval = 2 * 86_400
     public static let gagCooldown: TimeInterval = 2 * 86_400
     public static let hypothesisEveryTurns = 3
+    /// Context-bound notes older than this are not spoken: a recall or taste reveal
+    /// raised by a sight at 10:00 must not surface at a cue hours later (finding 18).
+    public static let staleAfter: TimeInterval = 30
+    public static let staleKinds: Set<Note.Kind> = [.recall, .tasteReveal, .deixisResolved, .deixisAmbiguous, .deixisUnknown, .gagCallback]
 
     public init() {}
 
@@ -143,6 +148,13 @@ public struct NotePicker: Sendable, Equatable {
     public func eligible(_ n: Note, moment m: Moment) -> Bool {
         let now = m.now
         if m.ongoing.distressLive(at: now), n.kind.playfulOrTopical { return false }
+        if Self.staleKinds.contains(n.kind), let at = n.raisedAt, now.timeIntervalSince(at) > Self.staleAfter { return false }
+        // A safety net over every raiser: nothing that names a topic the speaker asked
+        // her not to bring up (their active user boundaries; §7.8).
+        if n.kind != .userBoundary, let person = m.ongoing.person,
+           m.enduring.boundaries.contains(where: { $0.person == person && $0.owner == .user && $0.active && n.mentions($0.topic) }) {
+            return false
+        }
         switch n.kind {
         case .recall:
             if let last = lastRecallTurn, turn - last < Self.recallEveryTurns { return false }
@@ -155,6 +167,9 @@ public struct NotePicker: Sendable, Equatable {
             if let g = n.gag, let at = gagUses[g], now.timeIntervalSince(at) < Self.gagCooldown { return false }
         case .hypothesis:
             if let last = lastHypothesisTurn, turn - last < Self.hypothesisEveryTurns { return false }
+        case .reunion:
+            // "Be glad to see them" while they are hostile or the quarrel is open: repair wins.
+            if m.ongoing.repair == .ruptured || m.ongoing.repair == .repairing { return false }
         default: break
         }
         return true

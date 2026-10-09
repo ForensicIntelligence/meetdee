@@ -1,0 +1,94 @@
+{
+  "name" : "insult-apology-reconcile",
+  "reducer" : "RepairKeeper",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "identified(000A,0.20)",
+      "slice" : {
+        "awkwardness" : "0.000",
+        "repair" : "fine"
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "awkwardness" : "0.000",
+        "repair" : "ruptured"
+      },
+      "t" : 1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "awkwardness" : "0.000",
+        "repair" : "ruptured"
+      },
+      "t" : 30
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "awkwardness" : "0.000",
+        "repair" : "repairing"
+      },
+      "t" : 60
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "touch(pet,true,-)",
+      "slice" : {
+        "awkwardness" : "0.000",
+        "repair" : "reconciled"
+      },
+      "t" : 61
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "awkwardness" : "0.000",
+        "repair" : "reconciled"
+      },
+      "t" : 120
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "awkwardness" : "0.000",
+        "repair" : "fine"
+      },
+      "t" : 181
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "awkwardness" : "0.000",
+        "repair" : "fine"
+      },
+      "t" : 182
+    }
+  ]
+}

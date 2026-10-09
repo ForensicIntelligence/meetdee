@@ -1,0 +1,133 @@
+{
+  "name" : "ignored-aim",
+  "reducer" : "IntentionBoard",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "candidates" : "followUp",
+        "expectations" : "job interview:pending",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "followUp:job interview:open:0:0\/1"
+      },
+      "t" : 10800
+    },
+    {
+      "effects" : [
+        "persist(intention)"
+      ],
+      "percept" : "issue(followUp)",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "job interview:pending",
+        "followUps" : "1",
+        "initiative" : "-",
+        "intentions" : "followUp:job interview:issued:1:0\/1"
+      },
+      "t" : 10801
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeTurnFinished",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "job interview:pending",
+        "followUps" : "1",
+        "initiative" : "-",
+        "intentions" : "followUp:job interview:issued:1:0\/1"
+      },
+      "t" : 10805
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "job interview:pending",
+        "followUps" : "1",
+        "initiative" : "-",
+        "intentions" : "followUp:job interview:issued:1:0\/1"
+      },
+      "t" : 10810
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "candidates" : "followUp",
+        "expectations" : "job interview:pending",
+        "followUps" : "1",
+        "initiative" : "-",
+        "intentions" : "followUp:job interview:issued:1:0\/1"
+      },
+      "t" : 10820
+    },
+    {
+      "effects" : [
+        "persist(intention)"
+      ],
+      "percept" : "issue(followUp)",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "job interview:pending",
+        "followUps" : "1",
+        "initiative" : "-",
+        "intentions" : "followUp:job interview:issued:2:0\/1"
+      },
+      "t" : 10821
+    },
+    {
+      "effects" : [
+        "persist(intention)",
+        "persist(expectation)"
+      ],
+      "percept" : "deeTurnFinished",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "job interview:expired",
+        "followUps" : "1",
+        "initiative" : "-",
+        "intentions" : "followUp:job interview:dropped:2:0\/1"
+      },
+      "t" : 10825
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "job interview:expired",
+        "followUps" : "1",
+        "initiative" : "-",
+        "intentions" : "followUp:job interview:dropped:2:0\/1"
+      },
+      "t" : 10830
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "1",
+        "initiative" : "-",
+        "intentions" : ""
+      },
+      "t" : 10831
+    }
+  ]
+}

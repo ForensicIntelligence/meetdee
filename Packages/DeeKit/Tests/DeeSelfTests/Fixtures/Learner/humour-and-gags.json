@@ -1,0 +1,300 @@
+{
+  "name" : "humour-and-gags",
+  "reducer" : "Learner",
+  "steps" : [
+    {
+      "effects" : [
+        "setPauseScale(1.00)",
+        "persist(ritual)"
+      ],
+      "percept" : "conversationStarted",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.80 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(playful)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.80 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 9
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeTurnFinished",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.80 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 10
+    },
+    {
+      "effects" : [
+        "persist(gag)"
+      ],
+      "percept" : "sound(laughter,false)",
+      "slice" : {
+        "gags" : "toast:u0l1f0",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.80 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 12
+    },
+    {
+      "effects" : [
+        "persist(interest)",
+        "persist(profile)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "toast:u0l1f0",
+        "interests" : "toast:0.11",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.83 gain 1.00 silence 0.30 kind 0.06",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 14
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "conversationStarted",
+      "slice" : {
+        "gags" : "toast:u0l1f0",
+        "interests" : "toast:0.10",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.83 gain 1.00 silence 0.30 kind 0.06",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 86400
+    },
+    {
+      "effects" : [
+        "persist(interest)",
+        "persist(profile)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "toast:u0l1f0",
+        "interests" : "toast:0.22",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "gagCallback",
+        "profile" : "pause 1.00\/0 humor 0.83 gain 1.00 silence 0.30 kind 0.08",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 86410
+    },
+    {
+      "effects" : [
+        "persist(gag)"
+      ],
+      "percept" : "issue(gagCallback)",
+      "slice" : {
+        "gags" : "toast:u1l1f0",
+        "interests" : "toast:0.22",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.83 gain 1.00 silence 0.30 kind 0.08",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 87100
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeTurnFinished",
+      "slice" : {
+        "gags" : "toast:u1l1f0",
+        "interests" : "toast:0.22",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.83 gain 1.00 silence 0.30 kind 0.08",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 87110
+    },
+    {
+      "effects" : [
+        "persist(gag)",
+        "persist(profile)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "toast:u1l2f0",
+        "interests" : "toast:0.22",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.86 gain 1.00 silence 0.30 kind 0.15",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 87112
+    },
+    {
+      "effects" : [
+        "persist(gag)"
+      ],
+      "percept" : "issue(gagCallback)",
+      "slice" : {
+        "gags" : "toast:u2l2f0",
+        "interests" : "toast:0.16",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.86 gain 1.00 silence 0.30 kind 0.15",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 345600
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeTurnFinished",
+      "slice" : {
+        "gags" : "toast:u2l2f0",
+        "interests" : "toast:0.16",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.86 gain 1.00 silence 0.30 kind 0.15",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 345610
+    },
+    {
+      "effects" : [
+        "persist(gag)",
+        "persist(profile)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "toast:u2l2f1",
+        "interests" : "toast:0.16",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.86 gain 1.00 silence 0.30 kind 0.13",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 345613
+    },
+    {
+      "effects" : [
+        "persist(gag)"
+      ],
+      "percept" : "issue(gagCallback)",
+      "slice" : {
+        "gags" : "toast:u3l2f1",
+        "interests" : "toast:0.12",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.86 gain 1.00 silence 0.30 kind 0.13",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 604800
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeTurnFinished",
+      "slice" : {
+        "gags" : "toast:u3l2f1",
+        "interests" : "toast:0.12",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.86 gain 1.00 silence 0.30 kind 0.13",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 604810
+    },
+    {
+      "effects" : [
+        "persist(gag)",
+        "persist(profile)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "toast:u3l2f2x",
+        "interests" : "toast:0.12",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.86 gain 1.00 silence 0.30 kind 0.12",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 604813
+    }
+  ]
+}

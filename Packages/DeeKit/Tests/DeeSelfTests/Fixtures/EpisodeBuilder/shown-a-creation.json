@@ -1,0 +1,105 @@
+{
+  "name" : "shown-a-creation",
+  "reducer" : "EpisodeBuilder",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "conversationStarted",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "sight(back,painting,novel:painting)",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 2
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "sound(laughter,false)",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 3
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 4
+    },
+    {
+      "effects" : [
+        "persist(episode)",
+        "persist(digest)"
+      ],
+      "percept" : "conversationStarted",
+      "slice" : {
+        "beats" : "",
+        "index" : "1",
+        "lastKeys" : "painting@1.39\/r0",
+        "notes" : "",
+        "signals" : "episodeClosed(painting,0.43)"
+      },
+      "t" : 600
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "sight(back,painting,novel:painting)",
+      "slice" : {
+        "beats" : "",
+        "index" : "1",
+        "lastKeys" : "painting@1.39\/r0",
+        "notes" : "recall:someone showed me a painting",
+        "signals" : ""
+      },
+      "t" : 601
+    }
+  ]
+}

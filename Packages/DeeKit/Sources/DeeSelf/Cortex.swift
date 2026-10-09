@@ -27,6 +27,11 @@ public protocol SubReducer: Sendable {
     mutating func noteIssued(_ n: Note, _ m: inout Moment) -> [Effect]
     /// Write anything you hold back (throttled profile writes…). Called by `Cortex.flush`.
     mutating func flush(_ m: inout Moment) -> [Effect]
+    /// `flush` with this reducer's stream, for reducers that must mint ids while
+    /// flushing (an open episode, a new taste facet). Defaults to `flush(_:)`. The app
+    /// flushes on background, sleep and quit, and a quit loses all RAM state, so
+    /// anything a later `.conversationStarted` would have persisted is written here.
+    mutating func flush(_ m: inout Moment, _ rng: inout Rand) -> [Effect]
     /// Privacy: drop private state about `subject` (Cortex already scrubbed shared fields).
     mutating func forget(subject: Subject, _ m: inout Moment)
     /// Privacy: drop private state about one person.
@@ -46,6 +51,7 @@ extension SubReducer {
     public mutating func conversationStarted(at d: Date, _ m: inout Moment, _ rng: inout Rand) -> [Effect] { [] }
     public mutating func noteIssued(_ n: Note, _ m: inout Moment) -> [Effect] { [] }
     public mutating func flush(_ m: inout Moment) -> [Effect] { [] }
+    public mutating func flush(_ m: inout Moment, _ rng: inout Rand) -> [Effect] { flush(&m) }
     public mutating func forget(subject: Subject, _ m: inout Moment) {}
     public mutating func forgetPerson(_ id: PersonID, _ m: inout Moment) {}
     public mutating func merge(from: PersonID, into: PersonID, _ m: inout Moment) {}
@@ -66,14 +72,18 @@ public struct Carried: Sendable, Equatable {
     public var openRepair: [PersonID: RepairPhase]
     /// Learner: misreads of the last 14 days (lesson minting, skill intentions).
     public var misreads: [Misread]
+    /// Learner: the last stored contact per person (latest episode end, conversation
+    /// digest day or ritual), so a reunion after a relaunch is recognised (§6.2 row 15).
+    public var lastContact: [PersonID: Date]
 
     public init(intentions: [Intention] = [], expectations: [Expectation] = [], interests: [Interest] = [],
-                openRepair: [PersonID: RepairPhase] = [:], misreads: [Misread] = []) {
+                openRepair: [PersonID: RepairPhase] = [:], misreads: [Misread] = [], lastContact: [PersonID: Date] = [:]) {
         self.intentions = intentions
         self.expectations = expectations
         self.interests = interests
         self.openRepair = openRepair
         self.misreads = misreads
+        self.lastContact = lastContact
     }
 }
 
@@ -131,8 +141,15 @@ public struct Cortex: Sendable {
     /// The stream a component named `name` draws from.
     public static func stream(_ name: String, base: UInt64) -> Rand { Rand(seed: base ^ StableHash.of(name)) }
 
-    public init(enduring: Enduring, mind: MindSnapshot, at now: Date, carried: Carried = Carried(), session: UInt64 = 0) {
+    /// `utcOffset`: the user's local time offset from UTC (plan dates, ritual and digest
+    /// days). Pass `TimeZone.current.secondsFromGMT(for: now)`; `setUTCOffset` follows a
+    /// change (travel, daylight saving). Review finding 4.
+    public init(enduring: Enduring, mind: MindSnapshot, at now: Date, carried: Carried = Carried(), session: UInt64 = 0,
+                utcOffset: TimeInterval = 0) {
         let base = Self.baseSeed(enduring.seed, session: session)
+        interpreter = Interpreter(utcOffset: utcOffset)
+        learner = Learner(utcOffset: utcOffset)
+        episodeBuilder.utcOffset = utcOffset
         moment = Moment(ongoing: Ongoing(mind: mind, conversationStarted: now), enduring: enduring, now: now)
         streams = Self.pipeline.map { Self.stream($0, base: base) }
         stanceRNG = Self.stream("Stance", base: base)
@@ -157,17 +174,17 @@ public struct Cortex: Sendable {
         ingest(mind, at: now)
         if case .conversationStarted = p { moment.ongoing.noteCandidates = [] }
 
-        var m = moment
-        effects += floorKeeper.reduce(p, &m, &streams[0])
-        effects += listener.reduce(p, &m, &streams[1])
-        effects += attention.reduce(p, &m, &streams[2])
-        effects += interpreter.reduce(p, &m, &streams[3])
-        effects += repairKeeper.reduce(p, &m, &streams[4])
-        effects += intentionBoard.reduce(p, &m, &streams[5])
-        effects += beats.reduce(p, &m, &streams[6])
-        effects += episodeBuilder.reduce(p, &m, &streams[7])
-        effects += learner.reduce(p, &m, &streams[8])
-        moment = m
+        // In place (disjoint stored properties): no copy-on-write of the moment's arrays.
+        effects += floorKeeper.reduce(p, &moment, &streams[0])
+        effects += listener.reduce(p, &moment, &streams[1])
+        effects += attention.reduce(p, &moment, &streams[2])
+        effects += interpreter.reduce(p, &moment, &streams[3])
+        effects += repairKeeper.reduce(p, &moment, &streams[4])
+        effects += intentionBoard.reduce(p, &moment, &streams[5])
+        effects += beats.reduce(p, &moment, &streams[6])
+        effects += episodeBuilder.reduce(p, &moment, &streams[7])
+        effects += learner.reduce(p, &moment, &streams[8])
+        stampNotes()
 
         if case .conversationStarted(let d) = p {
             moment.ongoing.conversationStarted = d
@@ -186,6 +203,13 @@ public struct Cortex: Sendable {
 
         effects += takeInitiative()
         return effects
+    }
+
+    /// Stamps the candidates raised this step with the step's time (staleness).
+    mutating func stampNotes() {
+        for i in moment.ongoing.noteCandidates.indices where moment.ongoing.noteCandidates[i].raisedAt == nil {
+            moment.ongoing.noteCandidates[i].raisedAt = moment.now
+        }
     }
 
     /// Turns this step's best `InitiativeRequest` into `.initiative(cue:)` (plus the
@@ -218,7 +242,11 @@ public struct Cortex: Sendable {
     }
 
     mutating func issue(aim: Note?, budget: Int, count: @Sendable (String) -> Int) -> (cue: String, effects: [Effect]) {
-        let mood = CueWriter.mood(moment.ongoing.mind)
+        // On the reunion turn her own loneliness stays out of the mood sentence: it must
+        // never read as guilt for being away (§9; review finding 3).
+        let reunion = moment.ongoing.reunionTurn || moment.ongoing.noteCandidates.contains { $0.kind == .reunion }
+        let mind = moment.ongoing.mind
+        let mood = reunion ? CueWriter.mood(code: mind.code, age: mind.age, omit: ["lonely"]) : CueWriter.mood(mind)
         var candidates = moment.ongoing.noteCandidates
         if let aim { candidates.append(aim) }
         let notes = picker.pick(candidates, moment: moment, mood: mood, rng: &pickerRNG, budget: budget, count: count)
@@ -233,8 +261,9 @@ public struct Cortex: Sendable {
 
     /// The self block for `Persona.selfLines`, rendered from the enduring self frozen
     /// at the last `.conversationStarted`: identical on every call in a conversation.
+    /// Measured with `tokenCounter` (the app's real tokenizer), like the cue.
     public func selfLines(person: PersonID?, at now: Date) -> [String] {
-        SelfBlock.render(frozenEnduring, person: person)
+        SelfBlock.render(frozenEnduring, person: person, count: tokenCounter)
     }
 
     /// The fixed rule lines for `Persona.ruleLines`.
@@ -256,6 +285,15 @@ public struct Cortex: Sendable {
     /// The reconciled tag of the current sentence: what the transcript shows.
     public var reconciledTag: Emotion? { moment.momentary.llmTag?.live(at: moment.now) }
 
+    /// The user's local time offset from UTC changed (travel, daylight saving).
+    public mutating func setUTCOffset(_ offset: TimeInterval) {
+        interpreter.utcOffset = offset
+        learner.utcOffset = offset
+        episodeBuilder.utcOffset = offset
+    }
+
+    public var utcOffset: TimeInterval { interpreter.utcOffset }
+
     /// Replaces the enduring self. Cortex's own `moment.enduring` is the authority while
     /// it runs (every learnt change flows through it and out as `.persist`), so the app
     /// never needs to reload at `newConversation`. Only for an external edit: call
@@ -267,7 +305,7 @@ public struct Cortex: Sendable {
     /// and before `setEnduring`.
     public mutating func flush(at now: Date) -> [Effect] {
         moment.now = max(moment.now, now)
-        return visit { r, m, _ in r.flush(&m) }
+        return visit { r, m, rng in r.flush(&m, &rng) }
     }
 
     /// Runs every reducer's `adjust` over an appraisal before the app commits it to Mind.
@@ -283,6 +321,16 @@ public struct Cortex: Sendable {
         episodeBuilder.adjust(&a, moment)
         learner.adjust(&a, moment)
         return a
+    }
+
+    /// Episode bodies from `SelfStore.episodes(person:limit:)`, fetched by the app when
+    /// someone is identified (and once at launch for `person: nil`): their gists become
+    /// citable by EpisodeBuilder's recall note. Without this, episodes of an earlier
+    /// launch are scored but never recalled (the index holds no gists).
+    public mutating func prefetch(episodes: [Episode]) {
+        var m = moment
+        episodeBuilder.prefetch(episodes, &m)
+        moment = m
     }
 
     // MARK: - Privacy and people (call BEFORE the matching SelfStore call; see the contract)

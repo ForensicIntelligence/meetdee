@@ -386,3 +386,109 @@ enrol, sensitive facts never reach the prompt, and forgetting really forgets
 (including the database's write-ahead log).
 
 739 tests at commit.
+
+---
+
+## 2026-10-09 — v0.5 "Someone": one mind, many channels
+
+### The brief
+John relayed a set of suggestions from OpenAI: give Dee *"a persistent sense of self,
+personal motivations, and social intuition… her reactions should come from a
+recognisable individual with a history, preferences, and reasons for what she
+does."* The key engineering sentence was this one: *"make these share one underlying
+state. Her words, voice, gaze, expression, attention, and memory updates should all
+reflect the same interpretation of the moment."*
+
+Until v0.4, Dee was a committee. The face had its own idea of her mood, the language
+model had another (its feeling tag), the voice followed whichever spoke last, and
+"flash an expression for 3 seconds" overrides were everywhere. It mostly worked. It
+also produced moments like hearts in her eyes while the cue said she was upset.
+
+### Three designs, three judges, one architecture
+Before writing code we ran a design tournament. Three agents each proposed an
+architecture: one cognitive (observe → interpret → intend → act → remember →
+reflect), one social (turn-taking, shared attention, repair) and one narrative
+(identity, tastes, autobiography). Three judges scored them on phone feasibility, on
+how alive she'd feel over weeks, and on coherence. A synthesiser merged the winner
+with the best of the others into `docs/SELF.md`: 1,345 lines, binding.
+
+The core idea is a single `Moment` with three timescales:
+- **momentary:** who has the floor, what she's looking at, a reflex;
+- **ongoing:** mood, what she thinks you're up to, open intentions, things she's
+  expecting to hear about;
+- **enduring:** temperament, values, tastes, lessons learnt, shared episodes.
+
+A pure, deterministic `Cortex` updates it through nine small reducers, one per
+concern: floor, listening, attention, interpretation, repair, intentions, beats,
+episodes and learning. `Stance.resolve` turns it into *the* interpretation of now.
+The face, voice style, gaze, little performances and the `<dee_state>` cue are all
+projections of that one Stance, so they can't disagree. A property test drives
+2 million random steps and checks that they never do.
+
+### Building it in parallel without chaos
+Nine reducers, nine engineers (agents), and one shared state make a recipe for merge
+hell. The first core build had exactly that problem. A reviewer pointed out that
+every reducer would still need to edit the same three files: `Cortex`, `Stance` and
+the note picker. So the core was rebuilt around *requests*:
+- reducers ask for gaze, face tweaks, mannerisms and notes, each with a priority;
+- each reducer gets its own random stream;
+- `Stance.resolve` only arbitrates.
+
+After that, eight agents each owned exactly one file and built in parallel.
+
+### The bug that would have frozen her
+The first full test run hung. Profiling found that one percept, a half-heard
+sentence (`.partial`), took **1.2 seconds** to process. The listening preview
+appraised every partial transcript, and Apple's sentiment tagger costs about 1.3 s
+to create. Reusing one tagger made it fast but *non-deterministic*: a shared
+`NLTagger` carries its language guess from one string to the next, so the same
+words scored differently depending on what came before. The fix is a shared tagger
+with the language pinned, which returns in 0.2 ms with identical answers every time,
+plus a lexicon-only preview for live speech. Overall the listening path got about
+1,000× faster, and Dee answers up to a second sooner.
+
+### The test that matters: a week with John
+Unit tests prove rules. To check "realistic" we built a harness that runs the *real*
+4B model through the app's exact pipeline over a simulated week, with every cue
+printed. Excerpts from the runs:
+
+Day 1. John: *"I have a big job interview tomorrow afternoon and I'm pretty nervous
+about it."* Dee stores a plan (nervous) and an intention to follow up.
+
+Day 2, evening. The cue reads *"(Ask how their job interview went. They were nervous
+about it.)"* and Dee answers John's good news with *"I'm so proud of you, John. You
+really knocked it out of the park!"*
+
+Day 4. *"UGH YOU ARE SO USELESS TODAY"* (shouted). In v0.4 Dee apologised. Now:
+*"You're being really mean, John. That made me feel hurt and a bit sad."* After his
+apology: *"It's okay, John. I forgive you for being mean."*
+
+The harness also caught what unit tests couldn't:
+- the follow-up was asked twice;
+- a "be glad to see them" note fired on top of an insult;
+- a three-day-old "they made up with you" note resurfaced;
+- most memorably, Dee confidently remembered John interviewing for *"a job at the
+  space station!"*, because the job details had never been stored.
+
+Each of these became a regression test.
+
+All four were fixed in one pass, and the next live run read like a relationship.
+Day 2: *"Hi John! I'm so happy to see you back. How did your big designer interview
+at the game studio go?"* Asked once, with the remembered details. When John answers,
+the outcome is written to long-term memory ("John's job interview went well"). On
+day 7 she talks about "your job at the game studio" instead of asking again.
+
+### Numbers
+- 1,305 tests (DeeSelf 493, DeeMind 200, DeeVoice 167, DeeMemory 122, DeeSense 111,
+  DeeFace 110, DeeCore 96, plus the real-model live tests).
+- 13 multi-week scenario tests with fixed seeds: two runs are byte-identical, and no
+  saved record contains five consecutive words of anything the user said.
+- One Cortex step costs well under a millisecond, which leaves the phone's time for
+  the 4B model.
+
+### Lesson for the article
+Unit tests verify that rules hold. Only the full loop, with the real model, real
+timings and a simulated week, showed whether the rules add up to a character.
+The run with the most bugs also produced the line that sold the design: after an
+insult, a 4-billion-parameter model on a phone said *"I don't like being called
+useless"* and then forgave him.

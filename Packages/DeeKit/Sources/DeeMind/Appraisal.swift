@@ -138,12 +138,41 @@ public struct Appraiser: Sendable {
     }
 
     public mutating func appraise(_ text: String, prosody: Prosody? = nil) -> Appraisal {
+        appraise(text, prosody: prosody, sentiment: true)
+    }
+
+    /// - Parameter sentiment: false skips Apple's sentiment model (≈0.2 s per call)
+    ///   and appraises from the lexicons and prosody alone — for live previews of
+    ///   half-heard speech, where the answer is needed several times a second.
+    public mutating func appraise(_ text: String, prosody: Prosody?, sentiment useSentiment: Bool) -> Appraisal {
+        let (a, footprint) = evaluate(text, prosody: prosody, sentiment: useSentiment)
+        record(footprint)
+        return a
+    }
+
+    /// Appraises without changing the appraiser (no voice-baseline update, nothing
+    /// added to the repetition window): what `appraise` would return right now.
+    public func peek(_ text: String, prosody: Prosody? = nil) -> Appraisal {
+        evaluate(text, prosody: prosody).appraisal
+    }
+
+    /// What appraising one utterance changes in the appraiser itself: the prosody
+    /// sample for the voice baseline and the utterance's content-word set for the
+    /// repetition window. RAM only (it holds words): never persist or log it.
+    public struct Footprint: Sendable, Equatable {
+        let content: Set<String>
+        let prosody: Prosody?
+    }
+
+    /// Pure: the appraisal plus the footprint that `record(_:)` applies.
+    /// `appraise(t, p)` ≡ `let (a, f) = evaluate(t, p); record(f); return a`.
+    public func evaluate(_ text: String, prosody: Prosody? = nil, sentiment useSentiment: Bool = true) -> (appraisal: Appraisal, footprint: Footprint) {
         var a = Appraisal()
         let lower = Self.normalize(text)
         let words = lower.split(separator: " ").map(String.init)
 
         // --- Words -----------------------------------------------------------
-        let sentiment = Self.sentiment(text)
+        let sentiment = useSentiment ? Self.sentiment(text) : 0
         let addressed = Self.contains(lower, Lexicon.addressWords)
 
         a.distress = Self.score(lower, Lexicon.distress)
@@ -208,7 +237,6 @@ public struct Appraiser: Sendable {
             // Loud + negative words = aggression; soft + kind words = tenderness.
             if a.loudness > 0.3 { a.dominance = min(1, a.dominance + a.loudness * 0.5) }
             if a.loudness < -0.3 { a.dominance = max(-1, a.dominance + a.loudness * 0.4) }
-            updateBaseline(p)
         }
         a.intensity = min(1, typed)
 
@@ -233,9 +261,15 @@ public struct Appraiser: Sendable {
             a.repetition = overlap > 0.6 ? overlap : 0
             a.novelty = 1 - overlap
         }
-        recent.append(content)
+        return (a, Footprint(content: content, prosody: prosody))
+    }
+
+    /// Applies an utterance's footprint: updates the voice baseline (if it had
+    /// prosody) and adds its content words to the repetition window.
+    public mutating func record(_ footprint: Footprint) {
+        if let p = footprint.prosody { updateBaseline(p) }
+        recent.append(footprint.content)
         if recent.count > 6 { recent.removeFirst() }
-        return a
     }
 
     private mutating func updateBaseline(_ p: Prosody) {
@@ -265,9 +299,26 @@ public struct Appraiser: Sendable {
     }
 
     /// Apple's on-device sentiment, −1…1 (0 when unavailable).
+    /// One tagger for the whole process, language pinned to English.
+    ///
+    /// Building an `NLTagger` loads its model (≈0.25–1.3 s); a shared one answers in
+    /// ≈0.2 ms. But a shared tagger left to detect the language carries that guess
+    /// from one string to the next, so results depend on what it saw before — fatal
+    /// for a deterministic mind. Pinning the language makes every call independent.
+    /// Very short utterances ("hi Dee") are left to the lexicons: the sentiment model
+    /// is unreliable below a few words (and a fresh tagger declines to score them).
+    nonisolated(unsafe) private static let sharedTagger = NLTagger(tagSchemes: [.sentimentScore])
+    private static let taggerLock = NSLock()
+    static let minSentimentWords = 4
+
     static func sentiment(_ text: String) -> Double {
-        let tagger = NLTagger(tagSchemes: [.sentimentScore])
+        let words = text.split(whereSeparator: { !$0.isLetter && $0 != "'" }).count
+        guard words >= minSentimentWords else { return 0 }
+        taggerLock.lock()
+        defer { taggerLock.unlock() }
+        let tagger = sharedTagger
         tagger.string = text
+        tagger.setLanguage(.english, range: text.startIndex..<text.endIndex)
         var total = 0.0, n = 0.0
         tagger.enumerateTags(in: text.startIndex..<text.endIndex, unit: .paragraph, scheme: .sentimentScore, options: []) { tag, _ in
             if let v = tag.flatMap({ Double($0.rawValue) }) { total += v; n += 1 }

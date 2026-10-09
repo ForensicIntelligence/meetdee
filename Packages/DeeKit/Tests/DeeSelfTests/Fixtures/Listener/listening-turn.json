@@ -1,0 +1,386 @@
+{
+  "name" : "listening-turn",
+  "reducer" : "Listener",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "partial",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "userSpeaking",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "",
+        "preview" : "0.00\/0.00",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "partial",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "userSpeaking",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "",
+        "preview" : "0.00\/0.00",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 0.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "partial",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "userSpeaking",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "",
+        "preview" : "0.35\/0.35",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "pause(0.20,0.10)",
+      "slice" : {
+        "backchannel" : "contentSquint",
+        "beat" : "-",
+        "floor" : "userPaused",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "",
+        "preview" : "0.35\/0.35",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 2
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "partial",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "userSpeaking",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "",
+        "preview" : "0.35\/0.35",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 2.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "pause(0.10,0.70)",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "listenHesitant",
+        "floor" : "userPaused",
+        "gaze" : "-",
+        "lidSoften" : "0.50",
+        "notes" : "",
+        "preview" : "0.35\/0.35",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 3
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "userPaused",
+        "gaze" : "-",
+        "lidSoften" : "0.50",
+        "notes" : "",
+        "preview" : "0.35\/0.35",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 3.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "userPaused",
+        "gaze" : "-",
+        "lidSoften" : "0.50",
+        "notes" : "",
+        "preview" : "0.35\/0.35",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 4
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "userPaused",
+        "gaze" : "-",
+        "lidSoften" : "0.90",
+        "notes" : "",
+        "preview" : "0.35\/0.35",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "0.30"
+      },
+      "t" : 6.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "partial",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "userSpeaking",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "",
+        "preview" : "0.00\/0.00",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 7
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "pause(0.85,0.00)",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "userPaused",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "",
+        "preview" : "0.00\/0.00",
+        "readyFace" : "0.78",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 8
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "idle",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "hesitation",
+        "preview" : "-",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 8.4
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "promptSubmitted",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "deeThinking",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "hesitation",
+        "preview" : "-",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 8.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "speakingStarted",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "deeSpeaking",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "hesitation",
+        "preview" : "-",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 9.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(curious)",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "deeSpeaking",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "hesitation",
+        "preview" : "-",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 9.6
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "speakingFinished",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "idle",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "hesitation",
+        "preview" : "-",
+        "readyFace" : "-",
+        "signals" : "silence:pendingQuestion",
+        "tilt" : "-"
+      },
+      "t" : 11
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "idle",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "hesitation",
+        "preview" : "-",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "-"
+      },
+      "t" : 13
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "idle",
+        "gaze" : "user",
+        "lidSoften" : "-",
+        "notes" : "hesitation",
+        "preview" : "-",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "0.25"
+      },
+      "t" : 17
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "idle",
+        "gaze" : "user",
+        "lidSoften" : "-",
+        "notes" : "hesitation",
+        "preview" : "-",
+        "readyFace" : "-",
+        "signals" : "",
+        "tilt" : "0.25"
+      },
+      "t" : 17.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "backchannel" : "-",
+        "beat" : "-",
+        "floor" : "idle",
+        "gaze" : "-",
+        "lidSoften" : "-",
+        "notes" : "hesitation",
+        "preview" : "-",
+        "readyFace" : "-",
+        "signals" : "questionLetGo,silence:letGo",
+        "tilt" : "-"
+      },
+      "t" : 25.5
+    }
+  ]
+}

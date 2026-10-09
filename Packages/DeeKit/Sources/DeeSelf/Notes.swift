@@ -41,10 +41,12 @@ public struct Note: Sendable, Equatable {
             }
         }
 
-        /// Kinds dropped while a distress hypothesis is live (§6.3).
+        /// Kinds dropped while a distress hypothesis is live (§6.3). A cheerful
+        /// follow-up ("ask how their party went") is too (review finding 5); the gentle
+        /// one stays.
         public var playfulOrTopical: Bool {
             switch self {
-            case .tasteReveal, .gagCallback, .recall, .intention: true
+            case .tasteReveal, .gagCallback, .recall, .intention, .followUp: true
             default: false
             }
         }
@@ -66,6 +68,14 @@ public struct Note: Sendable, Equatable {
     /// The sub-reducer that raised it (`Ongoing.raise(_:by:)` sets it). Every reducer's
     /// `noteIssued` sees every issued note; the owner does the bookkeeping.
     public var owner: String?
+    /// When it was raised (Cortex stamps it after the step). Context-bound kinds go
+    /// stale after `NotePicker.staleAfter` (review finding 18). Not part of `==`.
+    public var raisedAt: Date?
+
+    public static func == (a: Note, b: Note) -> Bool {
+        a.kind == b.kind && a.slots == b.slots && a.variant == b.variant && a.intention == b.intention && a.episode == b.episode
+            && a.facet == b.facet && a.gag == b.gag && a.owner == b.owner
+    }
 
     public init(_ kind: Kind, slots: [String] = [], variant: Int = 0, intention: UUID? = nil, episode: UUID? = nil, facet: UUID? = nil,
                 gag: UUID? = nil, owner: String? = nil) {
@@ -112,8 +122,10 @@ public struct Note: Sendable, Equatable {
     public static func tasteReveal(_ subject: Subject, loves: Bool, facet: UUID) -> Note {
         Note(.tasteReveal, slots: [loves ? "love" : "odd", subject.text], facet: facet)
     }
-    public static func gagCallback(_ topic: Subject, style: HumourStyle, gag: UUID) -> Note {
-        Note(.gagCallback, slots: [topic.text, style.rawValue], gag: gag)
+    /// `hook`: the gag's rendered hook ("the dentist incident"); when given, the note
+    /// names the joke itself so the model has something real to call back to.
+    public static func gagCallback(_ topic: Subject, style: HumourStyle, hook: String? = nil, gag: UUID) -> Note {
+        Note(.gagCallback, slots: [topic.text, style.rawValue] + (hook.map { [$0] } ?? []), gag: gag)
     }
     public static func reunion() -> Note { Note(.reunion) }
     public static func awkwardRepair() -> Note { Note(.awkwardRepair) }
@@ -142,7 +154,7 @@ public enum NoteTemplates {
         case .intention: [88]
         case .hypothesis: [24]
         case .tasteReveal: [4, Subject.maxCharacters]
-        case .gagCallback: [24, 20]
+        case .gagCallback: [24, 20, 40]
         default: []
         }
     }
@@ -151,7 +163,7 @@ public enum NoteTemplates {
     public static func longestSlots(_ kind: Note.Kind) -> [String] {
         switch kind {
         case .tasteReveal: ["odd", String(repeating: "x", count: Subject.maxCharacters)]
-        case .gagCallback: [String(repeating: "x", count: 24), HumourStyle.selfDeprecatingRobot.rawValue]
+        case .gagCallback: [String(repeating: "x", count: 24), HumourStyle.selfDeprecatingRobot.rawValue, String(repeating: "x", count: 40)]
         case .followUp: [String(repeating: "x", count: Subject.maxCharacters), "neutral"]
         default: slotCaps(kind).map { String(repeating: "x", count: $0) }
         }
@@ -190,8 +202,11 @@ public enum NoteTemplates {
                           : "(They cut in while you were talking; let it go unless they ask.)"
         case .misread: return "(You misread them: not \(s[0]). Own it in a few words, then check what they meant.)"
         case .lesson: return "(Careful: \(s[0]).)"
-        case .followUp: return "(Ask how their \(s[0]) went. They were \(s[1]) about it.)"
-        case .followUpGentle: return "(Gently ask how today went.)"
+        case .followUp:
+            // "They were neutral about it" says nothing (review finding 10).
+            return s[1] == Expectation.Framing.neutral.rawValue || s[1].isEmpty
+                ? "(Ask how their \(s[0]) went.)" : "(Ask how their \(s[0]) went. They were \(s[1]) about it.)"
+        case .followUpGentle: return "(Gently ask how they've been feeling.)"
         case .deixisResolved: return "(\"That\" is probably the \(s[0]).)"
         case .deixisAmbiguous: return "(\"That\" might be the \(s[0]) or the \(s[1]); ask which.)"
         case .deixisUnknown: return "(You can't tell what they mean; ask them to show you.)"
@@ -202,7 +217,9 @@ public enum NoteTemplates {
             return v == 0 ? "(They hesitated; be gentle and patient.)" : "(They're finding their words; be patient and gentle.)"
         case .tasteReveal:
             return s[0] == "love" ? "(You happen to love \(s[1]).)" : "(You happen to find \(s[1]) a bit odd.)"
-        case .gagCallback: return "(Maybe a quick callback to your \(s[0]) joke, \(gagStyle(s[1])).)"
+        case .gagCallback:
+            if !s[2].isEmpty { return "(Maybe a quick callback to your running joke: \(s[2]).)" }
+            return "(Maybe a quick callback to your \(s[0]) joke, \(gagStyle(s[1])).)"
         case .reunion:
             return v == 0 ? "(They're back; be glad to see them. Never guilt them for being away.)"
                           : "(They're back; be happy to see them. Never guilt them for being away.)"

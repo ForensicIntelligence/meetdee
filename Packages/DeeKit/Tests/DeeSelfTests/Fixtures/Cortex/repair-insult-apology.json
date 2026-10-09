@@ -1,0 +1,145 @@
+{
+  "name" : "repair-insult-apology",
+  "reducer" : "Cortex",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "presence(true)",
+      "slice" : {
+        "repair.awkwardness" : "0.000",
+        "repair.boundaries" : "",
+        "repair.notes" : "",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "bounce",
+        "stance.playGate" : "true"
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+        "setPauseScale(1.00)",
+        "persist(ritual)"
+      ],
+      "percept" : "identified(000A,0.00)",
+      "slice" : {
+        "repair.awkwardness" : "0.000",
+        "repair.boundaries" : "",
+        "repair.notes" : "",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 0.5
+    },
+    {
+      "effects" : [
+        "persist(openRepair)",
+        "persist(profile)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "repair.awkwardness" : "0.000",
+        "repair.boundaries" : "",
+        "repair.notes" : "",
+        "repair.repair" : "ruptured",
+        "stance.expression" : "grumpy",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "false"
+      },
+      "t" : 2
+    },
+    {
+      "effects" : [
+        "persist(boundary)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "repair.awkwardness" : "0.000",
+        "repair.boundaries" : "dee:how i'm spoken to",
+        "repair.notes" : "deeBoundary",
+        "repair.repair" : "ruptured",
+        "stance.expression" : "grumpy",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "false"
+      },
+      "t" : 30
+    },
+    {
+      "effects" : [
+        "persist(openRepair)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "repair.awkwardness" : "0.000",
+        "repair.boundaries" : "dee:how i'm spoken to",
+        "repair.notes" : "deeBoundary",
+        "repair.repair" : "repairing",
+        "stance.expression" : "grumpy",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "false"
+      },
+      "t" : 60
+    },
+    {
+      "effects" : [
+        "persist(clearOpenRepair)",
+        "persist(boundary)"
+      ],
+      "percept" : "touch(pet,true,-)",
+      "slice" : {
+        "repair.awkwardness" : "0.000",
+        "repair.boundaries" : "",
+        "repair.notes" : "reconciled",
+        "repair.repair" : "reconciled",
+        "stance.expression" : "grumpy",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "contentSquint",
+        "stance.playGate" : "false"
+      },
+      "t" : 61
+    },
+    {
+      "effects" : [
+        "persist(profile)"
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "repair.awkwardness" : "0.000",
+        "repair.boundaries" : "",
+        "repair.notes" : "reconciled",
+        "repair.repair" : "reconciled",
+        "stance.expression" : "grumpy",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "false"
+      },
+      "t" : 62
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "repair.awkwardness" : "0.000",
+        "repair.boundaries" : "",
+        "repair.notes" : "reconciled",
+        "repair.repair" : "fine",
+        "stance.expression" : "grumpy",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 190
+    }
+  ]
+}

@@ -27,7 +27,9 @@
     },
     {
       "effects" : [
-        "stopSpeaking"
+        "stopSpeaking",
+        "say",
+        "persist(misread)"
       ],
       "percept" : "bargeIn",
       "slice" : {
@@ -41,7 +43,7 @@
         "floor.turns" : "0",
         "repair.awkwardness" : "0.200",
         "repair.repair" : "fine",
-        "stance.expression" : "content",
+        "stance.expression" : "shy",
         "stance.gaze" : "user",
         "stance.mannerism" : "-",
         "stance.playGate" : "true"
@@ -66,7 +68,7 @@
         "repair.repair" : "fine",
         "stance.expression" : "content",
         "stance.gaze" : "user",
-        "stance.mannerism" : "-",
+        "stance.mannerism" : "nod",
         "stance.playGate" : "true"
       },
       "t" : 2
@@ -119,7 +121,8 @@
     },
     {
       "effects" : [
-        "stopSpeaking"
+        "stopSpeaking",
+        "say"
       ],
       "percept" : "bargeIn",
       "slice" : {
@@ -133,7 +136,7 @@
         "floor.turns" : "0",
         "repair.awkwardness" : "0.596",
         "repair.repair" : "strained",
-        "stance.expression" : "content",
+        "stance.expression" : "shy",
         "stance.gaze" : "user",
         "stance.mannerism" : "-",
         "stance.playGate" : "false"

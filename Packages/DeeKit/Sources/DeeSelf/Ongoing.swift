@@ -150,7 +150,15 @@ public struct Misread: Sendable, Equatable, Codable, Identifiable {
 }
 
 public struct Ongoing: Sendable, Equatable {
-    public var mind: MindSnapshot
+    public var mind: MindSnapshot {
+        didSet { derive() }
+    }
+    /// The age-adjusted personality (`EmotionEngine.effective`), recomputed only when
+    /// the snapshot's personality bytes or age change (reducers read it every step).
+    public private(set) var effectivePersonality: Personality
+    private var derivedTraits: ArraySlice<UInt8>
+    private var derivedAge: Double?
+
     /// Identified speaker, gated by face-matching distance.
     public var person: PersonID?
     /// ≤ 4 live.
@@ -171,6 +179,10 @@ public struct Ongoing: Sendable, Equatable {
     /// Dee was cut off last turn.
     public var cutOff: Bool = false
     public var misreadThisTurn: Misread?
+    /// The distress of the latest user turn when it read as distress (appraisal ≥ 0.3),
+    /// live until their next turn or 10 min (Interpreter). Gates play and topical notes
+    /// from the very first sad turn, before a hypothesis has the evidence (review finding 5).
+    public var turnDistress: Timed<Double>?
     public var conversationStarted: Date
 
     // --- Additions beyond SELF.md §3.3 ---
@@ -187,6 +199,10 @@ public struct Ongoing: Sendable, Equatable {
     public var promptPerson: PersonID?
     /// True once `Cortex.persona` rendered the prompt for the current conversation.
     public var promptRendered: Bool = false
+    /// From arrival after an absence of more than a day until Dee's reply to their first
+    /// turn (Learner). Cortex keeps "lonely" out of the mood sentence while it is set,
+    /// whether or not the reunion note itself survives (a hostile first turn drops it).
+    public var reunionTurn: Bool = false
 
     public static let maxHypotheses = 4
     public static let maxTopic = 3
@@ -197,11 +213,28 @@ public struct Ongoing: Sendable, Equatable {
 
     public init(mind: MindSnapshot, conversationStarted: Date) {
         self.mind = mind
+        effectivePersonality = EmotionEngine.effective(mind.code.personality, age: mind.age)
+        derivedTraits = Self.traits(mind.code)
+        derivedAge = mind.age
         self.conversationStarted = conversationStarted
     }
 
-    /// A live mood hypothesis that reads as distress with confidence ≥ 0.5.
+    private mutating func derive() {
+        let traits = Self.traits(mind.code)
+        guard traits != derivedTraits || mind.age != derivedAge else { return }
+        derivedTraits = traits
+        derivedAge = mind.age
+        effectivePersonality = EmotionEngine.effective(mind.code.personality, age: mind.age)
+    }
+
+    private static func traits(_ c: MindCode) -> ArraySlice<UInt8> { c.bytes.prefix(Trait.allCases.count) }
+
+    /// One feeling of the current snapshot, without decoding them all.
+    public func feeling(_ f: Feeling) -> Double { Double(mind.code[f]) / 255 }
+
+    /// A live mood hypothesis that reads as distress with confidence ≥ 0.5, or a
+    /// distressed latest user turn (`turnDistress`).
     public func distressLive(at now: Date) -> Bool {
-        hypotheses.contains { $0.isDistress && $0.confidence >= 0.5 && now < $0.expires }
+        turnDistress?.live(at: now) != nil || hypotheses.contains { $0.isDistress && $0.confidence >= 0.5 && now < $0.expires }
     }
 }

@@ -1,0 +1,176 @@
+{
+  "name" : "sleep-reflect",
+  "reducer" : "EpisodeBuilder",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "conversationStarted",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "touch(pet,true,-)",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 6
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 7
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 8
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "asleep(true)",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 20
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "beats" : "",
+        "index" : "0",
+        "lastKeys" : "",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 200
+    },
+    {
+      "effects" : [
+        "persist(episode)",
+        "persist(digest)",
+        "reflect"
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "beats" : "",
+        "index" : "1",
+        "lastKeys" : "@1.30\/r0",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 330
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "beats" : "",
+        "index" : "1",
+        "lastKeys" : "@1.30\/r0",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 1000
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "asleep(false)",
+      "slice" : {
+        "beats" : "",
+        "index" : "1",
+        "lastKeys" : "@1.30\/r0",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 1200
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "conversationStarted",
+      "slice" : {
+        "beats" : "",
+        "index" : "1",
+        "lastKeys" : "@1.30\/r0",
+        "notes" : "",
+        "signals" : ""
+      },
+      "t" : 1201
+    }
+  ]
+}

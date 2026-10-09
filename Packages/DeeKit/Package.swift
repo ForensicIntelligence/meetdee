@@ -44,6 +44,9 @@ let package = Package(
         .testTarget(name: "DeeMindTests", dependencies: ["DeeMind", "DeeCore"]),
         .testTarget(name: "DeeVoiceTests", dependencies: ["DeeVoice", "DeeCore"]),
         .testTarget(name: "DeeMemoryTests", dependencies: ["DeeMemory", "DeeCore"]),
+        // Real-model, multi-day conversation runs through the same pipeline as the
+        // app (Mind → Cortex → cue → LLM → Cortex). Skipped without the GGUF.
+        .testTarget(name: "DeeLiveTests", dependencies: ["DeeCore", "DeeLLM", "DeeMind", "DeeSelf", "DeeMemory"]),
         .testTarget(name: "DeeSelfTests", dependencies: ["DeeSelf", "DeeMind", "DeeCore", "DeeMemory"], exclude: ["Fixtures"]),
     ]
 )

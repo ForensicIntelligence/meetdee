@@ -194,6 +194,17 @@ enum R {
     static let workFromHome = Rx(#"^I (?:mostly |usually )?work (?:from|at) home$"#)
     static let workAs = Rx(#"^I (?:currently |now |still |actually )?work as (.+)$"#)
     static let workAt = Rx(#"^I (?:currently |now |still |actually )?work (at|for|in|with) (.+)$"#)
+    /// "I'm applying for a designer job at Ubisoft", "I applied for a teaching position".
+    static let applyingFor = Rx(#"^I (?:am |have |have been |was |just |recently )*(applying|applied) (?:for|to) (?:a|an|the) ([a-z][a-z' -]{1,40}?) (job|position|role|post|internship|apprenticeship)(?: (?:at|with) (.{2,40}))?$"#)
+    /// About the plan just mentioned: "it's for a designer job at a game studio".
+    static let itsForJob = Rx(#"^(?:it|this|that|the (?:interview|job|position|role|application)) is (?:for|about) (?:a|an|the) ([a-z][a-z' -]{1,40}?) (job|position|role|post|internship|apprenticeship)(?: (?:at|with) (.{2,40}))?$"#)
+    /// "it's at Pixel Forge" (the interview's company, not its time).
+    static let itsAt = Rx(#"^(?:it|the interview) is (?:at|with) (.{2,40})$"#)
+    /// A plan these details may refer to.
+    static let jobPlan = Rx(#"\b(?:interview|interviews|job|application|audition|assessment|internship|recruiter|hiring)\b"#)
+    static let interviewPlan = Rx(#"\binterviews?\b"#)
+    /// "it's at 3", "it's at noon", "it's at home": a time or no company.
+    static let notACompany = Rx(#"\d|\b(?:am|pm|noon|midday|midnight|morning|afternoon|evening|night|tonight|today|tomorrow|o'clock|half|quarter|home|the moment|least|most|all|first|last|monday|tuesday|wednesday|thursday|friday|saturday|sunday|weekend|week|month|time|my place|your|you)\b"#)
     static let myJobIs = Rx(#"^my (?:job|profession|occupation|day job|career) is (?:being )?(.+)$"#)
     static let workStatus = Rx(#"^I am (?:currently |now )?(retired|semi[- ]retired|unemployed|self[- ]employed|between jobs|a stay[- ]at[- ]home (?:mom|mum|dad|parent)|out of work|on (?:maternity|paternity|parental|sick) leave|freelancing|job hunting|looking for (?:a )?(?:job|work))$"#)
     static let study = Rx(#"^I (?:am )?(?:currently )?(?:study|studying|major in|majoring in|am doing a degree in|am doing a phd in|am doing my phd in) (?!for\b)(.+?)(?: at (.+))?$"#)

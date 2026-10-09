@@ -1,0 +1,150 @@
+{
+  "name" : "plans-topics-busy",
+  "reducer" : "Interpreter",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "identified(000B,0.00)",
+      "slice" : {
+        "hypotheses" : "",
+        "misread" : "-",
+        "notes" : "",
+        "person" : "00000000",
+        "signals" : "",
+        "topic" : "",
+        "uncertainty" : "-"
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "hypotheses" : "mood:anxious:1.00:s",
+        "misread" : "-",
+        "notes" : "",
+        "person" : "00000000",
+        "signals" : "plan(job interview|nervous)",
+        "topic" : "job interview",
+        "uncertainty" : "-"
+      },
+      "t" : 64800
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "hypotheses" : "mood:anxious:1.00:s,goal:shareCreation:0.60",
+        "misread" : "-",
+        "notes" : "",
+        "person" : "00000000",
+        "signals" : "",
+        "topic" : "job interview,watercolor painting",
+        "uncertainty" : "-"
+      },
+      "t" : 64810
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "hypotheses" : "mood:anxious:1.00:s,goal:shareCreation:0.60",
+        "misread" : "-",
+        "notes" : "",
+        "person" : "00000000",
+        "signals" : "plan(quilt|neutral+finish)",
+        "topic" : "job interview,watercolor painting,quilt",
+        "uncertainty" : "-"
+      },
+      "t" : 64820
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "hypotheses" : "mood:anxious:1.00:s,goal:shareCreation:0.60",
+        "misread" : "-",
+        "notes" : "",
+        "person" : "00000000",
+        "signals" : "",
+        "topic" : "job interview,watercolor painting,quilt",
+        "uncertainty" : "-"
+      },
+      "t" : 64830
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "hypotheses" : "mood:anxious:1.00:s,goal:shareCreation:0.60",
+        "misread" : "-",
+        "notes" : "",
+        "person" : "00000000",
+        "signals" : "",
+        "topic" : "job interview,watercolor painting,quilt",
+        "uncertainty" : "-"
+      },
+      "t" : 64835
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "hypotheses" : "mood:anxious:1.00:s,goal:shareCreation:0.60,busy:busy:0.65",
+        "misread" : "-",
+        "notes" : "(Maybe they're busy; don't assume.)",
+        "person" : "00000000",
+        "signals" : "",
+        "topic" : "job interview,watercolor painting,quilt",
+        "uncertainty" : "-"
+      },
+      "t" : 64840
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "gesture(palm)",
+      "slice" : {
+        "hypotheses" : "mood:anxious:1.00:s,goal:shareCreation:0.60,busy:busy:0.65,wantsQuiet:quiet:0.65",
+        "misread" : "-",
+        "notes" : "(Maybe they're busy; don't assume.)",
+        "person" : "00000000",
+        "signals" : "",
+        "topic" : "job interview,watercolor painting,quilt",
+        "uncertainty" : "-"
+      },
+      "t" : 64845
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "hypotheses" : "mood:anxious:1.00:s",
+        "misread" : "-",
+        "notes" : "(Maybe they're busy; don't assume.)",
+        "person" : "00000000",
+        "signals" : "",
+        "topic" : "job interview,watercolor painting,quilt",
+        "uncertainty" : "-"
+      },
+      "t" : 65500
+    }
+  ]
+}

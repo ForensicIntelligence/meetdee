@@ -275,7 +275,40 @@ public actor SelfStore {
         let since = now.map { $0.addingTimeInterval(-Self.misreadWindow) } ?? .distantPast
         return Carried(intentions: try intentions(live: true), expectations: try expectations(pending: true),
                        interests: try interests(), openRepair: try openRepairs(),
-                       misreads: try misreads().filter { $0.at >= since })
+                       misreads: try misreads().filter { $0.at >= since }, lastContact: try lastContact())
+    }
+
+    /// The last stored contact per person: the latest of their episode ends, ritual
+    /// performances and conversation digests (a digest day counts as its last second,
+    /// so an absence is never overstated).
+    public func lastContact() throws -> [PersonID: Date] {
+        var out: [PersonID: Date] = [:]
+        func note(_ id: PersonID?, _ d: Date?) {
+            guard let id, let d else { return }
+            out[id] = max(out[id] ?? d, d)
+        }
+        for r in try db.query("SELECT person_id, MAX(end) AS t FROM episode WHERE person_id IS NOT NULL GROUP BY person_id") {
+            note(Self.uuid(r["person_id"]), Self.date(r["t"]))
+        }
+        for r in try db.query("SELECT person_id, MAX(last_done) AS t FROM ritual WHERE person_id IS NOT NULL GROUP BY person_id") {
+            note(Self.uuid(r["person_id"]), Self.date(r["t"]))
+        }
+        for r in try db.query("SELECT person_id, MAX(day) AS d FROM digest WHERE person_id IS NOT NULL AND conversations > 0 GROUP BY person_id") {
+            note(Self.uuid(r["person_id"]), r["d"]?.string.flatMap(Self.endOfDay))
+        }
+        return out
+    }
+
+    /// `yyyy-MM-dd` (a local day, as `EpisodeBuilder.day` writes it) → its last second
+    /// anywhere on Earth (UTC end of day + 12 h), so an absence is never overstated.
+    static func endOfDay(_ day: String) -> Date? {
+        let p = day.split(separator: "-").compactMap { Int($0) }
+        guard p.count == 3 else { return nil }
+        var c = DateComponents()
+        (c.year, c.month, c.day, c.hour, c.minute, c.second) = (p[0], p[1], p[2], 23, 59, 59)
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        return cal.date(from: c)?.addingTimeInterval(12 * 3600)
     }
 
     /// Lesson minting looks back this far (§7.7).
@@ -570,7 +603,7 @@ public actor SelfStore {
     /// pending writes): episodes tagged with `subject` or whose gist / why / expected /
     /// changed name it, and expectations, intentions, misreads, interests and gags whose
     /// subject or topic overlaps it (whole words, either way: "interview" ~ "job
-    /// interview"). Boundaries and Dee's own facets stay. Then checkpoints the WAL.
+    /// interview"). Learnt taste facets about it go; boundaries and seeded facets stay. Then checkpoints the WAL.
     @discardableResult
     public func forget(subject: Subject) throws -> Forgotten {
         let result = try db.transaction {
@@ -583,6 +616,12 @@ public actor SelfStore {
                 gone.episodes.append(id)
             }
             gone.rows += gone.episodes.count
+            // Learnt tastes about it go too (review finding 1); seeded facets stay.
+            for r in try db.query("SELECT id, subject FROM facet WHERE source IS NOT 'seed'") {
+                guard let s = r["subject"]?.string.flatMap(Subject.init), s.overlaps(subject), let k = r["id"] else { continue }
+                try db.query("DELETE FROM facet WHERE id = ?", [k])
+                gone.rows += 1
+            }
             for (table, key, column) in [("expectation", "id", "subject"), ("intention", "id", "subject"), ("misread", "id", "topic"),
                                          ("interest", "subject", "subject"), ("gag", "id", "topic")] {
                 for r in try db.query("SELECT \(key) AS k, \(column) AS s FROM \(table)") {

@@ -1,0 +1,302 @@
+{
+  "name" : "taste-reveal",
+  "reducer" : "Learner",
+  "steps" : [
+    {
+      "effects" : [
+        "setPauseScale(1.00)",
+        "persist(ritual)"
+      ],
+      "percept" : "conversationStarted",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+        "persist(interest)",
+        "persist(profile)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.11",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.08",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "sound(vacuum,true)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.11",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.08",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 30
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.11",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 33
+    },
+    {
+      "effects" : [
+        "persist(facet)",
+        "persist(facet)",
+        "persist(profile)"
+      ],
+      "percept" : "conversationStarted",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.10",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : "snow:0.26\/1,vacuum:-0.19\/1"
+      },
+      "t" : 86400
+    },
+    {
+      "effects" : [
+        "persist(interest)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.22",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.08",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : "snow:0.26\/1,vacuum:-0.19\/1"
+      },
+      "t" : 86405
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "sound(vacuum,true)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.22",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.08",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : "snow:0.26\/1,vacuum:-0.19\/1"
+      },
+      "t" : 86430
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.22",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : "snow:0.26\/1,vacuum:-0.19\/1"
+      },
+      "t" : 86433
+    },
+    {
+      "effects" : [
+        "persist(facet)",
+        "persist(facet)",
+        "persist(profile)"
+      ],
+      "percept" : "conversationStarted",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.20",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : "snow:0.35\/2,vacuum:-0.27\/2"
+      },
+      "t" : 172800
+    },
+    {
+      "effects" : [
+        "persist(interest)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.31",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.08",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : "snow:0.35\/2,vacuum:-0.27\/2"
+      },
+      "t" : 172805
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "sound(vacuum,true)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.31",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.08",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : "snow:0.35\/2,vacuum:-0.27\/2"
+      },
+      "t" : 172830
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.31",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : "snow:0.35\/2,vacuum:-0.27\/2"
+      },
+      "t" : 172833
+    },
+    {
+      "effects" : [
+        "persist(facet)",
+        "persist(facet)",
+        "persist(profile)"
+      ],
+      "percept" : "conversationStarted",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.28",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : "snow:0.41\/3*,vacuum:-0.32\/3"
+      },
+      "t" : 259200
+    },
+    {
+      "effects" : [
+        "persist(interest)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.40",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "tasteReveal",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.04",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : "snow:0.41\/3*,vacuum:-0.32\/3"
+      },
+      "t" : 259205
+    },
+    {
+      "effects" : [
+        "persist(facet)"
+      ],
+      "percept" : "issue(tasteReveal)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.40",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.04",
+        "revealed" : "true",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : "snow:0.41\/3*!,vacuum:-0.32\/3"
+      },
+      "t" : 259206
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "",
+        "interests" : "snow:0.40",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.08",
+        "revealed" : "true",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : "snow:0.41\/3*!,vacuum:-0.32\/3"
+      },
+      "t" : 259220
+    }
+  ]
+}

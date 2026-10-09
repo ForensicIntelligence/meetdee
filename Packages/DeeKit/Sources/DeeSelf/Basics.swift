@@ -151,3 +151,48 @@ public enum StableHash {
 @inline(__always) func clamp(_ x: Double, _ lo: Double, _ hi: Double) -> Double { x.isFinite ? min(hi, max(lo, x)) : lo }
 /// Exponential decay factor for `dt` seconds at half-life `h`.
 @inline(__always) func halfLife(_ dt: TimeInterval, _ h: TimeInterval) -> Double { dt <= 0 ? 1 : pow(0.5, dt / h) }
+
+/// One laughter test for every reducer (sound labels from the classifier: "laughter",
+/// "belly_laugh", "chuckle_chortle", "snicker", "giggling"…). Review finding 19: five
+/// reducers used five different label sets.
+public enum Laughter {
+    public static let labels: Set<String> = ["laughter", "laugh", "laughing", "baby_laughter", "belly_laugh", "giggle", "giggling",
+                                             "chuckle", "chuckling", "chuckle_chortle", "chortle", "snicker", "snickering", "titter"]
+
+    public static func isLaughter(_ label: String) -> Bool {
+        let l = label.lowercased()
+        return labels.contains(l) || l.contains("laugh") || l.contains("giggl") || l.contains("chuckl") || l.contains("snicker")
+            || l.contains("chortl")
+    }
+}
+
+/// Subjects Dee must never form a taste about, reveal an opinion on, or set herself a
+/// learn / share goal about (review findings 1 and 21): people and relationships,
+/// health, death and grief, and a few heavy life events. Whole-word, plural-tolerant.
+public enum SensitiveSubjects {
+    public static let words: Set<String> = [
+        // People and relationships (a third party is never a "taste").
+        "mum", "mom", "mother", "mummy", "mommy", "dad", "father", "daddy", "parent", "sister", "brother", "sibling", "son",
+        "daughter", "child", "children", "kid", "baby", "grandma", "grandmother", "grandpa", "grandfather", "granny", "nan",
+        "nana", "grandparent", "aunt", "auntie", "uncle", "cousin", "niece", "nephew", "wife", "husband", "partner", "spouse",
+        "boyfriend", "girlfriend", "ex", "fiance", "fiancee", "family", "friend", "boss", "colleague", "coworker", "co-worker",
+        "teacher", "neighbour", "neighbor", "roommate", "flatmate", "stepmom", "stepdad", "in-law", "people", "person",
+        // Health.
+        "chemo", "chemotherapy", "cancer", "tumour", "tumor", "surgery", "operation", "hospital", "illness", "disease", "sick",
+        "diagnosis", "biopsy", "scan", "mri", "x-ray", "therapy", "therapist", "depression", "anxiety", "pain", "injury",
+        "medication", "pill", "treatment", "doctor", "doctor's", "dentist", "dentist's", "clinic", "results", "symptom",
+        "pregnancy", "miscarriage", "disability", "rehab", "addiction",
+        // Death and grief.
+        "funeral", "death", "dead", "died", "dying", "grave", "grief", "loss", "cemetery", "memorial", "burial", "suicide",
+        // Heavy life events.
+        "divorce", "breakup", "break-up", "separation", "custody", "court", "hearing", "lawyer", "trial", "abuse", "debt",
+        "eviction", "redundancy", "layoff", "unemployment",
+    ]
+
+    public static func contains(_ s: Subject) -> Bool {
+        s.words.contains { w in
+            let bare = w.hasSuffix("'s") ? String(w.dropLast(2)) : w
+            return words.contains(bare) || words.contains { Subject.same(bare, $0) }
+        }
+    }
+}

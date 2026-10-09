@@ -50,6 +50,11 @@ public actor MemoryStore {
     /// with the time of the last one (`FaceMatching.learnStreakGap`).
     private var streak: (id: UUID, frames: Int, at: Date)?
     private var pending: [UUID: (name: String, at: Date, count: Int)] = [:]
+    /// The latest plan (event fact) each person mentioned, so "it's for a designer job at
+    /// a game studio" a moment later is stored about it (RAM only).
+    private var recentPlan: [UUID: (text: String, at: Date)] = [:]
+    /// How long after a plan its details ("it's for …") are still read as about it.
+    public static let planDetailWindow: TimeInterval = 10 * 60
     /// Placeholder ids (all placeholders are created by this store instance:
     /// earlier ones are purged on open). Their prints match without anchors.
     private var placeholders: Set<UUID> = []
@@ -1173,6 +1178,18 @@ public actor MemoryStore {
             for f in found where f.name == nil && !f.retracts {
                 if let fact = remember(f.text, category: f.category, about: id, at: at) { outcome.stored.append(fact) }
             }
+            // Details of the plan just mentioned (this utterance's, else one from the last
+            // few minutes): "It's for a designer job at a game studio."
+            if let event = found.last(where: { $0.category == .event && !$0.retracts && $0.name == nil }) {
+                recentPlan[id] = (event.text, at)
+            }
+            if let plan = recentPlan[id], at.timeIntervalSince(plan.at) <= Self.planDetailWindow, at >= plan.at {
+                for f in FactExtractor.planDetails(from: utterance, plan: plan.text) where !found.contains(f) {
+                    if let fact = remember(f.text, category: f.category, about: id, at: at) { outcome.stored.append(fact) }
+                }
+            } else {
+                recentPlan[id] = nil
+            }
             return outcome
         }
     }
@@ -1310,11 +1327,11 @@ public actor MemoryStore {
     }
 
     /// Ranked facts: identity › relationships/pets › birthday/work/place ›
-    /// likes/dislikes/health › events (upcoming soonest first; ones over 2 days
-    /// past are dropped) › other. Within a tier: confidence, then most recently updated.
+    /// likes/dislikes/health › events (upcoming soonest first; past ones stay for a
+    /// week — that's when "how did it go?" matters — then drop) › other. Within a tier: confidence, then most recently updated.
     func ranked(_ facts: [Fact], now: Date) -> [Fact] {
         let today = calendar.startOfDay(for: now)
-        let stale = calendar.date(byAdding: .day, value: -2, to: today) ?? today
+        let stale = calendar.date(byAdding: .day, value: -Self.pastEventDays, to: today) ?? today
         let keyed: [(Fact, Int, Double, Date)] = facts.compactMap { f in
             var sub = -f.confidence
             if f.category == .event, let d = DateText.date(in: f.text, calendar) {
@@ -1338,6 +1355,18 @@ public actor MemoryStore {
     }
 
     public static let askNameLine = "You don't know their name yet — ask."
+    /// How long a past event stays in the prompt (in the past tense).
+    public static let pastEventDays = 7
+
+    /// "has a job interview on Sat 3 Oct" → "had a job interview on Sat 3 Oct" once
+    /// that day has passed, so Dee asks how it went instead of wishing them luck.
+    static func pastTense(_ text: String) -> String {
+        for (now, then) in [("has ", "had "), ("is going to ", "was going to "), ("is ", "was "), ("will ", "was going to "), ("are ", "were ")]
+        where text.hasPrefix(now) {
+            return then + text.dropFirst(now.count)
+        }
+        return text
+    }
 
     public func promptMemories(for id: UUID, limit: Int, now: Date) -> [String] {
         guard limit > 0, let p = person(resolve(id)) else { return [] }
@@ -1347,10 +1376,13 @@ public actor MemoryStore {
         if p.encounters > 1 { header += "; met \(p.encounters) times since \(DateText.monthYear(p.firstMet, calendar))" }
         var lines = [header]
         let nameLower = p.name.lowercased()
+        let today = calendar.startOfDay(for: now)
         for f in ranked(p.facts.filter { !$0.sensitive }, now: now) where lines.count < limit {
             let l = f.text.lowercased()
             if l == "is called \(nameLower)" || l == "goes by \(nameLower)" { continue }
-            lines.append(Self.sentence(subject: p.name, text: f.text))
+            var text = f.text
+            if f.category == .event, let d = DateText.date(in: f.text, calendar), d < today { text = Self.pastTense(text) }
+            lines.append(Self.sentence(subject: p.name, text: text))
         }
         return Array(lines.prefix(limit))
     }

@@ -1,0 +1,286 @@
+{
+  "name" : "initiative-pacing",
+  "reducer" : "IntentionBoard",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "0.79",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:open:0:0\/1,ask:cooking:open:0:0\/1"
+      },
+      "t" : 10
+    },
+    {
+      "effects" : [
+        "persist(intention)"
+      ],
+      "percept" : "issue(intention)",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "0.79",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:open:0:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 10.1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:open:0:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 11
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "issue()",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:open:0:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 11.1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:open:0:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 29
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "issue()",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:open:0:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 29.1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "0.79",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:open:0:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 31
+    },
+    {
+      "effects" : [
+        "persist(intention)"
+      ],
+      "percept" : "issue(intention)",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "0.79",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 31.1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 32
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "issue()",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 32.1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 70
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "issue()",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 70.1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "0.79",
+        "intentions" : "ask:guitar:open:0:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 72
+    },
+    {
+      "effects" : [
+        "persist(intention)"
+      ],
+      "percept" : "issue(intention)",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "0.79",
+        "intentions" : "ask:guitar:issued:1:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 72.1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:issued:1:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 73
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "issue()",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:issued:1:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 73.1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:issued:1:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 500
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "issue()",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:issued:1:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 500.1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "candidates" : "intention",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "-",
+        "intentions" : "ask:guitar:issued:1:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 600
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "candidates" : "",
+        "expectations" : "",
+        "followUps" : "0",
+        "initiative" : "0.79",
+        "intentions" : "ask:guitar:issued:1:0\/1,ask:piano:open:0:0\/1,ask:garden:issued:1:0\/1,ask:cooking:issued:1:0\/1"
+      },
+      "t" : 604
+    }
+  ]
+}

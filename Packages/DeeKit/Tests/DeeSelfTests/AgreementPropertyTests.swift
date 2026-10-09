@@ -5,7 +5,9 @@ import Testing
 @testable import DeeSelf
 
 /// SELF.md §12.3 — 10,000 random seeded percept sequences of 200 steps each; the §5
-/// agreement invariants must hold at every step. Split into 16 parallel chunks.
+/// agreement invariants must hold at every step. Split into 16 parallel chunks: ≈ 2 M Cortex
+/// steps, ≈ 1,300 CPU-s in a debug build (≈ 80 s wall on a 16+ core Mac). It is the slowest
+/// test by design (§12.3 fixes the size); more chunks only starve the other suites.
 @Suite struct AgreementPropertyTests {
     static let sequences = 10_000
     static let steps = 200
@@ -117,8 +119,10 @@ import Testing
                 let notes = cx.stance.notes
                 if notes.count > 2 || notes.filter({ $0.role == .aim }).count > 1 { return fail("notes \(notes.map(\.kind))") }
                 if CueWriter.estimateTokens(cue) > CueWriter.maxTokens { return fail("cue \(cue.count) chars") }
-                let mood = CueWriter.mood(cx.moment.ongoing.mind)
-                if !cue.hasPrefix(CueWriter.open + mood) { return fail("mood sentence missing") }
+                let mind = cx.moment.ongoing.mind
+                // The reunion turn leaves "lonely" out of the mood (review finding 3).
+                let moods = [CueWriter.mood(mind), CueWriter.mood(code: mind.code, age: mind.age, omit: ["lonely"])]
+                guard let mood = moods.first(where: { cue.hasPrefix(CueWriter.open + $0) }) else { return fail("mood sentence missing") }
                 let tail = CueWriter.notesPart(of: cue, mood: mood).lowercased()
                 if let w = CueWriter.reproachWords.first(where: tail.contains) { return fail("reproach '\(w)' in \(tail)") }
             }

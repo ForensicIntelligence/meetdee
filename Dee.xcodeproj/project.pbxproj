@@ -20,8 +20,10 @@
 		BE35F88C1088EDC61457210E /* DeeVoice in Frameworks */ = {isa = PBXBuildFile; productRef = 30F2A8F02CA5F026FDF488F2 /* DeeVoice */; };
 		C79BE7462480657C9CC91F72 /* ModelLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D140A19846633BAC99A6FA0 /* ModelLocator.swift */; };
 		CA543A27450A3210D2F7BB98 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD622141C5A2B09CA6A5440D /* RootView.swift */; };
+		D99100C5DF53433207027D8A /* SelfDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C13F486626CF27D30FA280 /* SelfDriver.swift */; };
 		DA662881A7EE9B0628E60549 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF4A980850E9DB332F9DA317 /* Assets.xcassets */; };
 		DB91946DF1DE53AD56E8FBE8 /* DeeTools in Frameworks */ = {isa = PBXBuildFile; productRef = 2702E187EA5B78DB754C799C /* DeeTools */; };
+		E40CFE4608B4C33908E6A695 /* Projector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B605C970042873EB5E5C0A05 /* Projector.swift */; };
 		E7141C12AF2D5858225E40D4 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 57A0DEF1957D46F5D1B5CCC3 /* Settings.bundle */; };
 		EF5D9425000088C6B837B82D /* Qwen3.5-4B-Q4_K_M.gguf in Resources */ = {isa = PBXBuildFile; fileRef = D709CD4F6D3CC337D5959F95 /* Qwen3.5-4B-Q4_K_M.gguf */; };
 		FCA2F50003E9016BE45ABFD4 /* DeeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 310EA1982BFD19DBB8E49F42 /* DeeModel.swift */; };
@@ -49,9 +51,11 @@
 		82EC0AB257D309D92D308629 /* People.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People.swift; sourceTree = "<group>"; };
 		863D83D1BDC0BF76A99DA86A /* DeeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeUITests.swift; sourceTree = "<group>"; };
 		AD622141C5A2B09CA6A5440D /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		B605C970042873EB5E5C0A05 /* Projector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Projector.swift; sourceTree = "<group>"; };
 		BE262B0632CDD3BF180DD888 /* TouchCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchCaptureView.swift; sourceTree = "<group>"; };
 		BF4A980850E9DB332F9DA317 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D709CD4F6D3CC337D5959F95 /* Qwen3.5-4B-Q4_K_M.gguf */ = {isa = PBXFileReference; path = "Qwen3.5-4B-Q4_K_M.gguf"; sourceTree = "<group>"; };
+		E5C13F486626CF27D30FA280 /* SelfDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfDriver.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -143,7 +147,9 @@
 				310EA1982BFD19DBB8E49F42 /* DeeModel.swift */,
 				3D140A19846633BAC99A6FA0 /* ModelLocator.swift */,
 				82EC0AB257D309D92D308629 /* People.swift */,
+				B605C970042873EB5E5C0A05 /* Projector.swift */,
 				AD622141C5A2B09CA6A5440D /* RootView.swift */,
+				E5C13F486626CF27D30FA280 /* SelfDriver.swift */,
 				BE262B0632CDD3BF180DD888 /* TouchCaptureView.swift */,
 			);
 			path = Sources;
@@ -271,7 +277,9 @@
 				FCA2F50003E9016BE45ABFD4 /* DeeModel.swift in Sources */,
 				C79BE7462480657C9CC91F72 /* ModelLocator.swift in Sources */,
 				7569556BE796EEEF994FF20E /* People.swift in Sources */,
+				E40CFE4608B4C33908E6A695 /* Projector.swift in Sources */,
 				CA543A27450A3210D2F7BB98 /* RootView.swift in Sources */,
+				D99100C5DF53433207027D8A /* SelfDriver.swift in Sources */,
 				A19AB6AAE6BD1E24B5F8084C /* TouchCaptureView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -313,7 +321,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.4.0;
+				MARKETING_VERSION = 0.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.forensicintelligence.dee;
 				PRODUCT_NAME = Dee;
 				SDKROOT = iphoneos;
@@ -347,7 +355,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.4.0;
+				MARKETING_VERSION = 0.5.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.forensicintelligence.dee;
 				PRODUCT_NAME = Dee;
 				SDKROOT = iphoneos;

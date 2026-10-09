@@ -179,6 +179,34 @@ struct FaceSnapshotTests {
                       name: "sheet-listen", scale: 1)
     }
 
+    /// v0.5 face modifiers (`readyFace`, `lidSoften`, `tilt`) over the listening face and
+    /// over a neutral, an angry and a curious one.
+    static var faceModifierCells: [Cell] {
+        let listening = FaceInputs(emotion: .listening, activity: .listening, micLevel: 0.5)
+        func with(_ base: FaceInputs, ready: Double = 0, soften: Double = 0, tilt: Double = 0) -> FaceInputs {
+            var i = base
+            i.readyFace = ready; i.lidSoften = soften; i.tilt = tilt
+            return i
+        }
+        let rows: [(String, FaceInputs)] = [
+            ("listen", listening), ("ready 0.5", with(listening, ready: 0.5)), ("ready 1", with(listening, ready: 1)),
+            ("soften 0.5", with(listening, soften: 0.5)), ("soften 1", with(listening, soften: 1)),
+            ("tilt -1", with(listening, tilt: -1)), ("tilt +1", with(listening, tilt: 1)),
+            ("soften+tilt", with(listening, soften: 0.7, tilt: 0.6)),
+            ("neutral", FaceInputs()), ("neutral ready", with(FaceInputs(), ready: 1)),
+            ("angry", FaceInputs(emotion: .angry)), ("angry soften", with(FaceInputs(emotion: .angry), soften: 1)),
+            ("sleepy", FaceInputs(emotion: .sleepy)), ("sleepy ready", with(FaceInputs(emotion: .sleepy), ready: 1)),
+            ("curious", FaceInputs(emotion: .curious)), ("curious tilt -1", with(FaceInputs(emotion: .curious), tilt: -1)),
+        ]
+        return rows.map { Cell(label: $0.0, frame: settledFrame($0.1)) }
+    }
+
+    @Test func faceModifiers() throws {
+        let cells = Self.faceModifierCells
+        for c in cells { try Self.write(c.frame, name: "modifier-\(c.label.replacingOccurrences(of: " ", with: ""))") }
+        try Self.save(Self.sheet([("Face modifiers (ready face, lid soften, tilt)", cells)], columns: 8), name: "sheet-modifiers", scale: 1)
+    }
+
     @Test func performanceKeyFrames() throws {
         for p in Performance.allCases {
             for (i, f) in Self.performanceFrames(p, at: Self.keyTimes(p)).enumerated() {

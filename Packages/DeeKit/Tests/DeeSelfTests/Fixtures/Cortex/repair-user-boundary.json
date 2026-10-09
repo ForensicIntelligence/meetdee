@@ -1,0 +1,76 @@
+{
+  "name" : "repair-user-boundary",
+  "reducer" : "Cortex",
+  "steps" : [
+    {
+      "effects" : [
+        "setPauseScale(1.00)",
+        "persist(ritual)"
+      ],
+      "percept" : "identified(000A,0.00)",
+      "slice" : {
+        "repair.awkwardness" : "0.000",
+        "repair.boundaries" : "",
+        "repair.notes" : "",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+        "persist(boundary)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "repair.awkwardness" : "0.000",
+        "repair.boundaries" : "user:job",
+        "repair.notes" : "userBoundary",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 1
+    },
+    {
+      "effects" : [
+        "persist(boundary)",
+        "persist(interest)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "repair.awkwardness" : "0.000",
+        "repair.boundaries" : "",
+        "repair.notes" : "",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 5
+    },
+    {
+      "effects" : [
+        "persist(boundary)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "repair.awkwardness" : "0.000",
+        "repair.boundaries" : "user:money",
+        "repair.notes" : "userBoundary",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 9
+    }
+  ]
+}

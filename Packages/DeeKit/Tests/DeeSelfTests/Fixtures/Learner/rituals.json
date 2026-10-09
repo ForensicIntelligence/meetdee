@@ -1,0 +1,232 @@
+{
+  "name" : "rituals",
+  "reducer" : "Learner",
+  "steps" : [
+    {
+      "effects" : [
+        "setPauseScale(1.00)",
+        "persist(ritual)"
+      ],
+      "percept" : "presence(true)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0",
+        "tastes" : ""
+      },
+      "t" : 28800
+    },
+    {
+      "effects" : [
+        "persist(ritual)",
+        "persist(profile)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.05",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0,goodnight:s1c0",
+        "tastes" : ""
+      },
+      "t" : 82800
+    },
+    {
+      "effects" : [
+        "setPauseScale(1.00)"
+      ],
+      "percept" : "presence(false)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c0,goodnight:s1c0",
+        "tastes" : ""
+      },
+      "t" : 84600
+    },
+    {
+      "effects" : [
+        "setPauseScale(1.00)",
+        "persist(ritual)"
+      ],
+      "percept" : "presence(true)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.05",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s2c0,goodnight:s1c0",
+        "tastes" : ""
+      },
+      "t" : 115200
+    },
+    {
+      "effects" : [
+        "persist(ritual)",
+        "persist(profile)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.10",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s2c0,goodnight:s2c0",
+        "tastes" : ""
+      },
+      "t" : 169200
+    },
+    {
+      "effects" : [
+        "setPauseScale(1.00)"
+      ],
+      "percept" : "presence(false)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s2c0,goodnight:s2c0",
+        "tastes" : ""
+      },
+      "t" : 171000
+    },
+    {
+      "effects" : [
+        "setPauseScale(1.00)",
+        "persist(ritual)",
+        "say"
+      ],
+      "percept" : "presence(true)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.10",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s3c1,goodnight:s2c0",
+        "tastes" : ""
+      },
+      "t" : 201600
+    },
+    {
+      "effects" : [
+        "persist(ritual)",
+        "persist(profile)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "intention",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.14",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s3c1,goodnight:s3c1",
+        "tastes" : ""
+      },
+      "t" : 255600
+    },
+    {
+      "effects" : [
+        "setPauseScale(1.00)"
+      ],
+      "percept" : "presence(false)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "intention",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s3c1,goodnight:s3c1",
+        "tastes" : ""
+      },
+      "t" : 257400
+    },
+    {
+      "effects" : [
+        "setPauseScale(1.00)",
+        "persist(ritual)",
+        "say"
+      ],
+      "percept" : "presence(true)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "intention,reunion",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.14",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c2,goodnight:s3c1",
+        "tastes" : ""
+      },
+      "t" : 374400
+    },
+    {
+      "effects" : [
+        "persist(ritual)",
+        "persist(profile)"
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "reunion,intention",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.17",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c2,goodnight:s1c2",
+        "tastes" : ""
+      },
+      "t" : 428400
+    },
+    {
+      "effects" : [
+        "setPauseScale(1.00)"
+      ],
+      "percept" : "presence(false)",
+      "slice" : {
+        "gags" : "",
+        "interests" : "",
+        "lessons" : "",
+        "misreads" : "",
+        "notes" : "reunion,intention",
+        "profile" : "pause 1.00\/0 humor 0.50 gain 1.00 silence 0.30 kind 0.00",
+        "revealed" : "false",
+        "rituals" : "firstSightOfDay:s1c2,goodnight:s1c2",
+        "tastes" : ""
+      },
+      "t" : 430200
+    }
+  ]
+}

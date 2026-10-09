@@ -1,0 +1,186 @@
+{
+  "name" : "sorry-go-on",
+  "reducer" : "Beats",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "promptSubmitted",
+      "slice" : {
+        "beat" : "-",
+        "floor" : "deeThinking",
+        "gaze" : "-",
+        "mannerism" : "-",
+        "overlay" : "-",
+        "signals" : ""
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "speakingStarted",
+      "slice" : {
+        "beat" : "-",
+        "floor" : "deeSpeaking",
+        "gaze" : "-",
+        "mannerism" : "-",
+        "overlay" : "-",
+        "signals" : ""
+      },
+      "t" : 1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(happy)",
+      "slice" : {
+        "beat" : "-",
+        "floor" : "deeSpeaking",
+        "gaze" : "-",
+        "mannerism" : "-",
+        "overlay" : "-",
+        "signals" : ""
+      },
+      "t" : 1.1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "partial",
+      "slice" : {
+        "beat" : "sorryGoOn#0",
+        "floor" : "userSpeaking",
+        "gaze" : "user",
+        "mannerism" : "-",
+        "overlay" : "shy",
+        "signals" : ""
+      },
+      "t" : 1.5
+    },
+    {
+      "effects" : [
+        "stopSpeaking"
+      ],
+      "percept" : "bargeIn",
+      "slice" : {
+        "beat" : "sorryGoOn#0",
+        "floor" : "userSpeaking",
+        "gaze" : "user",
+        "mannerism" : "-",
+        "overlay" : "shy",
+        "signals" : ""
+      },
+      "t" : 1.6
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "beat" : "sorryGoOn#0",
+        "floor" : "userSpeaking",
+        "gaze" : "user",
+        "mannerism" : "-",
+        "overlay" : "shy",
+        "signals" : ""
+      },
+      "t" : 2
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "beat" : "sorryGoOn#1",
+        "floor" : "userSpeaking",
+        "gaze" : "user",
+        "mannerism" : "nod",
+        "overlay" : "-",
+        "signals" : ""
+      },
+      "t" : 2.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "beat" : "sorryGoOn#1",
+        "floor" : "userSpeaking",
+        "gaze" : "user",
+        "mannerism" : "-",
+        "overlay" : "-",
+        "signals" : ""
+      },
+      "t" : 3
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "gesture(reunion)",
+      "slice" : {
+        "beat" : "reunion#0",
+        "floor" : "userSpeaking",
+        "gaze" : "user",
+        "mannerism" : "bounce",
+        "overlay" : "excited",
+        "signals" : "beatFinished:sorryGoOn"
+      },
+      "t" : 3.2
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "beat" : "reunion#0",
+        "floor" : "userSpeaking",
+        "gaze" : "user",
+        "mannerism" : "-",
+        "overlay" : "excited",
+        "signals" : ""
+      },
+      "t" : 4
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "beat" : "reunion#1",
+        "floor" : "userSpeaking",
+        "gaze" : "user",
+        "mannerism" : "bounce",
+        "overlay" : "happy",
+        "signals" : ""
+      },
+      "t" : 5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "beat" : "-",
+        "floor" : "userSpeaking",
+        "gaze" : "-",
+        "mannerism" : "-",
+        "overlay" : "-",
+        "signals" : "beatFinished:reunion"
+      },
+      "t" : 6
+    }
+  ]
+}

@@ -452,6 +452,9 @@ public enum FactExtractor {
 
     static let workRule: Rule = { c, _ in
         if R.workFromHome.matches(c) { return [fact("works from home", .work)] }
+        if let g = R.applyingFor.groups(c), let verb = g[1], let what = g[2], let kind = g[3] {
+            return applying(past: verb.lowercased() == "applied", what: what, kind: kind, at: g[4]).map { [$0] }
+        }
         if let g = R.workAs.groups(c), let obj = cleanObject(g[1]) {
             return [fact("works as \(withArticle(obj))", .work)]
         }
@@ -559,6 +562,43 @@ public enum FactExtractor {
             return [fact("has \(withArticle(t)) \(time.text)", .event)]
         }
         return nil
+    }
+
+    // MARK: - Details of the plan just mentioned
+
+    /// "It's for a designer job at a game studio" right after "I have a job interview
+    /// tomorrow": the job the plan is about (`plan` = the stored event fact's text).
+    /// Conservative: only for a job-like plan (interview, application, audition…), and
+    /// only "it/this/the interview is for a/an X job/position/role (at Y)" or, for an
+    /// interview, "it's at Y" (a company, never a time or "home").
+    public static func planDetails(from utterance: String, plan: String) -> [ExtractedFact] {
+        guard R.jobPlan.matches(plan) else { return [] }
+        let text = normalise(utterance)
+        guard !text.isEmpty, !FactPolicy.selfHarm.matches(text) else { return [] }
+        var out: [ExtractedFact] = []
+        for raw in clauses(text) {
+            let c = strip(raw)
+            var f: ExtractedFact?
+            if let g = R.itsForJob.groups(c), let what = g[1], let kind = g[2] {
+                f = applying(past: false, what: what, kind: kind, at: g[3])
+            } else if R.interviewPlan.matches(plan), let g = R.itsAt.groups(c), let place = g[1], !R.notACompany.matches(place),
+                      let obj = cleanObject(place) {
+                f = fact("is interviewing at \(obj)", .work)
+            }
+            if let f, !FactPolicy.isDenied(f.text), !out.contains(f) { out.append(f) }
+        }
+        return out
+    }
+
+    /// "is applying for a designer job at a game studio".
+    static func applying(past: Bool, what: String, kind: String, at: String?) -> ExtractedFact? {
+        guard let role = cleanObject(what), !Lex.pronounObjects.contains(role.lowercased()) else { return nil }
+        var text = "\(past ? "applied" : "is applying") for \(withArticle("\(role) \(kind.lowercased())"))"
+        if let at {
+            guard !R.notACompany.matches(at), let place = cleanObject(at) else { return nil }
+            text += " at \(place)"
+        }
+        return fact(text, .work)
     }
 
     // MARK: - Builders

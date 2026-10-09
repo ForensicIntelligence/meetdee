@@ -61,8 +61,9 @@ extension Enduring {
 extension Moment {
     /// "Forget that" for every shared field: intentions, expectations, interests,
     /// recent misreads, topic, referents and focus, note candidates naming it, episode
-    /// keys tagged with it, gags about it. Boundaries stay (forgetting a subject must
-    /// not lift "don't bring up X"); Dee's own tastes stay.
+    /// keys tagged with it, gags about it, and learnt tastes about it (only the seeded
+    /// facets stay; review finding 1). Boundaries stay (forgetting a subject must not
+    /// lift "don't bring up X").
     public mutating func forget(subject s: Subject) {
         let goneIntentions = ongoing.intentions.filter { $0.subject.overlaps(s) }.map(\.id)
         let goneEpisodes = enduring.episodeIndex.filter { $0.topics.contains { $0.overlaps(s) } }.map(\.id)
@@ -82,6 +83,7 @@ extension Moment {
         }
         enduring.episodeIndex.removeAll { goneEpisodes.contains($0.id) }
         enduring.gags.removeAll { $0.topic.overlaps(s) }
+        enduring.facets.removeAll { $0.source != .seed && $0.subject.overlaps(s) }
     }
 
     /// Drops episode keys the store deleted (e.g. matched by gist, which RAM never holds).

@@ -45,7 +45,7 @@ public enum SelfBlock {
         case "remembering faces": "You're good at remembering faces."
         case "moving around": "You can't move around on your own."
         case "the internet": "You have no internet."
-        case "seeing face down": "You can't see anything when the phone is face down."
+        case "picking things up": "You can't pick things up or fetch things."
         default: f.kind == .limit ? "You're not good at \(f.subject.text)." : "You're good at \(f.subject.text)."
         }
     }
@@ -77,7 +77,7 @@ public enum SelfBlock {
         out.append((.values, "About you: you value \(list(values.map(valueWord)))."))
         out.append((.humour, "Your humour is \(humourPhrase(e.humour))."))
         let tastes = e.facets
-            .filter { $0.kind == .taste && $0.crystallised && $0.revealedAt != nil }
+            .filter { $0.kind == .taste && $0.crystallised && $0.revealedAt != nil && !SensitiveSubjects.contains($0.subject) }
             .sorted { (abs($0.polarity) * Double($0.evidence), $1.subject.text) > (abs($1.polarity) * Double($1.evidence), $0.subject.text) }
             .prefix(2)
         if !tastes.isEmpty { out.append((.tastes, "You \(list(tastes.map(tastePhrase))).")) }

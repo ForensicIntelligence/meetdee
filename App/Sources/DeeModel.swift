@@ -3,6 +3,7 @@ import DeeFace
 import DeeLLM
 import DeeMemory
 import DeeMind
+import DeeSelf
 import DeeSense
 import DeeVoice
 import Foundation
@@ -18,11 +19,15 @@ struct TranscriptItem: Identifiable, Equatable {
     var isStreaming = false
 }
 
-/// The app's single source of truth: model lifecycle, the conversation, Dee's voice,
-/// what she sees, hears and feels, and what her eyes should be doing.
+/// The app's I/O shell around Dee's one mind.
 ///
-/// Every way of reaching Dee funnels into `perceive(_:)`: speech, touch, gestures,
-/// things she sees or hears, and her own curiosity.
+/// v0.5 ("Someone"): DeeModel no longer decides how Dee looks or sounds. Every
+/// stimulus — speech, pauses, touch, gestures, sights, sounds, who's there, her own
+/// sentences — becomes a `Percept` for the Cortex (DeeSelf), which keeps one shared
+/// interpretation of the moment (`Stance`). The face, the voice style, the gaze,
+/// the little performances and the language model's `<dee_state>` cue are all
+/// projected from that one Stance, so they can never disagree. DeeModel runs the
+/// devices, the language model and the stores, and executes the Cortex's effects.
 @Observable @MainActor
 final class DeeModel {
     enum LoadState: Equatable {
@@ -32,15 +37,17 @@ final class DeeModel {
         case failed(String)
     }
 
-    /// Something that reaches Dee and may make her respond.
+    /// Something that makes Dee take a conversational turn.
     enum Stimulus {
         /// Said out loud (or typed in Debug); appraised for what and how.
         case spoken(String, prosody: Prosody?)
         /// A non-verbal event already turned into an appraisal, plus the stage
         /// direction the language model sees ("(The user waves at you.)").
         case event(Appraisal, line: String)
-        /// Dee's own initiative (curiosity): a stage direction, no appraisal.
+        /// Dee's own initiative from the curiosity director: a stage direction.
         case initiative(String)
+        /// Dee's own initiative from the Cortex: a complete `<dee_state>` cue.
+        case cortexInitiative(cue: String)
     }
 
     // Brain
@@ -54,11 +61,16 @@ final class DeeModel {
     /// What Dee is hearing / last heard (shown small, above the caption).
     private(set) var heard = ""
 
-    // Face
-    private(set) var emotion: Emotion = .neutral
-    private(set) var activity: FaceActivity = .idle {
-        // A sleeping Dee only needs to notice someone arriving: let the camera idle.
-        didSet { if (oldValue == .sleeping) != (activity == .sleeping) { camera.isDozing = activity == .sleeping; updateListening() } }
+    // Body state the Cortex doesn't own
+    /// Sleeping is a body state (driven by presence); everything else the face
+    /// shows comes from the Stance.
+    private(set) var sleeping = false {
+        didSet {
+            guard oldValue != sleeping else { return }
+            camera.isDozing = sleeping
+            updateListening()
+            sense(.asleep(sleeping))
+        }
     }
     private(set) var lookAt: SIMD2<Double>?
     private(set) var touchPoint: SIMD2<Double>?
@@ -67,13 +79,12 @@ final class DeeModel {
     private(set) var speechLevel = 0.0
     private(set) var micLevel = 0.0
 
-    // Mind
-    /// Dee's inner state (26 parameters → one code); drives eye colour and mood.
+    // Mind and self
+    /// Dee's inner state (26 parameters → one code).
     private(set) var mindSnapshot: MindSnapshot?
-    /// A short-lived expression (the model's tag while she talks, or a reflex /
-    /// reaction) that wins over the mind's mood until `spokenEmotionUntil`.
-    private var spokenEmotion: Emotion?
-    private var spokenEmotionUntil = Date.distantPast
+    /// Bumped whenever the Stance changes, so the face re-renders.
+    private(set) var stanceVersion = 0
+    private var selfDriver: SelfDriver?
 
     // Senses
     private(set) var cameraActive = false
@@ -82,10 +93,12 @@ final class DeeModel {
     private(set) var voiceReady = false
     private(set) var microphoneAllowed = true
     private var lastHeardPartialAt = Date.distantPast
+    private var lastPartialForwarded = Date.distantPast
     private var absentSince: Date? = Date()
     private var asleepSince: Date?
     private var touch = TouchInterpreter()
     private var curiosity = CuriosityDirector()
+    private var lastInitiativeAt = Date.distantPast
 
     private var engine: LlamaEngine?
     private var agent: ConversationAgent?
@@ -100,41 +113,42 @@ final class DeeModel {
     /// Extra stage-direction notes for the next turn's cue (identity checks, care).
     private var pendingNotes: [String] = []
 
-    /// How long nobody may be in view before Dee gets drowsy / falls asleep, and how
-    /// long she must sleep before the next visit counts as a new conversation.
-    static let drowsyAfter: TimeInterval = 45
+    /// How long nobody may be in view before Dee falls asleep, and how long she
+    /// must sleep before the next visit counts as a new conversation.
     static let sleepAfter: TimeInterval = 180
     static let newConversationAfterSleeping: TimeInterval = 300
 
+    // MARK: - Projection (face / voice from the one Stance)
+
     var faceInputs: FaceInputs {
-        let tint = mindSnapshot.map { FaceColor($0.eyeColor.r, $0.eyeColor.g, $0.eyeColor.b) }
-        var inputs = FaceInputs(emotion: emotion, activity: activity, lookAt: touchPoint.map(Self.gaze(fromTouch:)) ?? lookAt,
-                                speechLevel: speechLevel, micLevel: micLevel, tint: tint)
-        if let m = mindSnapshot?.mood {
-            inputs.mood = FaceMood(curiosity: m.curiosity, boredom: m.boredom, playfulness: m.playfulness,
-                                   energy: m.energy, affection: m.affection, arousal: m.arousal)
+        _ = stanceVersion
+        var inputs: FaceInputs
+        if let s = selfDriver?.stance {
+            inputs = Projector.face(s, faceAt: lookAt, touchPoint: touchPoint)
+            if let m = mindSnapshot?.mood, Projection.expression(s).idleDirector {
+                inputs.mood = FaceMood(curiosity: m.curiosity, boredom: m.boredom, playfulness: m.playfulness,
+                                       energy: m.energy, affection: m.affection, arousal: m.arousal)
+            }
+        } else {
+            // Before the self store opens (first frames of launch).
+            let tint = mindSnapshot.map { FaceColor($0.eyeColor.r, $0.eyeColor.g, $0.eyeColor.b) }
+            inputs = FaceInputs(emotion: mindSnapshot?.emotion ?? .content, activity: .idle, lookAt: lookAt, tint: tint)
         }
-        inputs.touchPoint = touchPoint
+        if sleeping { inputs.activity = .sleeping }
+        if loadState != .ready, !sleeping { inputs.activity = .thinking }
+        inputs.speechLevel = speechLevel
+        inputs.micLevel = micLevel
         inputs.performance = performance
         return inputs
     }
 
-    /// Touch location (0…1, y down) → gaze space (−1…1).
-    static func gaze(fromTouch p: SIMD2<Double>) -> SIMD2<Double> {
-        SIMD2((p.x - 0.5) * 2, (p.y - 0.47) * 2)
+    private var voiceStyle: VoiceStyle {
+        if let s = selfDriver?.stance { return Projector.voice(s) }
+        return VoiceStyle.forMood(emotion: mindSnapshot?.emotion ?? .content, age: mindSnapshot?.age, energy: mindSnapshot?.mood.energy ?? 0.8)
     }
 
-    /// The face shows a short-lived expression (the model's tag while talking, a
-    /// reflex) when there is one, otherwise whatever the mind feels most.
-    private func refreshEmotion() {
-        if let spoken = spokenEmotion, isResponding || isSpeaking || Date() < spokenEmotionUntil {
-            emotion = spoken
-        } else if let snap = mindSnapshot, activity != .sleeping {
-            spokenEmotion = nil
-            emotion = snap.emotion
-        }
-    }
-
+    /// A physical reflex the body makes directly (a tapped eye blinks). Everything
+    /// expressive goes through the Stance instead.
     private func perform(_ p: Performance) {
         performanceCounter += 1
         performance = PerformanceRequest(id: performanceCounter, performance: p)
@@ -142,6 +156,56 @@ final class DeeModel {
 
     /// Seconds since boot — the same clock as `UITouch.timestamp`.
     private var now: Double { ProcessInfo.processInfo.systemUptime }
+
+    // MARK: - The one entry point into the Cortex
+
+    /// Steps the Cortex with a percept, re-projects the face, executes effects.
+    private func sense(_ percept: Percept) {
+        guard let driver = selfDriver, let snap = mindSnapshot else { return }
+        let effects = driver.step(percept, mind: snap)
+        afterStep()
+        for e in effects { execute(e) }
+    }
+
+    private func afterStep() {
+        guard let driver = selfDriver else { return }
+        stanceVersion &+= 1
+        performanceCounter += 1
+        if let p = Projector.performance(driver.stance, id: performanceCounter) { performance = p }
+    }
+
+    private func execute(_ effect: Effect) {
+        switch effect {
+        case .reply(let userText, let cue):
+            if let userText { perceive(.spoken(userText, prosody: nil)) } else { perceive(.cortexInitiative(cue: cue)) }
+        case .initiative(let cue):
+            perceive(.cortexInitiative(cue: cue))
+        case .say(let line):
+            voice.say(line, style: voiceStyle)
+        case .stopSpeaking:
+            stop()
+        case .setPauseScale(let scale):
+            voice.pauseScale = scale
+        case .glanceNow(let side):
+            if let s = DeeSense.CameraSide(rawValue: side.rawValue) { camera.glanceNow(s) }
+        case .lookAround(let on):
+            camera.lookAround = on
+        case .appraise(let a):
+            Task { await self.react(a, then: nil) }
+        case .curiosity(let stimulus):
+            curiosity.note(stimulus, at: Date())
+        case .persist:
+            break // batched inside SelfDriver
+        case .remember(let fact, let person):
+            guard let people else { break }
+            Task { await people.store.remember(fact.text, category: fact.category, about: person, at: Date()) }
+        case .reflect:
+            Task { [weak self] in
+                guard let self, let driver = self.selfDriver else { return }
+                for e in await driver.flush() { self.execute(e) }
+            }
+        }
+    }
 
     // MARK: - Lifecycle
 
@@ -157,6 +221,10 @@ final class DeeModel {
         started = true
         await openMind()
         people = People()
+        if let snap = mindSnapshot {
+            selfDriver = await SelfDriver.open(memory: people?.store, snapshot: snap)
+        }
+        wirePeople()
         startMoodClock()
         startVoice()
         await startCamera()
@@ -167,25 +235,21 @@ final class DeeModel {
         guard loadState == .idle || { if case .failed = loadState { true } else { false } }() else { return }
         guard let url = ModelLocator.locate() else {
             loadState = .failed(ModelLocator.Problem.notFound.localizedDescription)
-            flash(.confused, seconds: 5)
             return
         }
         do {
             try ModelLocator.checkMemory()
             loadState = .loading(0)
-            activity = .thinking
             let engine = try await LlamaEngine.load(.init(modelPath: url.path(percentEncoded: false))) { [weak self] p in
                 Task { @MainActor in
                     if case .loading = self?.loadState { self?.loadState = .loading(p) }
                 }
             }
             let agent = ConversationAgent(generator: engine, tools: memoryTools(), persona: persona)
-            await agent.newConversation(persona: await currentPersona())
             self.engine = engine
             self.agent = agent
+            await startConversation(agent)
             loadState = .ready
-            activity = .idle
-            flash(.happy)
             statusLine = engine.modelDescription
             updateListening()
             #if DEBUG
@@ -196,8 +260,6 @@ final class DeeModel {
             #endif
         } catch {
             loadState = .failed(error.localizedDescription)
-            activity = .idle
-            flash(.sad, seconds: 5)
         }
     }
 
@@ -215,7 +277,6 @@ final class DeeModel {
             self.mind = mind
             await applyAgeSettings()
             accept(await mind.tick(userPresent: someoneHere, asleep: false))
-            refreshEmotion()
         } catch {
             // A corrupt database must never brick Dee: move it aside (kept for
             // diagnosis, never deleted) and start a fresh one; in-memory as a last resort.
@@ -225,10 +286,7 @@ final class DeeModel {
                 try? FileManager.default.moveItem(at: file, to: file.appendingPathExtension("corrupt-\(stamp)"))
             }
             mind = (try? Mind(databaseURL: url)) ?? (try? Mind(databaseURL: nil))
-            if let mind {
-                accept(await mind.tick(userPresent: someoneHere, asleep: false))
-                refreshEmotion()
-            }
+            if let mind { accept(await mind.tick(userPresent: someoneHere, asleep: false)) }
         }
     }
 
@@ -263,47 +321,20 @@ final class DeeModel {
 
     /// Keeps only the newest snapshot: a slow tick finishing after a newer `hear`
     /// must not paint the eyes with stale feelings.
-    private func accept(_ snap: MindSnapshot) {
-        if let current = mindSnapshot, snap.sequence < current.sequence { return }
-        mindSnapshot = snap
-    }
-
-    /// Applies a fresh snapshot from something that just happened: the reflex (a
-    /// laugh at a joke, a flinch at a slap) shows immediately, whatever the mood.
-    private func took(_ snap: MindSnapshot, laughable: Bool = false) {
-        accept(snap)
-        if let reflex = snap.reflex {
-            // Hold the reflex through the first words of a reply, so a joke is
-            // answered in a laughing voice even when her mood is low.
-            flash(reflex, seconds: isResponding ? 6 : 2.5)
-            switch reflex {
-            case .giddy, .joy:
-                perform(.giggle)
-                if laughable, !isSpeaking {
-                    voice.laugh(intensity: reflex == .giddy ? 0.8 : 0.5, age: snap.age, energy: snap.mood.energy)
-                }
-            case .surprised, .scared: perform(.startle)
-            case .shy: perform(.contentSquint)
-            case .relieved: perform(.sigh)
-            default: break
-            }
-        } else if !isResponding {
-            refreshEmotion()
-        }
-    }
-
-    /// Shows a reaction for a few seconds before the mind's mood takes over again.
-    private func flash(_ e: Emotion, seconds: TimeInterval = 3) {
-        spokenEmotion = e
-        spokenEmotionUntil = Date().addingTimeInterval(seconds)
-        emotion = e
-    }
-
     @discardableResult
-    private func react(_ appraisal: Appraisal) async -> MindSnapshot? {
+    private func accept(_ snap: MindSnapshot) -> Bool {
+        if let current = mindSnapshot, snap.sequence < current.sequence { return false }
+        mindSnapshot = snap
+        return true
+    }
+
+    /// Mind first (feelings), then the Cortex (interpretation), per SELF.md §4.3.
+    @discardableResult
+    private func react(_ appraisal: Appraisal, then percept: Percept? = .tick) async -> MindSnapshot? {
         guard let mind else { return nil }
         let snap = await mind.react(appraisal)
-        took(snap)
+        accept(snap)
+        if let percept { sense(percept) }
         return snap
     }
 
@@ -318,7 +349,7 @@ final class DeeModel {
             backgroundedAt = nil
             accept(await mind.catchUp(lastSeenUserAt: someoneHere ? away : nil))
             await applyAgeSettings()
-            refreshEmotion()
+            sense(.tick)
             updateListening()
         } else if backgroundedAt == nil {
             backgroundedAt = Date()
@@ -326,11 +357,14 @@ final class DeeModel {
             voice.stopSpeaking()
             touch.cancelAll()
             touchPoint = nil
-            accept(await mind.tick(userPresent: someoneHere, asleep: activity == .sleeping))
+            accept(await mind.tick(userPresent: someoneHere, asleep: sleeping))
             // Tick writes are throttled; make sure nothing is lost if iOS ends the app.
             await mind.flush()
+            if let driver = selfDriver { for e in await driver.flush() where !isPersist(e) { execute(e) } }
         }
     }
+
+    private func isPersist(_ e: Effect) -> Bool { if case .persist = e { true } else { false } }
 
     // MARK: - Voice
 
@@ -348,11 +382,7 @@ final class DeeModel {
     /// Listen whenever someone could be talking to Dee and she's awake. The voice
     /// service pauses recognition by itself while Dee is speaking.
     private func updateListening() {
-        voice.listeningEnabled = loadState == .ready && someoneHere && activity != .sleeping && backgroundedAt == nil
-    }
-
-    private var voiceStyle: VoiceStyle {
-        VoiceStyle.forMood(emotion: emotion, age: mindSnapshot?.age, energy: mindSnapshot?.mood.energy ?? 0.8)
+        voice.listeningEnabled = loadState == .ready && someoneHere && !sleeping && backgroundedAt == nil
     }
 
     private func handle(_ event: VoiceEvent) {
@@ -361,22 +391,28 @@ final class DeeModel {
             microphoneAllowed = mic
             if !mic {
                 transcript.append(TranscriptItem(kind: .note, text: "Microphone access is off — Dee can't hear you. Turn it on in Settings › Dee."))
-                flash(.sad, seconds: 4)
             }
         case .ready:
             voiceReady = true
             updateListening()
-        case .listening(let on):
-            if on, !isResponding, !isSpeaking, activity == .idle { micLevel = 0 }
+        case .listening:
+            break
         case .partial(let text):
             heard = text
             lastHeardPartialAt = Date()
-            if !isResponding, !isSpeaking, activity != .sleeping { activity = .listening }
+            if sleeping { sleeping = false; asleepSince = nil }
+            // Forward partials at ≤ 2 Hz: the listening face previews her reaction.
+            if Date().timeIntervalSince(lastPartialForwarded) >= 0.5 {
+                lastPartialForwarded = Date()
+                sense(.partial(text))
+            }
+        case .pause(let turnEnd, let hesitation):
+            sense(.pause(turnEnd: turnEnd, hesitation: hesitation))
         case .heard(let utterance):
             lastHeardPartialAt = .distantPast
-            if activity == .listening { activity = .idle }
             let p = utterance.prosody
             let prosody = Prosody(loudnessDB: p.loudnessDB, peakDB: p.peakDB, speechRate: p.speechRate, pitchVariability: p.pitchVariability)
+            pendingHeardDuration = utterance.duration
             perceive(.spoken(utterance.text, prosody: prosody))
         case .sound(let sound):
             heardSound(sound)
@@ -384,25 +420,24 @@ final class DeeModel {
             micLevel = level
         case .speakingStarted:
             isSpeaking = true
-            activity = .speaking
+            sense(.speakingStarted)
         case .speechLevel(let level):
             speechLevel = level
         case .speakingFinished:
             isSpeaking = false
             speechLevel = 0
             curiosity.note(.deeSpoke, at: Date())
-            if !isResponding { activity = .idle; spokenEmotionUntil = Date().addingTimeInterval(3) }
+            sense(.speakingFinished)
         case .bargeIn:
             // The user talked over Dee: stop and listen.
             stop()
-            flash(.listening, seconds: 2)
-        case .pause:
-            // v0.5: routed to the Cortex (turn prediction); v0.4 ignores it.
-            break
+            sense(.bargeIn)
         case .error(let message):
             transcript.append(TranscriptItem(kind: .note, text: "Voice: \(message)"))
         }
     }
+
+    private var pendingHeardDuration = 0.0
 
     private func heardSound(_ sound: HeardSound) {
         let loudness = max(0, min(1, (sound.loudnessDB + 50) / 40))
@@ -410,29 +445,25 @@ final class DeeModel {
         // contagious, crying gets concern, applause delights.
         if sound.kind.isSocial {
             let quietMoment = !isSpeaking && !isResponding && !voice.userIsSpeaking
-            if sound.kind == .laughter, quietMoment, activity != .sleeping {
+            if sound.kind == .laughter, quietMoment, !sleeping {
                 voice.laugh(intensity: 0.5, age: mindSnapshot?.age, energy: mindSnapshot?.mood.energy ?? 0.7)
-                perform(.giggle)
             }
-            Task { await react(.sound(label: sound.label, unexpected: false, loudness: loudness)) }
+            Task { await react(.sound(label: sound.label, unexpected: false, loudness: loudness), then: .sound(label: sound.label, unexpected: false)) }
             return
         }
         guard sound.isUnexpected else { return }
         curiosity.noteSound(sound.label, unexpected: true, loudness: loudness, at: Date())
-        if activity == .sleeping {
+        if sleeping {
             // Only an alarming or loud noise wakes a sleeping Dee (not every creak).
             let asleepFor = asleepSince.map { Date().timeIntervalSince($0) }
             guard loudness > 0.6 || CuriosityDirector.callsOutUnattended(sound: sound.label, loudness: loudness, asleepFor: asleepFor) else {
-                Task { await react(.sound(label: sound.label, unexpected: true, loudness: loudness * 0.5)) }
+                Task { await react(.sound(label: sound.label, unexpected: true, loudness: loudness * 0.5), then: nil) }
                 return
             }
-            activity = .idle
+            sleeping = false
             asleepSince = nil
         }
-        perform(sound.loudnessDB > -20 ? .startle : .doubleTake)
-        Task {
-            await react(.sound(label: sound.label, unexpected: true, loudness: loudness))
-        }
+        Task { await react(.sound(label: sound.label, unexpected: true, loudness: loudness), then: .sound(label: sound.label, unexpected: true)) }
     }
 
     // MARK: - Touch
@@ -461,60 +492,86 @@ final class DeeModel {
 
     private func handle(_ gesture: TouchGesture) {
         guard loadState != .idle else { return }
-        if activity == .sleeping, case .tap = gesture {} else if activity == .sleeping {
-            activity = .idle
+        if sleeping, case .tap = gesture {} else if sleeping {
+            sleeping = false
             asleepSince = nil
-            perform(.startle)
         }
         let kind: Touch
         let line: String?
+        var at: SIMD2<Double>? = touchPoint
         switch gesture {
-        case .tap(let at):
+        case .tap(let p):
             kind = .tap
             line = nil
-            // A tap on an eye makes that eye blink; anywhere else she looks.
-            if abs(at.y - 0.47) < 0.12, abs(abs(at.x - 0.5) - 0.19) < 0.12 {
-                perform(at.x < 0.5 ? .blinkLeft : .blinkRight)
-            } else {
-                perform(.doubleTake)
+            at = p
+            // A tapped eye blinks — a physical reflex, not an expression.
+            if abs(p.y - 0.47) < 0.12, abs(abs(p.x - 0.5) - 0.19) < 0.12 {
+                perform(p.x < 0.5 ? .blinkLeft : .blinkRight)
             }
-        case .doubleTap:
+        case .doubleTap(let p):
             kind = .doubleTap
             line = nil
-            perform(.bounce)
+            at = p
         case .pet(let duration, let gentleness):
             kind = .pet(gentleness: gentleness, seconds: duration)
             line = duration > 3 && gentleness > 0.5 ? "(Your human is gently stroking you.)" : nil
-            perform(.contentSquint)
         case .hold(let duration):
             kind = .hold(seconds: duration)
             line = duration > 2 ? "(Your human is holding you gently, like a little hug.)" : nil
-            perform(.contentSquint)
         case .pokes(_, _, let total):
             kind = .pokes(count: total)
             line = total >= 6 ? "(Your human keeps poking you.)" : nil
-            perform(.squint)
         case .slap(let force):
             kind = .slap(force: force)
             line = force > 0.5 ? "(Your human just smacked your screen.)" : nil
-            perform(.startle)
         case .tickle(let duration):
             kind = .tickle(seconds: duration)
             line = duration > 1.5 ? "(Your human is tickling you!)" : nil
-            perform(.giggle)
             if duration > 0.6, !isSpeaking { voice.laugh(intensity: 0.7, age: mindSnapshot?.age, energy: mindSnapshot?.mood.energy ?? 0.7) }
         }
+        let gentle: Bool = switch gesture {
+        case .pet, .hold, .tap, .doubleTap, .tickle: true
+        default: false
+        }
         let appraisal = Appraisal.touch(kind)
+        let percept = Percept.touch(kind: kind.word, gentle: gentle, at: at)
         if let line, !isResponding, !isSpeaking, loadState == .ready {
             // Answered right now — don't also let curiosity bring it up again.
-            perceive(.event(appraisal, line: line))
+            Task { await react(appraisal, then: percept) }
+            perceive(.event(appraisal, line: line), alreadyAppraised: true)
         } else {
             curiosity.note(.touched(kind.word), at: Date())
-            Task { await react(appraisal) }
+            Task { await react(appraisal, then: percept) }
         }
     }
 
     // MARK: - People (DeeMemory)
+
+    private func wirePeople() {
+        guard let people else { return }
+        people.onMerged = { [weak self] from, into in
+            guard let self, let driver = self.selfDriver, let memory = self.people?.store else { return }
+            Task { await driver.merge(from: from, into: into, memory: memory) }
+        }
+        people.onDiscarded = { [weak self] id in
+            guard let self, let memory = self.people?.store else { return }
+            if let driver = self.selfDriver {
+                Task { await driver.forgetPerson(id, memory: memory, placeholder: true) }
+            } else {
+                Task { await memory.discardPlaceholder(id) }
+            }
+        }
+        people.onCurrentChanged = { [weak self] person in
+            guard let self else { return }
+            let id = person.flatMap { $0.isPlaceholder ? nil : $0.id }
+            Task {
+                // Shared memories first, so the very next turn can recall them.
+                if let id, let driver = self.selfDriver { await driver.prefetch(person: id) }
+                // The People layer has already matched the face: a confirmed identity.
+                self.sense(.identified(id, distance: 0))
+            }
+        }
+    }
 
     /// Face crops from the camera → who is here.
     private func recognize(_ crops: [FaceCrop]) {
@@ -536,16 +593,12 @@ final class DeeModel {
             }
         case .learnedName(let name):
             pendingNotes.append("(Their name is \(name). You will remember it.)")
-            perform(.nod)
         case .nameConflict(let heard, let thought):
             pendingNotes.append("(You thought this was \(thought), but they said they're \(heard). Gently check who you're talking to.)")
-            perform(.doubleTake)
         case .askSamePerson(let name):
             pendingNotes.append("(You've met someone called \(name) before. Ask if it was them.)")
-            perform(.squint)
         case .introduced(let names):
             pendingNotes.append("(They're introducing \(names.joined(separator: " and ")) to you. Say hello to them.)")
-            perform(.bounce)
         case .wellbeingConcern:
             pendingNotes.append("(They may be going through something painful. Be warm and gentle; encourage them to reach out to someone they trust or a local crisis line.)")
         case .askWhich(let facts):
@@ -553,12 +606,15 @@ final class DeeModel {
         }
     }
 
-    /// The persona for a new conversation: who Dee is talking to and what she
-    /// remembers about them (frozen for the conversation).
+    /// The persona for a new conversation: who Dee is talking to, what she
+    /// remembers about them, and her self block (frozen for the conversation).
     private func currentPersona() async -> Persona {
         var p = persona
         p.userName = people?.currentName
-        p.memories = await people?.memories() ?? []
+        p.memories = Array((await people?.memories() ?? []).prefix(6))
+        if let driver = selfDriver {
+            p = driver.persona(p, person: people?.currentName == nil ? nil : people?.currentID)
+        }
         return p
     }
 
@@ -580,6 +636,7 @@ final class DeeModel {
             someoneHere = true
             absentSince = nil
             updateListening()
+            sense(.presence(arrived: true))
             return
         }
         camera.lookAround = true
@@ -607,97 +664,89 @@ final class DeeModel {
             someoneHere = true
             let sleptLongEnough = asleepSince.map { Date().timeIntervalSince($0) >= Self.newConversationAfterSleeping } ?? false
             absentSince = nil
-            if activity == .sleeping {
-                // Waking up: a surprised pop, then a happy hello.
+            if sleeping {
+                sleeping = false
                 asleepSince = nil
-                activity = .idle
-                flash(.surprised, seconds: 0.7)
-                perform(.startle)
-                Task {
-                    try? await Task.sleep(for: .milliseconds(700))
-                    if self.emotion == .surprised { self.flash(.happy) }
-                }
                 if sleptLongEnough { newConversation() }
-            } else if emotion == .sleepy {
-                flash(.happy)
             }
             curiosity.note(.userArrived, at: Date())
             updateListening()
+            sense(.presence(arrived: true))
         case .presence(.left):
             someoneHere = false
             absentSince = Date()
             updateListening()
+            sense(.faceLost)
+            sense(.presence(arrived: false))
         case .look(let point):
             lookAt = point
         case .gesture(let gesture):
             handle(gesture)
-        case .head:
-            break // v0.5: Cortex attention
+        case .head(let yaw, let pitch):
+            sense(.head(yaw: yaw, pitch: pitch))
         case .faces(let crops):
             recognize(crops)
         case .sight(let report):
-            guard !report.novel.isEmpty else { return }
+            let camera: DeeSelf.CameraSide = report.camera == .back ? .back : .front
+            let percept = Percept.sight(camera: camera, things: report.things.map(\.label), novel: report.novel.map(\.label))
+            guard !report.novel.isEmpty else { sense(percept); return }
             let novelty = min(1, (report.novel.map(\.confidence).max() ?? 0.5) * 0.6 + Double(report.novel.count) * 0.15)
             curiosity.noteSight(report.novel.map(\.label), camera: report.camera.rawValue, novelty: novelty, at: Date())
-            perform(report.camera == .back ? .lookAround : .doubleTake)
-            Task { await react(.sight(novelty: min(1, Double(report.novel.count) * 0.4))) }
+            Task { await react(.sight(novelty: min(1, Double(report.novel.count) * 0.4)), then: percept) }
         }
     }
 
     private func handle(_ gesture: Gesture) {
         switch gesture {
         case .wave:
-            if activity == .sleeping { activity = .idle; asleepSince = nil }
-            flash(.joy)
-            perform(.bounce)
+            if sleeping { sleeping = false; asleepSince = nil }
             if !isResponding, !isSpeaking, loadState == .ready {
-                perceive(.event(.wave, line: "(The user waves at you.)"))
+                Task { await react(.wave, then: .gesture("wave")) }
+                perceive(.event(.wave, line: "(The user waves at you.)"), alreadyAppraised: true)
             } else {
-                Task { await react(.wave) }
+                Task { await react(.wave, then: .gesture("wave")) }
             }
         case .palm:
             // "Hush": stop talking now.
             stop()
-            flash(.neutral)
+            sense(.gesture("palm"))
         case .thumbsUp:
-            flash(.happy)
-            perform(.nod)
-            Task { await react(.thumbsUp) }
+            Task { await react(.thumbsUp, then: .gesture("thumbsUp")) }
         }
     }
 
-    /// Drowsiness and sleep when nobody's around; mind ticks; curiosity.
+    /// 2 Hz heartbeat: Cortex ticks, mind ticks, sleep, curiosity.
     private func startMoodClock() {
         moodClock?.cancel()
         moodClock = Task { [weak self] in
             var ticks = 0
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(1))
+                try? await Task.sleep(for: .milliseconds(500))
                 guard let self else { return }
                 ticks += 1
-                if ticks % 3 == 0, self.backgroundedAt == nil, let mind = self.mind {
-                    self.accept(await mind.tick(userPresent: self.someoneHere, asleep: self.activity == .sleeping))
-                    if !self.isResponding, !self.isSpeaking { self.refreshEmotion() }
+                guard self.backgroundedAt == nil else { continue }
+                if ticks % 6 == 0, let mind = self.mind {
+                    self.accept(await mind.tick(userPresent: self.someoneHere, asleep: self.sleeping))
                 }
+                self.sense(.tick)
                 self.curiosity.asleepSince = self.asleepSince
-                if ticks % 2 == 0 { self.considerInitiative() }
+                if ticks % 4 == 0 { self.considerInitiative() }
                 guard !self.isResponding, !self.isSpeaking, let since = self.absentSince else { continue }
-                let away = Date().timeIntervalSince(since)
-                if away >= Self.sleepAfter, self.activity != .sleeping {
+                if Date().timeIntervalSince(since) >= Self.sleepAfter, !self.sleeping {
                     self.people?.newSession()
-                    self.activity = .sleeping
+                    self.sleeping = true
                     self.asleepSince = Date()
-                } else if away >= Self.drowsyAfter, self.activity == .idle, self.emotion != .sleepy {
-                    self.flash(.sleepy, seconds: 10)
                 }
             }
         }
     }
 
-    /// Dee is very interactive: when the curiosity director has something to say
-    /// (a novel sight, an odd noise, a question about you), she says it.
+    /// The curiosity director covers novel sights, odd noises and greetings; the
+    /// Cortex's IntentionBoard covers follow-ups and her own intentions. They share
+    /// one pacing clock so Dee never double-books a moment.
     private func considerInitiative() {
-        guard loadState == .ready, backgroundedAt == nil, activity != .sleeping, let snap = mindSnapshot else { return }
+        guard loadState == .ready, backgroundedAt == nil, !sleeping, let snap = mindSnapshot else { return }
+        guard Date().timeIntervalSince(lastInitiativeAt) > 20 else { return }
         let userTalking = voice.userIsSpeaking || Date().timeIntervalSince(lastHeardPartialAt) < 2.5
         let busy = isResponding || isSpeaking || userTalking
         guard let prompt = curiosity.nextPrompt(at: Date(), snapshot: snap, userPresent: someoneHere, busy: busy) else { return }
@@ -717,14 +766,11 @@ final class DeeModel {
         func has(_ phrases: [String]) -> Bool { phrases.contains { t == $0 || t.hasPrefix($0 + " ") || t.hasSuffix(" " + $0) } }
         if has(["start over", "let's start over", "new conversation", "start a new conversation", "fresh start", "let's start fresh"]) {
             newConversation()
-            flash(.happy)
-            perform(.bounce)
             voice.say("Okay! Fresh start.", style: voiceStyle)
             return true
         }
         if has(["stop", "stop talking", "be quiet", "shush", "shh", "hush", "quiet"]) {
             stop()
-            flash(.neutral)
             return true
         }
         if has(["go to sleep", "goodnight dee", "good night dee", "time to sleep", "nap time"]) {
@@ -733,7 +779,7 @@ final class DeeModel {
             perform(.yawn)
             Task {
                 try? await Task.sleep(for: .seconds(2))
-                self.activity = .sleeping
+                self.sleeping = true
                 self.asleepSince = Date()
             }
             return true
@@ -741,12 +787,13 @@ final class DeeModel {
         return false
     }
 
-    func perceive(_ stimulus: Stimulus) {
+    func perceive(_ stimulus: Stimulus, alreadyAppraised: Bool = false) {
         let text: String
         var appraisal: Appraisal?
         var prosody: Prosody?
         var shouldAppraise = false
         var isInitiative = false
+        var readyCue: String?
         switch stimulus {
         case .spoken(let raw, let p):
             text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -754,47 +801,59 @@ final class DeeModel {
             heard = text
             transcript.append(TranscriptItem(kind: .user, text: text))
             curiosity.note(.userSpoke, at: Date())
-            if activity == .sleeping { activity = .idle; asleepSince = nil }
+            if sleeping { sleeping = false; asleepSince = nil }
             if command(in: text) { return }
             prosody = p
             shouldAppraise = true
-            if people == nil, FactExtractor.selfHarmSignal(in: text) {
-                pendingNotes.append("(They may be going through something painful. Be warm and gentle; encourage them to reach out to someone they trust or a local crisis line.)")
-            }
         case .event(let a, let line):
             text = line
-            appraisal = a
+            appraisal = alreadyAppraised ? nil : a
         case .initiative(let line):
             text = line
             isInitiative = true
+        case .cortexInitiative(let cue):
+            text = ""
+            readyCue = cue
+            isInitiative = true
         }
         guard let agent, loadState == .ready else {
-            if shouldAppraise { Task { await self.appraiseOnly(text, prosody: prosody) } }
+            if shouldAppraise { Task { await self.hear(text, prosody: prosody) } }
             return
         }
         if isResponding || isSpeaking {
             // Busy: still let the words land emotionally, but don't start a new turn
             // (barge-in handles interruptions).
-            if shouldAppraise { Task { await self.appraiseOnly(text, prosody: prosody) } }
+            if shouldAppraise { Task { await self.hear(text, prosody: prosody) } }
             else if let appraisal { Task { await self.react(appraisal) } }
             return
         }
         if isInitiative, voice.userIsSpeaking { return }
+        if isInitiative { lastInitiativeAt = Date() }
         isResponding = true
-        activity = .thinking
         caption = ""
         if asleepSince != nil { asleepSince = nil }
 
         responseTask = Task {
             if shouldAppraise, let people, let event = await people.heard(text) { handle(event) }
-            var cue: String?
             if shouldAppraise {
-                cue = await appraiseOnly(text, prosody: prosody)
+                await hear(text, prosody: prosody)
             } else if let appraisal {
-                cue = await react(appraisal)?.cue
+                await react(appraisal)
+            }
+            // The cue: the Cortex's <dee_state> (mood sentence + its notes), plus any
+            // identity/care notes from the people layer.
+            var cue: String?
+            if let readyCue {
+                cue = readyCue
+            } else if let driver = selfDriver {
+                sense(.promptSubmitted)
+                let (state, fx) = driver.cue()
+                for e in fx { execute(e) }
+                cue = state
             } else {
                 cue = mindSnapshot?.cue
             }
+            if readyCue != nil { sense(.promptSubmitted) }
             if !pendingNotes.isEmpty {
                 cue = ([cue].compactMap { $0 } + pendingNotes.prefix(2)).joined(separator: "\n")
                 pendingNotes.removeAll()
@@ -803,25 +862,38 @@ final class DeeModel {
         }
     }
 
-    @discardableResult
-    private func appraiseOnly(_ text: String, prosody: Prosody?) async -> String? {
-        guard let mind else { return nil }
-        let (_, snap) = await mind.hear(text, prosody: prosody)
-        took(snap, laughable: true)
-        // React on the face immediately, before the model has said a word.
-        if snap.reflex == nil, !isSpeaking { emotion = snap.emotion }
-        return snap.cue
+    /// The user's words: appraised by the mind (what + how), then interpreted by
+    /// the Cortex. The face starts reacting before the model has said a word.
+    private func hear(_ text: String, prosody: Prosody?) async {
+        guard let mind else { return }
+        let (appraisal, snap) = await mind.hear(text, prosody: prosody)
+        accept(snap)
+        let loudness = prosody.map { ($0.loudnessDB + 32) / 12 } ?? 0
+        sense(.heard(text: text, durationS: pendingHeardDuration, loudnessVsBaseline: loudness, appraisal: appraisal))
+        pendingHeardDuration = 0
     }
 
     /// - Parameter initiative: Dee spoke up on her own — her words wait politely if
     ///   the user starts talking meanwhile (a reply to the user never waits).
     private func run(agent: ConversationAgent, text: String, cue: String?, initiative: Bool) async {
         var deeIndex: Int?
+        var sentence = ""
+        var pendingTag: Emotion?
+        var full = ""
         func deeItem() -> Int {
             if let deeIndex { return deeIndex }
             transcript.append(TranscriptItem(kind: .dee, text: "", isStreaming: true))
             deeIndex = transcript.count - 1
             return deeIndex!
+        }
+        /// Each finished sentence goes to the Cortex (tag reconciliation, floor).
+        func flushSentence(force: Bool) {
+            let trimmed = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty || pendingTag != nil else { return }
+            guard force || trimmed.last.map({ ".!?…".contains($0) }) == true else { return }
+            sense(.deeSaid(tag: pendingTag, sentence: trimmed))
+            pendingTag = nil
+            sentence = ""
         }
         do {
             for try await event in agent.respond(to: text, state: cue) {
@@ -829,10 +901,8 @@ final class DeeModel {
                 case .thinkingModeChanged(let on):
                     thinkingMode = on
                     transcript.append(TranscriptItem(kind: .note, text: on ? "Thinking mode on for this conversation" : "Thinking mode off"))
-                    if on { perform(.lookAround) }
                 case .generationStarted:
                     deeIndex = nil
-                    if !isSpeaking { activity = .thinking }
                 case .reasoning(let s):
                     transcript[deeItem()].reasoning += s
                 case .content(let s):
@@ -840,10 +910,16 @@ final class DeeModel {
                     if transcript[i].text.isEmpty { caption = "" }
                     transcript[i].text += s
                     caption += s
+                    full += s
+                    sentence += s
+                    flushSentence(force: false)
                     voice.stream(s, style: voiceStyle, deferWhileUserSpeaks: initiative)
                 case .emotion(let e):
-                    spokenEmotion = e
-                    emotion = e
+                    // The model's tag goes through the Cortex, which may reconcile it
+                    // with how Dee actually feels (she can't beam love while hurt —
+                    // unless a joke just made her laugh).
+                    flushSentence(force: true)
+                    pendingTag = e
                 case .toolCall(let call):
                     transcript.append(TranscriptItem(kind: .tool, text: "⚙︎ \(call.name)"))
                 case .toolResult, .reasoningBudgetExhausted:
@@ -864,13 +940,12 @@ final class DeeModel {
         } catch is CancellationError {
         } catch {
             transcript.append(TranscriptItem(kind: .note, text: error.localizedDescription))
-            flash(.confused)
         }
+        flushSentence(force: true)
+        sense(.deeTurnFinished(text: full))
         voice.endStream()
         for i in transcript.indices where transcript[i].isStreaming { transcript[i].isStreaming = false }
         isResponding = false
-        if !isSpeaking { activity = .idle }
-        spokenEmotionUntil = Date().addingTimeInterval(4)
         if let engine {
             statusLine = String(format: "%@ · %.0f tok/s", engine.modelDescription, engine.stats.generateTokensPerSecond)
         }
@@ -888,7 +963,12 @@ final class DeeModel {
         thinkingMode = false
         caption = ""
         heard = ""
-        Task { await agent.newConversation(persona: await self.currentPersona()) }
+        Task { await self.startConversation(agent) }
+    }
+
+    private func startConversation(_ agent: ConversationAgent) async {
+        sense(.conversationStarted(Date()))
+        await agent.newConversation(persona: await currentPersona())
     }
 
     func toggleThinking() {

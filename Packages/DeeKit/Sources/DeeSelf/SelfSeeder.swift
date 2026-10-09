@@ -105,7 +105,7 @@ public enum SelfSeeder {
     // MARK: Strengths and limits (from capabilities)
 
     public static let strengths = ["two cameras", "hearing sounds", "remembering faces"]
-    public static let limits = ["moving around", "the internet", "seeing face down"]
+    public static let limits = ["moving around", "the internet", "picking things up"]
 
     /// Sorted by (kind, subject), the order `SelfStore` loads them in.
     static func capabilityFacets(rng: inout Rand, at now: Date) -> [Facet] {

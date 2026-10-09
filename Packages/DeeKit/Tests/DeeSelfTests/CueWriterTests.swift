@@ -34,7 +34,7 @@ import Testing
     }
 
     @Test func regardWordsMatchThresholds() {
-        #expect(CueWriter.regardWords(-0.7) == "furious with them")
+        #expect(CueWriter.regardWords(-0.7) == "very upset with them")
         #expect(CueWriter.regardWords(0.0) == "no strong feelings about them yet")
         #expect(CueWriter.regardWords(0.9) == "you adore them")
     }
@@ -57,7 +57,8 @@ import Testing
         #expect(Note.Kind.deeBoundary.priority == 1 && Note.Kind.awkwardRepair.priority == 16)
         #expect(Note.Kind.followUp.role == .aim && Note.Kind.recall.role == .context)
         #expect(Note.followUp(Subject("job interview")!, framing: .nervous).text == "(Ask how their job interview went. They were nervous about it.)")
-        #expect(Note.followUp(Subject("surgery")!, framing: .nervous, gentle: true).text == "(Gently ask how today went.)")
+        #expect(Note.followUp(Subject("surgery")!, framing: .nervous, gentle: true).text == "(Gently ask how they've been feeling.)")
+        #expect(Note.followUp(Subject("party")!, framing: .neutral).text == "(Ask how their party went.)", "no \"they were neutral\"")
         #expect(Note.lesson("check if they're joking").text == "(Careful: check if they're joking.)")
     }
 

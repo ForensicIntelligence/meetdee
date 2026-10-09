@@ -58,7 +58,7 @@ public struct MindSnapshot: Sendable, Equatable {
 
     static func regardWords(_ r: Double) -> String {
         switch r {
-        case ..<(-0.6): "furious with them"
+        case ..<(-0.6): "very upset with them"
         case ..<(-0.3): "upset with them"
         case ..<(-0.1): "a bit annoyed with them"
         case ..<0.15: "no strong feelings about them yet"
@@ -100,6 +100,20 @@ public struct MindSnapshot: Sendable, Equatable {
     }
 }
 
+/// An utterance appraised by `Mind.preview(_:prosody:)` but not yet committed.
+///
+/// RAM only: the footprint holds the utterance's content words (for the repetition
+/// window), so never persist, log or forward a `HeardPreview`; hand on only its
+/// `appraisal` (e.g. in `DeeSelf.Percept.heard`).
+public struct HeardPreview: Sendable, Equatable {
+    /// What the utterance would do, before any adjustment.
+    public let appraisal: Appraisal
+    let footprint: Appraiser.Footprint
+    let serial: UInt64
+    /// The `Mind` that issued it (a preview from another instance never records).
+    let issuer: ObjectIdentifier
+}
+
 /// Dee's persistent inner life: emotion + personality (+ optional age) engine
 /// backed by SQLite. Stores state and daily aggregates — never what was said.
 public actor Mind {
@@ -123,6 +137,11 @@ public actor Mind {
     private var dirty = false
     /// The last reflex and when it fired; snapshots carry it for `reflexDuration`.
     private var lastReflex: (emotion: Emotion, at: Date)?
+    /// Previews issued and not yet committed (serials, oldest first).
+    private var previewSerial: UInt64 = 0
+    private var outstandingPreviews: [UInt64] = []
+    /// Previews older than this many are forgotten (their commit skips the footprint).
+    public static let maxOutstandingPreviews = 8
 
     /// How long a reflex stays on snapshots after its stimulus.
     public static let reflexDuration: TimeInterval = 4
@@ -170,6 +189,57 @@ public actor Mind {
         persist(at: now, daily: appraisal)
         return (appraisal, snapshot(at: now))
     }
+
+    // MARK: - Preview, then commit (v0.5, SELF.md §4.3)
+
+    /// Appraises what the user said **without committing**: feelings, the voice
+    /// baseline, the repetition window, the reflex, the store and the snapshot sequence
+    /// are all untouched. Pass the result (its `appraisal` possibly adjusted, e.g. by
+    /// `Cortex.adjust(_:)`) to `commit(_:as:at:)`.
+    ///
+    /// `preview` + `commit(p)` (unadjusted) is exactly `hear(text, prosody:, at:)`.
+    public func preview(_ text: String, prosody: Prosody? = nil) -> HeardPreview {
+        let (appraisal, footprint) = appraiser.evaluate(text, prosody: prosody)
+        previewSerial &+= 1
+        outstandingPreviews.append(previewSerial)
+        if outstandingPreviews.count > Self.maxOutstandingPreviews { outstandingPreviews.removeFirst() }
+        return HeardPreview(appraisal: appraisal, footprint: footprint, serial: previewSerial, issuer: ObjectIdentifier(self))
+    }
+
+    /// Commits a previewed utterance: absorbs `appraisal` (default: the preview's own),
+    /// records the reflex, advances the appraiser by the utterance (voice baseline,
+    /// repetition window) and persists state plus the daily aggregate, judged on the
+    /// committed appraisal. Takes no text.
+    ///
+    /// Commit each preview once. The appraiser footprint is applied only for a preview
+    /// this `Mind` issued and has not committed yet (at most the latest
+    /// `maxOutstandingPreviews`), so a repeated commit still moves feelings but never
+    /// counts the utterance twice toward the baseline or repetition. Another `hear`
+    /// between preview and commit is fine: the footprint is applied on top of it.
+    @discardableResult
+    public func commit(_ preview: HeardPreview, as appraisal: Appraisal? = nil, at now: Date = Date()) -> MindSnapshot {
+        if preview.issuer == ObjectIdentifier(self), let i = outstandingPreviews.firstIndex(of: preview.serial) {
+            outstandingPreviews.remove(at: i)
+            appraiser.record(preview.footprint)
+        }
+        let a = appraisal ?? preview.appraisal
+        absorb(a, at: now)
+        persist(at: now, daily: a)
+        return snapshot(at: now)
+    }
+
+    /// `hear` with a pre-commit pass: appraises, lets `adjust` change the appraisal
+    /// (the app passes `{ cortex.adjust($0) }`), then commits the adjusted one.
+    @discardableResult
+    public func hear(_ text: String, prosody: Prosody? = nil, at now: Date = Date(),
+                     adjust: @Sendable (Appraisal) -> Appraisal) -> (appraisal: Appraisal, snapshot: MindSnapshot) {
+        let p = preview(text, prosody: prosody)
+        let adjusted = adjust(p.appraisal)
+        return (adjusted, commit(p, as: adjusted, at: now))
+    }
+
+    /// The appraiser's running voice baseline (persisted with the state).
+    public var voiceBaseline: Appraiser.VoiceBaseline { appraiser.baseline }
 
     /// Non-verbal events (a wave, a thumbs-up, being ignored) as a ready-made appraisal.
     @discardableResult
@@ -261,6 +331,7 @@ public actor Mind {
     public func reset(at now: Date = Date()) {
         state = InnerState(age: state.age, updatedAt: now)
         appraiser = Appraiser()
+        outstandingPreviews.removeAll()
         lastReflex = nil
         if let store {
             try? store.transaction {

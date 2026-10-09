@@ -38,10 +38,26 @@ public struct FaceInputs: Sendable, Equatable {
     /// Extra upper-lid narrowing, 0…1 (default 0), for gaze that studies something:
     /// `GazeIntent.examineBack` maps to `FaceGaze.examineLids` (0.2). Slab eyes only.
     public var lidNarrow = 0.0
+    /// The attentive "about to answer" face, 0…1 (default 0; v0.5, SELF.md §7.1):
+    /// `DeeSelf.ExpressionIntent.readyFace`. Slab eyes lift, open and widen slightly
+    /// and gain a little shine. Any activity but sleeping.
+    public var readyFace = 0.0
+    /// Softer, lowered lids, 0…1 (default 0; SELF.md §7.2 hesitation):
+    /// `ExpressionIntent.lidSoften`. Upper lids drop gently, lid slants relax, corners
+    /// round and the glow dims a touch (unlike `lidNarrow`, which only studies).
+    public var lidSoften = 0.0
+    /// Head tilt, −1…1 (default 0; pending question, hesitation): `ExpressionIntent.tilt`.
+    /// Adds `tilt × FaceAnimator.maxTiltDegrees` to the whole-face roll (`headTilt`),
+    /// on top of the expression's own tilt; positive turns the same way as curious.
+    public var tilt = 0.0
 
     public init(emotion: Emotion = .neutral, activity: FaceActivity = .idle, lookAt: SIMD2<Double>? = nil, speechLevel: Double = 0, micLevel: Double = 0, reduceMotion: Bool = false, tint: FaceColor? = nil,
                 mood: FaceMood = FaceMood(), touchPoint: SIMD2<Double>? = nil, performance: PerformanceRequest? = nil,
-                listenValence: Double = 0, listenIntensity: Double = 0, lidNarrow: Double = 0) {
+                listenValence: Double = 0, listenIntensity: Double = 0, lidNarrow: Double = 0,
+                readyFace: Double = 0, lidSoften: Double = 0, tilt: Double = 0) {
+        self.readyFace = readyFace
+        self.lidSoften = lidSoften
+        self.tilt = tilt
         self.listenValence = listenValence
         self.listenIntensity = listenIntensity
         self.lidNarrow = lidNarrow
@@ -172,7 +188,10 @@ public struct FaceAnimator: Sendable {
     /// without per-occurrence variation).
     public static func target(for inputs: FaceInputs) -> FaceState {
         var t = activityTarget(for: inputs)
-        if inputs.activity != .sleeping { applyLidNarrow(&t, amount: inputs.lidNarrow) }
+        if inputs.activity != .sleeping {
+            applyLidNarrow(&t, amount: inputs.lidNarrow)
+            applyFaceModifiers(&t, readyFace: inputs.readyFace, lidSoften: inputs.lidSoften, tilt: inputs.tilt)
+        }
         if let tint = inputs.tint { t.color = tint }
         return t
     }
@@ -239,6 +258,45 @@ public struct FaceAnimator: Sendable {
             let slab = 1 - t[keyPath: side].glyphAmount
             t[keyPath: side].upperLid = min(0.85, t[keyPath: side].upperLid + a * slab)
         }
+    }
+
+    // MARK: - Face modifiers (v0.5: ready face, lid softening, tilt)
+
+    /// Degrees of head roll at `tilt` ±1.
+    public static let maxTiltDegrees = 10.0
+
+    /// Blends `DeeSelf`'s face modifiers into a target, in place: ready face, then lid
+    /// softening (so both at once partly cancel), then tilt. Inputs are clamped
+    /// (ready / soften 0…1, tilt −1…1; NaN or ±∞ count as 0). Lid and shape changes
+    /// touch slab eyes only, eye by eye (a glyph reflex is left alone); tilt rolls the
+    /// whole face. Gaze is never touched. All zero → the target is unchanged.
+    static func applyFaceModifiers(_ t: inout FaceState, readyFace: Double, lidSoften: Double, tilt: Double) {
+        func unit(_ v: Double) -> Double { v.isFinite ? clamp(v, 0, 1) : 0 }
+        let r = unit(readyFace), s = unit(lidSoften)
+        let roll = tilt.isFinite ? clamp(tilt, -1, 1) : 0
+        guard r > 0 || s > 0 || roll != 0 else { return }
+        func shape(_ e: inout EyeState) {
+            let slab = 1 - e.glyphAmount
+            guard slab > 0 else { return }
+            let rw = r * slab, sw = s * slab
+            // Ready: lids lift, eyes open a touch taller and wider and sit higher, more shine.
+            e.upperLid *= 1 - 0.6 * rw
+            e.height *= 1 + 0.08 * rw
+            e.width *= 1 + 0.04 * rw
+            e.dy += -0.06 * rw
+            e.gloss = min(1, e.gloss + 0.15 * rw)
+            // Soft: upper lids drop gently, slants relax toward level, corners round.
+            e.upperLid = min(0.85, e.upperLid + 0.22 * sw)
+            e.upperAngle *= 1 - 0.6 * sw
+            e.radius = min(0.5, e.radius + 0.06 * sw)
+            e.height *= 1 - 0.04 * sw
+            e.dy += 0.02 * sw
+        }
+        shape(&t.left)
+        shape(&t.right)
+        if r > 0 { t.ears = min(1, max(t.ears, t.ears + 0.4 * r)) }
+        t.brightness = max(0, t.brightness + 0.05 * r - 0.06 * s)
+        t.headTilt += maxTiltDegrees * roll
     }
 
     private static func mix(_ a: FaceColor, _ b: FaceColor, _ f: Double) -> FaceColor {
