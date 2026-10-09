@@ -170,10 +170,11 @@ import Testing
         let s = InnerState(updatedAt: Self.t0)
         let after = EmotionEngine.catchUp(s, to: Self.t0 + 9 * 3600)
         #expect(after.feelings[.loneliness] > 0.15 && after.feelings[.loneliness] < 0.6, "\(after.feelings[.loneliness])")
-        #expect(after.feelings[.affection] == s.feelings[.affection], "no neglect cost for a normal day")
+        #expect(after.feelings[.affection] == s.feelings[.affection], "no relationship cost for a normal day")
         let fortnight = EmotionEngine.catchUp(s, to: Self.t0 + 14 * Self.day)
-        #expect(fortnight.feelings[.affection] < s.feelings[.affection], "weeks of neglect cost a little affection")
-        #expect(fortnight.feelings[.affection] >= EmotionEngine.neglectAffectionFloor - 1e-9)
+        #expect(fortnight.feelings[.affection] >= s.feelings[.affection], "time away carries no relationship penalty")
+        #expect(fortnight.feelings[.trust] >= s.feelings[.trust])
+        #expect(fortnight.feelings[.loneliness] > 0.9, "she can still be lonely")
     }
 
     // S6 / B3

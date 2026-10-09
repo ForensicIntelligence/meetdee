@@ -62,6 +62,40 @@ public struct Appraisal: Sendable, Equatable {
     /// Hand-built appraisals default to true.
     public var aimedAtDee = true
 
+    // --- Non-verbal stimuli (v0.4). Defaults leave speech appraisal unchanged. ---
+
+    /// The touch this appraisal came from, if any (see `Appraisal.touch(_:)`).
+    public var touch: Touch?
+    /// The sound this appraisal came from, if any (see `Appraisal.sound(…)`).
+    public var soundLabel: String?
+    /// True for an appraisal of something Dee saw (see `Appraisal.sight(novelty:)`).
+    public var isSight = false
+    /// False when the stimulus doesn't come from the user (a sound, something
+    /// seen): it then moves Dee's feelings but not the bond, loneliness or
+    /// personality.
+    public var social = true
+    /// Gentle physical care (petting, a hug), 0…1. Builds confidence and calm.
+    public var care = 0.0
+    /// A sudden jolt (an unexpected bang, a slap), 0…1: surprise, some fear.
+    public var startle = 0.0
+    /// Something alarming (siren, smoke alarm, glass breaking), 0…1: fear.
+    public var alarm = 0.0
+    /// Something pleasant that isn't about the user (music, birdsong), 0…1: joy.
+    public var delight = 0.0
+    /// Too much stimulation (tickling that goes on and on), 0…1.
+    public var overstimulation = 0.0
+
+    // --- Internal events (v0.5). Defaults leave everything above unchanged. ---
+
+    /// True for Dee's own internal event (see `Appraisal.internal(relief:pride:)`):
+    /// a resolved expectation or a completed intention, not something the user did.
+    public var isInternal = false
+    /// Something she was anxious about turned out fine, 0…1: fear and sadness
+    /// ease, a little joy.
+    public var relief = 0.0
+    /// She finished something she meant to do, 0…1: joy and a little interest.
+    public var pride = 0.0
+
     public init() {}
 
     /// A friendly wave at the camera.

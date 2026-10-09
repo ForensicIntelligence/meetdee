@@ -15,6 +15,9 @@ struct RootView: View {
         ZStack {
             FaceView(inputs: model.faceInputs)
                 .ignoresSafeArea()
+            // Touch: pets, pokes, taps on an eye. Sits above the face, below the chrome.
+            TouchCaptureView { model.touched($0) }
+                .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 statusBar

@@ -50,9 +50,11 @@ import Testing
         let start: Emotion = emotion == .asleep ? .surprised : .asleep
         var a = FaceAnimator(seed: 1, initial: start)
         let inputs = FaceInputs(emotion: emotion, reduceMotion: true)
-        let target = FaceAnimator.target(for: inputs)
+        _ = a.step(0, inputs: inputs)
+        let target = a.goal   // the varied target for this occurrence
         let initialError = Self.maxError(a.state, target)
         _ = Self.run(&a, seconds: 2.0, inputs: inputs)
+        #expect(a.goal == target, "the variation is fixed for one occurrence")
         let err = Self.maxError(a.state, target)
         // Angles are in degrees, so allow a relative tolerance against the starting gap.
         #expect(err < max(0.02, initialError * 0.02), "\(emotion): residual \(err) of \(initialError)")
@@ -60,6 +62,7 @@ import Testing
 
     @Test func springsOvershootALittleThenSettle() {
         var a = FaceAnimator(seed: 3, initial: .neutral)
+        a.variationAmount = 0
         let inputs = FaceInputs(emotion: .surprised, reduceMotion: true)
         let goal = Expressions.target(for: .surprised).left.height // 1.25, up from 1.0
         let start = a.state.left.height
@@ -86,9 +89,14 @@ import Testing
         custom.brightness = 0.47; custom.headTilt = 12; custom.ears = -0.5
         custom.zzz = 0.67; custom.question = 0.77; custom.sparkles = 0.87; custom.thinkingDots = 0.97
         custom.wobble = 0.15; custom.giggle = 0.25; custom.tremble = 0.35
+        custom.faceDX = 0.45; custom.faceDY = 0.55; custom.squash = 0.65
+        for (i, kp) in [\EyeState.chevron, \.spiral, \.cross, \.line, \.arc, \.cup, \.tiny, \.tear, \.gloss].enumerated() {
+            custom.left[keyPath: kp] = 2 + Double(i) * 0.01
+            custom.right[keyPath: kp] = 3 + Double(i) * 0.01
+        }
         #expect(FaceState(components: custom.components) == custom)
         // Every component is distinct, so a swapped slot would be caught.
-        #expect(Set(custom.components.dropLast()).count == FaceState.count - 1)
+        #expect(Set(custom.components).count == FaceState.count)
     }
 
     // MARK: - Blink
@@ -168,7 +176,7 @@ import Testing
         var last = f3
         for _ in 0..<200 { last = a.step(10, inputs: inputs) }
         #expect(last.state.components.allSatisfy { $0.isFinite })
-        #expect(Self.maxError(last.state, FaceAnimator.target(for: inputs)) < 0.05)
+        #expect(Self.maxError(last.state, a.goal) < 0.05)
         #expect(last.blink.isFinite && last.breath.isFinite && last.voice.isFinite)
     }
 

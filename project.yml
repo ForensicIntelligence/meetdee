@@ -47,11 +47,13 @@ targets:
         product: DeeSense
       - package: DeeKit
         product: DeeMind
+      - package: DeeKit
+        product: DeeMemory
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ca.forensicintelligence.dee
         PRODUCT_NAME: Dee
-        MARKETING_VERSION: "0.3.0"
+        MARKETING_VERSION: "0.4.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
@@ -64,13 +66,13 @@ targets:
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Dee listens when you talk to it. Audio is processed on this device and never leaves it."
-        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Dee turns your speech into text on this device so it can understand you."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Dee listens when you talk to her, and notices sounds around her. Audio is processed on this device and never leaves it."
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Dee turns your speech into text on this device so she can understand you."
         INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "Dee can read and add calendar events when you ask it to."
         INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: "Dee can read and add reminders when you ask it to."
         INFOPLIST_KEY_NSContactsUsageDescription: "Dee can look up a contact's details when you ask it to."
         INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Dee can tell you where you are when you ask."
-        INFOPLIST_KEY_NSCameraUsageDescription: "Dee can look at you with the front camera so its eyes can follow your face. Video never leaves the device."
+        INFOPLIST_KEY_NSCameraUsageDescription: "Dee uses the cameras to see you and the things around you: her eyes follow your face, she recognises friends she has met, and she gets curious about what she sees. Everything is processed on this device; video is never recorded or sent anywhere."
 
   DeeUITests:
     type: bundle.ui-testing

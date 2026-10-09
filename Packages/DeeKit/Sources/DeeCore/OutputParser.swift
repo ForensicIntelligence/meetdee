@@ -41,7 +41,9 @@ public struct OutputParser: Sendable {
 
     public mutating func feed(_ text: String) -> [OutputEvent] {
         buffer += text
-        return drain(final: false)
+        let events = drain(final: false)
+        watchForLeaks(events)
+        return events
     }
 
     /// Flushes everything still buffered.
@@ -51,7 +53,95 @@ public struct OutputParser: Sendable {
     ///   as malformed instead of being executed.
     public mutating func finish(salvageToolCall: Bool = true) -> [OutputEvent] {
         salvage = salvageToolCall
-        return drain(final: true)
+        let events = drain(final: true)
+        watchForLeaks(events)
+        return events
+    }
+
+    // MARK: - Leak detection (dev-only, v0.5)
+
+    /// Hidden per-turn context that showed up in the visible reply. Dev-only
+    /// diagnostics: nothing is filtered or changed, the events are untouched.
+    public enum Leak: Sendable, Equatable, Hashable {
+        /// The reply contains the `<dee_state>` tag (opening, closing or bare name).
+        case stateTag
+        /// The reply repeats the start of the mood sentence ("Toward your human: …").
+        case moodSentence
+        /// The reply repeats one of `watchedNotes` verbatim (case and whitespace
+        /// insensitive, with or without its parentheses). Carries the note as given.
+        case note(String)
+    }
+
+    /// The parenthesised notes of this turn's `<dee_state>` cue (see
+    /// `OutputParser.notes(inState:)`). A visible reply that repeats one sets a leak.
+    public var watchedNotes: [String] = [] {
+        didSet { leaks = Self.leaks(in: visibleText, notes: watchedNotes) }
+    }
+    /// Leaks seen so far in the visible reply (`.content` events only — reasoning is
+    /// never spoken). In order of kind: tag, mood sentence, then notes.
+    public private(set) var leaks: [Leak] = []
+    /// True once any leak was seen. Dev-only flag; never alters parsing.
+    public var leaked: Bool { !leaks.isEmpty }
+    /// Every `.content` string emitted so far, concatenated.
+    public private(set) var visibleText = ""
+
+    private mutating func watchForLeaks(_ events: [OutputEvent]) {
+        var grew = false
+        for case .content(let s) in events { visibleText += s; grew = true }
+        if grew { leaks = Self.leaks(in: visibleText, notes: watchedNotes) }
+    }
+
+    /// Notes shorter than this (inside the parentheses) are too generic to call a
+    /// verbatim repeat.
+    public static let minimumLeakNoteLength = 12
+
+    /// Pure leak check of a finished reply against this turn's notes.
+    public static func leaks(in reply: String, notes: [String] = []) -> [Leak] {
+        let text = leakNormalized(reply)
+        guard !text.isEmpty else { return [] }
+        var found: [Leak] = []
+        if text.contains("dee_state") { found.append(.stateTag) }
+        if text.contains("toward your human:") { found.append(.moodSentence) }
+        var seen = Set<String>()
+        for note in notes {
+            var inner = Substring(note.trimmingCharacters(in: .whitespacesAndNewlines))
+            if inner.hasPrefix("(") { inner = inner.dropFirst() }
+            if inner.hasSuffix(")") { inner = inner.dropLast() }
+            let needle = leakNormalized(String(inner))
+            guard needle.count >= minimumLeakNoteLength, seen.insert(needle).inserted else { continue }
+            if text.contains(needle) { found.append(.note(note)) }
+        }
+        return found
+    }
+
+    /// The top-level parenthesised notes in a `<dee_state>…</dee_state>` cue (or any
+    /// text), parentheses included, in order. Unbalanced trailing text is ignored.
+    public static func notes(inState state: String) -> [String] {
+        var out: [String] = []
+        var depth = 0
+        var current = ""
+        for ch in state {
+            if ch == "(" {
+                depth += 1
+                current.append(ch)
+            } else if ch == ")", depth > 0 {
+                depth -= 1
+                current.append(ch)
+                if depth == 0 { out.append(current); current = "" }
+            } else if depth > 0 {
+                current.append(ch)
+            }
+        }
+        return out
+    }
+
+    /// Lowercased, typographic quotes/apostrophes straightened, whitespace collapsed.
+    static func leakNormalized(_ s: String) -> String {
+        var t = s.lowercased()
+        for (a, b) in [("\u{2019}", "'"), ("\u{2018}", "'"), ("\u{201C}", "\""), ("\u{201D}", "\"")] {
+            t = t.replacingOccurrences(of: a, with: b)
+        }
+        return t.split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
     // MARK: - Internals

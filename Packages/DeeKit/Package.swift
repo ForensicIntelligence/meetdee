@@ -11,6 +11,7 @@ import PackageDescription
 //   DeeTools  on-device tools the agent can call (clock, calendar, reminders, ...).
 //   DeeSense  the front camera: who's there, where they are, hand gestures.
 //   DeeMind   emotions, personality and age — appraisal, dynamics, SQLite persistence.
+//   DeeMemory the people Dee knows: names, faces, facts — SQLite, on-device only.
 let package = Package(
     name: "DeeKit",
     platforms: [.iOS("26.0"), .macOS("26.0")],
@@ -22,6 +23,7 @@ let package = Package(
         .library(name: "DeeTools", targets: ["DeeTools"]),
         .library(name: "DeeSense", targets: ["DeeSense"]),
         .library(name: "DeeMind", targets: ["DeeMind"]),
+        .library(name: "DeeMemory", targets: ["DeeMemory"]),
     ],
     targets: [
         .binaryTarget(name: "llama", path: "Binaries/llama.xcframework"),
@@ -32,11 +34,13 @@ let package = Package(
         .target(name: "DeeTools", dependencies: ["DeeCore"]),
         .target(name: "DeeSense"),
         .target(name: "DeeMind", dependencies: ["DeeCore"], linkerSettings: [.linkedLibrary("sqlite3")]),
+        .target(name: "DeeMemory", dependencies: ["DeeCore"], linkerSettings: [.linkedLibrary("sqlite3")]),
         .testTarget(name: "DeeCoreTests", dependencies: ["DeeCore"], exclude: ["Fixtures"]),
         .testTarget(name: "DeeFaceTests", dependencies: ["DeeFace"]),
         .testTarget(name: "DeeLLMTests", dependencies: ["DeeLLM", "DeeCore"]),
         .testTarget(name: "DeeSenseTests", dependencies: ["DeeSense"]),
         .testTarget(name: "DeeMindTests", dependencies: ["DeeMind", "DeeCore"]),
         .testTarget(name: "DeeVoiceTests", dependencies: ["DeeVoice", "DeeCore"]),
+        .testTarget(name: "DeeMemoryTests", dependencies: ["DeeMemory", "DeeCore"]),
     ]
 )

@@ -334,3 +334,55 @@ Power Mode or under Reduce Motion.
 Final count for the round: **253 tests**, all green. That's 81 for the language
 core, 111 for the mind, 25 for the face, 32 for the senses, and 4 against the real
 4B model.
+
+---
+
+## 2026-10-08 (late) — v0.4 "She's alive": voice, touch, sight, memory
+
+John tried v0.3 on his phone. The verdict was blunt: *I couldn't speak to Dee and
+she wouldn't speak back… it asked to use the camera, but not the microphone. Then
+Dee went into a perpetual "?" mode.* Then the wish list: touch, more curiosity,
+"she should ask about things she can see from either camera", "if she hears
+something unexpected she should ask about it", "a VERY interactive personality, no
+matter what", "she can still laugh at a joke even if her emotional state is bad",
+and "Dee should remember as much as possible of the users."
+
+Five modules were built in parallel, each with one owner, against a written
+contract (`docs/CONTRACTS-0.4.md`):
+
+- **DeeVoice:** on-device SpeechAnalyzer in, AVSpeechSynthesizer out, one shared
+  AVAudioEngine with echo cancellation, and prosody (loudness, rate, pitch) fed to
+  the Mind so *how* you said something counts. It also catches unexpected sounds
+  (doorbell, dog, glass) and keeps social sounds separate: laughter is contagious,
+  so when you laugh, she laughs.
+- **Touch:** a UIKit layer reads finger contact size, speed and rhythm. Strokes are
+  petting, a still palm is a hug, rapid taps are pokes, a hard quick hit is a slap,
+  and quick jiggles are a tickle. Kind touch makes her happier *and* nudges her
+  personality kinder over time; rough touch does the opposite.
+- **Sight:** Vision's on-device classifier on the front camera and, where the phone
+  allows two cameras at once, the back camera. New things get a double-take and a
+  question.
+- **Reflexes above mood:** a joke makes the face giggle even when she's cross. The
+  "?" bug turned out to be arithmetic: at rest, curiosity sat a hair above joy, so
+  "curious" won forever. Expressions are now chosen by how far each feeling sits
+  *from its own resting level*.
+- **The eyes:** 37 emotions with glyph eyes (`> <`, spirals, `X X`, `– –`, `U`,
+  tears, glossy highlights), 17 little performances (wink, yawn, eye-roll,
+  double-take, giggle…), an idle director that keeps her busy, and small random
+  variations so she never looks quite the same twice.
+- **DeeMemory:** people, face prints and facts, still no transcripts. "Hi Dee! My
+  name is John and I have a dog called Rex" produced, in the simulator's database:
+  `John | has a dog named Rex`.
+
+The review rounds were again the most interesting part:
+
+- The first memory build had strangers sharing one "unknown friend" record, so one
+  person's peanut allergy could follow the next person in.
+- "Hi, I'm stuck" became a name, and a TV saying "this is Netflix" renamed the user.
+- Biometric face prints sat in iCloud backups.
+
+Names are now *pending* until confirmed, faces need three good-quality captures to
+enrol, sensitive facts never reach the prompt, and forgetting really forgets
+(including the database's write-ahead log).
+
+739 tests at commit.

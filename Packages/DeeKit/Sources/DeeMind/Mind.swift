@@ -19,13 +19,22 @@ public struct MindSnapshot: Sendable, Equatable {
     /// overlapping calls (a tick and a hear) arrive out of order, keep the one with
     /// the higher sequence. 0 for snapshots built directly.
     public var sequence: UInt64
+    /// A momentary reaction to the last stimulus, shown *over* the mood for a few
+    /// seconds (a joke → giddy even when upset; a kind word → a shy smile). nil
+    /// when nothing notable just happened.
+    public var reflex: Emotion?
+    /// How much Dee wants to start talking, 0…1.
+    public var urgeToTalk: Double
+    /// Continuous mood read-outs for idle behaviour.
+    public var mood: MoodSignals
 
     /// Compares content only (`sequence` is ignored).
     public static func == (a: MindSnapshot, b: MindSnapshot) -> Bool {
-        a.code == b.code && a.age == b.age && a.cue == b.cue
+        a.code == b.code && a.age == b.age && a.cue == b.cue && a.reflex == b.reflex
     }
 
-    public init(code: MindCode, age: Double?, sequence: UInt64 = 0) {
+    public init(code: MindCode, age: Double?, sequence: UInt64 = 0, reflex: Emotion? = nil) {
+        self.reflex = reflex
         self.sequence = sequence
         self.code = code
         self.age = age
@@ -33,7 +42,9 @@ public struct MindSnapshot: Sendable, Equatable {
         let f = code.feelings
         regard = EmotionEngine.regard(f)
         eyeColor = EmotionEngine.regardColor(regard)
-        emotion = EmotionEngine.dominantEmotion(f)
+        emotion = EmotionEngine.dominantEmotion(f, personality: code.personality, age: age)
+        urgeToTalk = EmotionEngine.urgeToTalk(f, personality: code.personality, age: age)
+        mood = EmotionEngine.moodSignals(f, personality: code.personality, age: age)
         valence = EmotionEngine.valence(f)
         arousal = EmotionEngine.arousal(f)
         cue = Self.cue(code: code, regard: regard, age: age, stage: stage)
@@ -104,6 +115,11 @@ public actor Mind {
     private var lastSavedCode: MindCode?
     private var lastSavedAt: Date?
     private var dirty = false
+    /// The last reflex and when it fired; snapshots carry it for `reflexDuration`.
+    private var lastReflex: (emotion: Emotion, at: Date)?
+
+    /// How long a reflex stays on snapshots after its stimulus.
+    public static let reflexDuration: TimeInterval = 4
 
     static let schemaVersion = 1
     /// Ticks write at most this often…
@@ -144,7 +160,7 @@ public actor Mind {
     @discardableResult
     public func hear(_ text: String, prosody: Prosody? = nil, at now: Date = Date()) -> (appraisal: Appraisal, snapshot: MindSnapshot) {
         let appraisal = appraiser.appraise(text, prosody: prosody)
-        state = EmotionEngine.apply(appraisal, to: state, at: now)
+        absorb(appraisal, at: now)
         persist(at: now, daily: appraisal)
         return (appraisal, snapshot(at: now))
     }
@@ -152,7 +168,7 @@ public actor Mind {
     /// Non-verbal events (a wave, a thumbs-up, being ignored) as a ready-made appraisal.
     @discardableResult
     public func react(_ appraisal: Appraisal, at now: Date = Date()) -> MindSnapshot {
-        state = EmotionEngine.apply(appraisal, to: state, at: now)
+        absorb(appraisal, at: now)
         persist(at: now)
         return snapshot(at: now)
     }
@@ -190,7 +206,23 @@ public actor Mind {
 
     public func snapshot(at now: Date = Date()) -> MindSnapshot {
         sequence += 1
-        return MindSnapshot(code: MindCode(personality: state.personality, feelings: state.feelings), age: state.age.age(at: now), sequence: sequence)
+        let reflex = lastReflex.flatMap { r in
+            now >= r.at && now.timeIntervalSince(r.at) <= Self.reflexDuration ? r.emotion : nil
+        }
+        return MindSnapshot(code: MindCode(personality: state.personality, feelings: state.feelings),
+                            age: state.age.age(at: now), sequence: sequence, reflex: reflex)
+    }
+
+    /// Applies an appraisal and records the reflex it provokes (or clears it).
+    private func absorb(_ appraisal: Appraisal, at now: Date) {
+        // "Was she upset?" is judged on feelings brought up to this moment.
+        let before = now.timeIntervalSince(state.updatedAt) > EmotionEngine.maxPresentGap
+            ? EmotionEngine.catchUp(state, to: now)
+            : EmotionEngine.advance(state, to: now, circumstances: .init(userPresent: appraisal.social, asleep: false))
+        state = EmotionEngine.apply(appraisal, to: state, at: now)
+        let age = state.age.age(at: now)
+        lastReflex = EmotionEngine.reflex(to: appraisal, before: before.feelings, after: state.feelings,
+                                          personality: before.personality, age: age).map { ($0, now) }
     }
 
     public var code: MindCode { MindCode(personality: state.personality, feelings: state.feelings) }
@@ -215,6 +247,7 @@ public actor Mind {
         state.feelings = code.feelings
         state.clearRecentHistory()
         state.updatedAt = now
+        lastReflex = nil
         persist(at: now)
     }
 
@@ -222,6 +255,7 @@ public actor Mind {
     public func reset(at now: Date = Date()) {
         state = InnerState(age: state.age, updatedAt: now)
         appraiser = Appraiser()
+        lastReflex = nil
         if let store {
             try? store.transaction {
                 try store.execute("DELETE FROM daily;")

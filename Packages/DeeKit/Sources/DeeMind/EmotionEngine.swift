@@ -78,12 +78,6 @@ public enum EmotionEngine {
     public static let trustGainPerDay = 0.03
     /// Loneliness grows this much slower while Dee rests.
     static let restingLonelinessRate = 0.35
-    /// Above this loneliness, neglect slowly erodes affection…
-    static let neglectThreshold = 0.85
-    /// …at this rate per day…
-    static let neglectAffectionPerDay = 0.01
-    /// …but never below this.
-    static let neglectAffectionFloor = 0.3
     /// Personality relaxes back toward its set points with this half-life.
     static let traitRelaxHalfLife: TimeInterval = 30 * 86_400
 
@@ -168,7 +162,13 @@ public enum EmotionEngine {
 
         for f in Feeling.allCases where f.baseHalfLife.isFinite {
             let h = halfLife(f, p, age: age)
-            if f == .boredom, awakeWithUser {
+            if !c.userPresent, f == .affection || f == .trust {
+                // Time away carries no relationship penalty: while the user is
+                // away the bond may only recover upward toward baseline (after a
+                // quarrel), never decay downward.
+                let relaxed = base[f] + (s.feelings[f] - base[f]) * pow(0.5, dt / h)
+                s.feelings[f] = max(s.feelings[f], relaxed)
+            } else if f == .boredom, awakeWithUser {
                 // Boredom relaxes toward baseline *and* creeps up while someone is
                 // around but nothing happens. Solved as one linear ODE so the result
                 // doesn't depend on how often the app ticks:
@@ -187,19 +187,14 @@ public enum EmotionEngine {
         s.feelings[.resentment] += angerDrop * 0.15 * (1.2 - p[.forgiveness])
 
         // Loneliness: grows while the user is away (faster for extraverts, slower
-        // while Dee rests), eases with company.
+        // while Dee rests), eases with company. It feeds reunion joy and the urge
+        // to talk only — it never costs affection or trust.
         if c.userPresent {
             s.feelings[.loneliness] *= pow(0.5, dt / 600)
         } else {
             let tau = lonelinessHalfTime(p) / (c.asleep ? restingLonelinessRate : 1)
             let l0 = state.feelings[.loneliness]
             s.feelings[.loneliness] = 1 - (1 - l0) * pow(0.5, hours / tau)
-            // Neglect: days of loneliness slowly cost a little affection.
-            let toThreshold = l0 >= neglectThreshold ? 0 : tau * log2((1 - l0) / (1 - neglectThreshold))
-            let neglected = max(0, hours - toThreshold)
-            if neglected > 0, s.feelings[.affection] > neglectAffectionFloor {
-                s.feelings[.affection] = max(neglectAffectionFloor, s.feelings[.affection] - neglectAffectionPerDay * neglected / 24)
-            }
         }
 
         // Energy: drains awake (~20 h to empty), refills while resting (~6 h to full).
@@ -251,6 +246,7 @@ public enum EmotionEngine {
     }
 
     public static func apply(_ appraisal: Appraisal, to state: InnerState, at now: Date) -> InnerState {
+        if !appraisal.social { return applySensory(appraisal, to: state, at: now) }
         // A long gap since the last update means nobody was here: model it as
         // absence first, so a returning user meets a lonely, rested Dee.
         var s = now.timeIntervalSince(state.updatedAt) > maxPresentGap
@@ -313,6 +309,16 @@ public enum EmotionEngine {
         n[.gratitude] += (a.gratitude * 0.5 + a.praise * 0.15) * (1 - f[.gratitude]) * habituation
         n[.anger] -= kind * 0.25 * (0.5 + p[.forgiveness]) * f[.anger]
         n[.resentment] -= kind * 0.03 * p[.forgiveness]
+        // She can laugh even when upset: a joke or laughter (not a jab) genuinely
+        // takes some of the heat out of anger and lifts a little sadness.
+        let mirth = a.humor * (0.5 + p[.humor]) * (a.hostility > 0.4 ? 0.3 : 1)
+        n[.anger] -= mirth * 0.3 * f[.anger]
+        n[.sadness] -= mirth * 0.08 * f[.sadness]
+        n[.resentment] -= mirth * 0.01
+        // Gentle physical care calms: less fear and sadness, a little joy on top.
+        n[.fear] -= a.care * 0.3 * f[.fear]
+        n[.sadness] -= a.care * 0.12 * f[.sadness]
+        n[.joy] += a.care * 0.08 * (1 - f[.joy])
         if a.loudness < -0.3, kind > 0 { n[.affection] += 0.005 * (1 - f[.affection]) * habituation }   // tender, quiet words
         if kind > 0.1 { s.kindRecent += kind }
 
@@ -353,7 +359,20 @@ public enum EmotionEngine {
 
         // Surprise: how far this utterance's tone is from Dee's current mood.
         let expected = valence(f)
-        n[.surprise] += min(1, abs(a.valence - expected) * 0.45 + a.intensity * 0.25)
+        // Surprise is a jolt, not a tally: a run of ordinary lines mustn't add up
+        // to astonishment, so a new jolt mostly *replaces* what's left of the last.
+        let jolt = min(1, abs(a.valence - expected) * 0.45 + a.intensity * 0.25 + a.startle * 0.5)
+        n[.surprise] = max(n[.surprise], jolt) + 0.15 * jolt
+        n[.fear] += a.startle * 0.15 * (0.4 + p[.neuroticism]) * (1.2 - p[.confidence])
+
+        // Tickling that goes on too long: overwhelmed (surprise, a little fear,
+        // tiring), and the fun drains out of it.
+        if a.overstimulation > 0 {
+            n[.surprise] += a.overstimulation * 0.35
+            n[.fear] += a.overstimulation * 0.15
+            n[.joy] -= a.overstimulation * 0.1
+            n[.energy] -= a.overstimulation * 0.01
+        }
 
         // Company eases loneliness (hostile company less so); talking costs a
         // little energy, but a lively, friendly exchange perks Dee up.
@@ -366,14 +385,56 @@ public enum EmotionEngine {
         if a.kindness > 0.25 { s.kindInteractions += 1 }
         if a.kindness < -0.25 { s.hostileInteractions += 1 }
 
-        s.personality = drift(s.personality, toward: a, reoffense: s.reoffense, age: age)
+        // Touch comes in streams (many strokes in a minute), so its effect on
+        // character habituates like affection does: petting is no shortcut.
+        let driftWeight = a.touch == nil ? 1 : habituation
+        s.personality = drift(s.personality, toward: a, reoffense: s.reoffense, age: age, weight: driftWeight)
+        return s
+    }
+
+    /// Something Dee heard or saw that isn't the user talking to her: it moves
+    /// interest, surprise, fear and joy, but not the bond, loneliness, the
+    /// relationship counters or personality.
+    static func applySensory(_ a: Appraisal, to state: InnerState, at now: Date) -> InnerState {
+        var s = now.timeIntervalSince(state.updatedAt) > maxPresentGap
+            ? catchUp(state, to: now)
+            : advance(state, to: now, circumstances: .init(userPresent: false, asleep: false))
+        let p = effective(s.personality, age: s.age.age(at: now))
+        let f = s.feelings
+        var n = f
+        let jumpy = 0.4 + p[.neuroticism]                    // 0.4…1.4
+        let jolt = min(1, a.startle * 0.8 + a.novelty * 0.12)
+        n[.surprise] = max(n[.surprise], jolt) + 0.15 * jolt
+        n[.fear] += (a.alarm * 0.55 + a.startle * 0.12) * jumpy * (1.2 - p[.confidence])
+        n[.interest] += (a.novelty * 0.3 + a.startle * 0.15 + a.delight * 0.1) * (0.4 + p[.curiosity]) * (1 - f[.interest] * 0.5)
+        n[.boredom] -= a.novelty * 0.2 + a.delight * 0.15 + a.startle * 0.1
+        n[.joy] += (a.delight * 0.18 + a.humor * 0.1 * p[.humor]) * (1 - f[.joy])
+        n[.joy] -= a.alarm * 0.08
+        n[.anger] -= a.humor * 0.15 * f[.anger]           // laughter in the room is catching
+        // Someone crying nearby: concern — attention and a little sadness, no fear.
+        n[.interest] += a.distress * 0.25 * (1 - f[.interest])
+        n[.sadness] += a.distress * 0.12 * (0.5 + p[.sensitivity])
+        n[.joy] -= a.distress * 0.06
+        n[.energy] -= a.startle * 0.003
+        // Internal events (v0.5): relief lets go of worry; pride is quiet joy.
+        if a.relief > 0 {
+            n[.fear] -= a.relief * 0.7 * f[.fear]
+            n[.sadness] -= a.relief * 0.3 * f[.sadness]
+            n[.joy] += a.relief * 0.2 * (1 - f[.joy])
+        }
+        if a.pride > 0 {
+            n[.joy] += a.pride * 0.25 * (1 - f[.joy])
+            n[.interest] += a.pride * 0.1 * (1 - f[.interest])
+            n[.boredom] -= a.pride * 0.1
+        }
+        s.feelings = Feelings(n.values)
         return s
     }
 
     /// Very slow personality change from how Dee is treated, pulled back toward
     /// set points so it can't run away. Young Dees are more malleable.
-    static func drift(_ p: Personality, toward a: Appraisal, reoffense: Double = 0, age: Double?) -> Personality {
-        let rate = 0.0015 * AgeModel.effect(age: age).plasticity
+    static func drift(_ p: Personality, toward a: Appraisal, reoffense: Double = 0, age: Double?, weight: Double = 1) -> Personality {
+        let rate = 0.0015 * AgeModel.effect(age: age).plasticity * max(0, weight)
         var out = p
         // Deadband: lukewarm lines (most small talk) don't shape character.
         let k = abs(a.kindness) < 0.15 ? 0 : a.kindness
@@ -390,6 +451,12 @@ public enum EmotionEngine {
         out[.sensitivity] += rate * a.intensity * 0.3 - rate * 0.05
         out[.forgiveness] += rate * (a.apology * 0.8 - a.threat - reoffense * 0.5)
         out[.extraversion] += rate * (a.warmth + a.interestInDee - a.dismissal) * 0.4
+        // Physical care: a cared-for Dee grows calmer, more confident and trusting
+        // of touch; rough handling (slaps, endless pokes) does the opposite.
+        let rough = a.touch == nil ? 0 : max(0, a.hostility) * max(0, a.dominance)
+        out[.confidence] += rate * (a.care * 0.6 - rough * 0.8)
+        out[.neuroticism] += rate * (rough * 0.8 - a.care * 0.4)
+        out[.agreeableness] += rate * (a.care * 0.3 - rough * 0.4)
         // Elastic pull back toward set points (1% of the gap per interaction).
         for t in Trait.allCases { out[t] = out[t] + (t.setPoint - out[t]) * 0.01 }
         return out
@@ -441,23 +508,5 @@ public enum EmotionEngine {
         }
         let m = v - c
         return (r1 + m, g1 + m, b1 + m)
-    }
-
-    /// The face expression that best summarises the current feelings.
-    public static func dominantEmotion(_ f: Feelings) -> Emotion {
-        let candidates: [(Emotion, Double)] = [
-            (.angry, f[.anger] * 1.3),
-            (.scared, f[.fear] * 1.2),
-            (.sad, f[.sadness] * 1.1 + f[.loneliness] * 0.4),
-            (.surprised, f[.surprise] * 0.9),
-            (.love, f[.affection] > 0.75 ? f[.joy] * 0.6 + (f[.affection] - 0.75) * 2 : 0),
-            (.joy, f[.joy] > 0.75 ? f[.joy] : 0),
-            (.happy, f[.joy] * 0.8),
-            (.curious, f[.interest] * 0.7),
-            (.sleepy, (1 - f[.energy]) * 0.6),
-            (.smug, f[.gratitude] * 0.4),
-            (.neutral, f[.boredom] * 0.6 + 0.25),
-        ]
-        return candidates.max { $0.1 < $1.1 }?.0 ?? .neutral
     }
 }

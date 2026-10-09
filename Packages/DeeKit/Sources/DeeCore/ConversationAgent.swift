@@ -45,6 +45,10 @@ public actor ConversationAgent {
     public private(set) var tools: ToolRegistry
     public private(set) var messages: [ChatMessage] = []
     public private(set) var thinkingEnabled = false
+    /// Dev-only (v0.5): hidden cue text that leaked into the visible reply(ies) of
+    /// the latest turn — the `<dee_state>` tag, the mood sentence, or one of the
+    /// turn's parenthesised notes verbatim. Reset at the start of every turn.
+    public private(set) var lastReplyLeaks: [OutputParser.Leak] = []
     public var config: AgentConfig
     private var persona: Persona
     private var conversationStart: Date
@@ -129,6 +133,8 @@ public actor ConversationAgent {
 
     private func runTurn(_ text: String, state: String?, emit: @Sendable (AgentEvent) -> Void) async throws {
         turnCancelled = false
+        lastReplyLeaks = []
+        let watchedNotes = state.map(OutputParser.notes(inState:)) ?? []
         switch ThinkingIntent.detect(in: text) {
         case .enable where !thinkingEnabled:
             thinkingEnabled = true
@@ -161,7 +167,7 @@ public actor ConversationAgent {
             }
             emit(.generationStarted(step: step))
 
-            let message = try await generateMessage(prompt: prompt, thinking: thinking, emit: emit)
+            let message = try await generateMessage(prompt: prompt, thinking: thinking, watchedNotes: watchedNotes, emit: emit)
             messages.append(message)
             emit(.messageCompleted(message))
 
@@ -232,8 +238,12 @@ public actor ConversationAgent {
         }
     }
 
-    private func generateMessage(prompt: String, thinking: Bool, emit: @Sendable (AgentEvent) -> Void) async throws -> ChatMessage {
+    private func generateMessage(prompt: String, thinking: Bool, watchedNotes: [String] = [], emit: @Sendable (AgentEvent) -> Void) async throws -> ChatMessage {
         var acc = MessageAccumulator(thinking: thinking)
+        acc.parser.watchedNotes = watchedNotes
+        defer {
+            for leak in acc.parser.leaks where !lastReplyLeaks.contains(leak) { lastReplyLeaks.append(leak) }
+        }
 
         if thinking {
             // Phase 1: reasoning only, stopping at </think> or the budget.
