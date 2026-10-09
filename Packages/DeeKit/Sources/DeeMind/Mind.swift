@@ -23,6 +23,11 @@ public struct MindSnapshot: Sendable, Equatable {
     /// seconds (a joke → giddy even when upset; a kind word → a shy smile). nil
     /// when nothing notable just happened.
     public var reflex: Emotion?
+    /// When the stimulus that provoked `reflex` arrived (nil when `reflex` is nil or the
+    /// snapshot was built directly). Two reflexes of the same emotion in quick succession
+    /// carry different times, so a consumer can tell a fresh reflex from a carried one.
+    /// Not part of `==` (which compares content only).
+    public var reflexAt: Date?
     /// How much Dee wants to start talking, 0…1.
     public var urgeToTalk: Double
     /// Continuous mood read-outs for idle behaviour.
@@ -33,8 +38,9 @@ public struct MindSnapshot: Sendable, Equatable {
         a.code == b.code && a.age == b.age && a.cue == b.cue && a.reflex == b.reflex
     }
 
-    public init(code: MindCode, age: Double?, sequence: UInt64 = 0, reflex: Emotion? = nil) {
+    public init(code: MindCode, age: Double?, sequence: UInt64 = 0, reflex: Emotion? = nil, reflexAt: Date? = nil) {
         self.reflex = reflex
+        self.reflexAt = reflex == nil ? nil : reflexAt
         self.sequence = sequence
         self.code = code
         self.age = age
@@ -206,11 +212,11 @@ public actor Mind {
 
     public func snapshot(at now: Date = Date()) -> MindSnapshot {
         sequence += 1
-        let reflex = lastReflex.flatMap { r in
-            now >= r.at && now.timeIntervalSince(r.at) <= Self.reflexDuration ? r.emotion : nil
+        let live = lastReflex.flatMap { r in
+            now >= r.at && now.timeIntervalSince(r.at) <= Self.reflexDuration ? r : nil
         }
         return MindSnapshot(code: MindCode(personality: state.personality, feelings: state.feelings),
-                            age: state.age.age(at: now), sequence: sequence, reflex: reflex)
+                            age: state.age.age(at: now), sequence: sequence, reflex: live?.emotion, reflexAt: live?.at)
     }
 
     /// Applies an appraisal and records the reflex it provokes (or clears it).

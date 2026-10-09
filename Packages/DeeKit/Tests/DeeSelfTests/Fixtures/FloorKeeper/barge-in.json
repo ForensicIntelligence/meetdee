@@ -1,0 +1,146 @@
+{
+  "name" : "barge-in",
+  "reducer" : "FloorKeeper",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "promptSubmitted",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "deeThinking",
+        "llmTag" : "-",
+        "turns" : "0"
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "speakingStarted",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "deeSpeaking",
+        "llmTag" : "-",
+        "turns" : "0"
+      },
+      "t" : 1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "partial",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "deeInterrupted,userStarted",
+        "floor" : "userSpeaking",
+        "llmTag" : "-",
+        "turns" : "0"
+      },
+      "t" : 1.5
+    },
+    {
+      "effects" : [
+        "stopSpeaking"
+      ],
+      "percept" : "bargeIn",
+      "slice" : {
+        "cutOff" : "true",
+        "events" : "cutOff",
+        "floor" : "userSpeaking",
+        "llmTag" : "-",
+        "turns" : "0"
+      },
+      "t" : 1.6
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "partial",
+      "slice" : {
+        "cutOff" : "true",
+        "events" : "",
+        "floor" : "userSpeaking",
+        "llmTag" : "-",
+        "turns" : "0"
+      },
+      "t" : 2
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "cutOff" : "true",
+        "events" : "userFinished",
+        "floor" : "idle",
+        "llmTag" : "-",
+        "turns" : "1"
+      },
+      "t" : 3
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "promptSubmitted",
+      "slice" : {
+        "cutOff" : "true",
+        "events" : "",
+        "floor" : "deeThinking",
+        "llmTag" : "-",
+        "turns" : "1"
+      },
+      "t" : 3.1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "speakingStarted",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "deeSpeaking",
+        "llmTag" : "-",
+        "turns" : "1"
+      },
+      "t" : 4
+    },
+    {
+      "effects" : [
+        "stopSpeaking"
+      ],
+      "percept" : "bargeIn",
+      "slice" : {
+        "cutOff" : "true",
+        "events" : "cutOff",
+        "floor" : "yielding",
+        "llmTag" : "-",
+        "turns" : "1"
+      },
+      "t" : 6
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "cutOff" : "true",
+        "events" : "",
+        "floor" : "idle",
+        "llmTag" : "-",
+        "turns" : "1"
+      },
+      "t" : 8.5
+    }
+  ]
+}

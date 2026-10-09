@@ -246,10 +246,30 @@ public struct ExtractedFact: Sendable, Equatable {
 
 public struct LearnOutcome: Sendable, Equatable {
     public var stored: [Fact]            // facts written (new or merged)
-    public var pendingName: String?      // heard, NOT applied — confirm, then confirmName
+    public var pendingName: String?      // heard, NOT applied — confirm, then confirm(_:for:)
     public var mergeCandidate: UUID?     // an existing real person already called pendingName
-    public var retracted: [String]       // texts of facts deleted by a retraction
+    public var retracted: [String]       // texts of facts deleted (or narrowed) by a retraction
+    public var retractionCandidates: [Fact] // ambiguous retraction ("my dog died", 2 dogs): nothing deleted, ask
+    public var differentSpeaker: Bool    // known person claimed another name: nothing stored, switch person
+    public var suggestedAlias: String?   // "I'm Thomas, call me Tom" / "I'm John Smith" from John:
+                                         // addAlias once confirmed (facts ARE stored)
+    public var introduced: [String]      // "this is Sarah", "meet my friend Sarah" — never the speaker
+    public var wellbeingConcern: Bool    // self-harm signal: nothing stored
 }
+
+public enum ConfirmResult: Sendable, Equatable {
+    case named(Person, needsEnrolment: Bool)   // placeholder renamed / name already theirs; needsEnrolment
+                                               // = < 3 anchors (add ≥ 3 quality prints with anchor: true)
+    case merged(into: Person)                  // same face as the existing person of that name
+    case mergeCandidate(placeholder: Person, existing: Person)  // can't tell (no face on a side, or
+                                               // in-between faces): NOTHING changed — ask, then
+                                               // confirm(…, choice: .sameAs(existing.id) / .newPerson)
+    case differentSpeaker(current: Person, heard: String, candidate: Person?)  // known person, name not
+                                               // theirs: NOTHING changed, never an alias — switch person
+    case rejected                              // unknown id / unusable name
+    public var person: Person? { get }
+}
+public enum SameNameChoice: Sendable, Equatable { case ask, sameAs(UUID), newPerson }
 
 public struct ForgetOutcome: Sendable, Equatable {
     public var forgotten: [Fact]         // deleted
@@ -259,17 +279,36 @@ public struct ForgetOutcome: Sendable, Equatable {
 public enum FactExtractor {
     public static func extract(from utterance: String) -> [ExtractedFact]
     public static func extract(from utterance: String, now: Date, calendar: Calendar = .current) -> [ExtractedFact]
-    /// "I hate myself", "I want to die": nothing is stored; respond with care.
+    /// "I hate myself", "I want to die", "nobody would miss me", "I hate my life":
+    /// nothing is stored; respond with care. Idioms ("kill myself laughing") are not.
     public static func selfHarmSignal(in utterance: String) -> Bool
+    /// People introduced by the speaker ("Hey, this is Sarah", "meet my friend Sarah").
+    public static func introductions(in utterance: String) -> [String]
 }
+/// Sensitive in EVERY category (work included): religion and practice ("goes to mass"), sexuality,
+/// sex work / strip clubs, drugs and drug use ("does coke"), gambling, addiction/AA, personal legal
+/// matters, body weight, reproductive health, mental health, medication ("takes Prozac"), politics
+/// and voting, immigration status, debt / pay ("earns 40k"), divorce, homelessness.
+/// Illnesses and institutions (cancer, therapist, court, Visa…) are sensitive EXCEPT in a job fact
+/// of category .work ("works at Visa", "works in cancer research", "is a lawyer").
+/// Health (except allergy/diet/glasses) is always sensitive. Not over-hidden: "Christian rock",
+/// "a son named Christian", "AA batteries", "Trans-Am", "Sex Pistols".
 public enum FactSensitivity { public static func isSensitive(_ text: String, category: Fact.Category) -> Bool }
-public enum FactPolicy { public static func isDenied(_ text: String) -> Bool }   // hate / violence / drugs / self-referential
+/// Hate / violence / drugs / self-referential, the most common English slurs, extremist figures and
+/// groups, and hostility to a whole nationality / ethnic / religious group ("hates the Chinese",
+/// "hates Africans"; "hates Chinese food" is fine), and to women / men / fat, old, disabled,
+/// poor or homeless people.
+public enum FactPolicy {
+    public static func isDenied(_ text: String) -> Bool
+    public static func isSelfHarm(_ text: String) -> Bool
+}
 
 public struct FaceCaptureQuality: Sendable, Equatable {        // score, widthFraction, yaw, roll, clipped
     public func passes(_ gate: FaceQualityGate = FaceQualityGate()) -> Bool
 }
 public struct FaceQualityGate: Sendable, Equatable {           // minScore 0.4, minWidthFraction 0.15,
-}                                                              // |yaw|,|roll| ≤ 20°, clipped rejected
+}                                                              // |yaw|,|roll| ≤ 20°, clipped rejected,
+                                                               // requireScore = true (no Vision score → reject)
 public enum FaceEmbedder {
     /// Vision feature print of a square face crop; past the frame edge the crop is
     /// PADDED (grey), never clipped and stretched. Throws when unavailable.
@@ -285,8 +324,10 @@ public enum FaceEmbedder {
 public struct FaceMatching: Sendable, Equatable {
     // threshold 0.62, learnThreshold 0.45 (distance to an ANCHOR), ambiguityMargin 0.08 (until
     // calibrated on device), minNovelty 0.12, maxPrintsPerPerson 12, maxAnchorsPerPerson 6,
-    // matchNeighbours 2 (score = mean of the 2 closest prints), learnAfterFrames 3,
-    // minEnrollPrints 3, sameNameMergeDistance 0.9
+    // matchNeighbours 2 (score = mean of the 2 closest prints), learnAfterFrames 3 (each within
+    // learnStreakGap 2 s of the previous), minEnrollPrints 3, differentFaceDistance 0.9 (confirm: a
+    // same-named person is a DIFFERENT face only when every print is ≥ this from their anchors).
+    // Ambiguity is judged against the runner-up's raw score, even if it fails its anchor check.
 }
 
 public actor MemoryStore {
@@ -303,34 +344,61 @@ public actor MemoryStore {
 
     // People
     public func people() -> [Person]
-    public func person(_ id: UUID) -> Person?
+    public func person(_ id: UUID) -> Person?            // a merged-away id resolves to its person
     public func person(named name: String) -> Person?     // real people only (never placeholders)
     @discardableResult public func addPerson(named: String, at: Date) -> Person?   // voice-only, no face
     /// nil unless ≥ minEnrollPrints (3) DISTINCT prints (each from FaceEmbedder.enrolmentPrint).
     /// Reuses a same-named person only if the face matches or `reuse` is true.
-    @discardableResult public func enroll(name: String, facePrints: [FacePrint], at: Date, reuse: Bool = false) -> Person?
+    /// `qualities` (one per print): prints failing `gate` are dropped before the count.
+    @discardableResult public func enroll(name: String, facePrints: [FacePrint], at: Date, reuse: Bool = false,
+                                          qualities: [FaceCaptureQuality]? = nil, gate: FaceQualityGate = FaceQualityGate()) -> Person?
+    /// After the session's placeholder was confirmed (renamed or merged), returns THAT real person.
     @discardableResult public func placeholderPerson(session: UUID, at: Date = Date()) -> Person
     public func discardPlaceholder(_ id: UUID)
     public func pendingName(for id: UUID, now: Date = Date()) -> (name: String, timesHeard: Int)?
-    /// Placeholder → merged into an existing same-named person when faces don't
-    /// contradict (or both faceless) and THAT person is returned; else renamed
-    /// (its prints become anchors). Real person → name added as alias.
+    /// Real person: own name/alias, or a fuller/shorter form of it ("John Smith" for John) →
+    /// .named (no alias added; addAlias it if wanted); any other name → .differentSpeaker,
+    /// NOTHING changes.
+    /// Placeholder + same-named real person: merged only when the placeholder's face AS A WHOLE
+    /// matches — a strict majority of its prints AND their centroid within `threshold` (score
+    /// and nearest anchor); one stray matching print is never enough. Separate when every print
+    /// is ≥ differentFaceDistance;
+    /// otherwise (incl. either side faceless) .mergeCandidate, nothing changes.
+    /// Placeholder otherwise: renamed; ≥ 3 distinct QUALITY prints become anchors, fewer stay
+    /// a pending (non-matching) enrolment (needsEnrolment), non-quality prints are deleted.
+    public func confirm(_ name: String, for id: UUID, at: Date = Date(), choice: SameNameChoice = .ask) -> ConfirmResult
+    /// Compatible wrapper: .mergeCandidate → a separate new person (never a guessed merge);
+    /// .differentSpeaker → the known person unchanged (no alias).
     @discardableResult public func confirmName(_ name: String, for id: UUID, at: Date = Date()) -> Person
     public func rename(_ id: UUID, to name: String)
-    public func addAlias(_ alias: String, to id: UUID)
+    public func addAlias(_ alias: String, to id: UUID)    // the ONLY way to add an alias
     public func noteEncounter(_ id: UUID, at: Date)
-    public func merge(_ from: UUID, into: UUID)
-    public func forgetPerson(_ id: UUID)                  // + WAL checkpoint(TRUNCATE)
+    public func merge(_ from: UUID, into: UUID)           // `from` (and its session) then resolve to `into`
+    public func resolve(_ id: UUID) -> UUID               // follows merges; EVERY id-taking call uses it
+                                                          // (person, addFacePrints, rename, addAlias, tools…)
+    public func forgetPerson(_ id: UUID)                  // a merged-away id forgets the person it became
     public func forgetEverything()                        // delete, checkpoint, VACUUM, checkpoint
+    // WAL: every call that deletes or overwrites user text or face prints (forget, retraction,
+    // slot / opposite-feeling replacement, alias cap, rename, merge, print pruning, confirm)
+    // ends with ONE checkpoint(TRUNCATE).
+    // Schema v3: on open, every stored fact is re-checked with the CURRENT rules — rows that
+    // FactPolicy.isDenied / isSelfHarm reject are deleted (secure_delete + WAL truncate) and
+    // `sensitive` is recomputed. `schemaVersion` is bumped whenever those rules change.
 
     // Faces
-    public func addFacePrints(_ prints: [FacePrint], to id: UUID, anchor: Bool = false)
+    /// anchor: true = caller vouches the prints passed FaceQualityGate. A real person gets anchors
+    /// only once ≥ minEnrollPrints distinct quality prints exist (fewer wait, non-matching).
+    /// On a placeholder they stay un-anchored until confirm. `passedQualityGate` overrides
+    /// the quality flag (default = anchor). A real person without anchors is never matched.
+    public func addFacePrints(_ prints: [FacePrint], to id: UUID, anchor: Bool = false, passedQualityGate: Bool? = nil)
     public func identify(_ print: FacePrint) -> (person: Person, distance: Float)?
     public func identify(_ print: FacePrint, learn: Bool) -> (person: Person, distance: Float)?
     /// All faces of ONE frame; each person assigned at most once. Learns only with
-    /// exactly one face, after learnAfterFrames agreeing frames, within
-    /// learnThreshold of an anchor. Anchors are never trimmed.
+    /// exactly one face, after learnAfterFrames agreeing frames (each ≤ learnStreakGap
+    /// apart), with nearest anchor AND mean of the 2 closest anchors within
+    /// learnThreshold. Anchors are never trimmed.
     public func identifyAll(_ prints: [FacePrint], learn: Bool = true) -> [(person: Person, distance: Float)?]
+    public func identifyAll(_ prints: [FacePrint], learn: Bool, at: Date) -> [(person: Person, distance: Float)?]
     public func facePrintCount(of id: UUID) -> Int
     public func anchorCount(of id: UUID) -> Int
 
@@ -357,11 +425,16 @@ App wiring rules:
 
 1. One `placeholderPerson(session:)` per conversation session (or per unrecognised
    face); `discardPlaceholder` when the session ends without a confirmed name.
-2. Every utterance: `learn(from:about:at:)`. If `pendingName` is set, confirm it
-   (ask "Did you say your name is X?", or `pendingName(for:)?.timesHeard >= 2`, or
-   exactly one face visible) and then call `confirmName`. If the speaker is a known
-   person and `stored` is empty with a `pendingName`, the face may be wrong: switch
-   person (or enrol) and call `learn` again for the right one.
+2. Every utterance: `learn(from:about:at:)`. If `pendingName` is set on a
+   placeholder, confirm it (ask "Did you say your name is X?", or
+   `pendingName(for:)?.timesHeard >= 2`, or exactly one face visible) and call
+   `confirm`; on `.mergeCandidate` ask "Are you the X I met before?" and call
+   `confirm` again with `.sameAs`/`.newPerson`. If `differentSpeaker` is set, the face
+   may be wrong: switch person (or a new placeholder) and call `learn` again — never
+   alias it. `suggestedAlias` → `addAlias` after asking. `introduced` names are
+   other people (start a placeholder for a new face, not a rename).
+   `retractionCandidates` → ask which one, then `forgetFacts` with its exact text.
 3. Camera: `identifyAll(allFacesInFrame)` every frame; enrol with ≥ 3
    `FaceEmbedder.enrolmentPrint`s from different frames.
-4. `FactExtractor.selfHarmSignal(in:)` true → nothing is stored; respond with care.
+4. `FactExtractor.selfHarmSignal(in:)` / `LearnOutcome.wellbeingConcern` true →
+   nothing is stored; respond with care.

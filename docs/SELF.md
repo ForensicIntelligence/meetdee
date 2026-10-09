@@ -1135,6 +1135,11 @@ CREATE TABLE digest (day TEXT, person_id TEXT, conversations INTEGER, low_salien
 - `forgetEverything()` is coordinated by `DeeModel`: `MemoryStore.forgetEverything()` then `SelfStore.forgetAll()`, which wipes everything except seed facets and `self_meta` seed, values, humour and signature.
 - A crash between the two leaves orphan-free global tables only. Person-scoped rows are already gone by cascade.
 
+> **Amended after the 0.5.1 review (schema v2; binding detail in `docs/contracts-0.5/self.md`).**
+> - Person rows **no longer cascade** from `people(id)`: DeeMemory deletes a `people` row when it merges a placeholder into a named person, which would have wiped that person's boundaries, lessons and profile. `person_id` is a plain column; `DeeModel` calls `SelfStore.merge(from:into:)` on `MemoryStore.merge`, `SelfStore.forgetPerson(_:)` on `forgetPerson` / `discardPlaceholder`, and `forgetPeople(notIn:)` at launch as a sweep. `SelfStore.open` no longer requires `people`.
+> - "Forget that" matches whole words either way ("interview" ~ "job interview") and also removes intentions, misreads, interests, gags and episodes whose gist / why / expected / changed name it. `Cortex.forget…` runs first so nothing in RAM re-persists a forgotten row.
+> - §4.3: the appraisal reaches `Mind` before `Cortex.step`, so a reducer cannot adjust it after the fact. `Cortex.adjust(_:)` (each reducer's `adjust` hook) is the agreed pre-commit pass; wiring it needs a DeeMind entry point that commits a given appraisal for heard text (open item for 0.5.3, owner DeeMind + Interpreter).
+
 **Identity gate:** person-scoped writes require `identified` distance ≤ the DeeMemory match threshold **and** either a name confirmation this conversation or ≥3 consecutive matches. Otherwise `person = nil`.
 
 ---

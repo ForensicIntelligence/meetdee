@@ -49,6 +49,8 @@ targets:
         product: DeeMind
       - package: DeeKit
         product: DeeMemory
+      - package: DeeKit
+        product: DeeSelf
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ca.forensicintelligence.dee

@@ -20,7 +20,10 @@ public actor MemoryStore {
     public static let reinforcement = 0.05
     /// At most this many aliases per person (oldest dropped).
     public static let maxAliases = 6
-    static let schemaVersion = 2
+    /// v3: every stored fact is re-checked against the current FactPolicy /
+    /// FactSensitivity rules. Bump this whenever those rules change, so
+    /// databases written by older code are re-checked on the next open.
+    static let schemaVersion = 3
 
     public private(set) var faceMatching: FaceMatching
     public private(set) var lastError: String?
@@ -29,6 +32,10 @@ public actor MemoryStore {
         var row: Int64
         var print: FacePrint
         var anchor: Bool
+        /// Passed `FaceQualityGate` (anchors always did). Kept in memory only: it
+        /// matters for placeholders and pending enrolments, which never outlive
+        /// the store.
+        var quality: Bool
     }
 
     private let db: MemoryDatabase
@@ -39,9 +46,21 @@ public actor MemoryStore {
     /// Read cache, valid while `db.totalChanges` is unchanged (any write clears it).
     private var personCache: [UUID: Person] = [:]
     private var cacheStamp: Int64 = -1
-    /// Consecutive single-face frames that agreed on one person (learning gate).
-    private var streak: (id: UUID, frames: Int)?
+    /// Consecutive single-face frames that agreed on one person (learning gate),
+    /// with the time of the last one (`FaceMatching.learnStreakGap`).
+    private var streak: (id: UUID, frames: Int, at: Date)?
     private var pending: [UUID: (name: String, at: Date, count: Int)] = [:]
+    /// Placeholder ids (all placeholders are created by this store instance:
+    /// earlier ones are purged on open). Their prints match without anchors.
+    private var placeholders: Set<UUID> = []
+    /// Session → the real person its placeholder became (renamed or merged).
+    private var sessionOwner: [UUID: UUID] = [:]
+    /// A merged-away id → the person it was merged into.
+    private var redirects: [UUID: UUID] = [:]
+    /// User text (facts, names, aliases) or face prints were deleted or
+    /// overwritten: checkpoint(TRUNCATE) once the outermost public call ends.
+    private var removalPending = false
+    private var batchDepth = 0
 
     public init(databaseURL: URL?) throws {
         try self.init(databaseURL: databaseURL, faceMatching: FaceMatching())
@@ -70,7 +89,7 @@ public actor MemoryStore {
         self.calendar = calendar
         let g = try Self.loadGallery(db)
         self.gallery = g
-        (self.galleryPrints, self.galleryAnchors) = Self.index(g)
+        (self.galleryPrints, self.galleryAnchors) = Self.index(g, placeholders: [])
     }
 
     /// `Application Support/Dee/DeeMemory.sqlite`.
@@ -150,16 +169,36 @@ public actor MemoryStore {
                     SELECT f.id FROM face_prints f WHERE
                     (SELECT COUNT(*) FROM face_prints g WHERE g.person_id = f.person_id AND g.id < f.id) < 3);
                 """)
-                for r in try db.query("SELECT id, text, category FROM facts;") {
-                    guard let id = r["id"]?.string, let text = r["text"]?.string else { continue }
-                    let cat = r["category"]?.string.flatMap(Fact.Category.init(rawValue:)) ?? .other
-                    try db.query("UPDATE facts SET sensitive = ? WHERE id = ?;",
-                                 [.int(FactSensitivity.isSensitive(text, category: cat) ? 1 : 0), .text(id)])
-                }
+            }
+            if version < schemaVersion {
+                try recheckFacts(db)
                 try db.query("DELETE FROM schema_version;")
                 try db.query("INSERT INTO schema_version(version) VALUES (?);", [.int(Int64(schemaVersion))])
             }
         }
+    }
+
+    /// Re-applies the current rules to every stored fact: facts that
+    /// `FactPolicy.isDenied` or `FactPolicy.isSelfHarm` reject are deleted (with
+    /// secure_delete; the caller truncates the WAL), and `sensitive` is
+    /// recomputed for the rest. Returns how many facts were deleted.
+    @discardableResult
+    static func recheckFacts(_ db: MemoryDatabase) throws -> Int {
+        var deleted = 0
+        for r in try db.query("SELECT id, text, category, sensitive FROM facts;") {
+            guard let id = r["id"]?.string, let text = r["text"]?.string else { continue }
+            if FactPolicy.isDenied(text) || FactPolicy.isSelfHarm(text) {
+                try db.query("DELETE FROM facts WHERE id = ?;", [.text(id)])
+                deleted += 1
+                continue
+            }
+            let cat = r["category"]?.string.flatMap(Fact.Category.init(rawValue:)) ?? .other
+            let sensitive = FactSensitivity.isSensitive(text, category: cat) ? 1 : 0
+            if r["sensitive"]?.int != sensitive {
+                try db.query("UPDATE facts SET sensitive = ? WHERE id = ?;", [.int(Int64(sensitive)), .text(id)])
+            }
+        }
+        return deleted
     }
 
     private static func loadGallery(_ db: MemoryDatabase) throws -> [UUID: [StoredPrint]] {
@@ -168,17 +207,29 @@ public actor MemoryStore {
             guard let pid = r["person_id"]?.string.flatMap(UUID.init(uuidString:)),
                   let data = r["vector"]?.data, let fp = FacePrint(blob: data),
                   case .int(let row)? = r["id"] else { continue }
-            out[pid, default: []].append(StoredPrint(row: row, print: fp, anchor: (r["anchor"]?.int ?? 0) != 0))
+            let anchor = (r["anchor"]?.int ?? 0) != 0
+            out[pid, default: []].append(StoredPrint(row: row, print: fp, anchor: anchor, quality: anchor))
         }
         return out
     }
 
     private func rebuildFaceIndex() {
-        (galleryPrints, galleryAnchors) = Self.index(gallery)
+        (galleryPrints, galleryAnchors) = Self.index(gallery, placeholders: placeholders)
     }
 
-    private static func index(_ g: [UUID: [StoredPrint]]) -> ([UUID: [FacePrint]], [UUID: [FacePrint]]) {
-        (g.mapValues { $0.map(\.print) }, g.mapValues { $0.filter(\.anchor).map(\.print) })
+    /// Matchable prints and anchors. A REAL person is recognisable only once they
+    /// have anchors (an enrolment of ≥ `minEnrollPrints` quality prints); their
+    /// other prints are ignored until then. A placeholder (this session's
+    /// unrecognised face) matches on whatever prints it has.
+    private static func index(_ g: [UUID: [StoredPrint]], placeholders: Set<UUID>) -> ([UUID: [FacePrint]], [UUID: [FacePrint]]) {
+        var prints: [UUID: [FacePrint]] = [:], anchors: [UUID: [FacePrint]] = [:]
+        for (id, set) in g {
+            let a = set.filter(\.anchor).map(\.print)
+            guard !a.isEmpty || placeholders.contains(id) else { continue }
+            prints[id] = set.map(\.print)
+            anchors[id] = a
+        }
+        return (prints, anchors)
     }
 
     private func attempt<T>(_ body: () throws -> T) -> T? {
@@ -189,9 +240,34 @@ public actor MemoryStore {
     }
 
     /// Folds the WAL back and truncates it, so forgotten text does not linger in
-    /// `DeeMemory.sqlite-wal`. Called after every deletion.
+    /// `DeeMemory.sqlite-wal`. Called (once, at the end of the public call)
+    /// after every deletion or overwrite of user text or face prints.
     private func checkpoint() {
         _ = attempt { try db.checkpoint() }
+    }
+
+    private func markRemoval() { removalPending = true }
+
+    /// Runs one public operation; nested calls share one checkpoint at the end.
+    private func batch<T>(_ body: () -> T) -> T {
+        batchDepth += 1
+        defer {
+            batchDepth -= 1
+            if batchDepth == 0, removalPending {
+                removalPending = false
+                checkpoint()
+            }
+        }
+        return body()
+    }
+
+    /// Follows merges: an id that was merged away resolves to the person it
+    /// became part of (so a stale placeholder id still reaches the right record).
+    public func resolve(_ id: UUID) -> UUID {
+        var cur = id
+        var hops = 0
+        while let next = redirects[cur], hops < 16 { cur = next; hops += 1 }
+        return cur
     }
 
     // MARK: - People
@@ -200,7 +276,10 @@ public actor MemoryStore {
         attempt { try loadPeople(where: nil) } ?? []
     }
 
-    public func person(_ id: UUID) -> Person? {
+    /// The person with this id; a merged-away id resolves to the person it
+    /// became part of.
+    public func person(_ rawID: UUID) -> Person? {
+        let id = resolve(rawID)
         if cacheStamp != db.totalChanges {
             personCache.removeAll(keepingCapacity: true)
             cacheStamp = db.totalChanges
@@ -277,56 +356,92 @@ public actor MemoryStore {
         return attempt { try insertPerson(name: clean, at: at) }
     }
 
+    /// All real people answering to `name` (name or alias), exact names first.
+    func peopleNamed(_ name: String) -> [Person] {
+        let n = Self.cleanName(name)
+        guard !n.isEmpty, n.caseInsensitiveCompare(Self.unknownFriendName) != .orderedSame else { return [] }
+        let rows = attempt {
+            try db.query("""
+            SELECT id FROM people WHERE name = ?1 COLLATE NOCASE
+            UNION SELECT person_id AS id FROM aliases WHERE alias = ?1 COLLATE NOCASE;
+            """, [.text(n)])
+        } ?? []
+        let found = rows.compactMap { $0["id"]?.string.flatMap(UUID.init(uuidString:)) }.compactMap(person).filter { !$0.isPlaceholder }
+        return found.sorted { ($0.name.caseInsensitiveCompare(n) == .orderedSame ? 0 : 1, $1.lastSeen) < ($1.name.caseInsensitiveCompare(n) == .orderedSame ? 0 : 1, $0.lastSeen) }
+    }
+
     /// Enrols a face under `name`. Needs at least `faceMatching.minEnrollPrints`
     /// distinct prints, each from a different frame that passed `FaceQualityGate`
-    /// (use `FaceEmbedder.enrolmentPrint`); returns nil (and sets `lastError`) with
-    /// fewer. The prints become never-trimmed anchors.
+    /// (use `FaceEmbedder.enrolmentPrint`, or pass `qualities` — one per print —
+    /// and the store drops the prints that fail `gate`); returns nil (and sets
+    /// `lastError`) with fewer. The prints become never-trimmed anchors.
     ///
     /// An existing person of that name is reused only when the new prints match
     /// their face, or when `reuse` is true (the app confirmed it is the same
     /// person). Otherwise a second person with the same name is created — a
     /// voice-only "John" is not assumed to be this face.
     @discardableResult
-    public func enroll(name: String, facePrints: [FacePrint], at: Date, reuse: Bool = false) -> Person? {
-        let clean = Self.cleanName(name)
-        guard !clean.isEmpty, clean.caseInsensitiveCompare(Self.unknownFriendName) != .orderedSame else { return nil }
+    public func enroll(name: String, facePrints: [FacePrint], at: Date, reuse: Bool = false,
+                      qualities: [FaceCaptureQuality]? = nil, gate: FaceQualityGate = FaceQualityGate()) -> Person? {
+        batch {
+            let clean = Self.cleanName(name)
+            guard !clean.isEmpty, clean.caseInsensitiveCompare(Self.unknownFriendName) != .orderedSame else { return nil }
+            var candidates = facePrints
+            if let qualities {
+                candidates = zip(facePrints, qualities).filter { $0.1.passes(gate) }.map(\.0)
+            }
+            let valid = Self.distinct(candidates)
+            guard valid.count >= faceMatching.minEnrollPrints else {
+                lastError = "enroll needs \(faceMatching.minEnrollPrints) distinct quality face prints, got \(valid.count)"
+                return nil
+            }
+            if let existing = person(named: clean) {
+                let stored = galleryAnchors[existing.id].flatMap { $0.isEmpty ? nil : $0 } ?? galleryPrints[existing.id] ?? []
+                let matches = !stored.isEmpty && valid.contains {
+                    FaceMatcher.score($0, prints: stored, k: faceMatching.matchNeighbours) <= faceMatching.threshold
+                }
+                if reuse || matches {
+                    addFacePrints(valid, to: existing.id, anchor: true)
+                    noteEncounter(existing.id, at: at)
+                    return person(existing.id) ?? existing
+                }
+            }
+            guard let p = attempt({ try insertPerson(name: clean, at: at) }) else { return nil }
+            addFacePrints(valid, to: p.id, anchor: true)
+            return person(p.id) ?? p
+        }
+    }
+
+    /// Normalised, non-empty, pairwise-distinct prints (order kept).
+    static func distinct(_ prints: [FacePrint]) -> [FacePrint] {
         var valid: [FacePrint] = []
-        for p in facePrints where !p.vector.isEmpty && p.vector.contains(where: { $0 != 0 }) {
+        for p in prints where !p.vector.isEmpty && p.vector.contains(where: { $0 != 0 }) {
             let n = p.normalized
             if !valid.contains(where: { $0.distance(to: n) < 1e-3 }) { valid.append(n) }
         }
-        guard valid.count >= faceMatching.minEnrollPrints else {
-            lastError = "enroll needs \(faceMatching.minEnrollPrints) distinct quality face prints, got \(valid.count)"
-            return nil
-        }
-        if let existing = person(named: clean) {
-            let stored = galleryAnchors[existing.id].flatMap { $0.isEmpty ? nil : $0 } ?? galleryPrints[existing.id] ?? []
-            let matches = !stored.isEmpty && valid.contains {
-                FaceMatcher.score($0, prints: stored, k: faceMatching.matchNeighbours) <= faceMatching.threshold
-            }
-            if reuse || matches {
-                addFacePrints(valid, to: existing.id, anchor: true)
-                noteEncounter(existing.id, at: at)
-                return person(existing.id) ?? existing
-            }
-        }
-        guard let p = attempt({ try insertPerson(name: clean, at: at) }) else { return nil }
-        addFacePrints(valid, to: p.id, anchor: true)
-        return person(p.id) ?? p
+        return valid
     }
 
     /// The placeholder for one conversation session (or one unrecognised face):
     /// created on first use, returned again for the same `session`, never shared
     /// with another session. Its facts are never put into the prompt.
+    ///
+    /// Once the session's placeholder has been confirmed (renamed, or merged into
+    /// an existing person) this returns THAT real person, so an app that keeps
+    /// asking for the session's placeholder keeps writing to the right record.
     @discardableResult
     public func placeholderPerson(session: UUID, at: Date = Date()) -> Person {
+        if let owner = sessionOwner[session], let p = person(resolve(owner)) { return p }
         if let row = attempt({ try db.query("SELECT id FROM people WHERE session = ? AND name = ? LIMIT 1;",
                                              [.text(session.uuidString), .text(Self.unknownFriendName)]) })?.first,
            let id = row["id"]?.string.flatMap(UUID.init(uuidString:)), let p = person(id) {
             return p
         }
-        return attempt { try insertPerson(name: Self.unknownFriendName, at: at, session: session) }
-            ?? Person(name: Self.unknownFriendName, firstMet: at, lastSeen: at, session: session)
+        if let p = attempt({ try insertPerson(name: Self.unknownFriendName, at: at, session: session) }) {
+            placeholders.insert(p.id)
+            return p
+        }
+        return Person(name: Self.unknownFriendName, firstMet: at, lastSeen: at, session: session)
     }
 
     /// Deletes a placeholder (session ended without learning a name) and all it held.
@@ -339,7 +454,7 @@ public actor MemoryStore {
     /// The last name heard for `id` and not yet confirmed (expires after
     /// `nameConfirmWindow`), with how many times it was heard in that window.
     public func pendingName(for id: UUID, now: Date = Date()) -> (name: String, timesHeard: Int)? {
-        guard let p = pending[id], now.timeIntervalSince(p.at) <= Self.nameConfirmWindow else { return nil }
+        guard let p = pending[resolve(id)], now.timeIntervalSince(p.at) <= Self.nameConfirmWindow else { return nil }
         return (p.name, p.count)
     }
 
@@ -353,74 +468,204 @@ public actor MemoryStore {
     }
 
     /// Applies a CONFIRMED name (the person said yes, the name was heard twice
-    /// within `nameConfirmWindow`, or exactly one face was visible).
-    /// - Placeholder + an existing real person of that name whose face does not
-    ///   contradict (prints within `sameNameMergeDistance`, or neither has prints):
-    ///   the placeholder is merged into them and THEY are returned.
-    /// - Placeholder otherwise: renamed into a new real person; its face prints
-    ///   become anchors.
-    /// - Real person: the name is added as an alias (if it is not theirs already).
+    /// within `nameConfirmWindow`, or exactly one face was visible):
+    /// - Real person (`id` is not a placeholder): if the name is theirs →
+    ///   `.named`; otherwise `.differentSpeaker` and NOTHING changes — a name that
+    ///   contradicts theirs is never turned into an alias (use `addAlias`).
+    /// - Placeholder + a real person of that name (`choice: .ask`): merged only
+    ///   when the faces clearly match (score and nearest anchor within
+    ///   `threshold`); a second, separate person when they clearly differ (all
+    ///   prints ≥ `differentFaceDistance`); otherwise — including when either has
+    ///   no face — `.mergeCandidate` and nothing changes.
+    /// - Placeholder otherwise: renamed into a new real person. Its distinct
+    ///   prints that passed the quality gate become anchors when there are at
+    ///   least `minEnrollPrints`; with fewer they are kept as a pending enrolment
+    ///   (not matchable) and `needsEnrolment` is true. Other prints are dropped.
+    public func confirm(_ name: String, for rawID: UUID, at: Date = Date(), choice: SameNameChoice = .ask) -> ConfirmResult {
+        batch {
+            let id = resolve(rawID)
+            let clean = Self.cleanName(name)
+            guard let p = person(id), !clean.isEmpty,
+                  clean.caseInsensitiveCompare(Self.unknownFriendName) != .orderedSame else { return .rejected }
+            if !p.isPlaceholder {
+                // "John Smith" said by John is John (the app may `addAlias` it).
+                guard p.answers(to: clean) || Self.isFullerName(clean, of: p) else {
+                    return .differentSpeaker(current: p, heard: clean, candidate: peopleNamed(clean).first { $0.id != id })
+                }
+                pending[id] = nil
+                return .named(p, needsEnrolment: anchorCount(of: id) < faceMatching.minEnrollPrints)
+            }
+            switch choice {
+            case .sameAs(let target):
+                let t = resolve(target)
+                guard t != id, let existing = person(t), !existing.isPlaceholder else { return .rejected }
+                return .merged(into: mergePlaceholder(p, into: existing, at: at))
+            case .newPerson:
+                break
+            case .ask:
+                var unsure: Person?
+                for existing in peopleNamed(clean) where existing.id != id {
+                    switch faceRelation(id, existing.id) {
+                    case .same: return .merged(into: mergePlaceholder(p, into: existing, at: at))
+                    case .unknown: unsure = unsure ?? existing
+                    case .different: continue
+                    }
+                }
+                if let unsure { return .mergeCandidate(placeholder: p, existing: unsure) }
+            }
+            pending[id] = nil
+            if let session = p.session { sessionOwner[session] = id }
+            rename(id, to: clean)   // also promotes the placeholder's prints
+            return .named(person(id) ?? p, needsEnrolment: anchorCount(of: id) < faceMatching.minEnrollPrints)
+        }
+    }
+
+    /// Compatible wrapper around `confirm`: returns the person to talk to. A
+    /// `.mergeCandidate` is resolved the SAFE way — a new, separate person
+    /// (nothing is ever merged on a guess); `.differentSpeaker` returns the
+    /// known person unchanged (no alias is added).
     @discardableResult
     public func confirmName(_ name: String, for id: UUID, at: Date = Date()) -> Person {
-        let clean = Self.cleanName(name)
-        guard let p = person(id) else { return Person(name: clean, firstMet: at, lastSeen: at) }
-        guard !clean.isEmpty, clean.caseInsensitiveCompare(Self.unknownFriendName) != .orderedSame else { return p }
-        pending[id] = nil
-        if !p.isPlaceholder {
-            if !p.answers(to: clean) { addAlias(clean, to: id) }
-            return person(id) ?? p
+        let r = confirm(name, for: id, at: at)
+        switch r {
+        case .mergeCandidate(let placeholder, _):
+            return confirm(name, for: id, at: at, choice: .newPerson).person ?? placeholder
+        case .rejected:
+            return person(resolve(id)) ?? Person(name: Self.cleanName(name), firstMet: at, lastSeen: at)
+        default:
+            return r.person ?? Person(name: Self.cleanName(name), firstMet: at, lastSeen: at)
         }
-        if let existing = person(named: clean), existing.id != id, sameFace(id, existing.id) {
-            merge(id, into: existing.id)
-            noteEncounter(existing.id, at: at)
-            return person(existing.id) ?? existing
+    }
+
+    private func mergePlaceholder(_ p: Person, into existing: Person, at: Date) -> Person {
+        pending[p.id] = nil
+        merge(p.id, into: existing.id)
+        noteEncounter(existing.id, at: at)
+        return person(existing.id) ?? existing
+    }
+
+    enum FaceRelation { case same, different, unknown }
+
+    /// Whether placeholder `a` shows the face of real person `b`. `.same` needs
+    /// the placeholder's face AS A WHOLE to match: a strict majority of its
+    /// prints AND the centroid of its prints must each be within `threshold`
+    /// (score and nearest anchor). One stray print (a frame where the real
+    /// person walked past) is never enough. `.different` when every print is at
+    /// least `differentFaceDistance` from all of `b`'s anchors.
+    private func faceRelation(_ a: UUID, _ b: UUID) -> FaceRelation {
+        let pa = (gallery[a] ?? []).map(\.print)
+        let anchorsB = (gallery[b] ?? []).filter(\.anchor).map(\.print)
+        guard !pa.isEmpty, !anchorsB.isEmpty else { return .unknown }
+        let allB = galleryPrints[b] ?? anchorsB
+        func matches(_ x: FacePrint) -> Bool {
+            let s = FaceMatcher.score(x, prints: allB, k: faceMatching.matchNeighbours)
+            let nearest = anchorsB.map { x.distance(to: $0) }.min() ?? .greatestFiniteMagnitude
+            return s <= faceMatching.threshold && nearest <= faceMatching.threshold
         }
-        rename(id, to: clean)
-        // The placeholder's prints are now this person's enrolment.
-        if let set = gallery[id] {
-            let promote = set.prefix(faceMatching.maxAnchorsPerPerson).map(\.row)
+        var matching = 0
+        var allFar = true
+        for x in pa {
+            if matches(x) { matching += 1 }
+            let nearest = anchorsB.map { x.distance(to: $0) }.min() ?? .greatestFiniteMagnitude
+            if nearest < faceMatching.differentFaceDistance { allFar = false }
+        }
+        if matching * 2 > pa.count, let c = Self.centroid(pa), matches(c) { return .same }
+        return allFar ? .different : .unknown
+    }
+
+    /// Normalised mean of unit prints (nil when empty, mismatched or degenerate).
+    static func centroid(_ prints: [FacePrint]) -> FacePrint? {
+        guard let n = prints.first?.vector.count, n > 0, prints.allSatisfy({ $0.vector.count == n }) else { return nil }
+        var sum = [Float](repeating: 0, count: n)
+        for p in prints {
+            let v = p.normalized.vector
+            for i in 0..<n { sum[i] += v[i] }
+        }
+        guard sum.contains(where: { $0 != 0 }) else { return nil }
+        return FacePrint(vector: sum).normalized
+    }
+
+    /// After a placeholder became a real person: distinct quality prints become
+    /// anchors when there are enough (other prints are kept only if within
+    /// `learnThreshold` of an anchor); otherwise the quality prints wait as a
+    /// pending enrolment and the rest are deleted. Returns true when enrolled.
+    private func promotePlaceholderPrints(_ id: UUID) -> Bool {
+        placeholders.remove(id)
+        let set = gallery[id] ?? []
+        var chosen: [StoredPrint] = []
+        for sp in set where sp.quality && !chosen.contains(where: { $0.print.distance(to: sp.print) < 1e-3 }) { chosen.append(sp) }
+        let enrol = chosen.count >= faceMatching.minEnrollPrints
+        let promote = enrol ? Array(chosen.prefix(faceMatching.maxAnchorsPerPerson)) : []
+        let promoteRows = Set(promote.map(\.row))
+        let anchors = promote.map(\.print)
+        let drop = set.filter { sp in
+            if promoteRows.contains(sp.row) { return false }
+            if !enrol { return !sp.quality }
+            let near = anchors.map { sp.print.distance(to: $0) }.min() ?? .greatestFiniteMagnitude
+            return near > faceMatching.learnThreshold
+        }
+        let dropRows = Set(drop.map(\.row))
+        let ok: Bool? = attempt {
+            try db.transaction {
+                for r in promoteRows { try db.query("UPDATE face_prints SET anchor = 1 WHERE id = ?;", [.int(r)]) }
+                for r in dropRows { try db.query("DELETE FROM face_prints WHERE id = ?;", [.int(r)]) }
+            }
+            return true
+        }
+        if ok != nil {
+            let kept = set.filter { !dropRows.contains($0.row) }.map { sp -> StoredPrint in
+                var sp = sp
+                if promoteRows.contains(sp.row) { sp.anchor = true }
+                return sp
+            }
+            gallery[id] = kept.isEmpty ? nil : kept
+            if !dropRows.isEmpty { markRemoval() }
+        } else {
+            rebuildFaceIndex()
+        }
+        return enrol && ok != nil
+    }
+
+    /// Renames a person. A placeholder becomes a real person (its quality prints
+    /// become its enrolment, see `confirm`); a real person's old name becomes an alias.
+    public func rename(_ rawID: UUID, to name: String) {
+        batch {
+            let id = resolve(rawID)
+            let clean = Self.cleanName(name)
+            guard !clean.isEmpty, clean.caseInsensitiveCompare(Self.unknownFriendName) != .orderedSame,
+                  let p = person(id), p.name != clean else { return }
             let ok: Bool? = attempt {
-                try db.transaction { for r in promote { try db.query("UPDATE face_prints SET anchor = 1 WHERE id = ?;", [.int(r)]) } }
+                try db.transaction {
+                    try db.query("UPDATE people SET name = ?, session = NULL WHERE id = ?;", [.text(clean), .text(id.uuidString)])
+                    try db.query("DELETE FROM aliases WHERE person_id = ? AND alias = ? COLLATE NOCASE;", [.text(id.uuidString), .text(clean)])
+                    if !p.isPlaceholder, p.name.caseInsensitiveCompare(clean) != .orderedSame {
+                        try db.query("INSERT OR IGNORE INTO aliases(person_id, alias) VALUES (?, ?);", [.text(id.uuidString), .text(p.name)])
+                    }
+                    try capAliases(id)
+                }
                 return true
             }
-            if ok != nil { gallery[id] = set.map { var s = $0; if promote.contains(s.row) { s.anchor = true }; return s } }
-        }
-        return person(id) ?? p
-    }
-
-    /// Placeholder `a` and real person `b` may be the same face: both faceless,
-    /// or a print of `a` is within `sameNameMergeDistance` of one of `b`'s.
-    private func sameFace(_ a: UUID, _ b: UUID) -> Bool {
-        let pa = galleryPrints[a] ?? [], pb = galleryPrints[b] ?? []
-        if pa.isEmpty && pb.isEmpty { return true }
-        if pa.isEmpty || pb.isEmpty { return false }
-        let nearest = pa.flatMap { x in pb.map { x.distance(to: $0) } }.min() ?? .greatestFiniteMagnitude
-        return nearest <= faceMatching.sameNameMergeDistance
-    }
-
-    public func rename(_ id: UUID, to name: String) {
-        let clean = Self.cleanName(name)
-        guard !clean.isEmpty, clean.caseInsensitiveCompare(Self.unknownFriendName) != .orderedSame,
-              let p = person(id), p.name != clean else { return }
-        _ = attempt {
-            try db.transaction {
-                try db.query("UPDATE people SET name = ?, session = NULL WHERE id = ?;", [.text(clean), .text(id.uuidString)])
-                try db.query("DELETE FROM aliases WHERE person_id = ? AND alias = ? COLLATE NOCASE;", [.text(id.uuidString), .text(clean)])
-                if !p.isPlaceholder, p.name.caseInsensitiveCompare(clean) != .orderedSame {
-                    try db.query("INSERT OR IGNORE INTO aliases(person_id, alias) VALUES (?, ?);", [.text(id.uuidString), .text(p.name)])
-                }
-                try capAliases(id)
+            guard ok != nil else { return }
+            // The old name row was overwritten.
+            if !p.isPlaceholder { markRemoval() }
+            if p.isPlaceholder {
+                if let session = p.session { sessionOwner[session] = id }
+                _ = promotePlaceholderPrints(id)
             }
         }
     }
 
-    public func addAlias(_ alias: String, to id: UUID) {
-        let clean = Self.cleanName(alias)
-        guard !clean.isEmpty, let p = person(id), !p.isPlaceholder, !p.answers(to: clean) else { return }
-        _ = attempt {
-            try db.transaction {
-                try db.query("INSERT OR IGNORE INTO aliases(person_id, alias) VALUES (?, ?);", [.text(id.uuidString), .text(clean)])
-                try capAliases(id)
+    /// The ONLY way to give a real person another name.
+    public func addAlias(_ alias: String, to rawID: UUID) {
+        batch {
+            let id = resolve(rawID)
+            let clean = Self.cleanName(alias)
+            guard !clean.isEmpty, let p = person(id), !p.isPlaceholder, !p.answers(to: clean) else { return }
+            _ = attempt {
+                try db.transaction {
+                    try db.query("INSERT OR IGNORE INTO aliases(person_id, alias) VALUES (?, ?);", [.text(id.uuidString), .text(clean)])
+                    try capAliases(id)
+                }
             }
         }
     }
@@ -430,11 +675,13 @@ public actor MemoryStore {
         DELETE FROM aliases WHERE person_id = ?1 AND rowid NOT IN
             (SELECT rowid FROM aliases WHERE person_id = ?1 ORDER BY rowid DESC LIMIT ?2);
         """, [.text(id.uuidString), .int(Int64(Self.maxAliases))])
+        if db.changes > 0 { markRemoval() }
     }
 
     /// Counts a new encounter unless the previous one was under `encounterGap` ago
     /// (then only `lastSeen` moves). Call it as often as you like.
-    public func noteEncounter(_ id: UUID, at: Date) {
+    public func noteEncounter(_ rawID: UUID, at: Date) {
+        let id = resolve(rawID)
         guard let p = person(id) else { return }
         let fresh = at.timeIntervalSince(p.lastSeen) >= Self.encounterGap
         guard fresh || at > p.lastSeen else { return }
@@ -447,48 +694,62 @@ public actor MemoryStore {
     /// Folds `from` into `into`: facts merged (deduplicated), face prints (anchor
     /// flags kept), aliases (including `from`'s name unless it was a placeholder),
     /// encounter counts and first/last dates combined; `from` is then deleted.
-    public func merge(_ from: UUID, into: UUID) {
-        guard from != into, let a = person(from), let b = person(into) else { return }
-        let ok: Bool? = attempt {
-            try db.transaction {
-                for f in a.facts {
-                    _ = try storeFact(f.text, category: f.category, about: into, at: f.updatedAt, confidence: f.confidence, createdAt: f.createdAt)
+    /// `from`'s id (and session) keep resolving to `into` (see `resolve`).
+    public func merge(_ rawFrom: UUID, into rawInto: UUID) {
+        batch {
+            let from = resolve(rawFrom), into = resolve(rawInto)
+            guard from != into, let a = person(from), let b = person(into) else { return }
+            let ok: Bool? = attempt {
+                try db.transaction {
+                    for f in a.facts {
+                        _ = try storeFact(f.text, category: f.category, about: into, at: f.updatedAt, confidence: f.confidence, createdAt: f.createdAt)
+                    }
+                    var names = a.aliases
+                    if !a.isPlaceholder { names.insert(a.name, at: 0) }
+                    for n in names where n.caseInsensitiveCompare(b.name) != .orderedSame {
+                        try db.query("INSERT OR IGNORE INTO aliases(person_id, alias) VALUES (?, ?);", [.text(into.uuidString), .text(n)])
+                    }
+                    try capAliases(into)
+                    try db.query("UPDATE face_prints SET person_id = ? WHERE person_id = ?;", [.text(into.uuidString), .text(from.uuidString)])
+                    try db.query("UPDATE people SET first_met = ?, last_seen = ?, encounters = ? WHERE id = ?;", [
+                        .real(min(a.firstMet, b.firstMet).timeIntervalSince1970),
+                        .real(max(a.lastSeen, b.lastSeen).timeIntervalSince1970),
+                        .int(Int64(a.encounters + b.encounters)), .text(into.uuidString),
+                    ])
+                    try db.query("DELETE FROM people WHERE id = ?;", [.text(from.uuidString)])
                 }
-                var names = a.aliases
-                if !a.isPlaceholder { names.insert(a.name, at: 0) }
-                for n in names where n.caseInsensitiveCompare(b.name) != .orderedSame {
-                    try db.query("INSERT OR IGNORE INTO aliases(person_id, alias) VALUES (?, ?);", [.text(into.uuidString), .text(n)])
-                }
-                try capAliases(into)
-                try db.query("UPDATE face_prints SET person_id = ? WHERE person_id = ?;", [.text(into.uuidString), .text(from.uuidString)])
-                try db.query("UPDATE people SET first_met = ?, last_seen = ?, encounters = ? WHERE id = ?;", [
-                    .real(min(a.firstMet, b.firstMet).timeIntervalSince1970),
-                    .real(max(a.lastSeen, b.lastSeen).timeIntervalSince1970),
-                    .int(Int64(a.encounters + b.encounters)), .text(into.uuidString),
-                ])
-                try db.query("DELETE FROM people WHERE id = ?;", [.text(from.uuidString)])
+                return true
             }
-            return true
+            guard ok != nil else { return }
+            placeholders.remove(from)
+            redirects[from] = into
+            if let session = a.session { sessionOwner[session] = into }
+            var moved = gallery[into] ?? []
+            moved += gallery[from] ?? []
+            moved.sort { $0.row < $1.row }
+            gallery[from] = nil
+            gallery[into] = moved
+            pending[from] = nil
+            if streak?.id == from { streak = nil }
+            prunePrints(of: into)
+            markRemoval()
         }
-        guard ok != nil else { return }
-        var moved = gallery[into] ?? []
-        moved += gallery[from] ?? []
-        moved.sort { $0.row < $1.row }
-        gallery[from] = nil
-        gallery[into] = moved
-        pending[from] = nil
-        if streak?.id == from { streak = nil }
-        prunePrints(of: into)
-        checkpoint()
     }
 
     /// Deletes one person and everything known about them (and truncates the WAL).
-    public func forgetPerson(_ id: UUID) {
-        _ = attempt { try db.query("DELETE FROM people WHERE id = ?;", [.text(id.uuidString)]) }
-        gallery[id] = nil
-        pending[id] = nil
-        if streak?.id == id { streak = nil }
-        checkpoint()
+    /// A merged-away id forgets the person it was merged into.
+    public func forgetPerson(_ rawID: UUID) {
+        batch {
+            let id = resolve(rawID)
+            _ = attempt { try db.query("DELETE FROM people WHERE id = ?;", [.text(id.uuidString)]) }
+            placeholders.remove(id)
+            gallery[id] = nil
+            pending[id] = nil
+            if streak?.id == id { streak = nil }
+            redirects = redirects.filter { $0.value != id && $0.key != id }
+            sessionOwner = sessionOwner.filter { $0.value != id }
+            markRemoval()
+        }
     }
 
     public func forgetEverything() {
@@ -502,9 +763,28 @@ public actor MemoryStore {
             try db.execute("VACUUM;")
             try db.checkpoint()
         }
+        placeholders = []
+        sessionOwner = [:]
+        redirects = [:]
         gallery = [:]
         pending = [:]
         streak = nil
+        removalPending = false
+    }
+
+    /// True when `heard` and one of `p`'s names share their first word and one
+    /// is a word-prefix of the other: "John Smith" for John, "John" for John
+    /// Smith. "John Doe" for John Smith is NOT the same name.
+    static func isFullerName(_ heard: String, of p: Person) -> Bool {
+        let h = cleanName(heard).lowercased().split(separator: " ").map(String.init)
+        guard !h.isEmpty else { return false }
+        for n in [p.name] + p.aliases {
+            let w = cleanName(n).lowercased().split(separator: " ").map(String.init)
+            guard !w.isEmpty, w != h, w[0] == h[0] else { continue }
+            let (short, long) = w.count < h.count ? (w, h) : (h, w)
+            if Array(long.prefix(short.count)) == short { return true }
+        }
+        return false
     }
 
     static func cleanName(_ s: String) -> String {
@@ -514,30 +794,67 @@ public actor MemoryStore {
 
     // MARK: - Faces
 
-    /// Adds prints to a person. `anchor: true` marks enrolment prints (never
-    /// trimmed, up to `maxAnchorsPerPerson`; any beyond are added as ordinary
-    /// prints). Ordinary prints form the rolling, trimmed set.
-    public func addFacePrints(_ prints: [FacePrint], to id: UUID, anchor: Bool = false) {
-        let valid = prints.filter { !$0.vector.isEmpty }.map(\.normalized)
-        guard !valid.isEmpty, person(id) != nil else { return }
-        var room = anchor ? max(0, faceMatching.maxAnchorsPerPerson - (gallery[id]?.filter(\.anchor).count ?? 0)) : 0
-        let now = Date().timeIntervalSince1970
-        var added: [StoredPrint] = []
-        let ok: Bool? = attempt {
-            try db.transaction {
-                for p in valid {
-                    let isAnchor = room > 0
-                    if isAnchor { room -= 1 }
-                    try db.query("INSERT INTO face_prints(person_id, vector, added_at, anchor) VALUES (?, ?, ?, ?);",
-                                 [.text(id.uuidString), .blob(p.blob), .real(now), .int(isAnchor ? 1 : 0)])
-                    added.append(StoredPrint(row: db.lastInsertRowID, print: p, anchor: isAnchor))
+    /// Adds prints to a person.
+    ///
+    /// `anchor: true` marks enrolment prints: the caller vouches that each passed
+    /// `FaceQualityGate` (e.g. from `FaceEmbedder.enrolmentPrint`). A real person
+    /// gets anchors only once they have ≥ `minEnrollPrints` distinct quality prints
+    /// in total — fewer wait as a pending enrolment that does not match yet. Anchors
+    /// are never trimmed (at most `maxAnchorsPerPerson`; any beyond are ordinary
+    /// prints). For a placeholder, quality prints are kept un-anchored until
+    /// `confirm` promotes them.
+    ///
+    /// `passedQualityGate` overrides the quality flag (default: `anchor`), e.g. a
+    /// placeholder's capture that passed the gate. Ordinary prints form the
+    /// rolling, trimmed set.
+    public func addFacePrints(_ prints: [FacePrint], to rawID: UUID, anchor: Bool = false, passedQualityGate: Bool? = nil) {
+        batch {
+            let id = resolve(rawID)
+            let quality = passedQualityGate ?? anchor
+            let valid = Self.distinct(prints)
+            guard !valid.isEmpty, let p = person(id) else { return }
+            let set = gallery[id] ?? []
+            let anchorsNow = set.filter(\.anchor).count
+            var room = 0
+            var promoteRows: [Int64] = []
+            if anchor, quality, !p.isPlaceholder {
+                room = max(0, faceMatching.maxAnchorsPerPerson - anchorsNow)
+                if anchorsNow < faceMatching.minEnrollPrints {
+                    // First enrolment: pending quality prints count towards the minimum.
+                    let pendingQ = set.filter { $0.quality && !$0.anchor }
+                    let pool = Self.distinct(pendingQ.map(\.print) + valid)
+                    if anchorsNow + pool.count >= faceMatching.minEnrollPrints {
+                        promoteRows = Array(pendingQ.prefix(room).map(\.row))
+                        room -= promoteRows.count
+                    } else {
+                        room = 0
+                    }
                 }
             }
-            return true
+            let now = Date().timeIntervalSince1970
+            var added: [StoredPrint] = []
+            let ok: Bool? = attempt {
+                try db.transaction {
+                    for r in promoteRows { try db.query("UPDATE face_prints SET anchor = 1 WHERE id = ?;", [.int(r)]) }
+                    for p in valid {
+                        let isAnchor = room > 0
+                        if isAnchor { room -= 1 }
+                        try db.query("INSERT INTO face_prints(person_id, vector, added_at, anchor) VALUES (?, ?, ?, ?);",
+                                     [.text(id.uuidString), .blob(p.blob), .real(now), .int(isAnchor ? 1 : 0)])
+                        added.append(StoredPrint(row: db.lastInsertRowID, print: p, anchor: isAnchor, quality: quality))
+                    }
+                }
+                return true
+            }
+            guard ok != nil else { return }
+            let promoted = Set(promoteRows)
+            gallery[id] = set.map { sp in
+                var sp = sp
+                if promoted.contains(sp.row) { sp.anchor = true }
+                return sp
+            } + added
+            prunePrints(of: id)
         }
-        guard ok != nil else { return }
-        gallery[id, default: []] += added
-        prunePrints(of: id)
     }
 
     private func prunePrints(of id: UUID) {
@@ -550,14 +867,17 @@ public actor MemoryStore {
             try db.transaction { for r in rows { try db.query("DELETE FROM face_prints WHERE id = ?;", [.int(r)]) } }
             return true
         }
-        if ok != nil { gallery[id] = set.enumerated().filter { !drop.contains($0.offset) }.map(\.element) }
+        if ok != nil {
+            gallery[id] = set.enumerated().filter { !drop.contains($0.offset) }.map(\.element)
+            markRemoval()
+        }
     }
 
-    public func facePrintCount(of id: UUID) -> Int { gallery[id]?.count ?? 0 }
-    public func anchorCount(of id: UUID) -> Int { gallery[id]?.filter(\.anchor).count ?? 0 }
+    public func facePrintCount(of id: UUID) -> Int { gallery[resolve(id)]?.count ?? 0 }
+    public func anchorCount(of id: UUID) -> Int { gallery[resolve(id)]?.filter(\.anchor).count ?? 0 }
     /// The stored prints of one person (oldest first) — for diagnostics and tests.
     public func facePrints(of id: UUID) -> [(print: FacePrint, anchor: Bool)] {
-        (gallery[id] ?? []).map { ($0.print, $0.anchor) }
+        (gallery[resolve(id)] ?? []).map { ($0.print, $0.anchor) }
     }
 
     /// Best match for a frame with ONE face, else nil. Learns (see `identifyAll`).
@@ -569,31 +889,42 @@ public actor MemoryStore {
         identifyAll([print], learn: learn).first ?? nil
     }
 
+    public func identifyAll(_ prints: [FacePrint], learn: Bool = true) -> [(person: Person, distance: Float)?] {
+        identifyAll(prints, learn: learn, at: Date())
+    }
+
     /// Identifies all faces of one frame (same order as `prints`). Each person is
-    /// assigned to at most one face; unknown or ambiguous faces are nil.
+    /// assigned to at most one face; unknown or ambiguous faces are nil (the
+    /// runner-up is judged by its raw score, even when it fails its anchor check).
     ///
     /// Learning (`learn: true`) happens only when the frame has exactly ONE face,
     /// that face matched the same person for `learnAfterFrames` consecutive
-    /// frames, it is within `learnThreshold` of one of that person's ANCHOR
-    /// prints, and it is novel (≥ `minNovelty` from every stored print).
-    public func identifyAll(_ prints: [FacePrint], learn: Bool = true) -> [(person: Person, distance: Float)?] {
-        let probes = prints.map(\.normalized)
-        let assigned = FaceMatcher.assign(probes, among: galleryPrints, anchors: galleryAnchors, tuning: faceMatching)
-        if learn {
-            if probes.count == 1, let m = assigned[0] {
-                let frames = streak?.id == m.id ? (streak?.frames ?? 0) + 1 : 1
-                streak = (m.id, frames)
-                let anchors = galleryAnchors[m.id] ?? []
-                let nearAnchor = anchors.map { probes[0].distance(to: $0) }.min() ?? .greatestFiniteMagnitude
-                if frames >= faceMatching.learnAfterFrames, nearAnchor <= faceMatching.learnThreshold,
-                   FaceMatcher.isNovel(probes[0], comparedTo: galleryPrints[m.id] ?? [], tuning: faceMatching) {
-                    addFacePrints([probes[0]], to: m.id, anchor: false)
+    /// frames each within `learnStreakGap` of the previous one, its mean distance
+    /// to that person's closest ANCHOR prints and its nearest anchor are both
+    /// within `learnThreshold`, and it is novel (≥ `minNovelty` from every print).
+    public func identifyAll(_ prints: [FacePrint], learn: Bool, at now: Date) -> [(person: Person, distance: Float)?] {
+        batch {
+            let probes = prints.map(\.normalized)
+            let assigned = FaceMatcher.assign(probes, among: galleryPrints, anchors: galleryAnchors, tuning: faceMatching)
+            if learn {
+                if probes.count == 1, let m = assigned[0] {
+                    let continues = streak.map { $0.id == m.id && now >= $0.at && now.timeIntervalSince($0.at) <= faceMatching.learnStreakGap } ?? false
+                    let frames = continues ? (streak?.frames ?? 0) + 1 : 1
+                    streak = (m.id, frames, now)
+                    let anchors = galleryAnchors[m.id] ?? []
+                    let nearAnchor = anchors.map { probes[0].distance(to: $0) }.min() ?? .greatestFiniteMagnitude
+                    let anchorScore = FaceMatcher.score(probes[0], prints: anchors, k: faceMatching.matchNeighbours)
+                    if frames >= faceMatching.learnAfterFrames, nearAnchor <= faceMatching.learnThreshold,
+                       anchorScore <= faceMatching.learnThreshold,
+                       FaceMatcher.isNovel(probes[0], comparedTo: galleryPrints[m.id] ?? [], tuning: faceMatching) {
+                        addFacePrints([probes[0]], to: m.id, anchor: false)
+                    }
+                } else {
+                    streak = nil
                 }
-            } else {
-                streak = nil
             }
+            return assigned.map { m in m.flatMap { m in person(m.id).map { ($0, m.distance) } } }
         }
-        return assigned.map { m in m.flatMap { m in person(m.id).map { ($0, m.distance) } } }
     }
 
     // MARK: - Facts
@@ -603,24 +934,33 @@ public actor MemoryStore {
     /// - same single-valued slot (age, home, job, favourite X, marital status…) → updated in place;
     /// - same category and similar words → timestamp refreshed, confidence reinforced,
     ///   the more detailed wording kept.
-    /// Returns nil (nothing stored) for an unknown person, empty text, or a fact
-    /// on the deny-list (hateful, violent, drugs, self-referential).
+    /// Returns nil (nothing stored) for an unknown person, empty text, a fact on
+    /// the deny-list (hateful, slurs, extremism, violent, drugs, self-referential)
+    /// or a self-harm signal ("hates their life"). Sensitivity is decided from
+    /// the text, whatever `category` says (`remember(…, category: .work)` of
+    /// "is a sex worker" is still sensitive).
     @discardableResult
     public func remember(_ text: String, category: Fact.Category, about id: UUID, at: Date) -> Fact? {
         remember(text, category: category, about: id, at: at, confidence: Self.baseConfidence)
     }
 
     @discardableResult
-    public func remember(_ text: String, category: Fact.Category, about id: UUID, at: Date, confidence: Double) -> Fact? {
-        let clean = normaliseFactText(text, about: id)
-        guard !clean.isEmpty, !FactPolicy.isDenied(clean), !FactPolicy.selfHarm.matches(clean), person(id) != nil else { return nil }
-        return attempt { try db.transaction { try storeFact(clean, category: category, about: id, at: at, confidence: confidence, createdAt: at) } }
+    public func remember(_ text: String, category: Fact.Category, about rawID: UUID, at: Date, confidence: Double) -> Fact? {
+        batch {
+            let id = resolve(rawID)
+            let clean = normaliseFactText(text, about: id)
+            guard !clean.isEmpty, !FactPolicy.isDenied(clean), !FactPolicy.isDenied(text),
+                  !FactPolicy.selfHarm.matches(clean), !FactPolicy.isSelfHarm(text), person(id) != nil else { return nil }
+            return attempt { try db.transaction { try storeFact(clean, category: category, about: id, at: at, confidence: confidence, createdAt: at) } }
+        }
     }
 
     private func storeFact(_ text: String, category: Fact.Category, about id: UUID, at: Date, confidence: Double, createdAt: Date) throws -> Fact {
         let existing = try loadFacts(id)
         func update(_ f: Fact, text newText: String, confidence c: Double) throws -> Fact {
             var f = f
+            // The old wording is overwritten: it must not linger in the WAL.
+            if f.text != newText { markRemoval() }
             f.text = newText
             f.category = category
             f.confidence = min(1, c)
@@ -638,6 +978,7 @@ public actor MemoryStore {
                     return try update(f, text: text, confidence: max(f.confidence, confidence) + Self.reinforcement)
                 }
                 try db.query("DELETE FROM facts WHERE id = ?;", [.text(f.id.uuidString)])
+                markRemoval()
             }
         }
         if let slot = FactMerge.slot(text, category: category),
@@ -719,7 +1060,8 @@ public actor MemoryStore {
     /// `candidates` for the model to confirm. Also understands first-person
     /// phrasings ("that I like jazz"). Truncates the WAL afterwards.
     @discardableResult
-    public func forgetFacts(matching text: String, about id: UUID) -> ForgetOutcome {
+    public func forgetFacts(matching text: String, about rawID: UUID) -> ForgetOutcome {
+        let id = resolve(rawID)
         let facts = (attempt { try loadFacts(id) }) ?? []
         guard !facts.isEmpty else { return ForgetOutcome() }
         var queries = [normaliseFactText(text, about: id).lowercased()]
@@ -750,18 +1092,13 @@ public actor MemoryStore {
             }
         }
         guard !hits.isEmpty else { return ForgetOutcome(candidates: candidates) }
-        let ok: Bool? = attempt {
-            try db.transaction { for f in hits { try db.query("DELETE FROM facts WHERE id = ?;", [.text(f.id.uuidString)]) } }
-            return true
-        }
-        guard ok != nil else { return ForgetOutcome() }
-        checkpoint()
-        return ForgetOutcome(forgotten: hits)
+        return batch { delete(hits).isEmpty ? ForgetOutcome() : ForgetOutcome(forgotten: hits) }
     }
 
     /// Facts about the person that match a free-text query, best first.
     /// Sensitive facts ARE included (this is what `recall` uses).
-    public func search(_ query: String, about id: UUID, limit: Int = 8) -> [Fact] {
+    public func search(_ query: String, about rawID: UUID, limit: Int = 8) -> [Fact] {
+        let id = resolve(rawID)
         let facts = (attempt { try loadFacts(id) }) ?? []
         let q = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         let everything: Set<String> = ["", "everything", "all", "anything", "me", "myself", "about me", "what do you know", "what you know"]
@@ -772,79 +1109,191 @@ public actor MemoryStore {
             .prefix(limit).map(\.0)
     }
 
-    /// Learns from one utterance by `id`.
+    /// Learns from one utterance by `id` (a merged-away id resolves to the
+    /// person it became).
     ///
     /// Names are never applied: a name heard becomes `pendingName` (also kept in
     /// `pendingName(for:)`, counting repeats within `nameConfirmWindow`); the app
-    /// confirms and calls `confirmName`. If the speaker is a known person and the
+    /// confirms and calls `confirm`. If the speaker is a known person and the
     /// utterance claims a different name ("I'm Mike…" while Dee thinks it is
-    /// John), NOTHING is stored — the face may be misidentified; switch person
-    /// and call `learn` again for the right one.
+    /// John), NOTHING is stored and `differentSpeaker` is set — the face may be
+    /// misidentified; switch person and call `learn` again for the right one.
+    /// A nickname said with their own name ("I'm Thomas, call me Tom") is only
+    /// a `suggestedAlias`. Introductions ("this is Sarah", "meet my friend
+    /// Sarah") never count as the speaker's name: they come back in `introduced`.
     ///
     /// Retractions ("my dog died", "I used to like jazz", "I quit my job") delete
-    /// the matching facts. Self-harm statements and denied content are never stored.
+    /// the matching facts; "my dog died" with two dogs on record (or "Salt died"
+    /// with "cats named Salt and Pepper", which only drops Salt) is resolved by
+    /// name, and when it cannot be, nothing is deleted and the facts come back as
+    /// `retractionCandidates`. Self-harm statements (`wellbeingConcern`) and
+    /// denied content are never stored.
     @discardableResult
-    public func learn(from utterance: String, about id: UUID, at: Date) -> LearnOutcome {
-        guard let p = person(id) else { return LearnOutcome() }
-        let found = FactExtractor.extract(from: utterance, now: at, calendar: calendar)
-        var outcome = LearnOutcome()
-        let names = found.compactMap(\.name)
-        if !names.isEmpty {
-            let other = p.isPlaceholder ? names : names.filter { !p.answers(to: $0) }
-            if let n = other.first {
-                outcome.pendingName = n
-                outcome.mergeCandidate = person(named: n).flatMap { $0.id == id ? nil : $0.id }
-                notePending(n, for: id, at: at)
-                // A different name claimed by a known person, and none of theirs:
-                // probably not who the face says. Store nothing.
-                if !p.isPlaceholder, other.count == names.count { return outcome }
+    public func learn(from utterance: String, about rawID: UUID, at: Date) -> LearnOutcome {
+        batch {
+            let id = resolve(rawID)
+            guard let p = person(id) else { return LearnOutcome() }
+            if FactExtractor.selfHarmSignal(in: utterance) { return LearnOutcome(wellbeingConcern: true) }
+            let found = FactExtractor.extract(from: utterance, now: at, calendar: calendar)
+            var outcome = LearnOutcome()
+            outcome.introduced = FactExtractor.introductions(in: utterance)
+            let names = found.compactMap(\.name)
+            if let first = names.first {
+                if p.isPlaceholder {
+                    outcome.pendingName = first
+                    outcome.mergeCandidate = person(named: first).flatMap { $0.id == id ? nil : $0.id }
+                    notePending(first, for: id, at: at)
+                } else {
+                    // "I'm John Smith" from John: the same person giving a fuller name.
+                    let other = names.filter { !p.answers(to: $0) && !Self.isFullerName($0, of: p) }
+                    if other.isEmpty, let full = names.first(where: { !p.answers(to: $0) }) {
+                        outcome.suggestedAlias = full
+                    }
+                    if let n = other.first {
+                        if other.count == names.count {
+                            // A different name and none of theirs: probably not who
+                            // the face says. Store nothing.
+                            outcome.pendingName = n
+                            outcome.mergeCandidate = person(named: n).flatMap { $0.id == id ? nil : $0.id }
+                            outcome.differentSpeaker = true
+                            notePending(n, for: id, at: at)
+                            return outcome
+                        }
+                        outcome.suggestedAlias = n
+                    }
+                }
             }
+            for r in found where r.retracts {
+                let (gone, ask) = retract(r, about: id)
+                outcome.retracted += gone
+                for f in ask where !outcome.retractionCandidates.contains(where: { $0.id == f.id }) {
+                    outcome.retractionCandidates.append(f)
+                }
+            }
+            for f in found where f.name == nil && !f.retracts {
+                if let fact = remember(f.text, category: f.category, about: id, at: at) { outcome.stored.append(fact) }
+            }
+            return outcome
         }
-        for r in found where r.retracts {
-            outcome.retracted += retract(r, about: id)
-        }
-        for f in found where f.name == nil && !f.retracts {
-            if let fact = remember(f.text, category: f.category, about: id, at: at) { outcome.stored.append(fact) }
-        }
-        if !outcome.retracted.isEmpty { checkpoint() }
-        return outcome
     }
 
     static let retractNoise: Set<String> = ["like", "love", "enjoy", "prefer", "adore", "dislike", "hate"]
+    static let countWords: Set<String> = ["a", "an", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "some", "my"]
 
-    /// Deletes the facts a retraction refers to; returns their texts.
-    private func retract(_ r: ExtractedFact, about id: UUID) -> [String] {
+    /// Names listed in a "… named A, B and C" fact, lower-cased.
+    static func listedNames(_ text: String) -> [String] {
+        let text = " " + text
+        guard let r = text.range(of: " named ") else { return [] }
+        return String(text[r.upperBound...]).components(separatedBy: ", ")
+            .flatMap { $0.components(separatedBy: " and ") }
+            .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+    }
+
+    /// "has a dog named Rex" → "dog"; "has two dogs named …" → "dogs"; "has a mom" → "mom".
+    static func livingNoun(_ text: String) -> String? {
+        var head = text
+        if let r = head.range(of: " named ") { head = String(head[..<r.lowerBound]) }
+        let words = head.lowercased().split(separator: " ").map(String.init)
+        guard words.first == "has" else { return nil }
+        let rest = words.dropFirst().drop { countWords.contains($0) || $0.allSatisfy(\.isNumber) }
+        return rest.isEmpty ? nil : rest.joined(separator: " ")
+    }
+
+    /// How many animals / people one fact describes.
+    static func individuals(_ f: Fact) -> Int {
+        let names = listedNames(f.text)
+        if !names.isEmpty { return names.count }
+        let words = f.text.lowercased().split(separator: " ").map(String.init)
+        if words.count >= 2, words[0] == "has" {
+            if let n = FactExtractor.parseNumber(words[1]), n > 1 { return n }
+            if !["a", "an", "one", "my"].contains(words[1]), let noun = words.last, noun.hasSuffix("s"), !noun.hasSuffix("ss") { return 2 }
+        }
+        return 1
+    }
+
+    /// Deletes (or narrows) the facts a retraction refers to; returns the texts
+    /// retracted and, when it is ambiguous, the candidate facts (nothing deleted).
+    private func retract(_ r: ExtractedFact, about id: UUID) -> (gone: [String], ask: [Fact]) {
         let facts = (attempt { try loadFacts(id) }) ?? []
-        var hits: [Fact]
         if r.text == "job", r.category == .work {
-            hits = facts.filter { f in
+            let hits = facts.filter { f in
                 guard f.category == .work else { return false }
                 let s = FactMerge.slot(f.text, category: f.category)
                 return s == "job" || s == "employer" || f.text.lowercased() == "works from home"
             }
-        } else {
-            let keys = FactMerge.tokens(r.text).subtracting(Self.retractNoise)
-            var nameKeys = Set<String>()
-            if let range = r.text.range(of: "named ") { nameKeys = FactMerge.tokens(String(r.text[range.upperBound...])) }
-            let rPol = FactMerge.polarity(r.text)
-            hits = facts.filter { f in
-                if r.category == .other {
-                    guard f.category == .pet || f.category == .relationship else { return false }
-                } else if f.category != r.category {
-                    return false
-                }
-                if let rp = rPol, let fp = FactMerge.polarity(f.text) { return rp.object == fp.object && rp.positive == fp.positive }
-                let ft = FactMerge.tokens(f.text)
-                if !keys.isEmpty, keys.isSubset(of: ft) { return true }
-                return !nameKeys.isEmpty && nameKeys.isSubset(of: ft)
-            }
+            return (delete(hits), [])
         }
+        let living = r.category == .pet || r.category == .relationship || (r.category == .other && r.text.hasPrefix("named "))
+        guard living else {
+            let keys = FactMerge.tokens(r.text).subtracting(Self.retractNoise)
+            let rPol = FactMerge.polarity(r.text)
+            let hits = facts.filter { f in
+                guard f.category == r.category else { return false }
+                if let rp = rPol, let fp = FactMerge.polarity(f.text) { return rp.object == fp.object && rp.positive == fp.positive }
+                return !keys.isEmpty && keys.isSubset(of: FactMerge.tokens(f.text))
+            }
+            return (delete(hits), [])
+        }
+        // Pets and people: "my dog died", "my dog Rex died", "Rex died", "my mom passed away".
+        let names = Self.listedNames(r.text).map { $0.lowercased() }
+        let nounKeys = Self.livingNoun(r.text).map { FactMerge.tokens($0) } ?? []
+        let matching = facts.filter { f in
+            if r.category == .other {
+                guard f.category == .pet || f.category == .relationship else { return false }
+            } else if f.category != r.category {
+                return false
+            }
+            let ft = FactMerge.tokens(f.text)
+            if !nounKeys.isEmpty, !nounKeys.isSubset(of: ft) { return false }
+            if !names.isEmpty {
+                let listed = Self.listedNames(f.text).map { $0.lowercased() }
+                return names.allSatisfy { listed.contains($0) }
+            }
+            return true
+        }
+        guard !matching.isEmpty else { return ([], []) }
+        if names.isEmpty {
+            // "My dog died": only certain when exactly one dog is on record.
+            if matching.count == 1, Self.individuals(matching[0]) <= 1 { return (delete(matching), []) }
+            return ([], matching)
+        }
+        guard matching.count == 1, let f = matching.first else { return ([], matching) }
+        let listed = Self.listedNames(f.text)
+        let remaining = listed.filter { !names.contains($0.lowercased()) }
+        if remaining.isEmpty { return (delete([f]), []) }
+        // "Salt died" with "has cats named Salt and Pepper" → "has a cat named Pepper".
+        guard let noun = Self.livingNoun(f.text) else { return ([], matching) }
+        let removed = listed.filter { names.contains($0.lowercased()) }
+        let rebuilt: String
+        let gone: String
+        if f.category == .pet {
+            rebuilt = FactExtractor.petFact(count: nil, animal: noun, names: remaining).text
+            gone = FactExtractor.petFact(count: nil, animal: FactExtractor.singularise(noun), names: removed).text
+        } else {
+            let single = remaining.count == 1 && !Lex.pluralRelations.contains(noun) ? FactExtractor.singularise(noun) : noun
+            rebuilt = FactExtractor.relFact(count: nil, rel: single, names: remaining).text
+            gone = FactExtractor.relFact(count: nil, rel: FactExtractor.singularise(noun), names: removed).text
+        }
+        let ok: Bool? = attempt {
+            try db.query("UPDATE facts SET text = ?, sensitive = ? WHERE id = ?;",
+                         [.text(rebuilt), .int(FactSensitivity.isSensitive(rebuilt, category: f.category) ? 1 : 0), .text(f.id.uuidString)])
+            return true
+        }
+        guard ok != nil else { return ([], []) }
+        markRemoval()
+        return ([gone], [])
+    }
+
+    /// Deletes facts; returns their texts.
+    private func delete(_ hits: [Fact]) -> [String] {
         guard !hits.isEmpty else { return [] }
         let ok: Bool? = attempt {
             try db.transaction { for f in hits { try db.query("DELETE FROM facts WHERE id = ?;", [.text(f.id.uuidString)]) } }
             return true
         }
-        return ok == nil ? [] : hits.map(\.text)
+        guard ok != nil else { return [] }
+        markRemoval()
+        return hits.map(\.text)
     }
 
     // MARK: - Prompt
@@ -891,7 +1340,7 @@ public actor MemoryStore {
     public static let askNameLine = "You don't know their name yet — ask."
 
     public func promptMemories(for id: UUID, limit: Int, now: Date) -> [String] {
-        guard limit > 0, let p = person(id) else { return [] }
+        guard limit > 0, let p = person(resolve(id)) else { return [] }
         if p.isPlaceholder { return [Self.askNameLine] }
         var header = "Name: \(p.name)"
         if !p.aliases.isEmpty { header += " (also \(p.aliases.prefix(2).joined(separator: ", ")))" }

@@ -166,13 +166,82 @@ public struct LearnOutcome: Sendable, Equatable {
     public var mergeCandidate: UUID?
     /// Texts of facts deleted because the utterance said they are no longer true.
     public var retracted: [String]
+    /// A retraction matched several facts (or one fact about several animals /
+    /// people, e.g. "my dog died" with Rex and Max): nothing was deleted — ask which.
+    public var retractionCandidates: [Fact]
+    /// The speaker is a known person who claimed a name that is not theirs
+    /// ("I'm Mike" while the face says John): probably someone else is speaking.
+    /// Nothing was stored. Switch person; `confirm` will never alias it.
+    public var differentSpeaker: Bool
+    /// A nickname heard together with the person's own name ("I'm Thomas but
+    /// everyone calls me Tom"). Not applied: call `addAlias` once confirmed.
+    public var suggestedAlias: String?
+    /// People the speaker introduced ("this is Sarah", "meet my friend Sarah").
+    public var introduced: [String]
+    /// The utterance was a self-harm / wellbeing signal: nothing was stored.
+    public var wellbeingConcern: Bool
 
-    public init(stored: [Fact] = [], pendingName: String? = nil, mergeCandidate: UUID? = nil, retracted: [String] = []) {
+    public init(stored: [Fact] = [], pendingName: String? = nil, mergeCandidate: UUID? = nil, retracted: [String] = [],
+                retractionCandidates: [Fact] = [], differentSpeaker: Bool = false, suggestedAlias: String? = nil,
+                introduced: [String] = [], wellbeingConcern: Bool = false) {
         self.stored = stored
         self.pendingName = pendingName
         self.mergeCandidate = mergeCandidate
         self.retracted = retracted
+        self.retractionCandidates = retractionCandidates
+        self.differentSpeaker = differentSpeaker
+        self.suggestedAlias = suggestedAlias
+        self.introduced = introduced
+        self.wellbeingConcern = wellbeingConcern
     }
+}
+
+/// What `MemoryStore.confirm(_:for:at:choice:)` did with a confirmed name.
+public enum ConfirmResult: Sendable, Equatable {
+    /// The placeholder is now a real person with this name, or `id` was already a
+    /// person answering to it. `needsEnrolment`: they have fewer than
+    /// `FaceMatching.minEnrollPrints` anchors (too few quality prints were seen),
+    /// so they cannot be recognised by face yet — add ≥ 3 quality prints with
+    /// `addFacePrints(_:to:anchor: true)` / `enroll`.
+    case named(Person, needsEnrolment: Bool)
+    /// The placeholder was the same face as an existing person of that name and
+    /// was merged into them; this is that person.
+    case merged(into: Person)
+    /// A person of that name exists but the store cannot tell whether this is
+    /// them (one or both have no face, or the faces are neither clearly the same
+    /// nor clearly different). NOTHING changed: ask ("Are you the John I met in
+    /// March?"), then call `confirm` again with `.sameAs(existing.id)` or `.newPerson`.
+    case mergeCandidate(placeholder: Person, existing: Person)
+    /// `id` is a known person and the name is not theirs: a different person is
+    /// probably speaking (the face was misidentified). NOTHING changed and no
+    /// alias was added (aliases only via `addAlias`). `candidate` is a real person
+    /// already called `heard`, if any — switch to them or to a placeholder.
+    case differentSpeaker(current: Person, heard: String, candidate: Person?)
+    /// Unknown id or unusable name.
+    case rejected
+
+    /// The person to talk to now (`current` for `differentSpeaker`, the untouched
+    /// placeholder for `mergeCandidate`), nil for `rejected`.
+    public var person: Person? {
+        switch self {
+        case .named(let p, _): p
+        case .merged(let p): p
+        case .mergeCandidate(let p, _): p
+        case .differentSpeaker(let p, _, _): p
+        case .rejected: nil
+        }
+    }
+}
+
+/// How `confirm` treats an existing real person with the confirmed name.
+public enum SameNameChoice: Sendable, Equatable {
+    /// Merge only when the faces clearly match; separate when they clearly
+    /// differ; otherwise return `.mergeCandidate` and change nothing.
+    case ask
+    /// The app confirmed this is that person: merge the placeholder into them.
+    case sameAs(UUID)
+    /// The app confirmed it is someone new: never merge.
+    case newPerson
 }
 
 /// What `MemoryStore.forgetFacts(matching:about:)` did.
@@ -222,10 +291,14 @@ public struct FaceMatching: Sendable, Equatable {
     /// `enroll` needs at least this many distinct prints (from different frames,
     /// each passing `FaceQualityGate`).
     public var minEnrollPrints: Int = 3
-    /// `confirmName` merges a placeholder into an existing person of the same name
-    /// only when one of its prints is at least this close to one of theirs
-    /// (unrelated faces sit near √2 ≈ 1.41), or when neither has a face.
-    public var sameNameMergeDistance: Float = 0.9
+    /// `confirm` treats a placeholder whose prints are all at least this far from
+    /// a same-named person's anchors as a DIFFERENT person (unrelated faces sit
+    /// near √2 ≈ 1.41). It merges only within `threshold` (score and nearest
+    /// anchor, as identification does); in between it asks (`.mergeCandidate`).
+    public var differentFaceDistance: Float = 0.9
+    /// The `learnAfterFrames` agreeing frames must each follow the previous one
+    /// within this many seconds, or the streak restarts.
+    public var learnStreakGap: TimeInterval = 2
 
     public init() {}
 }
@@ -240,21 +313,18 @@ public enum FaceMatcher {
         return d.prefix(n).reduce(0, +) / Float(n)
     }
 
-    /// Ranked candidates for one probe: (id, score) for every person whose score
-    /// and nearest anchor are within `threshold`, best first.
-    static func ranked(_ probe: FacePrint, among gallery: [UUID: [FacePrint]], anchors: [UUID: [FacePrint]], tuning: FaceMatching) -> [(UUID, Float)] {
-        var out: [(UUID, Float)] = []
+    /// Every person for one probe, best raw score first: (id, score, eligible),
+    /// where `eligible` means their nearest anchor is within `threshold` too.
+    static func ranked(_ probe: FacePrint, among gallery: [UUID: [FacePrint]], anchors: [UUID: [FacePrint]], tuning: FaceMatching) -> [(id: UUID, score: Float, eligible: Bool)] {
+        var out: [(id: UUID, score: Float, eligible: Bool)] = []
         for (id, prints) in gallery {
             let s = score(probe, prints: prints, k: tuning.matchNeighbours)
-            out.append((id, s))
-        }
-        out.sort { $0.1 < $1.1 }
-        // Gate after sorting so the ambiguity check still sees the real runner-up.
-        return out.map { (id, s) in
             let a = anchors[id] ?? []
-            let nearestAnchor = (a.isEmpty ? gallery[id] ?? [] : a).map { probe.distance(to: $0) }.min() ?? .greatestFiniteMagnitude
-            return (id, nearestAnchor <= tuning.threshold ? s : .greatestFiniteMagnitude)
+            let nearestAnchor = (a.isEmpty ? prints : a).map { probe.distance(to: $0) }.min() ?? .greatestFiniteMagnitude
+            out.append((id, s, nearestAnchor <= tuning.threshold))
         }
+        out.sort { $0.score < $1.score }
+        return out
     }
 
     /// Best person for one probe (all prints treated as anchors).
@@ -274,9 +344,11 @@ public enum FaceMatcher {
         var pairs: [(probe: Int, id: UUID, d: Float)] = []
         for (i, probe) in probes.enumerated() {
             let r = ranked(probe, among: gallery, anchors: anchors, tuning: tuning)
-            guard let first = r.first, first.1 <= tuning.threshold else { continue }
-            if r.count > 1, r[1].1 - first.1 < tuning.ambiguityMargin { continue }
-            for (id, d) in r where d <= tuning.threshold { pairs.append((i, id, d)) }
+            guard let first = r.first(where: \.eligible), first.score <= tuning.threshold else { continue }
+            // Ambiguity is judged against the real runner-up by raw score, even one
+            // that fails its own anchor check.
+            if r.contains(where: { $0.id != first.id && $0.score - first.score < tuning.ambiguityMargin }) { continue }
+            for c in r where c.eligible && c.score <= tuning.threshold { pairs.append((i, c.id, c.score)) }
         }
         pairs.sort { $0.d < $1.d }
         var result = [(id: UUID, distance: Float)?](repeating: nil, count: probes.count)

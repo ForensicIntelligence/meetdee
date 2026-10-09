@@ -200,7 +200,8 @@ struct MemoryStoreTests {
         #expect(k.name == "Kim")
         #expect(k.aliases.isEmpty)
         #expect(k.session == nil)
-        #expect(await s.placeholderPerson(session: session, at: t0).id != a.id)
+        // The session now belongs to Kim: asking for its placeholder returns her.
+        #expect(await s.placeholderPerson(session: session, at: t0).id == k.id)
     }
 
     @Test func mergeFoldsEverything() async throws {
@@ -215,7 +216,9 @@ struct MemoryStoreTests {
         await s.remember("likes jazz", category: .preference, about: john.id, at: t0)
         await s.addFacePrints([jitter(face, toward: r.vector(), distance: 0.3)], to: ghost.id)
         await s.merge(ghost.id, into: john.id)
-        #expect(await s.person(ghost.id) == nil)
+        // The merged-away id now resolves to John.
+        #expect(await s.person(ghost.id)?.id == john.id)
+        #expect(await s.people().count == 1)
         let j = try #require(await s.person(john.id))
         #expect(Set(j.facts.map(\.text)) == ["likes jazz", "has a cat named Miso"])
         #expect(j.aliases.isEmpty)
@@ -341,9 +344,13 @@ struct MemoryStoreTests {
         // Thomas confirming his own name plus a nickname keeps the facts and pends the alias.
         let t = try await named(s, "Thomas")
         let o2 = await s.learn(from: "I'm Thomas but everyone calls me Tom. I love chess", about: t.id, at: t0)
-        #expect(o2.pendingName == "Tom")
+        #expect(o2.pendingName == nil)
+        #expect(o2.suggestedAlias == "Tom")
         #expect(o2.stored.map(\.text) == ["loves chess"])
-        #expect(await s.confirmName("Tom", for: t.id, at: t0).aliases == ["Tom"])
+        // confirm never turns another name into an alias; addAlias does.
+        #expect(await s.confirmName("Tom", for: t.id, at: t0).aliases.isEmpty)
+        await s.addAlias("Tom", to: t.id)
+        #expect(await s.person(t.id)?.aliases == ["Tom"])
     }
 
     @Test func unknownPersonIsHarmless() async throws {

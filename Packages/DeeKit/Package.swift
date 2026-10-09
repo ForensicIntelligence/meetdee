@@ -24,6 +24,7 @@ let package = Package(
         .library(name: "DeeSense", targets: ["DeeSense"]),
         .library(name: "DeeMind", targets: ["DeeMind"]),
         .library(name: "DeeMemory", targets: ["DeeMemory"]),
+        .library(name: "DeeSelf", targets: ["DeeSelf"]),
     ],
     targets: [
         .binaryTarget(name: "llama", path: "Binaries/llama.xcframework"),
@@ -35,6 +36,7 @@ let package = Package(
         .target(name: "DeeSense"),
         .target(name: "DeeMind", dependencies: ["DeeCore"], linkerSettings: [.linkedLibrary("sqlite3")]),
         .target(name: "DeeMemory", dependencies: ["DeeCore"], linkerSettings: [.linkedLibrary("sqlite3")]),
+        .target(name: "DeeSelf", dependencies: ["DeeCore", "DeeMind", "DeeMemory"], linkerSettings: [.linkedLibrary("sqlite3")]),
         .testTarget(name: "DeeCoreTests", dependencies: ["DeeCore"], exclude: ["Fixtures"]),
         .testTarget(name: "DeeFaceTests", dependencies: ["DeeFace"]),
         .testTarget(name: "DeeLLMTests", dependencies: ["DeeLLM", "DeeCore"]),
@@ -42,5 +44,6 @@ let package = Package(
         .testTarget(name: "DeeMindTests", dependencies: ["DeeMind", "DeeCore"]),
         .testTarget(name: "DeeVoiceTests", dependencies: ["DeeVoice", "DeeCore"]),
         .testTarget(name: "DeeMemoryTests", dependencies: ["DeeMemory", "DeeCore"]),
+        .testTarget(name: "DeeSelfTests", dependencies: ["DeeSelf", "DeeMind", "DeeCore", "DeeMemory"], exclude: ["Fixtures"]),
     ]
 )

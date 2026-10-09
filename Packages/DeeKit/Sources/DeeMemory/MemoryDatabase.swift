@@ -53,6 +53,9 @@ final class MemoryDatabase {
     /// value = nothing was written, so read caches are still valid.
     var totalChanges: Int64 { sqlite3_total_changes64(db) }
 
+    /// Rows changed by the most recent INSERT / UPDATE / DELETE.
+    var changes: Int64 { sqlite3_changes64(db) }
+
     /// Folds the WAL back into the main file and truncates it to zero bytes, so
     /// deleted (secure-deleted) text does not linger in `-wal`.
     func checkpoint() throws {

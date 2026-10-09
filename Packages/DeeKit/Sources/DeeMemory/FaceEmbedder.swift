@@ -67,8 +67,9 @@ public struct FaceQualityGate: Sendable, Equatable {
     public var maxRoll: Double = 20
     /// Faces whose padded crop runs past the frame edge are rejected by default.
     public var allowClipped = false
-    /// When Vision cannot score the capture, accept on size/pose alone.
-    public var requireScore = false
+    /// When Vision cannot score the capture (or finds no face there), reject it.
+    /// Set false to accept on size/pose alone.
+    public var requireScore = true
 
     public init() {}
 }

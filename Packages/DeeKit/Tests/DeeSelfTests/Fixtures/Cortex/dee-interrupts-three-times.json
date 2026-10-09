@@ -1,0 +1,213 @@
+{
+  "name" : "dee-interrupts-three-times",
+  "reducer" : "Cortex",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "speakingStarted",
+      "slice" : {
+        "attention.focus" : "none",
+        "attention.mutualGaze" : "no",
+        "attention.referents" : "",
+        "floor.cutOff" : "false",
+        "floor.events" : "",
+        "floor.floor" : "deeSpeaking",
+        "floor.llmTag" : "-",
+        "floor.turns" : "0",
+        "repair.awkwardness" : "0.000",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "user",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+        "stopSpeaking"
+      ],
+      "percept" : "bargeIn",
+      "slice" : {
+        "attention.focus" : "none",
+        "attention.mutualGaze" : "no",
+        "attention.referents" : "",
+        "floor.cutOff" : "true",
+        "floor.events" : "deeInterrupted,cutOff",
+        "floor.floor" : "yielding",
+        "floor.llmTag" : "-",
+        "floor.turns" : "0",
+        "repair.awkwardness" : "0.200",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "user",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 0.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "speakingStarted",
+      "slice" : {
+        "attention.focus" : "none",
+        "attention.mutualGaze" : "no",
+        "attention.referents" : "",
+        "floor.cutOff" : "false",
+        "floor.events" : "",
+        "floor.floor" : "deeSpeaking",
+        "floor.llmTag" : "-",
+        "floor.turns" : "0",
+        "repair.awkwardness" : "0.199",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "user",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 2
+    },
+    {
+      "effects" : [
+        "stopSpeaking"
+      ],
+      "percept" : "bargeIn",
+      "slice" : {
+        "attention.focus" : "none",
+        "attention.mutualGaze" : "no",
+        "attention.referents" : "",
+        "floor.cutOff" : "true",
+        "floor.events" : "deeInterrupted,cutOff",
+        "floor.floor" : "yielding",
+        "floor.llmTag" : "-",
+        "floor.turns" : "0",
+        "repair.awkwardness" : "0.399",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "user",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 2.4
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "speakingStarted",
+      "slice" : {
+        "attention.focus" : "none",
+        "attention.mutualGaze" : "no",
+        "attention.referents" : "",
+        "floor.cutOff" : "false",
+        "floor.events" : "",
+        "floor.floor" : "deeSpeaking",
+        "floor.llmTag" : "-",
+        "floor.turns" : "0",
+        "repair.awkwardness" : "0.396",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "user",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 4
+    },
+    {
+      "effects" : [
+        "stopSpeaking"
+      ],
+      "percept" : "bargeIn",
+      "slice" : {
+        "attention.focus" : "none",
+        "attention.mutualGaze" : "no",
+        "attention.referents" : "",
+        "floor.cutOff" : "true",
+        "floor.events" : "deeInterrupted,cutOff",
+        "floor.floor" : "yielding",
+        "floor.llmTag" : "-",
+        "floor.turns" : "0",
+        "repair.awkwardness" : "0.596",
+        "repair.repair" : "strained",
+        "stance.expression" : "content",
+        "stance.gaze" : "user",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "false"
+      },
+      "t" : 4.3
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "attention.focus" : "none",
+        "attention.mutualGaze" : "no",
+        "attention.referents" : "",
+        "floor.cutOff" : "true",
+        "floor.events" : "",
+        "floor.floor" : "idle",
+        "floor.llmTag" : "-",
+        "floor.turns" : "0",
+        "repair.awkwardness" : "0.481",
+        "repair.repair" : "strained",
+        "stance.expression" : "content",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "false"
+      },
+      "t" : 60
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "attention.focus" : "none",
+        "attention.mutualGaze" : "no",
+        "attention.referents" : "",
+        "floor.cutOff" : "true",
+        "floor.events" : "",
+        "floor.floor" : "idle",
+        "floor.llmTag" : "-",
+        "floor.turns" : "0",
+        "repair.awkwardness" : "0.130",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 400
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "attention.focus" : "none",
+        "attention.mutualGaze" : "no",
+        "attention.referents" : "",
+        "floor.cutOff" : "true",
+        "floor.events" : "",
+        "floor.floor" : "idle",
+        "floor.llmTag" : "-",
+        "floor.turns" : "0",
+        "repair.awkwardness" : "0.129",
+        "repair.repair" : "fine",
+        "stance.expression" : "content",
+        "stance.gaze" : "wander",
+        "stance.mannerism" : "-",
+        "stance.playGate" : "true"
+      },
+      "t" : 401
+    }
+  ]
+}

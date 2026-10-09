@@ -1,0 +1,188 @@
+{
+  "name" : "turn-cycle",
+  "reducer" : "FloorKeeper",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "partial",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "userStarted",
+        "floor" : "userSpeaking",
+        "llmTag" : "-",
+        "turns" : "0"
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "pause(0.30,0.70)",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "userPaused",
+        "llmTag" : "-",
+        "turns" : "0"
+      },
+      "t" : 0.8
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "partial",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "userSpeaking",
+        "llmTag" : "-",
+        "turns" : "0"
+      },
+      "t" : 1.6
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "pause(0.80,0.10)",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "userPaused",
+        "llmTag" : "-",
+        "turns" : "0"
+      },
+      "t" : 2.4
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "heard",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "userFinished",
+        "floor" : "idle",
+        "llmTag" : "-",
+        "turns" : "1"
+      },
+      "t" : 2.9
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "promptSubmitted",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "deeThinking",
+        "llmTag" : "-",
+        "turns" : "1"
+      },
+      "t" : 3
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "speakingStarted",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "deeSpeaking",
+        "llmTag" : "-",
+        "turns" : "1"
+      },
+      "t" : 4.2
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(excited)",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "deeSentence",
+        "floor" : "deeSpeaking",
+        "llmTag" : "excited",
+        "turns" : "1"
+      },
+      "t" : 4.2
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(-)",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "deeSentence",
+        "floor" : "deeSpeaking",
+        "llmTag" : "excited",
+        "turns" : "1"
+      },
+      "t" : 5.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "speakingFinished",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "deeFinished",
+        "floor" : "idle",
+        "llmTag" : "excited",
+        "turns" : "1"
+      },
+      "t" : 7
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeTurnFinished",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "idle",
+        "llmTag" : "excited",
+        "turns" : "1"
+      },
+      "t" : 7
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "idle",
+        "llmTag" : "excited",
+        "turns" : "1"
+      },
+      "t" : 8
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "idle",
+        "llmTag" : "-",
+        "turns" : "1"
+      },
+      "t" : 9
+    }
+  ]
+}

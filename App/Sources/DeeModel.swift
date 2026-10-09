@@ -540,6 +540,16 @@ final class DeeModel {
         case .nameConflict(let heard, let thought):
             pendingNotes.append("(You thought this was \(thought), but they said they're \(heard). Gently check who you're talking to.)")
             perform(.doubleTake)
+        case .askSamePerson(let name):
+            pendingNotes.append("(You've met someone called \(name) before. Ask if it was them.)")
+            perform(.squint)
+        case .introduced(let names):
+            pendingNotes.append("(They're introducing \(names.joined(separator: " and ")) to you. Say hello to them.)")
+            perform(.bounce)
+        case .wellbeingConcern:
+            pendingNotes.append("(They may be going through something painful. Be warm and gentle; encourage them to reach out to someone they trust or a local crisis line.)")
+        case .askWhich(let facts):
+            pendingNotes.append("(Ask gently which one they mean: \(facts.prefix(3).joined(separator: "; ")).)")
         }
     }
 
@@ -748,7 +758,7 @@ final class DeeModel {
             if command(in: text) { return }
             prosody = p
             shouldAppraise = true
-            if FactExtractor.selfHarmSignal(in: text) {
+            if people == nil, FactExtractor.selfHarmSignal(in: text) {
                 pendingNotes.append("(They may be going through something painful. Be warm and gentle; encourage them to reach out to someone they trust or a local crisis line.)")
             }
         case .event(let a, let line):

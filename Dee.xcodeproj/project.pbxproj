@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3821DCF96F7A386E94238C18 /* DeeSelf in Frameworks */ = {isa = PBXBuildFile; productRef = 963B183318FCA001FB84EE12 /* DeeSelf */; };
 		3BBF928D98A42263D0C1C5F2 /* DeeLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 80787F86435200A1EC90B4A9 /* DeeLLM */; };
 		3DC1EC206CB81591B54AC017 /* DeeSense in Frameworks */ = {isa = PBXBuildFile; productRef = DA75964CE89195589F085176 /* DeeSense */; };
 		42AE015202E71923D0CE0616 /* DeeMind in Frameworks */ = {isa = PBXBuildFile; productRef = 5581B8B759883D61DF0FE17A /* DeeMind */; };
@@ -66,6 +67,7 @@
 				3DC1EC206CB81591B54AC017 /* DeeSense in Frameworks */,
 				42AE015202E71923D0CE0616 /* DeeMind in Frameworks */,
 				5D40746F1073F9B889BEFD68 /* DeeMemory in Frameworks */,
+				3821DCF96F7A386E94238C18 /* DeeSelf in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -172,6 +174,7 @@
 				DA75964CE89195589F085176 /* DeeSense */,
 				5581B8B759883D61DF0FE17A /* DeeMind */,
 				B156030922FC6F8FF7022499 /* DeeMemory */,
+				963B183318FCA001FB84EE12 /* DeeSelf */,
 			);
 			productName = Dee;
 			productReference = 56B575153F6003FC3CBF2D88 /* Dee.app */;
@@ -576,6 +579,10 @@
 		80787F86435200A1EC90B4A9 /* DeeLLM */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DeeLLM;
+		};
+		963B183318FCA001FB84EE12 /* DeeSelf */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DeeSelf;
 		};
 		B156030922FC6F8FF7022499 /* DeeMemory */ = {
 			isa = XCSwiftPackageProductDependency;

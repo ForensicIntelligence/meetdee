@@ -51,7 +51,9 @@ enum Cases {
         XCase("Everyone calls me Bob", [("goes by Bob", .identity)], name: "Bob"),
         XCase("It's John here", [("is called John", .identity)], name: "John"),
         XCase("This is John speaking", [("is called John", .identity)], name: "John"),
-        XCase("Hey, this is Maria", [("is called Maria", .identity)], name: "Maria"),
+        // Introducing someone else, not the speaker's name (FactExtractor.introductions).
+        XCase("Hey, this is Maria", []),
+        XCase("Hi, Maria here", [("is called Maria", .identity)], name: "Maria"),
         XCase("John here!", [("is called John", .identity)], name: "John"),
         XCase("My name's Anne-Marie", [("is called Anne-Marie", .identity)], name: "Anne-Marie"),
         XCase("Hi there, I'm Sam from Toronto", [("is called Sam", .identity), ("is from Toronto", .place)], name: "Sam"),

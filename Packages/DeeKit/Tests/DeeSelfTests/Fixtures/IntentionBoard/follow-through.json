@@ -1,0 +1,29 @@
+{
+  "name" : "follow-through",
+  "reducer" : "IntentionBoard",
+  "steps" : [
+    {
+      "effects" : [
+        "persist(intention)",
+        "persist(intention)"
+      ],
+      "percept" : "deeTurnFinished",
+      "slice" : {
+        "expectations" : "",
+        "intentions" : "followUp:job interview:done:1,followUp:guitar:dropped:2"
+      },
+      "t" : 1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "expectations" : "",
+        "intentions" : ""
+      },
+      "t" : 2
+    }
+  ]
+}

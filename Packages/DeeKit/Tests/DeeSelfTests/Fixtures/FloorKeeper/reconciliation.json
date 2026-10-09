@@ -1,0 +1,132 @@
+{
+  "name" : "reconciliation",
+  "reducer" : "FloorKeeper",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "speakingStarted",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "deeSpeaking",
+        "llmTag" : "-",
+        "turns" : "0"
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(happy)",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "tagSubstituted,deeSentence",
+        "floor" : "deeSpeaking",
+        "llmTag" : "unimpressed",
+        "turns" : "0"
+      },
+      "t" : 0.1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(smug)",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "deeSentence",
+        "floor" : "deeSpeaking",
+        "llmTag" : "smug",
+        "turns" : "0"
+      },
+      "t" : 1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(love)",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "deeSentence",
+        "floor" : "deeSpeaking",
+        "llmTag" : "love",
+        "turns" : "0"
+      },
+      "t" : 2
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(love)",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "tagSubstituted,deeSentence",
+        "floor" : "deeSpeaking",
+        "llmTag" : "hurt",
+        "turns" : "0"
+      },
+      "t" : 3
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "deeSaid(curious)",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "deeSentence",
+        "floor" : "deeSpeaking",
+        "llmTag" : "curious",
+        "turns" : "0"
+      },
+      "t" : 4
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "speakingFinished",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "deeFinished",
+        "floor" : "idle",
+        "llmTag" : "curious",
+        "turns" : "0"
+      },
+      "t" : 5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "idle",
+        "llmTag" : "curious",
+        "turns" : "0"
+      },
+      "t" : 6.4
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "cutOff" : "false",
+        "events" : "",
+        "floor" : "idle",
+        "llmTag" : "-",
+        "turns" : "0"
+      },
+      "t" : 6.6
+    }
+  ]
+}

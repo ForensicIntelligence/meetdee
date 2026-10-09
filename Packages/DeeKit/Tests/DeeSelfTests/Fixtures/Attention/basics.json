@@ -1,0 +1,114 @@
+{
+  "name" : "basics",
+  "reducer" : "Attention",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "presence(true)",
+      "slice" : {
+        "focus" : "person",
+        "mutualGaze" : "no",
+        "referents" : ""
+      },
+      "t" : 0
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "head(4,-3)",
+      "slice" : {
+        "focus" : "person",
+        "mutualGaze" : "yes",
+        "referents" : ""
+      },
+      "t" : 0.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "sight(back,guitar+lamp,novel:guitar)",
+      "slice" : {
+        "focus" : "person",
+        "mutualGaze" : "yes",
+        "referents" : "guitar:0.50,lamp:0.15"
+      },
+      "t" : 1
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "sound(doorbell,true)",
+      "slice" : {
+        "focus" : "sound(doorbell)",
+        "mutualGaze" : "yes",
+        "referents" : "guitar:0.48,lamp:0.14"
+      },
+      "t" : 2
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "focus" : "none",
+        "mutualGaze" : "yes",
+        "referents" : "guitar:0.43,lamp:0.13"
+      },
+      "t" : 5.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "touch(pet,true,0.4,0.6)",
+      "slice" : {
+        "focus" : "touch",
+        "mutualGaze" : "yes",
+        "referents" : "guitar:0.42,lamp:0.13"
+      },
+      "t" : 6
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "focus" : "none",
+        "mutualGaze" : "yes",
+        "referents" : "guitar:0.40,lamp:0.12"
+      },
+      "t" : 7.5
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "tick",
+      "slice" : {
+        "focus" : "none",
+        "mutualGaze" : "yes",
+        "referents" : "guitar:0.21,lamp:0.06"
+      },
+      "t" : 26
+    },
+    {
+      "effects" : [
+
+      ],
+      "percept" : "faceLost",
+      "slice" : {
+        "focus" : "none",
+        "mutualGaze" : "no",
+        "referents" : "guitar:0.20,lamp:0.06"
+      },
+      "t" : 27
+    }
+  ]
+}

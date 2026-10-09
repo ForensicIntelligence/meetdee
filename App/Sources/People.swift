@@ -7,12 +7,12 @@ import Foundation
 /// Deliberately conservative — a companion that confuses people, or tells one
 /// person another's secrets, is worse than one that asks:
 /// - A face is "known" only when DeeMemory recognises it.
-/// - An unknown face gets a per-session placeholder; nothing it says leaks to
-///   anyone else.
-/// - A name is applied only to a placeholder, and only once it is confirmed (heard
-///   twice, or heard with exactly one face in view). A known person is never given
-///   a different person's name; Dee checks out loud instead.
-/// - Faces are enrolled only from good-quality captures (≥ 3 prints).
+/// - An unknown face gets a per-session placeholder; good-quality prints of that
+///   face are attached to it so the store can judge "same face?" later.
+/// - A name is confirmed only on a placeholder: heard twice, or heard with at most
+///   one face in view. A known person is never given someone else's name.
+/// - "Have we met?": when a same-named person exists and the faces can't settle
+///   it, Dee asks, and the next yes/no decides.
 @MainActor
 final class People {
     enum Event: Equatable {
@@ -22,14 +22,23 @@ final class People {
         case learnedName(String)
         /// Dee thought this was `thought`, but they said they're `heard`.
         case nameConflict(heard: String, thought: String)
+        /// "Are you the Sarah I've met before?" — waiting for yes/no.
+        case askSamePerson(name: String)
+        /// The user introduced someone else ("this is my friend Sarah").
+        case introduced([String])
+        /// Something they said sounded like they might be hurting.
+        case wellbeingConcern
+        /// "My dog died" with two dogs on record — ask which.
+        case askWhich([String])
     }
 
     let store: MemoryStore
     private(set) var current: Person?
     private var session = UUID()
-    private var enrolment: [FacePrint] = []
     private var facesInView = 0
     private var recognisedAt: [UUID: Date] = [:]
+    /// Pending "have we met?" question: name and the existing person.
+    private var pendingSameAs: (name: String, existing: UUID, placeholder: UUID)?
 
     var currentID: UUID? { current?.id }
     var currentName: String? { current.flatMap { $0.isPlaceholder ? nil : $0.name } }
@@ -42,7 +51,7 @@ final class People {
     /// Someone new in front of Dee (they left and came back, or a new conversation).
     func newSession() {
         session = UUID()
-        enrolment.removeAll()
+        pendingSameAs = nil
         if let c = current, c.isPlaceholder {
             let id = c.id
             Task { await store.discardPlaceholder(id) }
@@ -68,7 +77,7 @@ final class People {
             if current?.id != person.id {
                 if let c = current, c.isPlaceholder { await store.discardPlaceholder(c.id) }
                 current = person
-                enrolment.removeAll()
+                pendingSameAs = nil
                 // Don't re-greet someone who just stepped out of frame for a moment.
                 let last = recognisedAt[person.id]
                 recognisedAt[person.id] = Date()
@@ -76,14 +85,14 @@ final class People {
             }
             return nil
         }
-        // An unknown main face: talk to a placeholder; collect good enrolment prints.
+        // Unknown main face: talk to this session's placeholder and attach good
+        // prints of the face to it (the store needs them to judge "same face?").
         if current == nil || current?.isPlaceholder == false {
             current = await store.placeholderPerson(session: session, at: Date())
-            enrolment.removeAll()
         }
-        if crops.count == 1, enrolment.count < 8,
+        if crops.count == 1, let id = current?.id,
            let p = try? await FaceEmbedder.enrolmentPrint(of: main.image, faceBox: main.box) {
-            enrolment.append(p)
+            await store.addFacePrints([p], to: id, anchor: false, passedQualityGate: true)
         }
         return nil
     }
@@ -92,26 +101,59 @@ final class People {
 
     /// Learns facts (and possibly a name) from something the user said.
     func heard(_ text: String) async -> Event? {
+        if let pending = pendingSameAs, let answer = Self.yesNo(text) {
+            pendingSameAs = nil
+            let choice: SameNameChoice = answer ? .sameAs(pending.existing) : .newPerson
+            let result = await store.confirm(pending.name, for: pending.placeholder, at: Date(), choice: choice)
+            return adopt(result, name: pending.name)
+        }
         if current == nil { current = await store.placeholderPerson(session: session, at: Date()) }
         guard let person = current else { return nil }
         let outcome = await store.learn(from: text, about: person.id, at: Date())
+        if outcome.wellbeingConcern { return .wellbeingConcern }
+        if outcome.differentSpeaker, let heard = outcome.pendingName {
+            return .nameConflict(heard: heard, thought: person.name)
+        }
+        if let alias = outcome.suggestedAlias, !person.isPlaceholder {
+            await store.addAlias(alias, to: person.id)
+        }
+        if outcome.retractionCandidates.count > 1 {
+            return .askWhich(outcome.retractionCandidates.map(\.text))
+        }
         guard let name = outcome.pendingName else {
             current = await store.person(person.id) ?? current
-            return nil
+            return outcome.introduced.isEmpty ? nil : .introduced(outcome.introduced)
         }
-        if !person.isPlaceholder {
-            // A known person never takes on someone else's name.
-            return person.answers(to: name) ? nil : .nameConflict(heard: name, thought: person.name)
-        }
+        guard person.isPlaceholder else { return nil }
         let times = await store.pendingName(for: person.id)?.timesHeard ?? 1
         guard times >= 2 || facesInView <= 1 else { return nil }
-        let named = await store.confirmName(name, for: person.id, at: Date())
-        if enrolment.count >= 3, await store.anchorCount(of: named.id) < 3 {
-            await store.addFacePrints(enrolment, to: named.id, anchor: true)
+        return adopt(await store.confirm(name, for: person.id, at: Date(), choice: .ask), name: name)
+    }
+
+    private func adopt(_ result: ConfirmResult, name: String) -> Event? {
+        switch result {
+        case .named(let p, _), .merged(let p):
+            current = p
+            return .learnedName(p.name)
+        case .mergeCandidate(let placeholder, let existing):
+            current = placeholder
+            pendingSameAs = (name, existing.id, placeholder.id)
+            return .askSamePerson(name: name)
+        case .differentSpeaker(let c, let heard, _):
+            return .nameConflict(heard: heard, thought: c.name)
+        case .rejected:
+            return nil
         }
-        enrolment.removeAll()
-        current = await store.person(named.id) ?? named
-        return .learnedName(named.name)
+    }
+
+    /// A plain yes/no answer, or nil if the utterance isn't one.
+    static func yesNo(_ text: String) -> Bool? {
+        let t = text.lowercased().trimmingCharacters(in: .punctuationCharacters.union(.whitespaces))
+        let yes = ["yes", "yeah", "yep", "yup", "that's me", "it's me", "that was me", "sure", "of course", "we have", "you have", "yes we have"]
+        let no = ["no", "nope", "nah", "not me", "we haven't", "never", "no we haven't", "different person", "that's not me"]
+        if yes.contains(where: { t == $0 || t.hasPrefix($0 + " ") }) { return true }
+        if no.contains(where: { t == $0 || t.hasPrefix($0 + " ") }) { return false }
+        return nil
     }
 
     /// Short lines for the system prompt (~300 tokens max).

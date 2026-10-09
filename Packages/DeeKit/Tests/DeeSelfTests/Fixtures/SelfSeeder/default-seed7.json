@@ -1,0 +1,35 @@
+{
+  "name" : "default-seed7",
+  "reducer" : "SelfSeeder",
+  "steps" : [
+    {
+      "effects" : [
+
+      ],
+      "percept" : "seed",
+      "slice" : {
+        "humour" : "absurd",
+        "humour2" : "wordplay",
+        "linesVariant" : "14837786579416725940",
+        "prePause" : "0.36",
+        "slot.amused" : "giggle:1.056,bounce:0.828,contentSquint:0.808",
+        "slot.doubtful" : "squint:0.834,doubleTake:0.832",
+        "slot.fond" : "contentSquint:0.939,wink:0.696",
+        "slot.greeting" : "bounce:0.859,wink:0.78",
+        "slot.thinking" : "lookAround:1.126,blinkLeft:0.736",
+        "taste.blender" : "0.379",
+        "taste.cat" : "0.381",
+        "taste.dog" : "0.64",
+        "taste.guitar" : "0.199",
+        "taste.jazz" : "-0.228",
+        "taste.lamp" : "-0.068",
+        "taste.rain sounds" : "0.696",
+        "taste.thunder" : "-0.338",
+        "taste.toaster" : "0.534",
+        "taste.vacuum cleaners" : "-0.212",
+        "values" : "honesty=0.685,kindness=0.825,curiosity=0.86,independence=0.633"
+      },
+      "t" : 0
+    }
+  ]
+}

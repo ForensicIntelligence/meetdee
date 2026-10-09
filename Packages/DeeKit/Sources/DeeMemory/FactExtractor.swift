@@ -136,7 +136,9 @@ public enum FactExtractor {
 
     static func clauses(_ text: String) -> [String] {
         var parts: [String] = []
-        for sentence in R.sentenceBreak.split(text) {
+        for raw in R.sentenceBreak.split(text) {
+            // "This is Sarah, my wife" → "This is my wife Sarah".
+            let sentence = R.introAppositive.replace(raw, with: "$1 $3 $4 $2")
             for clause in R.clauseBreak.split(sentence) {
                 parts.append(contentsOf: splitPossessions(clause))
             }
@@ -174,7 +176,7 @@ public enum FactExtractor {
     // MARK: - Rules (order matters: the first match wins for a clause)
 
     static let rules: [Rule] = [
-        healthRule, petRule, relationshipRule, birthdayRule, ageRule, nameRule,
+        introRule, healthRule, petRule, relationshipRule, birthdayRule, ageRule, nameRule,
         favouriteRule, dislikeRule, likeRule, hobbyRule, workRule, placeRule,
         iAmARule, nationalityRule, eventRule,
     ]
@@ -309,6 +311,42 @@ public enum FactExtractor {
         return nil
     }
 
+    /// Introducing SOMEONE ELSE ("this is Sarah", "meet my friend Sarah", "say hi
+    /// to my wife Anna"): never the speaker's own name. Only the relationship (if
+    /// one is given) is a fact; the name itself is reported by `introductions(in:)`.
+    static let introRule: Rule = { c, _ in
+        guard let i = introduction(c) else { return nil }
+        if let rel = i.rel { return [relFact(count: nil, rel: rel, names: [i.name])] }
+        return []
+    }
+
+    static func introduction(_ clause: String) -> (name: String, rel: String?)? {
+        // "Meet my friend Sarah, she lives in Rome": the tail is about Sarah.
+        let c = R.pronounTail.replace(clause, with: "")
+        if let g = R.meetSomeone.groups(c), let name = parseName(g[2], mode: .loose) {
+            return (name, g[1])
+        }
+        if let g = R.thisIsName.groups(c), g[1]?.lowercased() == "this is", g[2] == nil, g[4] == nil,
+           let name = parseName(g[3], mode: .strict) {
+            return (name, nil)
+        }
+        if let g = R.thisIsMyRel.groups(c), let rel = g[1], let name = parseName(g[2], mode: .strict) {
+            return (name, rel)
+        }
+        return nil
+    }
+
+    /// Names of people the speaker introduces ("Hey, this is Sarah", "meet my
+    /// friend Sarah") — someone else in the room, never the speaker.
+    public static func introductions(in utterance: String) -> [String] {
+        let text = normalise(utterance)
+        var out: [String] = []
+        for raw in clauses(text) {
+            if let i = introduction(moveLeadingTime(strip(raw))), !out.contains(i.name) { out.append(i.name) }
+        }
+        return out
+    }
+
     // Self-introductions.
     static let nameRule: Rule = { c, ctx in
         if R.negatedName.matches(c) { return [] }
@@ -334,6 +372,16 @@ public enum FactExtractor {
         if let g = R.nickname.groups(c), let name = parseName(g[1], mode: .loose) {
             return [fact("goes by \(name)", .identity)]
         }
+        // "Mike's my name".
+        if let g = R.nameIsMyName.groups(c), let name = parseName(g[1], mode: .loose) {
+            return [fact("is called \(name)", .identity, name: name)]
+        }
+        // "I'm the plumber, Mike" / "I'm your driver, Sam" / "I'm Anna's dad, Tom".
+        if let g = R.roleThenName.groups(c), let role = g[1],
+           isOccupation(role) || Lex.relationWords.contains(role.lowercased().split(separator: " ").last.map(String.init) ?? ""),
+           let name = parseName(g[2], mode: .strict) {
+            return [fact("is called \(name)", .identity, name: name)]
+        }
         if let g = R.iAmName.groups(c), let raw = g[1] {
             if let name = parseName(raw, mode: ctx.intro ? .intro : .strict) {
                 var out = [fact("is called \(name)", .identity, name: name)]
@@ -342,7 +390,10 @@ public enum FactExtractor {
             }
             return nil
         }
-        if let g = R.thisIsName.groups(c), g[1] != nil || g[3] != nil || ctx.intro, let name = parseName(g[2], mode: .strict) {
+        // "This is me, Sarah" / "Sarah speaking" / "it's Sarah" (after a greeting).
+        // A bare "this is Sarah" introduces someone else (introRule).
+        if let g = R.thisIsName.groups(c), g[2] != nil || g[4] != nil || (ctx.intro && g[1]?.lowercased() == "it is"),
+           let name = parseName(g[3], mode: .strict) {
             return [fact("is called \(name)", .identity, name: name)]
         }
         if let g = R.nameHere.groups(c), let name = parseName(g[1], mode: .strict) {
@@ -466,20 +517,25 @@ public enum FactExtractor {
             let sport = words.dropLast().filter { !Lex.intensifiers.contains($0) }.joined(separator: " ")
             return sport.isEmpty ? nil : [fact("plays \(sport)", .preference)]
         }
+        // "I'm a lesbian / Presbyterian / stoner / sex worker": identity, not a job
+        // (kept as .other and marked sensitive by FactSensitivity).
+        let text = "is \(withArticle(obj))"
+        let category: Fact.Category = FactSensitivity.alwaysSensitive.matches(text.lowercased()) ? .other : .work
         if let at = R.splitAt.groups(obj), let role = at[1], isOccupation(role) {
-            return [fact("is \(withArticle(obj))", .work)]
+            return [fact(text, category)]
         }
-        if isOccupation(obj) { return [fact("is \(withArticle(obj))", .work)] }
+        if isOccupation(obj) || category == .other && words.count <= 3 { return [fact(text, category)] }
         return nil
     }
 
     static let nationalityRule: Rule = { c, ctx in
         guard let g = R.iAmWord.groups(c), let w = g[1] else { return nil }
         let lw = w.lowercased()
-        if Lex.nationalities.contains(lw) || lw.hasSuffix("ese") && w.first?.isUppercase == true {
+        // Only real demonyms: "I'm Obese" is not a nationality (body words are not stored).
+        if Lex.nationalities.contains(lw) {
             return [fact("is \(capitalised(lw))", .place)]
         }
-        if Lex.religions.contains(lw), !(ctx.intro && w.first?.isUppercase == true) {
+        if Lex.religions.contains(lw), !(lw == "christian" && ctx.intro && w.first?.isUppercase == true) {
             if ["atheist", "agnostic", "pagan"].contains(lw) { return [fact("is \(article(lw)) \(lw)", .other)] }
             if ["spiritual", "orthodox"].contains(lw) { return [fact("is \(lw)", .other)] }
             return [fact("is \(capitalised(lw))", .other)]
@@ -581,7 +637,14 @@ public enum FactExtractor {
         let lowerFirst = first.lowercased()
         if Lex.nonNames.contains(lowerFirst) || Lex.nameStoppers.contains(lowerFirst) { return nil }
         if person, Lex.notPersonNames.contains(lowerFirst) { return nil }
-        if Lex.nationalities.contains(lowerFirst) || Lex.religions.contains(lowerFirst) && mode == .strict { return nil }
+        // Religions are never names ("Hi, I'm Muslim"), except "Christian", a common
+        // first name, when it is capitalised after a greeting.
+        if Lex.nationalities.contains(lowerFirst) { return nil }
+        // "Christian" is allowed where a name is explicit ("a son named Christian",
+        // "my name is Christian") or capitalised after a greeting.
+        if Lex.religions.contains(lowerFirst),
+           !(lowerFirst == "christian" && (mode == .loose || (mode == .intro && first.first?.isUppercase == true))) { return nil }
+        if person, Lex.conditionWords.contains(lowerFirst) { return nil }
         guard first.allSatisfy({ $0.isLetter || $0 == "'" || $0 == "-" }), first.first?.isLetter == true,
               !lowerFirst.hasSuffix("'s"), !lowerFirst.hasSuffix("'") else { return nil }
         let firstCapital = first.first?.isUppercase == true

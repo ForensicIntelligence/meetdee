@@ -304,6 +304,23 @@ import Testing
         #expect(proud.reflex == .proud || proud.reflex == .shy)
     }
 
+    /// `reflexAt` tells a fresh reflex from one a later snapshot still carries, even
+    /// when two stimuli in a row provoke the same emotion (DeeSelf restarts its 4 s).
+    @Test func reflexAtStampsTheStimulus() async throws {
+        let mind = try Mind(databaseURL: nil, now: Self.t0)
+        #expect(await mind.snapshot(at: Self.t0).reflexAt == nil)
+        let first = await mind.react(.internal(relief: 0.8), at: Self.t0 + 1)
+        #expect(first.reflex == .relieved && first.reflexAt == Self.t0 + 1)
+        let carried = await mind.snapshot(at: Self.t0 + 2)
+        #expect(carried.reflex == .relieved && carried.reflexAt == Self.t0 + 1, "a carried reflex keeps its stamp")
+        let second = await mind.react(.internal(relief: 0.8), at: Self.t0 + 3)
+        #expect(second.reflex == .relieved && second.reflexAt == Self.t0 + 3, "same emotion, new stimulus, new stamp")
+        let faded = await mind.snapshot(at: Self.t0 + 3 + Mind.reflexDuration + 0.1)
+        #expect(faded.reflex == nil && faded.reflexAt == nil)
+        #expect(first == MindSnapshot(code: first.code, age: first.age, reflex: .relieved), "not part of ==")
+        #expect(MindSnapshot(code: first.code, age: nil, reflexAt: Self.t0).reflexAt == nil, "no reflex, no stamp")
+    }
+
     // MARK: No neglect penalty (§9)
 
     @Test func tickingAloneForAMonthNeverLowersTheBond() {

@@ -95,7 +95,7 @@ enum R {
     // Health.
     static let allergicTo = Rx(#"^I am (?:very |really |quite |severely |deathly |super |highly |a (?:bit|little) )?allergic to (.+)$"#)
     static let allergyNoun = Rx(#"^I have (?:an? )?(?:(?:severe|serious|bad|mild|slight|nut|food) )?(?:allerg(?:y|ies) to (.+)|(.+?) allerg(?:y|ies))$"#)
-    static let diet = Rx(#"^I am (?:a |an )?(?:strict |pretty much |mostly )?(vegetarian|vegan|pescatarian|gluten[- ]free|lactose[- ]intolerant|diabetic|celiac|coeliac|asthmatic|epileptic|deaf|blind|colou?r[- ]?blind|pregnant|hard of hearing|sober|teetotal|dyslexic|autistic|in a wheelchair)(?: now)?$"#)
+    static let diet = Rx(#"^I am (?:a |an )?(?:strict |pretty much |mostly )?(vegetarian|vegan|pescatarian|gluten[- ]free|lactose[- ]intolerant|diabetic|celiac|coeliac|asthmatic|epileptic|deaf|blind|colou?r[- ]?blind|pregnant|hard of hearing|sober|teetotal|dyslexic|autistic|bipolar|schizophrenic|epileptic|anorexic|bulimic|hiv positive|in a wheelchair)(?: now)?$"#)
     static let condition = Rx(#"^I (have got|have|suffer from|was diagnosed with|live with|got) (type (?:1|2|one|two) diabetes|diabetes|asthma|arthritis|migraines|epilepsy|adhd|autism|celiac disease|coeliac disease|crohn's|anxiety|depression|ptsd|ocd|high blood pressure|low blood pressure|a bad back|back pain|chronic pain|insomnia|sleep apnea|tinnitus|a heart condition|heart disease|cancer|long covid|a cold|the flu|covid|a fever|a headache|a migraine|a sore throat|a broken \w+|hay ?fever|eczema|psoriasis|dementia|parkinson's|multiple sclerosis|a pacemaker)\b"#)
     static let cannotEat = Rx(#"^I (cannot|can not|do not|should not|am not allowed to|must not) (?:really |ever )?eat (.+)$"#)
     static let broke = Rx(#"^I (?:just |recently )?broke my (\w+)"#)
@@ -139,14 +139,29 @@ enum R {
     static let surname = Rx("^my (?:last name|surname|family name) is \(NAME)")
     static let nickname = Rx("^my nickname is \(NAME)")
     static let iAmName = Rx("^I am \(NAME1)(?: here| speaking| again)?(?:,? from (.+))?$")
-    static let thisIsName = Rx("^(?:this is|it is)( me,?)? \(NAME1)( here| speaking| again| calling)?$")
+    static let thisIsName = Rx("^(this is|it is)( me,?)? \(NAME1)( here| speaking| again| calling)?$")
+    /// "Meet Sarah", "meet my friend Sarah", "say hi to my wife Anna", "I'd like you to meet Sam".
+    static let meetSomeone = Rx("^(?:(?:I want you to|I would like you to|you should|come and|come|please|you have to|you got to|you need to) )?(?:meet|say hi to|say hello to|let me introduce(?: you to)?|I want to introduce(?: you to)?|I would like to introduce(?: you to)?|can I introduce(?: you to)?|allow me to introduce)\\s+(?:(?:my|our) \(RELADJ)\(REL),?\\s+)?\(NAME1)$")
+    /// "This is my friend Sarah" — introducing someone who is here.
+    static let thisIsMyRel = Rx("^this is (?:my|our) \(RELADJ)\(REL),? \(NAME1)$")
     static let nameHere = Rx(#"^([A-Za-z][A-Za-z'\-]*) here$"#)
+    /// "Mike's my name", "Mike is my name", "Mike Jones is my full name".
+    static let nameIsMyName = Rx(#"^([A-Za-z][A-Za-z'\-]*(?: [A-Za-z][A-Za-z'\-]*)?)(?:'s| is) my (?:first |full |real )?name$"#)
+    /// "I'm the plumber, Mike", "I'm your driver, Sam", "I'm Anna's dad, Tom".
+    static let roleThenName = Rx(#"^I am (?:the |your |a |an |[A-Za-z]+'s )?([a-z][a-z\- ]{1,30}?),\s*([A-Za-z][A-Za-z'\-]*(?: [A-Za-z][A-Za-z'\-]*)?)$"#)
+    /// "This is Sarah, my wife" → "This is my wife Sarah" (so the relationship
+    /// and the introduction are both understood). Case-sensitive: the name
+    /// must be capitalised.
+    static let introAppositive = Rx("\\b([Tt]his is|[Mm]eet|[Ss]ay hi to|[Ss]ay hello to) ([A-Z][a-z'\\-]+(?: [A-Z][a-z'\\-]+)?),? ([Mm]y|[Oo]ur) (\(RELADJ)\(REL))\\b", caseSensitive: true)
+    /// "Meet my friend Sarah, she lives in Rome": what follows is about Sarah,
+    /// not the speaker.
+    static let pronounTail = Rx(#",\s*(?:she|he|they|her|his|their|who|whose)\b.*$"#)
     /// "my name is spelled J O H N" / "it is spelt J-O-H-N".
     static let spelledName = Rx(#"^(?:my name is |it is |that is |name is )?spel(?:led|t) ((?:[A-Za-z](?:[\s.\-]+|$)){2,})$"#)
     /// "My name is Bond, James Bond".
     static let bondName = Rx(#"^(?:my name is|the name is|name is|I am) ([A-Za-z][A-Za-z'\-]+), ([A-Za-z][A-Za-z'\-]+) ([A-Za-z][A-Za-z'\-]+)$"#)
     /// "His name is Rex" after "I have a dog".
-    static let carryName = Rx("^(?:(?:his|her|its|their) names? (?:is|are) \(NAMES)|(?:he|she|it|they) (?:is|are) (?:called|named) \(NAMES)|(?:he|she|it|they) goes? by \(NAMES))$")
+    static let carryName = Rx("^(?:(?:his|her|its|their|it is) names? (?:is|are) \(NAMES)|(?:he|she|it|they) (?:is|are) (?:called|named) \(NAMES)|(?:he|she|it|they) goes? by \(NAMES))$")
 
     // Retractions.
     static let petDied = Rx("^(?:my|our) \(PETADJ)\(ANIMAL)(?:,? ([A-Za-z][A-Za-z'\\-]*))?,? (?:just |recently |sadly |unfortunately )?(?:died|passed away|passed on|is dead|was put down|got put down|was put to sleep|ran away|went missing)(?:\\b.*)?$")
@@ -275,6 +290,20 @@ enum Lex {
         "awful", "horrible", "fantastic", "wonderful", "perfect", "bored", "boring", "quiet", "loud",
         "naked", "dressed", "set", "stoned", "baked", "wasted", "hammered", "smashed", "pissed",
         "cross", "furious", "livid", "broken", "heartbroken", "obese", "overweight",
+        // Pronouns ("His name is Rex and he is old" must not name "He").
+        "he", "she", "they", "we", "his", "hers", "its", "who", "myself", "yourself", "himself", "herself",
+        // Life circumstances ("Hi, I'm Homeless").
+        "homeless", "unemployed", "jobless", "employed", "self-employed", "unemployable", "underemployed",
+        "overworked", "underpaid", "skint", "bankrupt", "widowed", "separated", "adopted", "orphaned",
+        "illegal", "undocumented", "famous", "retiring", "graduating", "expecting", "deployed", "incarcerated",
+        "unhoused", "homesick", "new here",
+    ]
+
+    /// Health conditions that are never a person's name ("I'm Bipolar").
+    static let conditionWords: Set<String> = [
+        "bipolar", "schizophrenic", "autistic", "diabetic", "epileptic", "asthmatic", "dyslexic", "anorexic",
+        "bulimic", "adhd", "ocd", "ptsd", "celiac", "coeliac", "deaf", "blind", "disabled", "depressed",
+        "suicidal", "pregnant", "obese", "overweight", "underweight", "sober", "addicted", "alcoholic",
     ]
 
     /// Words that are never a PERSON's name (but may be a pet's: "a cat called
@@ -407,6 +436,28 @@ enum Lex {
         "burmese", "sri lankan", "south african", "new zealander", "puerto rican", "dominican", "salvadoran",
         "guatemalan", "honduran", "nicaraguan", "panamanian", "ecuadorian", "bolivian", "paraguayan",
         "uruguayan", "trinidadian", "barbadian", "bahamian", "acadian", "metis", "métis", "inuit",
+        // -ese demonyms.
+        "congolese", "senegalese", "nepalese", "sudanese", "south sudanese", "togolese", "beninese", "guyanese",
+        "faroese", "bhutanese", "gabonese", "javanese", "balinese", "surinamese", "timorese", "sinhalese",
+        "cantonese", "pekingese", "genoese", "milanese", "viennese", "bolognese", "siamese", "nigerois",
+        // Africa.
+        "angolan", "cameroonian", "ivorian", "malian", "nigerien", "rwandan", "ugandan", "tanzanian", "zambian",
+        "zimbabwean", "namibian", "botswanan", "motswana", "malawian", "mozambican", "liberian", "sierra leonean",
+        "gambian", "guinean", "eritrean", "djiboutian", "libyan", "mauritanian", "malagasy", "mauritian",
+        "seychellois", "burundian", "burkinabe", "chadian", "comorian", "cape verdean", "basotho", "swazi",
+        "somalian", "zulu", "xhosa", "yoruba", "igbo", "hausa", "amhara", "berber", "amazigh",
+        // Asia, Middle East, Pacific.
+        "kazakh", "kazakhstani", "uzbek", "kyrgyz", "tajik", "turkmen", "azerbaijani", "azeri", "saudi",
+        "emirati", "qatari", "kuwaiti", "bahraini", "omani", "yemeni", "jordanian", "kurdish", "kurd",
+        "tibetan", "uyghur", "hmong", "bruneian", "maldivian", "punjabi", "gujarati", "bengali", "tamil",
+        "fijian", "samoan", "tongan", "maori", "māori", "hawaiian", "papuan", "polynesian", "micronesian",
+        // Europe and the Americas.
+        "belarusian", "moldovan", "macedonian", "montenegrin", "kosovar", "luxembourgish", "luxembourger",
+        "monegasque", "andorran", "sammarinese", "scots", "cornish", "manx", "flemish", "walloon", "basque",
+        "catalan", "galician", "sicilian", "sardinian", "corsican", "breton", "bavarian", "slovak", "slovene",
+        "serb", "croat", "bosniak", "greenlandic", "greenlander", "bermudian", "belizean", "costa rican",
+        "grenadian", "antiguan", "vincentian", "aruban", "argentinean", "brazillian",
+        "ukranian", "chicano", "chicana", "creole", "cajun", "appalachian",
     ]
 
     static let religions: Set<String> = [

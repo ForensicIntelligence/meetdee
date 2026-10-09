@@ -192,9 +192,10 @@ struct ReviewRegressionTests {
         var r = LCG(state: 206)
         let face = unit(r.vector())
         let john = try #require(await s.enroll(name: "John", facePrints: enrolment(face, &r), at: t0))
-        // Poor light: not recognised, so a placeholder holds a print 0.7 away.
+        // Missed by the camera, so a placeholder holds a print 0.45 away (within
+        // the recognition threshold).
         let g = await s.placeholderPerson(session: UUID(), at: t0)
-        await s.addFacePrints([jitter(face, toward: r.vector(), distance: 0.7)], to: g.id)
+        await s.addFacePrints([jitter(face, toward: r.vector(), distance: 0.45)], to: g.id)
         let o = await s.learn(from: "Hi, I'm John. I love fishing", about: g.id, at: t0)
         #expect(o.mergeCandidate == john.id)
         let p = await s.confirmName("John", for: g.id, at: t0)
@@ -209,15 +210,15 @@ struct ReviewRegressionTests {
         let john = try #require(await s.enroll(name: "John", facePrints: enrolment(unit(r.vector()), &r), at: t0))
         await s.remember("is allergic to shellfish", category: .health, about: john.id, at: t0)
         let g = await s.placeholderPerson(session: UUID(), at: t0)
-        await s.addFacePrints(enrolment(unit(r.vector()), &r), to: g.id)
+        await s.addFacePrints(enrolment(unit(r.vector()), &r), to: g.id, passedQualityGate: true)
         let p = await s.confirmName("John", for: g.id, at: t0)
         #expect(p.id == g.id)
         #expect(p.facts.isEmpty)
-        #expect(await s.anchorCount(of: g.id) == 3, "the placeholder's prints became its enrolment")
-        // Faceless on both sides (voice only): merged.
+        #expect(await s.anchorCount(of: g.id) == 3, "the placeholder's quality prints became its enrolment")
+        // Faceless on both sides (voice only): NOT merged (re-review issue 2).
         let v = try await named(s, "Vera")
         let h = await s.placeholderPerson(session: UUID(), at: t0)
-        #expect(await s.confirmName("Vera", for: h.id, at: t0).id == v.id)
+        #expect(await s.confirmName("Vera", for: h.id, at: t0).id != v.id)
     }
 
     // MARK: 7. Offensive and sensitive statements
