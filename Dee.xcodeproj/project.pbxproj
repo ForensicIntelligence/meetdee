@@ -1,0 +1,558 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		3BBF928D98A42263D0C1C5F2 /* DeeLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 80787F86435200A1EC90B4A9 /* DeeLLM */; };
+		7893D340B35D7EDC4F39E953 /* DeeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7D20323B5787F0B6D8801587 /* DeeCore */; };
+		7F139EF874840FEAD7EBB3A2 /* DeeFace in Frameworks */ = {isa = PBXBuildFile; productRef = 5752E31FCD1D59AEF8D57DB4 /* DeeFace */; };
+		A329143E9DADE0DFE7350D8C /* DeeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863D83D1BDC0BF76A99DA86A /* DeeUITests.swift */; };
+		BE35F88C1088EDC61457210E /* DeeVoice in Frameworks */ = {isa = PBXBuildFile; productRef = 30F2A8F02CA5F026FDF488F2 /* DeeVoice */; };
+		C79BE7462480657C9CC91F72 /* ModelLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D140A19846633BAC99A6FA0 /* ModelLocator.swift */; };
+		CA543A27450A3210D2F7BB98 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD622141C5A2B09CA6A5440D /* RootView.swift */; };
+		DA662881A7EE9B0628E60549 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF4A980850E9DB332F9DA317 /* Assets.xcassets */; };
+		DB91946DF1DE53AD56E8FBE8 /* DeeTools in Frameworks */ = {isa = PBXBuildFile; productRef = 2702E187EA5B78DB754C799C /* DeeTools */; };
+		EF5D9425000088C6B837B82D /* Qwen3.5-4B-Q4_K_M.gguf in Resources */ = {isa = PBXBuildFile; fileRef = D709CD4F6D3CC337D5959F95 /* Qwen3.5-4B-Q4_K_M.gguf */; };
+		FCA2F50003E9016BE45ABFD4 /* DeeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 310EA1982BFD19DBB8E49F42 /* DeeModel.swift */; };
+		FF0FDF55F06D344F2B1C4A3F /* DeeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F8D442E8DE0C002A99F618 /* DeeApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		1F207FC403D26C82F46F7030 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 5D9198B542BD592233A45002 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8E60039B24F4E80D57F18A94;
+			remoteInfo = Dee;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		084B59C8EBCE197D0E83DAE2 /* DeeKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DeeKit; path = Packages/DeeKit; sourceTree = SOURCE_ROOT; };
+		310EA1982BFD19DBB8E49F42 /* DeeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeModel.swift; sourceTree = "<group>"; };
+		3D140A19846633BAC99A6FA0 /* ModelLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLocator.swift; sourceTree = "<group>"; };
+		41F8D442E8DE0C002A99F618 /* DeeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeApp.swift; sourceTree = "<group>"; };
+		56B575153F6003FC3CBF2D88 /* Dee.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Dee.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5F4F399DAEE1329ED89288AA /* DeeUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DeeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		863D83D1BDC0BF76A99DA86A /* DeeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeUITests.swift; sourceTree = "<group>"; };
+		AD622141C5A2B09CA6A5440D /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		BF4A980850E9DB332F9DA317 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		D709CD4F6D3CC337D5959F95 /* Qwen3.5-4B-Q4_K_M.gguf */ = {isa = PBXFileReference; path = "Qwen3.5-4B-Q4_K_M.gguf"; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8CD1A86483811D61EAE04DE5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7893D340B35D7EDC4F39E953 /* DeeCore in Frameworks */,
+				3BBF928D98A42263D0C1C5F2 /* DeeLLM in Frameworks */,
+				7F139EF874840FEAD7EBB3A2 /* DeeFace in Frameworks */,
+				BE35F88C1088EDC61457210E /* DeeVoice in Frameworks */,
+				DB91946DF1DE53AD56E8FBE8 /* DeeTools in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0577EEDD01DDEA5B6B6CC154 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				BF4A980850E9DB332F9DA317 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		0E4A19F74A5599305312DAD4 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				D709CD4F6D3CC337D5959F95 /* Qwen3.5-4B-Q4_K_M.gguf */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		73478D6392559C77925A68CA /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				56B575153F6003FC3CBF2D88 /* Dee.app */,
+				5F4F399DAEE1329ED89288AA /* DeeUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9C2404FCB18592DDE28F3363 = {
+			isa = PBXGroup;
+			children = (
+				A17A92CB381F415805EC20AC /* App */,
+				0E4A19F74A5599305312DAD4 /* Models */,
+				CB259417EBB2DA018C0DF011 /* Packages */,
+				B4B61110B5C1A7AA81428B6E /* UITests */,
+				73478D6392559C77925A68CA /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A17A92CB381F415805EC20AC /* App */ = {
+			isa = PBXGroup;
+			children = (
+				0577EEDD01DDEA5B6B6CC154 /* Resources */,
+				DD8093ECCF8590ADA0BBC24E /* Sources */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		B4B61110B5C1A7AA81428B6E /* UITests */ = {
+			isa = PBXGroup;
+			children = (
+				863D83D1BDC0BF76A99DA86A /* DeeUITests.swift */,
+			);
+			path = UITests;
+			sourceTree = "<group>";
+		};
+		CB259417EBB2DA018C0DF011 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				084B59C8EBCE197D0E83DAE2 /* DeeKit */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		DD8093ECCF8590ADA0BBC24E /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				41F8D442E8DE0C002A99F618 /* DeeApp.swift */,
+				310EA1982BFD19DBB8E49F42 /* DeeModel.swift */,
+				3D140A19846633BAC99A6FA0 /* ModelLocator.swift */,
+				AD622141C5A2B09CA6A5440D /* RootView.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		8E60039B24F4E80D57F18A94 /* Dee */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B1194452CD7C4A9D94588AA6 /* Build configuration list for PBXNativeTarget "Dee" */;
+			buildPhases = (
+				EDEB62C1FB8654B367B6F6B2 /* Sources */,
+				0BE181383F4282B90C1B51CA /* Resources */,
+				8CD1A86483811D61EAE04DE5 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Dee;
+			packageProductDependencies = (
+				7D20323B5787F0B6D8801587 /* DeeCore */,
+				80787F86435200A1EC90B4A9 /* DeeLLM */,
+				5752E31FCD1D59AEF8D57DB4 /* DeeFace */,
+				30F2A8F02CA5F026FDF488F2 /* DeeVoice */,
+				2702E187EA5B78DB754C799C /* DeeTools */,
+			);
+			productName = Dee;
+			productReference = 56B575153F6003FC3CBF2D88 /* Dee.app */;
+			productType = "com.apple.product-type.application";
+		};
+		BA722272C98A26A427394EF4 /* DeeUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 875EADFE69E60188F3A16F88 /* Build configuration list for PBXNativeTarget "DeeUITests" */;
+			buildPhases = (
+				CD2ECBA62BC8CD5AC9B567BA /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				93E809940290A5AF41D5E35C /* PBXTargetDependency */,
+			);
+			name = DeeUITests;
+			packageProductDependencies = (
+			);
+			productName = DeeUITests;
+			productReference = 5F4F399DAEE1329ED89288AA /* DeeUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		5D9198B542BD592233A45002 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					8E60039B24F4E80D57F18A94 = {
+						DevelopmentTeam = PATM9DNCLA;
+						ProvisioningStyle = Automatic;
+					};
+					BA722272C98A26A427394EF4 = {
+						DevelopmentTeam = PATM9DNCLA;
+						ProvisioningStyle = Automatic;
+						TestTargetID = 8E60039B24F4E80D57F18A94;
+					};
+				};
+			};
+			buildConfigurationList = 570BC77B23DF5921CAB3FB2C /* Build configuration list for PBXProject "Dee" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 9C2404FCB18592DDE28F3363;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9370EC103DFEE86650837496 /* XCLocalSwiftPackageReference "Packages/DeeKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 73478D6392559C77925A68CA /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				8E60039B24F4E80D57F18A94 /* Dee */,
+				BA722272C98A26A427394EF4 /* DeeUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		0BE181383F4282B90C1B51CA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DA662881A7EE9B0628E60549 /* Assets.xcassets in Resources */,
+				EF5D9425000088C6B837B82D /* Qwen3.5-4B-Q4_K_M.gguf in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		CD2ECBA62BC8CD5AC9B567BA /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A329143E9DADE0DFE7350D8C /* DeeUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		EDEB62C1FB8654B367B6F6B2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FF0FDF55F06D344F2B1C4A3F /* DeeApp.swift in Sources */,
+				FCA2F50003E9016BE45ABFD4 /* DeeModel.swift in Sources */,
+				C79BE7462480657C9CC91F72 /* ModelLocator.swift in Sources */,
+				CA543A27450A3210D2F7BB98 /* RootView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		93E809940290A5AF41D5E35C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8E60039B24F4E80D57F18A94 /* Dee */;
+			targetProxy = 1F207FC403D26C82F46F7030 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		786FED5F2533229EC0B56EF0 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = App/Dee.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Dee;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Dee can read and add calendar events when you ask it to.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Dee can look at you with the front camera so its eyes can follow your face. Video never leaves the device.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Dee can look up a contact's details when you ask it to.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Dee can tell you where you are when you ask.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dee listens when you talk to it. Audio is processed on this device and never leaves it.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dee can read and add reminders when you ask it to.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Dee turns your speech into text on this device so it can understand you.";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.forensicintelligence.dee;
+				PRODUCT_NAME = Dee;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		A8FF059717D81861FFB49B9B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = App/Dee.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = App/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Dee;
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Dee can read and add calendar events when you ask it to.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Dee can look at you with the front camera so its eyes can follow your face. Video never leaves the device.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Dee can look up a contact's details when you ask it to.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Dee can tell you where you are when you ask.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dee listens when you talk to it. Audio is processed on this device and never leaves it.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dee can read and add reminders when you ask it to.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Dee turns your speech into text on this device so it can understand you.";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.forensicintelligence.dee;
+				PRODUCT_NAME = Dee;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B86FFBE2A22D83A8D95D4C50 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ca.forensicintelligence.dee.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Dee;
+			};
+			name = Debug;
+		};
+		C0BD0D22DA580EBD01CD3D75 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = PATM9DNCLA;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		D4DDFD9E9FC3324D61D1FDD7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ca.forensicintelligence.dee.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Dee;
+			};
+			name = Release;
+		};
+		EC2892E2FD31F030E0767771 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = PATM9DNCLA;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		570BC77B23DF5921CAB3FB2C /* Build configuration list for PBXProject "Dee" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EC2892E2FD31F030E0767771 /* Debug */,
+				C0BD0D22DA580EBD01CD3D75 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		875EADFE69E60188F3A16F88 /* Build configuration list for PBXNativeTarget "DeeUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B86FFBE2A22D83A8D95D4C50 /* Debug */,
+				D4DDFD9E9FC3324D61D1FDD7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		B1194452CD7C4A9D94588AA6 /* Build configuration list for PBXNativeTarget "Dee" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				786FED5F2533229EC0B56EF0 /* Debug */,
+				A8FF059717D81861FFB49B9B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		9370EC103DFEE86650837496 /* XCLocalSwiftPackageReference "Packages/DeeKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/DeeKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2702E187EA5B78DB754C799C /* DeeTools */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DeeTools;
+		};
+		30F2A8F02CA5F026FDF488F2 /* DeeVoice */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DeeVoice;
+		};
+		5752E31FCD1D59AEF8D57DB4 /* DeeFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DeeFace;
+		};
+		7D20323B5787F0B6D8801587 /* DeeCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DeeCore;
+		};
+		80787F86435200A1EC90B4A9 /* DeeLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DeeLLM;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 5D9198B542BD592233A45002 /* Project object */;
+}

@@ -1,0 +1,10 @@
+# Large/derived artifacts — never commit
+Models/*.gguf
+Packages/DeeKit/Binaries/
+build/
+DerivedData/
+.build/
+*.xcuserstate
+xcuserdata/
+.swiftpm/
+.DS_Store
