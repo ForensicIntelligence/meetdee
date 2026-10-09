@@ -25,6 +25,8 @@ targets:
     sources:
       - path: App/Sources
       - path: App/Resources
+      - path: App/Settings.bundle
+        buildPhase: resources
       # The model ships inside the app bundle for development builds. 2.74 GB fits
       # under the 4 GB App Store limit; Phase 7 moves it to a Background Assets pack.
       - path: Models/Qwen3.5-4B-Q4_K_M.gguf
@@ -41,11 +43,15 @@ targets:
         product: DeeVoice
       - package: DeeKit
         product: DeeTools
+      - package: DeeKit
+        product: DeeSense
+      - package: DeeKit
+        product: DeeMind
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ca.forensicintelligence.dee
         PRODUCT_NAME: Dee
-        MARKETING_VERSION: "0.1.0"
+        MARKETING_VERSION: "0.3.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES

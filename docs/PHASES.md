@@ -11,11 +11,11 @@ update. Each phase is one **minor version**.
 | Version | Phase | Scope | Status |
 |---|---|---|---|
 | 0.1 | Foundation | Xcode project (XcodeGen → `Dee.xcodeproj`), llama.xcframework (b11514, built with a Simulator slice), `DeeKit` package; Qwen3.5 prompt builder (golden-tested against the real Jinja template); streaming output parser (reasoning / emotion tags / XML tool calls); thinking-intent detector; agent loop with tools, compaction, reasoning budget; `LlamaEngine` with append-only state reuse and a pinned system snapshot; minimal chat UI | **Done** |
-| 0.2 | The Face | `DeeFace`: 16 expressions (Loona eyes, Wall-E tilt/lids), spring-driven parameters, blinks/double-blinks, saccades, breathing, squash & stretch, glyphs (hearts, stars, zzz, ?), touch reactions (pet/poke), gaze follows touch; Canvas + TimelineView at 120 Hz; full-screen face-first layout with a collapsible transcript | Planned |
-| 0.3 | Voice | `DeeVoice`: SpeechAnalyzer/SpeechTranscriber on-device STT with end-of-utterance detection; AVSpeechSynthesizer streamed sentence-by-sentence through an AVAudioEngine effects chain (cute robot timbre); amplitude envelope drives eye bounce; echo cancellation; barge-in | Planned |
-| 0.4 | Agentic tools | `DeeTools`: clock/date, timers & alarms (AlarmKit), calendar & reminders (EventKit), contacts, device status (battery, thermal, storage), location (CoreLocation), calculator/unit conversion, `remember`/`recall` memory, `set_mood`; permission UX | Planned |
-| 0.5 | Thinking UX | Visible "pondering" face while reasoning, thought-bubble transcript, thinking-mode indicator and manual toggle polish, per-conversation reset, reasoning budget tuning on device | Planned |
-| 0.6 | Memory & persona | SwiftData persistence of conversations and long-term memories, user name onboarding, persona settings (voice pitch, chattiness), memory review UI | Planned |
+| 0.2 | The Face + Camera | `DeeFace`: 16 expressions (Loona eyes, Wall-E tilt/lids), spring-driven parameters, blinks/double-blinks, saccades, breathing, squash & stretch, glyphs (hearts, stars, zzz, ?, thinking dots), Canvas + TimelineView at 120 Hz. `DeeSense`: front camera (Vision) — eyes follow your face, Dee wakes when you appear and dozes when you leave, hand gestures (wave = hello, open palm = stop, thumbs-up). Full-screen, face-first layout; keyboard is debug-only | **Done** |
+| 0.3 | The Mind | `DeeMind`: emotion + personality engine — 13 traits + 13 feelings = 26 parameters, each a byte; the whole state is one 52-hex-character **MindCode**. Appraisal of what is said (on-device sentiment + negation-aware lexicons) and how (loudness/rate vs the user's baseline, caps, dominance). Half-life dynamics, anger → resentment, repair via kindness/apology (with apology fatigue), Tamagotchi needs (loneliness, energy, boredom), slow personality drift. Eye colour = regard for the user, red → yellow → green. Optional age and ageing (variable rate) reshaping traits and dynamics. SQLite persistence of state only — never transcripts. Mood cue fed to the LLM each turn. See `docs/MIND.md` | **Done** |
+| 0.4 | Voice | `DeeVoice`: hands-free loop — SpeechAnalyzer/SpeechTranscriber on-device STT with end-of-utterance detection, listening while someone is in view; prosody extraction (loudness, rate, pitch) feeding the Mind; AVSpeechSynthesizer streamed sentence-by-sentence through an AVAudioEngine effects chain (cute robot timbre, pitch by age); amplitude drives eye bounce; echo cancellation; barge-in; spoken commands ("start over", "stop", "go to sleep") | Planned |
+| 0.5 | Agentic tools | `DeeTools`: clock/date, timers & alarms (AlarmKit), calendar & reminders (EventKit), contacts, device status, location, calculator/units, `remember`/`recall` facts; permission UX by voice | Planned |
+| 0.6 | Thinking UX | Visible "pondering" face while reasoning, thought-bubble transcript, thinking-mode indicator and manual toggle polish, per-conversation reset, reasoning budget tuning on device | Planned |
 | 0.7 | Model delivery & device fit | Background Assets (Apple-hosted, `essential` pack) vs bundled build configurations, memory gating via `os_proc_available_memory`, thermal throttling behaviour, first-launch flow | Planned |
 | 0.8 | Polish & hardening | Accessibility (VoiceOver, Reduce Motion), performance on device (prefill/decode tok/s, energy), adversarial review pass, App Store readiness | Planned |
 | 0.9 | Magazine series | Draft the article series from `DEVLOG.md` | Planned |
@@ -23,6 +23,9 @@ update. Each phase is one **minor version**.
 | 2.x | ROS | Robot body via ROS 2 bridge | Future |
 
 ## Key decisions
+
+- **Hands-free by design (user requirement):** every interaction is voice and/or
+  camera. No typing in the shipping UI; a text field exists only in Debug builds.
 
 - **Context window 4096 tokens** (configurable in `LlamaEngine.Configuration`).
 - **Thinking off by default.** "Think about it" (and ~30 similar phrasings, see

@@ -107,11 +107,13 @@ public actor ConversationAgent {
     // MARK: - Responding
 
     /// Handles one user utterance end to end.
-    public nonisolated func respond(to text: String) -> AsyncThrowingStream<AgentEvent, Error> {
+    /// - Parameter state: optional inner-state note (from DeeMind) prepended to the
+    ///   user's turn, e.g. `<dee_state>Toward your human: fond of them…</dee_state>`.
+    public nonisolated func respond(to text: String, state: String? = nil) -> AsyncThrowingStream<AgentEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    try await self.runTurn(text, emit: { continuation.yield($0) })
+                    try await self.runTurn(text, state: state, emit: { continuation.yield($0) })
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -125,7 +127,7 @@ public actor ConversationAgent {
         }
     }
 
-    private func runTurn(_ text: String, emit: @Sendable (AgentEvent) -> Void) async throws {
+    private func runTurn(_ text: String, state: String?, emit: @Sendable (AgentEvent) -> Void) async throws {
         turnCancelled = false
         switch ThinkingIntent.detect(in: text) {
         case .enable where !thinkingEnabled:
@@ -137,7 +139,8 @@ public actor ConversationAgent {
         default: break
         }
 
-        messages.append(.user(PromptBuilder.sanitize(text)))
+        let spoken = PromptBuilder.sanitize(text)
+        messages.append(.user(state.map { "\($0)\n\(spoken)" } ?? spoken))
         let userIndex = messages.count - 1
 
         for step in 0...config.maxToolRounds {

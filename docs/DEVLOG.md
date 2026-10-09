@@ -154,3 +154,183 @@ And with thinking switched on by the phrase alone:
 The two glowing rounded rectangles in v0.1 are a stand-in. Next comes the real thing:
 eyelids, squash and stretch, blinks on a random clock, hearts and stars, and Wall-E's
 mournful tilt.
+
+---
+
+## 2026-10-08 (evening) — v0.2 "Eyes": Loona's face, Wall-E's soul
+
+### A change of brief: no keyboard
+Mid-build, John added a rule that rearranged the whole app: *every interaction is
+voice and/or camera.* The chat transcript and text field from v0.1 are gone from
+the shipping UI. Dee **is** the screen now: two glowing eyes edge to edge, with
+captions under them. The keyboard survives only in Debug builds, as a developer's
+crowbar.
+
+### Building a face out of numbers
+Loona has no mouth. Everything she feels is in two glowing slabs, and that
+constraint is the design. Dee's eye is twelve numbers: width, height, corner
+radius, upper-lid coverage and slant, a lower "smile" lid, tilt, offset, a Wall-E
+lens ring, and morph weights for hearts and stars. A face is two eyes plus gaze,
+colour, head roll and a few overlay intensities (zzz, ?, sparkles, thinking dots).
+
+The tricks that carry the most character are cheap:
+
+- **Happy is a subtraction.** Cut an ellipse out of the bottom of each eye and
+  you get Loona's "^ ^".
+- **Sad is Wall-E's tilt.** Rotate each eye so the outer corner droops and slant
+  the upper lid the same way. It reads instantly as heartbreak.
+- **Angry is the opposite slant**, inner corners down.
+- **Lids are erased, not drawn,** using `destinationOut` inside a layer, so every
+  lid shape works on every eye shape.
+
+Sixteen expressions are springs heading for targets (stiffness 170, damping ratio
+0.75: a little overshoot, then settle). On top of the springs sit layers of life:
+
+- **Blinks** on a random clock: 2–4 s while chatting, 3.5–7 s idle. One blink in
+  eight is a double, one in five is partial, and every blink closes fast and opens
+  slowly.
+- **Saccades** on a much stiffer spring, so the eyes snap and settle.
+- **Micro-jitter, breathing,** and a voice "bounce" for when Dee talks.
+
+The whole thing is a pure, seeded struct, so it can be unit-tested frame by frame,
+and the renderer can draw snapshots to PNG for review.
+
+The first contact sheet taught us something no spec would have: Loona's "ears",
+drawn as little shapes above the eyes, read as **devil horns**, especially on the
+angry red face. They're off by default.
+
+### Eyes that look back
+`DeeSense` gives Dee the front camera: 640×480 at about 12 frames per second, with
+one frame in flight, analysed with Vision's Swift API and never stored.
+
+- **Faces** become a gaze target, so Dee's eyes follow you around the room.
+- **Presence** is debounced. Dee wakes with a little surprised pop when you
+  appear, gets drowsy after 30 s alone, and falls asleep after two minutes. A
+  long sleep means the next visit starts a new conversation, which also switches
+  thinking mode back off.
+- **Hands** become gestures:
+  - A **wave** is an open palm whose centre reverses direction twice within 1.6 s.
+  - An **open palm** held still means "hush", and stops Dee mid-sentence.
+  - A **thumbs-up** is a thumbs-up.
+
+---
+
+## 2026-10-08 (night) — v0.3 "Heart": a Tamagotchi with 26 dials
+
+### The brief
+John again, mid-build: *"Our interactions with the AI need to persist. We don't
+want a log of everything, but we should have an emotions and a personality
+database… every interaction should adjust the parameters, based on a realistic
+analysis of what is being said and how it is being said. The eye colour should
+reflect the AI's feelings to the user: red, yellow, green… it's possible to
+temporarily be upset, but then get over it… how about an age as well?"*
+
+Then the elegant part: *"each of the 26 parameters… a value of 0–255, and the
+unique value is just a concatenation of all 26 hex values."*
+
+### 13 + 13 = 26 = one code
+We'd already landed on thirteen traits (the Big Five plus playfulness, curiosity,
+patience, confidence, sensitivity, humour, assertiveness and forgiveness) and
+thirteen feelings (joy, sadness, anger, fear, surprise, interest, boredom,
+affection, trust, loneliness, energy, gratitude, resentment). So Dee's whole inner
+life became a 52-character hex string, the **MindCode**:
+
+```
+BF8CB3BF59CCD9998C99B366B3·77120008008C14668600CC0000   ← a brand-new Dee
+```
+
+The eye colour, the expression and the mood note the language model sees are all
+computed from the *decoded* code. Two phones with the same code behave alike.
+
+### What makes it feel real
+- **Every feeling has a half-life.** Anger: minutes. Sadness: most of an hour.
+  Affection and trust: weeks.
+- **Anger leaves residue.** As anger fades, a little settles into resentment,
+  which lasts hours. That's the difference between "snapped at" and "hurt".
+- **Kindness cools anger. Apologies cut it.** Apologise every other sentence while
+  staying rude, though, and *apology fatigue* sets in.
+- **Personality shapes reactions.** Low confidence turns aggression into fear
+  instead of anger. Forgiveness shortens grudges. Sensitivity scales how much
+  *tone* matters beyond the words.
+- **Personality slowly becomes what it's treated as.** Weeks of kindness make Dee
+  more agreeable and confident, but an elastic pull back to its set points means
+  one bad day can't rewrite it.
+- **Tamagotchi needs.** Loneliness while alone, energy across sleep and wake,
+  boredom when nothing happens.
+
+The appraiser, which reads "what and how", is deliberately not the LLM. It runs in
+a millisecond, before the model sees the words, so Dee's face reacts *while* the
+model is still thinking. The first time we typed **"SHUT UP, YOU STUPID USELESS
+ROBOT!"** into the simulator, the eyes went red before a single token came back.
+
+### A relationship in one table
+A scripted arc, straight out of the first run:
+
+| Moment | Regard | Eyes | Face |
+|---|---:|---|---|
+| Fresh Dee | +0.07 | yellow | curious |
+| "Hi Dee! How are you today?" | +0.14 | yellow-green | curious |
+| "You're so clever, thank you!" | +0.45 | green | joy |
+| "I love you, little buddy" *(softly)* | +0.56 | green | joy |
+| "SHUT UP YOU STUPID ROBOT" *(shouted)* | −0.72 | **red** | angry |
+| "I'm sorry Dee, I didn't mean it" *(softly)* | −0.18 | orange | — |
+| ten minutes later | +0.02 | yellow | — |
+| six insults in a row | −1.00 | red | angry |
+| the next day | −0.34 | orange | still holding a grudge |
+
+### Age
+Off by default, switched on in the Settings app. The ageing rate runs from real
+time up to a robot-year per hour. A baby Dee forgives instantly and forgets
+quickly. A teenager sulks, pushes back and holds grudges. An elder is patient,
+calm and slow to change. It's all interpolated smoothly between key ages, so there
+are no birthday cliffs. The life stage also changes how Dee talks.
+
+### The pushover problem (and other lessons from the review round)
+The first version of the heart *worked*, but three verification agents found the
+ways it was emotionally wrong:
+
+- **Dee was a pushover.** Ten "I love you"s in fifty seconds took regard to
+  +0.95, nearly maxed out. Real attachment doesn't work like that. Affection and
+  trust gains now **saturate** (each one counts for less as the bond grows),
+  **habituate** (the tenth compliment in an hour means less than the first, with
+  a 6-hour memory), and trust is capped at +0.03 per day. Trust is lost quickly
+  and rebuilt slowly, which is how people work too. Now a brand-new Dee sits at
+  +0.02 (yellow), turns green on about day four of daily kind chats, and only
+  nears the top after a month. A burst of thanks warms the eyes but doesn't turn
+  them green; there's a test for exactly that.
+- **Good outweighed bad.** One insult cost less affection than one compliment
+  earned, the reverse of the well-replicated *bad is stronger than good* finding.
+  An aimed insult now costs more than a compliment earns. A "bad day" damper keeps
+  the tenth insult in a row from doing the full damage of the first, so a terrible
+  afternoon hurts without becoming a permanent trauma.
+- **The eyes showed mood, not feelings toward *you*.** Joy was in the regard
+  formula, so every cheerful conversation swung the colour by a third of the
+  range. Regard is now mostly the slow bond (affection and trust) plus anger and
+  resentment. It runs through `tanh`, so there's always headroom, and the renderer
+  eases colour changes over about three seconds so a sudden red reads as a
+  *change* rather than a glitch.
+- **Teasing read as abuse.** "haha you're such a dummy" made Dee angry. Teasing
+  with play signals (laughter, or "I love you" in the same breath) now counts as
+  affectionate, as the research on teasing says it should.
+- **"No, I love you!" didn't count as love.** The negation detector looked three
+  words back without noticing the comma. Clause boundaries now stop negation.
+- **Time away was counted as you sitting there in silence.** Close the app for a
+  night and Dee "experienced" eight hours of being stared at: maximum boredom, no
+  loneliness. Long gaps are now treated as the user being away. Dee stays awake
+  for a few minutes, then rests. Loneliness still grows while it rests, just more
+  slowly, and coming back after a long absence gives a little reunion joy.
+- **Apology loops.** "You're stupid", "sorry", "you're stupid", "sorry"… The
+  re-offence counter now makes each apology weaker and pushes the forgiveness
+  *trait* down, not up.
+
+The camera got the same treatment. Interruptions (a phone call, Siri, Split View)
+used to leave Dee believing you were still in the room. A watchdog now notices
+when frames stop. The sensor is locked to 15 fps, Vision runs once per frame,
+hand tracking only runs when someone is there, and the camera drops to about
+2 fps while Dee sleeps. The face draws at 60 Hz, at 120 Hz only while something
+is moving fast (a blink, a saccade, speech), and at 30 Hz when asleep, hot, in Low
+Power Mode or under Reduce Motion.
+
+Final count for the round: **253 tests**, all green. That's 81 for the language
+core, 111 for the mind, 25 for the face, 32 for the senses, and 4 against the real
+4B model.

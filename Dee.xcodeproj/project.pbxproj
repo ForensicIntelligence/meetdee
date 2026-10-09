@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		3BBF928D98A42263D0C1C5F2 /* DeeLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 80787F86435200A1EC90B4A9 /* DeeLLM */; };
+		3DC1EC206CB81591B54AC017 /* DeeSense in Frameworks */ = {isa = PBXBuildFile; productRef = DA75964CE89195589F085176 /* DeeSense */; };
+		42AE015202E71923D0CE0616 /* DeeMind in Frameworks */ = {isa = PBXBuildFile; productRef = 5581B8B759883D61DF0FE17A /* DeeMind */; };
 		7893D340B35D7EDC4F39E953 /* DeeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7D20323B5787F0B6D8801587 /* DeeCore */; };
 		7F139EF874840FEAD7EBB3A2 /* DeeFace in Frameworks */ = {isa = PBXBuildFile; productRef = 5752E31FCD1D59AEF8D57DB4 /* DeeFace */; };
 		A329143E9DADE0DFE7350D8C /* DeeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863D83D1BDC0BF76A99DA86A /* DeeUITests.swift */; };
@@ -16,6 +18,7 @@
 		CA543A27450A3210D2F7BB98 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD622141C5A2B09CA6A5440D /* RootView.swift */; };
 		DA662881A7EE9B0628E60549 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF4A980850E9DB332F9DA317 /* Assets.xcassets */; };
 		DB91946DF1DE53AD56E8FBE8 /* DeeTools in Frameworks */ = {isa = PBXBuildFile; productRef = 2702E187EA5B78DB754C799C /* DeeTools */; };
+		E7141C12AF2D5858225E40D4 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 57A0DEF1957D46F5D1B5CCC3 /* Settings.bundle */; };
 		EF5D9425000088C6B837B82D /* Qwen3.5-4B-Q4_K_M.gguf in Resources */ = {isa = PBXBuildFile; fileRef = D709CD4F6D3CC337D5959F95 /* Qwen3.5-4B-Q4_K_M.gguf */; };
 		FCA2F50003E9016BE45ABFD4 /* DeeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 310EA1982BFD19DBB8E49F42 /* DeeModel.swift */; };
 		FF0FDF55F06D344F2B1C4A3F /* DeeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F8D442E8DE0C002A99F618 /* DeeApp.swift */; };
@@ -37,6 +40,7 @@
 		3D140A19846633BAC99A6FA0 /* ModelLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelLocator.swift; sourceTree = "<group>"; };
 		41F8D442E8DE0C002A99F618 /* DeeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeApp.swift; sourceTree = "<group>"; };
 		56B575153F6003FC3CBF2D88 /* Dee.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Dee.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		57A0DEF1957D46F5D1B5CCC3 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; path = Settings.bundle; sourceTree = "<group>"; };
 		5F4F399DAEE1329ED89288AA /* DeeUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DeeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		863D83D1BDC0BF76A99DA86A /* DeeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeUITests.swift; sourceTree = "<group>"; };
 		AD622141C5A2B09CA6A5440D /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -54,6 +58,8 @@
 				7F139EF874840FEAD7EBB3A2 /* DeeFace in Frameworks */,
 				BE35F88C1088EDC61457210E /* DeeVoice in Frameworks */,
 				DB91946DF1DE53AD56E8FBE8 /* DeeTools in Frameworks */,
+				3DC1EC206CB81591B54AC017 /* DeeSense in Frameworks */,
+				42AE015202E71923D0CE0616 /* DeeMind in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -99,6 +105,7 @@
 		A17A92CB381F415805EC20AC /* App */ = {
 			isa = PBXGroup;
 			children = (
+				57A0DEF1957D46F5D1B5CCC3 /* Settings.bundle */,
 				0577EEDD01DDEA5B6B6CC154 /* Resources */,
 				DD8093ECCF8590ADA0BBC24E /* Sources */,
 			);
@@ -154,6 +161,8 @@
 				5752E31FCD1D59AEF8D57DB4 /* DeeFace */,
 				30F2A8F02CA5F026FDF488F2 /* DeeVoice */,
 				2702E187EA5B78DB754C799C /* DeeTools */,
+				DA75964CE89195589F085176 /* DeeSense */,
+				5581B8B759883D61DF0FE17A /* DeeMind */,
 			);
 			productName = Dee;
 			productReference = 56B575153F6003FC3CBF2D88 /* Dee.app */;
@@ -227,6 +236,7 @@
 			files = (
 				DA662881A7EE9B0628E60549 /* Assets.xcassets in Resources */,
 				EF5D9425000088C6B837B82D /* Qwen3.5-4B-Q4_K_M.gguf in Resources */,
+				E7141C12AF2D5858225E40D4 /* Settings.bundle in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -289,7 +299,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.forensicintelligence.dee;
 				PRODUCT_NAME = Dee;
 				SDKROOT = iphoneos;
@@ -323,7 +333,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.3.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.forensicintelligence.dee;
 				PRODUCT_NAME = Dee;
 				SDKROOT = iphoneos;
@@ -540,6 +550,10 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = DeeVoice;
 		};
+		5581B8B759883D61DF0FE17A /* DeeMind */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DeeMind;
+		};
 		5752E31FCD1D59AEF8D57DB4 /* DeeFace */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DeeFace;
@@ -551,6 +565,10 @@
 		80787F86435200A1EC90B4A9 /* DeeLLM */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DeeLLM;
+		};
+		DA75964CE89195589F085176 /* DeeSense */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DeeSense;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

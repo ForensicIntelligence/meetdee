@@ -1,211 +1,168 @@
 import DeeCore
+import DeeFace
 import SwiftUI
 
+/// Dee is the screen. Interaction is by voice and camera; the only on-screen text
+/// is captions. Debug builds add a keyboard and transcript for development.
 struct RootView: View {
     @Environment(DeeModel.self) private var model
+    #if DEBUG
+    @State private var showDebug = false
     @State private var draft = ""
-    @FocusState private var inputFocused: Bool
+    #endif
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            FacePlaceholder(emotion: model.emotion, activity: model.activity)
-                .frame(height: 220)
-                .padding(.horizontal, 24)
-            TranscriptView(items: model.transcript)
-            inputBar
+        ZStack {
+            FaceView(inputs: model.faceInputs)
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                statusBar
+                Spacer()
+                captions
+                #if DEBUG
+                if showDebug { debugPanel }
+                #endif
+            }
         }
         .background(Color.deeBackground.ignoresSafeArea())
         .overlay { loadOverlay }
+        .statusBarHidden()
+        .persistentSystemOverlays(.hidden)
     }
 
-    private var header: some View {
-        HStack {
-            Button {
-                model.newConversation()
-            } label: {
-                Image(systemName: "plus.bubble")
-            }
-            .accessibilityLabel("New conversation")
-            .disabled(model.isResponding)
+    // MARK: - Status
 
-            Spacer()
-            Text(model.statusLine)
-                .font(.caption2.monospaced())
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-            Spacer()
-
-            Button {
-                model.toggleThinking()
-            } label: {
-                Image(systemName: model.thinkingMode ? "brain.fill" : "brain")
-                    .foregroundStyle(model.thinkingMode ? Color.deeThinking : .secondary)
+    private var statusBar: some View {
+        HStack(spacing: 12) {
+            if model.thinkingMode {
+                Label("Thinking", systemImage: "brain.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.deeThinking)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Color.deeThinking.opacity(0.15), in: .capsule)
+                    .accessibilityIdentifier("thinkingBadge")
+                    .transition(.opacity.combined(with: .scale))
             }
-            .accessibilityLabel(model.thinkingMode ? "Thinking mode on" : "Thinking mode off")
-            .accessibilityIdentifier("thinkingToggle")
+            Spacer()
+            #if DEBUG
+            Button {
+                withAnimation { showDebug.toggle() }
+            } label: {
+                Image(systemName: showDebug ? "keyboard.chevron.compact.down" : "keyboard")
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("debugToggle")
+            #endif
         }
-        .font(.title3)
-        .padding(.horizontal)
-        .padding(.top, 8)
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .animation(.spring, value: model.thinkingMode)
     }
 
-    private var inputBar: some View {
-        HStack(spacing: 10) {
-            TextField("Say something to Dee…", text: $draft, axis: .vertical)
-                .lineLimit(1...4)
-                .textFieldStyle(.plain)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(.white.opacity(0.08), in: .rect(cornerRadius: 20))
-                .focused($inputFocused)
-                .submitLabel(.send)
-                .onSubmit(send)
-                .accessibilityIdentifier("messageField")
+    // MARK: - Captions
 
-            if model.isResponding {
-                Button(action: model.stop) {
-                    Image(systemName: "stop.circle.fill").font(.title)
-                }
-                .accessibilityLabel("Stop")
-            } else {
-                Button(action: send) {
-                    Image(systemName: "arrow.up.circle.fill").font(.title)
-                }
-                .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty || model.loadState != .ready)
-                .accessibilityLabel("Send")
-                .accessibilityIdentifier("sendButton")
+    private var captions: some View {
+        VStack(spacing: 8) {
+            if !model.heard.isEmpty {
+                Text(model.heard)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+            }
+            if !model.caption.isEmpty {
+                Text(model.caption)
+                    .font(.title3.weight(.medium))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(4)
+                    .accessibilityIdentifier("caption")
             }
         }
-        .padding()
+        .padding(.horizontal, 28)
+        .padding(.bottom, 36)
+        // Captions grow token by token: no per-change animation, or each new word
+        // cross-fades over the old line and ghosts.
+        .transaction { $0.animation = nil }
+    }
+
+    // MARK: - Debug
+
+    #if DEBUG
+    private var debugPanel: some View {
+        VStack(spacing: 8) {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    ForEach(model.transcript) { item in
+                        Text(prefix(item.kind) + item.text + (item.reasoning.isEmpty ? "" : "  ✦\(item.reasoning.count) chars of thought"))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(item.kind == .user ? Color.deeEye : .secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+            .frame(maxHeight: 160)
+            HStack(spacing: 8) {
+                Button { model.newConversation() } label: { Image(systemName: "plus.bubble") }
+                Button { model.toggleThinking() } label: { Image(systemName: model.thinkingMode ? "brain.fill" : "brain") }
+                    .accessibilityIdentifier("thinkingToggle")
+                TextField("Type to Dee (debug)", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(send)
+                    .accessibilityIdentifier("messageField")
+                if model.isResponding {
+                    Button(action: model.stop) { Image(systemName: "stop.circle.fill") }
+                } else {
+                    Button(action: send) { Image(systemName: "arrow.up.circle.fill") }
+                        .accessibilityIdentifier("sendButton")
+                }
+            }
+            if let snap = model.mindSnapshot {
+                Text(String(format: "regard %+.2f · %@%@", snap.regard, snap.emotion.rawValue, snap.age.map { String(format: " · age %.1f", $0) } ?? ""))
+                    .font(.caption2.monospaced()).foregroundStyle(.secondary)
+                Text(snap.code.display)
+                    .font(.system(size: 9, design: .monospaced)).foregroundStyle(.tertiary)
+                    .textSelection(.enabled)
+                    .accessibilityIdentifier("mindCode")
+            }
+            Text(model.statusLine).font(.caption2.monospaced()).foregroundStyle(.tertiary)
+        }
+        .padding(12)
+        .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+    }
+
+    private func prefix(_ kind: TranscriptItem.Kind) -> String {
+        switch kind {
+        case .user: "› "
+        case .dee: "◉ "
+        case .tool: "⚙︎ "
+        case .note: "· "
+        }
     }
 
     private func send() {
         model.send(draft)
         draft = ""
     }
+    #endif
+
+    // MARK: - Loading
 
     @ViewBuilder private var loadOverlay: some View {
         switch model.loadState {
-        case .idle, .ready:
-            EmptyView()
-        case .loading(let p):
-            VStack(spacing: 12) {
-                ProgressView(value: p)
-                    .frame(width: 180)
-                Text("Waking Dee up…").font(.callout).foregroundStyle(.secondary)
-            }
-            .padding(24)
-            .background(.ultraThinMaterial, in: .rect(cornerRadius: 20))
+        case .idle, .ready, .loading:
+            EmptyView() // Loading shows as Dee "thinking"; no chrome.
         case .failed(let why):
             VStack(spacing: 12) {
-                Image(systemName: "exclamationmark.triangle").font(.largeTitle)
                 Text(why).multilineTextAlignment(.center).font(.callout)
-                Button("Try again") { Task { await model.loadIfNeeded() } }
             }
             .padding(24)
             .background(.ultraThinMaterial, in: .rect(cornerRadius: 20))
             .padding()
         }
-    }
-}
-
-struct TranscriptView: View {
-    let items: [TranscriptItem]
-
-    var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 10) {
-                    ForEach(items) { item in
-                        TranscriptRow(item: item).id(item.id)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .onChange(of: items.last?.text) {
-                if let last = items.last { proxy.scrollTo(last.id, anchor: .bottom) }
-            }
-            .onChange(of: items.count) {
-                if let last = items.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
-            }
-        }
-    }
-}
-
-struct TranscriptRow: View {
-    let item: TranscriptItem
-    @State private var showReasoning = false
-
-    var body: some View {
-        switch item.kind {
-        case .user:
-            HStack {
-                Spacer(minLength: 48)
-                Text(item.text)
-                    .padding(.horizontal, 14).padding(.vertical, 9)
-                    .background(Color.deeEye.opacity(0.22), in: .rect(cornerRadius: 18))
-            }
-        case .dee:
-            VStack(alignment: .leading, spacing: 6) {
-                if !item.reasoning.isEmpty {
-                    Button {
-                        showReasoning.toggle()
-                    } label: {
-                        Label(item.isStreaming && item.text.isEmpty ? "Thinking…" : "Thoughts", systemImage: "sparkles")
-                            .font(.caption)
-                            .foregroundStyle(Color.deeThinking)
-                    }
-                    if showReasoning {
-                        Text(item.reasoning.trimmingCharacters(in: .whitespacesAndNewlines))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(10)
-                            .background(Color.deeThinking.opacity(0.08), in: .rect(cornerRadius: 12))
-                    }
-                }
-                if !item.text.isEmpty || item.reasoning.isEmpty {
-                    Text(item.text.isEmpty ? "…" : item.text)
-                        .padding(.horizontal, 14).padding(.vertical, 9)
-                        .background(.white.opacity(0.07), in: .rect(cornerRadius: 18))
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityIdentifier("deeMessage")
-        case .tool:
-            Text(item.text).font(.caption.monospaced()).foregroundStyle(.secondary)
-        case .note:
-            Text(item.text)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
-        }
-    }
-}
-
-/// Phase 1 stand-in for the real face (DeeFace, Phase 2).
-struct FacePlaceholder: View {
-    let emotion: Emotion
-    let activity: Activity
-
-    var body: some View {
-        HStack(spacing: 36) {
-            eye
-            eye
-        }
-        .overlay(alignment: .bottom) {
-            Text("[\(emotion.rawValue)]").font(.caption.monospaced()).foregroundStyle(.secondary)
-        }
-    }
-
-    private var eye: some View {
-        RoundedRectangle(cornerRadius: 40)
-            .fill(Color.deeEye)
-            .frame(width: 90, height: activity == .thinking ? 70 : 120)
-            .shadow(color: .deeEye.opacity(0.7), radius: 18)
-            .animation(.spring, value: activity)
     }
 }
 
