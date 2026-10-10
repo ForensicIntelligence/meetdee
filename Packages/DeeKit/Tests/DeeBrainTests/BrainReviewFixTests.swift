@@ -145,7 +145,7 @@ import Testing
     /// Correctness #9: a slow tool (a permission prompt) keeps the turn open and
     /// holds initiatives back until its answer has been asked for.
     @Test func aSlowToolKeepsTheTurn() async throws {
-        let rig = try await BrainRig(tools: [SlowTool(name: "calendar_events", seconds: 0.8)])
+        let rig = try await BrainRig(tools: [SlowTool(name: "calendar_events", seconds: 1.6)])   // tune 8: 0.8 s flaked under a parallel build
         try await rig.start()
         rig.utterance("item_u1")
         #expect(await rig.until { rig.responseCreates().count == 1 })

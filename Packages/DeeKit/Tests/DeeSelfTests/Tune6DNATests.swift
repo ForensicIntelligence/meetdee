@@ -64,7 +64,7 @@ struct Tune6DNATests {
     @Test func sessionInstructionsV7() {
         let v7 = DNASessionInstructions.v7
         // v8 is current since tune 7 (Tune7DNATests); v7 stays pinned as it was.
-        #expect(DNASessionInstructions.current != v7 && DeeDNA.version == "v8")
+        #expect(DNASessionInstructions.current != v7 && DeeDNA.version == "v9")
         // T5-8: the question is the first sentence, the hello inside it.
         #expect(v7.contains("the question is your very first sentence, before anything else, even before answering their own question"))
         #expect(v7.contains("a hello goes inside that sentence, never on its own before it"))

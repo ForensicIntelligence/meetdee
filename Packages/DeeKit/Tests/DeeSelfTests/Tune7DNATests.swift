@@ -33,7 +33,7 @@ struct Tune7DNATests {
         #expect(doLine.hasPrefix("Do: Your very first sentence is \"Hi \(name),\" and your \"Ask now\" question, all in one; nothing before it; that it's been about a week only after it; then a few words at most"), "\(doLine)")
         #expect(!doLine.contains("folded into it"), "\(doLine)")
         #expect(dna.contains("Ask now, first: how their exam went."), "\(dna)")
-        #expect(dna.hasPrefix("DEE DNA v8 "))
+        #expect(dna.hasPrefix("DEE DNA v9 "))
     }
 
     /// The budget: every archetype stays within the target with nothing trimmed for v8.
@@ -48,8 +48,8 @@ struct Tune7DNATests {
 
     @Test func sessionInstructionsV8() {
         let v8 = DNASessionInstructions.v8
-        #expect(DNASessionInstructions.current == v8 && DeeDNA.version == "v8")
-        #expect(DNAPrompt.sessionInstructions() == v8)
+        // v9 is current since tune 8 (Tune8DNATests); v8 stays pinned as it was.
+        #expect(DNASessionInstructions.current != v8 && DeeDNA.version == "v9")
         // T6-8: their name and the question in one sentence, the thing named, nothing before it.
         #expect(v8.contains("their name and the question in one sentence, like \"Hi Sam, how did your exam go?\", naming the thing itself (the exam, the dentist appointment)"))
         #expect(v8.contains("never a hello, a \"lovely to see you\" or the time apart before it, and about their health, ask gently"))

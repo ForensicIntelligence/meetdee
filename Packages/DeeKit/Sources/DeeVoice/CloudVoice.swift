@@ -312,6 +312,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// words decide. A backchannel is ignored; a real turn pauses her by its words
     /// (`holdForWords`) and the brain answers it.
     public static let resumeGrace = 2.0
+    /// Tune 8 (T7-3, live interrupt-echo20): with no echo cancellation, a hold whose
+    /// items all began this soon into her stretch and whose words are at most one
+    /// word ("Yeah.") is likely her own echo. She goes on from it as from a
+    /// backchannel, but it arms no `resumeGrace`: a real onset next pauses her at once.
+    /// (Live: real one-word backchannels began ≥ 1.5 s into her stretch.)
+    public static let echoOnsetWindow = 1.2
 
     /// What the brain (RealtimeBrain) consumes.
     public enum BrainEvent: Sendable, Equatable {
@@ -523,6 +529,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var lastResponseDoneAt: Double?
         /// Onsets inside `resumeGrace` left to their words (newest 16).
         var graceItems: [String] = []
+        /// Tune 8: items that began early in her stretch with no echo cancellation
+        /// (`echoOnsetWindow`; newest 16).
+        var echoProneItems: [String] = []
         /// The open response is held by `spec` (its audio is gated in the player).
         var responseGated = false
     }
@@ -1374,6 +1383,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             case .userSpeechStarted(let item, let ms):
                 let onset = s.map.captureFrame(serverMs: ms).map { graph.capture.hostTime(ofFrame: $0) }
                 let actions = s.core.serverSpeechStarted(itemID: item, onset: onset, at: t)
+                if s.core.onsetEarlyInStretch(itemID: item, within: Self.echoOnsetWindow) {
+                    s.echoProneItems.append(item)
+                    if s.echoProneItems.count > 16 { s.echoProneItems.removeFirst(s.echoProneItems.count - 16) }
+                }
                 if s.core.isDeciding(item) {
                     s.heldStarts[item] = e
                     forward = false
@@ -1928,11 +1941,28 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         apply(s.core.playbackResumed(at: t), &s)
         mark(.note, detail: "resumed \(h.itemID ?? "-") (\(why))")
         if why != "echo" {
-            s.lastResumeAt = t
+            if echoProne(h, s) {
+                // Tune 8 (T7-3): likely her own echo ("Yeah." 0.26 s into her reply, AEC
+                // off): no grace — the next onset over her pauses her on its sound.
+                mark(.note, detail: "no grace: echo-prone \(h.items.joined(separator: ","))")
+                s.lastResumeAt = nil
+            } else {
+                s.lastResumeAt = t
+            }
             s.backchannelItems.append(contentsOf: h.items)
             if s.backchannelItems.count > 32 { s.backchannelItems.removeFirst(s.backchannelItems.count - 32) }
         }
         holdContinuation.yield(.resumed(itemIDs: h.items, text: h.text, why: why))
+    }
+
+    /// Tune 8 (T7-3): the hold is likely her own echo — every item of it began early
+    /// in her stretch with no echo cancellation (`echoOnsetWindow`), and all its words
+    /// are at most one word (fillers aside). "Keep going." (two words) never is.
+    private func echoProne(_ h: FloorHold, _ s: Inner) -> Bool {
+        let items = h.items.filter { !h.tails.contains($0) }
+        guard !items.isEmpty, items.allSatisfy(s.echoProneItems.contains) else { return false }
+        let text = items.map { h.final[$0] ?? h.partial[$0] ?? "" }.joined(separator: " ")
+        return Backchannel.words(text).filter { !Backchannel.fillers.contains($0) }.count <= 1
     }
 
     /// A server item that is only the tail of the burst we just committed

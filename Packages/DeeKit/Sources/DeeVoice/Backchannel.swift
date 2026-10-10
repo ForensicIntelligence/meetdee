@@ -73,33 +73,80 @@ public enum Backchannel {
         }
     }
 
-    /// Words that are never a misheard "go on": they stop her, call her, or ask.
+    /// Words that are never a misheard "go on": they stop her, call her, ask, or
+    /// make a sentence about them or her.
     static let notFragments: Set<String> = [
-        "stop", "wait", "hold", "pause", "quiet", "shush", "shh", "hush", "enough", "halt", "cancel", "never",
-        "nevermind", "no", "nope", "not", "don't", "dont", "hey", "hello", "hi", "dee", "excuse", "sorry", "help",
-        "listen", "what", "why", "how", "who", "where", "when", "which", "whose", "can", "could", "will", "would",
-        "should", "do", "does", "did", "is", "are", "am", "was", "were", "tell", "say", "repeat", "again", "but",
-        "actually", "i", "me", "my", "you", "your", "we", "it", "that", "this",
+        "stop", "wait", "hold", "hang", "pause", "quiet", "shush", "shh", "sh", "hush", "enough", "halt", "cancel", "never",
+        "nevermind", "no", "nope", "not", "don't", "dont", "shut", "bye", "goodbye", "goodnight", "later", "move", "skip",
+        "hey", "hello", "hi", "dee", "d", "excuse", "sorry", "help", "listen", "look",
+        "what", "what's", "whats", "why", "how", "how's", "who", "who's", "where", "where's", "when", "which", "whose",
+        "can", "could", "will", "would", "should", "may", "shall", "have", "has", "do", "does", "did", "is", "are", "am",
+        "was", "were", "tell", "say", "repeat", "again", "but", "actually",
+        "i", "i'm", "im", "i've", "i'd", "i'll", "me", "my", "you", "you're", "youre", "your", "we", "we're", "us",
+        "let's", "lets", "it", "that", "this",
     ]
 
-    /// Tune 7 (T6-3, live): a backchannel over her voice comes back from transcription
-    /// as a short fragment that means nothing on its own — "Put going.", "Grand." ("Go
-    /// on."), "She." ("Keep going"), "Done." ("Mm-hm."'s tail). In a hold, in a short
-    /// burst, it is a "go on" (the decision: backchannels continue her): at most two
-    /// words (fillers aside), no question, no number, none of `notFragments`.
+    /// Tune 8: reactions that, said over her voice, only mean "go on" (the decision:
+    /// backchannels continue her). "Thank you" over her reply thanks her for what she
+    /// is saying; a goodbye or a stop is never one of these.
+    public static let reactionPhrases: Set<String> = [
+        "i see", "i know", "me too", "me neither", "thank you", "thanks", "you bet", "i bet", "i agree", "you're right",
+        "youre right", "i guess", "fair enough",
+    ]
+
+    /// One-letter or two-letter words that are a whole "go on" (any other — "I.",
+    /// "K." — is the start of a turn).
+    static let shortFragments: Set<String> = ["oh", "ah", "aw", "ok", "go", "ya", "ye", "yo", "eh", "hm", "mm"]
+
+    /// Tune 7/8: the single rule (voice and brain) for a backchannel over her voice
+    /// that came back from transcription as a fragment that means nothing on its own.
+    /// The caller decides it was said over her voice (the voice: in a hold, a short
+    /// burst, its full transcript; the brain: `duringHerSpeech`). Safe on a partial: a
+    /// partial that is still such a fragment never decides a turn early.
+    ///
+    /// Live misreads it takes: "Put going.", "Sheupr and going." ("Keep going", tune 7
+    /// echo20 c05), "Grand." ("Go on."), "She.", "Done." (the tail of "Mm-hm"), "I'm
+    /// listen." (fan15 c05, cut off), "Yeah.", hums. It also takes reactions
+    /// (`reactionPhrases`: "I see", "Me too", "Thank you"). Never: a "?", a number, a
+    /// stop, call or question word (`notFragments`), a sentence about them ("I'm
+    /// bored.", "Love you."), a lone letter ("I.", "D."), "Too late." (live fan15 q08
+    /// "Who made you?" — its second word ends no continuer), "Tell me.".
+    ///
+    /// Shapes (fillers aside): 1 word; 2 or 3 words whose last ends a continuer
+    /// (going/goin/on/listening/ahead) or is a hum; a continuer cut off inside its last
+    /// word ("I'm listen", "I'm still listen").
     public static func isMisheardFragment(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("?") else { return false }
         let kept = words(trimmed.replacingOccurrences(of: "-", with: " ")).filter { !fillers.contains($0) || $0 == "no" }
-        guard (1...2).contains(kept.count) else { return false }
-        if kept.contains(where: { notFragments.contains($0) || $0.contains(where: \.isNumber) }) { return false }
-        // Two words: only the end of a continuer survived ("Put going."); "I'm hungry." is a turn.
-        return kept.count == 1 || fragmentEnds.contains(kept[1]) || isHum(kept[1])
+        guard (1...3).contains(kept.count) else { return false }
+        if kept.contains(where: { $0.contains(where: \.isNumber) }) { return false }
+        if kept.count == 1, kept[0].count <= 2, !shortFragments.contains(kept[0]), !isHum(kept[0]) { return false }
+        if reactionPhrases.contains(kept.joined(separator: " ")) { return true }
+        if kept.count >= 2, isCutOffContinuer(kept) { return true }
+        if kept.contains(where: notFragments.contains) { return false }
+        // One word; or two or three where only the end of a continuer survived
+        // ("Put going.", "Sheupr and going."): "I'm hungry." / "Too late." are turns.
+        guard kept.count > 1 else { return true }
+        return fragmentEnds.contains(kept[kept.count - 1]) || (kept.count == 2 && isHum(kept[1]))
     }
 
-    /// The last word a misheard two-word continuer keeps.
+    /// The last word a misheard continuer keeps.
     static let fragmentEnds: Set<String> = ["going", "goin", "on", "listening", "ahead"]
 
+    /// `kept` is a continuer of two words or more whose last word was cut off ("i'm
+    /// listen" for "I'm listening", "go ahe"): every word but the last matches, the
+    /// last is a strict start (3 letters or more) of the continuer's word.
+    static func isCutOffContinuer(_ kept: [String]) -> Bool {
+        guard let last = kept.last, last.count >= 3 else { return false }
+        return continuers.contains { c in
+            let cw = c.split(separator: " ").map(String.init)
+            guard cw.count >= kept.count else { return false }
+            for i in 0..<(kept.count - 1) where cw[i] != kept[i] { return false }
+            let w = cw[kept.count - 1]
+            return w != last && w.hasPrefix(last)
+        }
+    }
 
     /// Tune 6: partial words that are, or may still become, a backchannel ("I'm",
     /// "Keep", "I'm listen"): every clause but the last is one, and the last is the

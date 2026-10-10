@@ -410,58 +410,75 @@ public enum TurnPolicy {
         Backchannel.isBackchannel(text)
     }
 
-    // MARK: Misheard fragments over her voice (tune 7, T6-3)
+    // MARK: Misheard fragments over her voice (tune 7, T6-3; one rule since tune 8, T7-1)
 
-    /// Clear stop words: said over her voice they are never a backchannel, however short.
-    static let stopFragments: Set<String> = [
-        "stop", "wait", "pause", "quiet", "shush", "shh", "sh", "hush", "enough", "no", "nope", "cancel", "bye", "goodbye",
-        "goodnight", "nevermind", "sorry", "help", "hey", "excuse", "hold", "hang", "shut", "listen", "look", "dee", "d",
-    ]
-    /// Two-word stops ("hold on", "be quiet").
-    static let stopPhrases: Set<String> = [
-        "hold on", "hang on", "be quiet", "shut up", "never mind", "good night", "not now", "too much", "too long", "that's enough",
-    ]
+    /// Over her voice, a misheard backchannel fragment ("Put going.", "Grand.", "She.",
+    /// "Done."): DeeVoice's `Backchannel.isMisheardFragment`, the one rule the voice's
+    /// floor hold uses too. Tune 8 (T7-1, live interrupt-fan15 q08): the brain's own,
+    /// looser copy took "Too late." ("Who made you?" said over her) as a backchannel —
+    /// she talked on and the question was never answered; the voice's rule refuses it
+    /// (two words count only when the second is how a continuer ends: going, on, …).
+    /// The voice's rule also takes a continuer cut off in its last word ("I'm listen.",
+    /// T7-2) and three words ending like one ("Sheupr and going.").
+    public static func isMisheardFragment(_ text: String) -> Bool {
+        Backchannel.isMisheardFragment(text)
+    }
+
+    /// Tune 8 (T7-2): the last word of a partial over her voice that a continuer ends
+    /// on ("Sheupr and going" was "Keep going"; "…I'm listen" is "I'm listening" cut off):
+    /// early words never decide on it — the full words say whether it was one.
+    static let continuerEnds: Set<String> = ["going", "goin", "on", "listening", "listen", "listenin", "ahead"]
+
+    public static func endsLikeContinuer(_ text: String) -> Bool {
+        guard !text.contains("?"), let last = words(text).last else { return false }
+        return continuerEnds.contains(last)
+            || ((2...6).contains(last.count) && last.allSatisfy { "mhnu".contains($0) } && last.contains("m"))
+    }
+
     /// A question without its question mark ("Who made", "Why not").
     static let questionStarters: Set<String> = [
         "what", "what's", "whats", "why", "how", "how's", "who", "who's", "where", "where's", "when", "which", "can", "could",
         "do", "does", "did", "is", "are", "was", "were", "will", "would", "should", "may", "am", "have", "has", "shall",
     ]
-    /// A two-word sentence about them or her ("I'm bored", "Love you") is a clear turn…
-    static let personal: Set<String> = [
-        "i", "i'm", "im", "i've", "i'd", "i'll", "me", "my", "you", "you're", "youre", "your", "we", "we're", "let's", "lets",
-    ]
-    /// …unless it is a reaction that only says "go on".
-    static let reactionPhrases: Set<String> = [
-        "i see", "i know", "me too", "thank you", "you bet", "i bet", "i agree", "you're right", "me neither", "i guess",
-    ]
-    static let humFillers: Set<String> = ["um", "uh", "er", "erm", "hmm"]
-
-    /// Tune 7 (T6-3): over her voice, a short (≤ 2 words) fragment that is not clearly a
-    /// stop or a question is a backchannel, however the transcriber spelled it. Live tune
-    /// 6, four backchannels stopped her: "Keep going" came back as "Put going." and as
-    /// "She.", "Go on" as "Grand.", and the tail of "Mm-hm" as "Done." — each answered
-    /// (or decided early) as a turn, cutting her reply. A clear stop ("Stop.", "Wait.",
-    /// "No.", "Hold on."), a question ("Why?", "Who made…"), a call of her name or a letter
-    /// ("Dee.", "D.": the start of a turn), a number, or a two-word sentence about them or
-    /// her ("I'm bored.", "Love you.") still counts as words for her.
-    public static func isMisheardFragment(_ text: String) -> Bool {
-        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty, !t.contains("?") else { return false }
-        let w = words(t).filter { !humFillers.contains($0) }
-        guard (1...2).contains(w.count) else { return false }
-        let phrase = w.joined(separator: " ")
-        if stopPhrases.contains(phrase) || w.contains(where: stopFragments.contains) { return false }
-        if questionStarters.contains(w[0]) { return false }
-        if isFragmentOrAddress(w) || w.contains(where: addressWords.contains) { return false }
-        if w.contains(where: { $0.contains(where: \.isNumber) }) { return false }
-        if w.count == 2, w.contains(where: personal.contains), !reactionPhrases.contains(phrase) { return false }
-        return true
-    }
 
     /// The first words of a partial that are already a question ("Who made", "Are you").
     public static func startsQuestion(_ words: [String]) -> Bool {
         guard let first = words.first else { return false }
         return questionStarters.contains(first)
+    }
+
+    // MARK: Their question echoed back (tune 8, T7-4 / T7-6)
+
+    /// Tune 8 (T7-4): her first sentence only says their own question back, a hello and
+    /// their name at most before it — live "Hi Alex, who made you?" (her whole reply to
+    /// "Who made you?"), "Hi Alex, can you hear me okay?", "Hi Alex, how was your day?".
+    /// `theirs` is their words, a question; her sentence asks it back: at least two of their
+    /// words, all of them, at her sentence's end, with no more than three words (a hello, a
+    /// name) before them.
+    public static func echoesTheirWords(_ sentence: String, theirs: String) -> Bool {
+        let drop: Set<String> = ["hi", "hey", "hello", "dee", "d", "oh", "so", "um", "uh", "and"]
+        var their = words(theirs)
+        while let f = their.first, drop.contains(f) { their.removeFirst() }
+        // Their last sentence is the one that asks ("Hi Dee. How was your day?").
+        let lastAsk = sentences(theirs).last.map(words) ?? []
+        if lastAsk.count >= 2, lastAsk.count < their.count { their = lastAsk }
+        // Only a question said back: "I love you." → "I love you." is an answer.
+        guard sentence.trimmingCharacters(in: .whitespaces).hasSuffix("?"), asks(theirs) else { return false }
+        let hers = words(sentence)
+        guard their.count >= 2, hers.count >= their.count, hers.count - their.count <= 3 else { return false }
+        return Array(hers.suffix(their.count)) == their
+    }
+
+    /// The retry's note after her first sentence only repeated their question, and the
+    /// note on an answer to a question asked over her voice (tune 8, T7-6: live kitchen15
+    /// q06 "What did you do today?" → "Ooh, I want to hear what happened with your
+    /// volcanoes today! As for me, …").
+    public static let answerFirstNote =
+        "They asked you something: your very first sentence answers it plainly; never repeat their question back or say what you heard"
+
+    /// Words that ask: a "?" or a question word first ("Who made you", "Are you awake").
+    public static func asks(_ text: String) -> Bool {
+        text.contains("?") || startsQuestion(words(text))
     }
 
     /// The note on a turn answered again after a spoken preamble was cut.
@@ -489,6 +506,8 @@ public enum TurnPolicy {
         ["i", "need", "to", "think"], ["thinking", "about", "how"], ["how", "to", "respond"], ["how", "i", "should", "respond"],
         ["let", "me", "tuck"], ["i'll", "tuck"], ["quick", "save"], ["memory", "check"], ["one", "moment"], ["let", "me", "grab"],
         ["i'll", "grab"], ["let", "me", "pull", "up"], ["i'll", "pull", "up"],
+        // Tune 8 (T7-6, live latency-fan15 q03): quoting them back ("Oh, I heard you say yours isn't.").
+        ["i", "heard", "you", "say"], ["i", "heard", "you", "said"], ["sounds", "like", "you", "said"],
     ]
 
     /// Whether the first words of a reply (`prefix`, its transcript so far) are a
@@ -550,6 +569,7 @@ public enum TurnPolicy {
         ["i'll", "note"], ["i'll", "save"], ["i'll", "store"], ["i'll", "jot"], ["i'll", "tuck"], ["i'll", "make", "a", "note"],
         ["i'll", "remember", "that"], ["i'll", "check", "what"], ["i", "need", "to", "think"], ["thinking", "about", "how"],
         ["memory", "check"], ["quick", "save"],
+        ["i", "heard", "you", "say"], ["i", "heard", "you", "said"],
     ]
 
     /// Whether a later sentence of a reply opens with narration (`narrationPatterns`).

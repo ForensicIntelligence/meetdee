@@ -952,6 +952,15 @@ public struct EarCore: Sendable {
         return nearEndVoice(from: it.onset, to: min(it.end ?? t, t)).pitched
     }
 
+    /// Tune 8 (T7-3): with no echo cancellation, server item `itemID` began within
+    /// `within` s of the start of her current stretch (her first audio, or her
+    /// resume), while she plays — where her own echo most often opens an item
+    /// (live: "Yeah." 0.26 s into her reply, "You." 0.7 s). False once forgotten.
+    public func onsetEarlyInStretch(itemID: String, within: Double) -> Bool {
+        guard !aecActive, speaking, let it = items[itemID] else { return false }
+        return it.onset - stretchStart <= within + 1e-9
+    }
+
     /// Her voice may be in the microphone right now: playing, or within the echo
     /// tail of a stretch the user did not cut.
     public func herVoiceInRoom(at t: Double) -> Bool { herTime(at: t) }

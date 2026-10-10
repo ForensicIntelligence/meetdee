@@ -290,6 +290,39 @@ exact, higher effort) while nothing of the fast reply was heard.
   request she would play over the punchline. And 90 of 253 within-turn pauses (0.28–0.45 s) that the server does not
   split today would be split by the client commit. DeeRealtime's `respondToSpeech` stays available.
 
+### Tune 8 (live run 20261010-063215, `tune7-live.md`)
+
+- **One misheard-fragment rule (T7-1).** `TurnPolicy.isMisheardFragment` is DeeVoice's
+  `Backchannel.isMisheardFragment`; the brain's own looser list is gone. Live (interrupt-fan15 q08) "Who made you?" over
+  her came back as "Too late."; the brain's rule took it for "go on" (she talked on to her sentence cap) and the voice's
+  would not. "Too late." / "Big deal." over her are turns now. A carry-on ("go on from where you stopped") answers no turn
+  (`Channel.carryOn`, never `coveringReply`): when the full words of an item first taken for "keep going" are more, the
+  unheard carry-on is taken back and the turn gets exactly one answer.
+- **Continuer endings never decide early (T7-2).** Over her voice, early words never decide on a partial whose last word
+  ends a continuer (`TurnPolicy.endsLikeContinuer`: going/goin/on/listening/listen/ahead, a hum): echo20 c05 "Sheupr
+  and going." was decided at once (3 words) and cut her. "I'm listen." (fan15 c05) is a cut-off continuer under the
+  voice's rule, so its full words are "go on".
+- **No carry-on over a newer turn (T7-3).** A cut of her voice after a backchannel she talked on through brings a
+  carry-on only when no newer turn of theirs is being answered or decided (`newerTurnPending`). Live (interrupt-echo20
+  q02) the answer to "Are you awake?" cut her; the phantom "Yeah." then got a carry-on, refused, retried when the answer
+  completed — the retry re-armed the gate and threw the held 3.9 s answer away (0.9 s lost).
+- **Their question answered, never said back (T7-4 / T7-6, DNA v9).** A first sentence that only repeats their words
+  (`TurnPolicy.echoesTheirWords`: "Hi Alex, who made you?") is taken back unheard and asked again once with
+  `answerFirstNote` (trace `.echoedQuestion`). "I heard you say" is a preamble (first sentence) / narration (later). A
+  question asked over her voice carries `answerFirstNote`.
+- **`respondToSpeech` (T7-5): measured, not wired.** Tune-7 traces: the server's `speech_stopped` → `committed` is
+  p50 1 ms / p90 2 ms (n = 380), so a request at `speech_stopped` saves nothing. The ~74 ms commit round trip exists
+  only for the voice's own quick commits in a hold (n = 19), where the reply waits for the words by design (an early
+  request there brings back the backchannel stops). The brain's commit → request is 0.00 / 0.02 s.
+- **Turn detection (T7-5): kept at server_vad 300 ms.** Projection from the tune-7 report (energy gaps between voiced
+  spans vs. the server's splits: every gap ≥ 0.38 s split, nearly none below, so the server splits at about silence +
+  0.08 s): 250 ms adds 35 splits (gaps 0.33–0.37 s, all `turn` lines), 200 ms adds 50 (also the joke set-up j01 0.30 s
+  and the continuation k01). Each is caught by the speculative gate (their voice is back ≤ 0.37 s after the end; the gate
+  holds ≥ 0.67 s; tune 7 caught 143 such splits — `speculationDropped("speech")` — with 0 collisions), at the cost of a
+  discarded request each (≈ +$0.07 / +$0.10 a run). Latency gain is the silence saved: p50 1.27 → 1.22 s (250) / 1.17 s
+  (200), p90 1.40 → 1.35 / 1.30 — neither reaches the 1.1 s p50 target, whose remaining share is the model (create →
+  first audio 0.62 s p50). Recommendation: an A/B live run at 250 ms before any change.
+
 ## DNA delivery (DNA.md §4)
 
 `buildDNA`: `host.dnaParts(DNARequest)` (the host calls `Cortex.cue(at:)` first unless the
@@ -362,6 +395,10 @@ unless an item is still playing, 300 s absolute). Initiatives are refused while 
   takes a softer, tilted, grey-blue look while the cloud is off.
 
 ## Open asks
+
+- **DeeVoice (tune 8):** the brain now relies on `Backchannel.isMisheardFragment` for every fragment decision (the
+  voice's tune-8 rule: reactions, a cut-off continuer, three words ending like one, "Hang on." / "Goodbye." refused). Keep
+  it public and keep its doc as the one rule.
 
 - **DeeVoice (tune 7, T6-3):** apply `scratchpad/tune7-brain-to-voice.patch`: the hold's short-burst rule
   (`Backchannel.isBackchannel(_:inHold: true)`) takes a misheard one- or two-word fragment as "go on", so the voice's

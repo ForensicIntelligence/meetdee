@@ -40,13 +40,14 @@ import Testing
     // MARK: T6-3 — misheard short fragments while she talks are backchannels
 
     @Test func misheardFragmentsAreBackchannelsButStopsAndQuestionsAreNot() {
-        for t in ["Put going.", "Grand.", "She.", "Done.", "MMHN.", "Sheep.", "Going on.", "Thank you.", "I see.", "Oh nice.",
+        // Tune 8 (T7-1): the voice's one rule — "Thank you." is no longer a misheard "go on".
+        for t in ["Put going.", "Grand.", "She.", "Done.", "MMHN.", "Sheep.", "Going on.", "I see.", "Oh nice.",
                   "Um, grand."] {
             #expect(TurnPolicy.isMisheardFragment(t) || TurnPolicy.isBackchannel(t), "\(t)")
         }
-        for t in ["Stop.", "Wait.", "No.", "Hold on.", "Hang on.", "Be quiet.", "Shut up.", "Why?", "What?", "Really? Why?",
+        for t in ["Stop.", "Wait.", "No.", "Hold on.", "Hang on.", "Goodbye.", "Be quiet.", "Shut up.", "Why?", "What?", "Really? Why?",
                   "Who made", "Are you", "Dee.", "D.", "Hey, Dee.", "I'm bored.", "Love you.", "5.", "Not now.",
-                  "Are you awake?", "Who made you?", "Tell me a story.", "Never mind.", "Goodbye."] {
+                  "Are you awake?", "Who made you?", "Tell me a story.", "Never mind.", "Too late."] {
             #expect(!TurnPolicy.isMisheardFragment(t), "\(t)")
         }
     }

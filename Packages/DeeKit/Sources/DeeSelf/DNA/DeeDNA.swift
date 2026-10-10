@@ -387,7 +387,9 @@ public struct DeeDNA: Sendable, Equatable {
     /// it); the person's name as a sentence ("Their name is Priya.").
     /// v8 (tune 7): session instructions v8; the due follow-up's opening words spelled out
     /// ("Hi Alex," and the question, all in one; the time apart only after it).
-    public static let version = "v8"
+    /// v9 (tune 8): session instructions v9; the follow-up form only with an "Ask now, first"
+    /// line, their words never said back, their question answered in the first sentence.
+    public static let version = "v9"
 
     public var turn: TurnContext
     // §1.2
