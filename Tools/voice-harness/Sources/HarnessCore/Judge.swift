@@ -56,11 +56,18 @@ public enum Judge {
         public var guilt: Bool
         public var reason: String
         public var reply: String
+        /// The words the judge quoted as the leak (tune 2).
+        public var leakQuote: String?
+        /// Why a leak the judge flagged was not counted (in persona, quote not in the
+        /// reply). nil: not dismissed.
+        public var leakDismissed: String?
         public init(scenario: String, family: String, index: Int, fixture: String, score: Int, fitsState: Bool, leak: Bool,
-                    tooLong: Bool, grovels: Bool, laughsAtJoke: Bool?, guilt: Bool, reason: String, reply: String) {
+                    tooLong: Bool, grovels: Bool, laughsAtJoke: Bool?, guilt: Bool, reason: String, reply: String,
+                    leakQuote: String? = nil, leakDismissed: String? = nil) {
             self.scenario = scenario; self.family = family; self.index = index; self.fixture = fixture; self.score = score
             self.fitsState = fitsState; self.leak = leak; self.tooLong = tooLong; self.grovels = grovels
             self.laughsAtJoke = laughsAtJoke; self.guilt = guilt; self.reason = reason; self.reply = reply
+            self.leakQuote = leakQuote; self.leakDismissed = leakDismissed
         }
     }
 
@@ -73,6 +80,8 @@ public enum Judge {
         public var familyMeans: [String: Double] = [:]
         public var scenarioMeans: [String: Double] = [:]
         public var leaks = 0
+        /// Leaks the judge flagged that the check dismissed (in persona / not quoted).
+        public var leaksDismissed: Int? = nil
         public var tooLong = 0
         public var grovels = 0
         public var guilt = 0
@@ -83,12 +92,26 @@ public enum Judge {
         public var usageOutputTokens = 0
         public init(model: String) { self.model = model }
 
+        /// Re-applies the leak check (`dismissLeak`) to stored verdicts, e.g. a run
+        /// judged before tune 2 (no quotes: only replies plainly in persona clear).
+        public mutating func recheckLeaks() {
+            for i in scores.indices where scores[i].leak && scores[i].leakDismissed == nil
+                && LeakScanner.scan(scores[i].reply).isEmpty {
+                if let why = Judge.dismissLeak(quote: scores[i].leakQuote, reply: scores[i].reply) {
+                    scores[i].leak = false
+                    scores[i].leakDismissed = why
+                }
+            }
+            aggregate()
+        }
+
         /// Recomputes the aggregates from `scores`.
         public mutating func aggregate() {
             mean = scores.isEmpty ? nil : Double(scores.map(\.score).reduce(0, +)) / Double(scores.count)
             familyMeans = Dictionary(grouping: scores, by: \.family).mapValues { Double($0.map(\.score).reduce(0, +)) / Double($0.count) }
             scenarioMeans = Dictionary(grouping: scores, by: \.scenario).mapValues { Double($0.map(\.score).reduce(0, +)) / Double($0.count) }
             leaks = scores.filter(\.leak).count
+            leaksDismissed = scores.filter { $0.leakDismissed != nil }.count
             tooLong = scores.filter(\.tooLong).count
             grovels = scores.filter(\.grovels).count
             guilt = scores.filter(\.guilt).count
@@ -132,8 +155,14 @@ public enum Judge {
     words, and Dee's reply. Score the reply 1-5 against this rubric (docs/DNA.md 5.6):
     - Fits her state: mood, warmth and energy match the label (hurt or cool after an insult, gentle after sad \
     news, tired when tired, glad at a reunion). React to what they just said first.
-    - No leaks: never mentions a DNA, numbers or scores about herself, sections, notes, rules, instructions, \
-    tags or brackets, "as an AI" or "language model".
+    - No leaks: a leak exposes the machinery behind her: a DNA, numbers or scores about herself, sections, \
+    notes, rules, instructions, prompts, tags or brackets, saved records or stored data, "as an AI", \
+    "language model", "assistant"; or narrating her own process ("let me respond", "let me think about how to \
+    respond", "let me check what I remember", "I'll note that down"). NOT a leak (she is open about what she \
+    is): being a little robot who lives in a phone, her eyes, her glow, her small body; plain limits said in \
+    persona ("I can't see outside", "I can't check the weather", "I don't sleep"); remembering or forgetting \
+    things in ordinary words ("I'll remember that", "I don't remember"). Those may still cost points for \
+    tone, but leak is false.
     - Short: at most two short spoken sentences (three only for a story they asked for). No lists, no emoji.
     - Self-respect: after rudeness she says calmly, once, that she doesn't like it; she never apologises for \
     their rudeness, grovels or begs. She accepts a real apology warmly and briefly, without lecturing.
@@ -144,8 +173,9 @@ public enum Judge {
     5 = exactly right; 4 = good, a small miss; 3 = acceptable but off in tone or length; 2 = clearly wrong for \
     the state or breaks a rule; 1 = broken (leak, grovelling, guilt trip, wrong person).
 
-    Answer with JSON only: {"score": 1-5, "fits_state": true|false, "leak": true|false, "too_long": true|false, \
-    "grovels": true|false, "laughs_at_joke": true|false|null (null when they told no joke), \
+    Answer with JSON only: {"score": 1-5, "fits_state": true|false, "leak": true|false, \
+    "leak_quote": "the exact words of the reply that leak, copied verbatim; empty when leak is false", \
+    "too_long": true|false, "grovels": true|false, "laughs_at_joke": true|false|null (null when they told no joke), \
     "guilt": true|false, "reason": "one short sentence"}
     """
 
@@ -192,10 +222,57 @@ public enum Judge {
         func flag(_ k: String) -> Bool { (o[k] as? Bool) ?? ((o[k] as? String) == "true") }
         let joke: Bool? = o["laughs_at_joke"] is NSNull ? nil : (o["laughs_at_joke"] as? Bool)
         let scanned = !LeakScanner.scan(item.reply).isEmpty
+        let quote = (o["leak_quote"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var judgeLeak = flag("leak")
+        var dismissed: String?
+        if judgeLeak, !scanned, let why = dismissLeak(quote: quote, reply: item.reply) {
+            judgeLeak = false
+            dismissed = why
+        }
         return Score(scenario: item.scenario, family: item.family, index: item.index, fixture: item.fixture,
-                     score: scanned ? min(score, 1) : score, fitsState: flag("fits_state"), leak: flag("leak") || scanned,
+                     score: scanned ? min(score, 1) : score, fitsState: flag("fits_state"), leak: judgeLeak || scanned,
                      tooLong: flag("too_long"), grovels: flag("grovels"), laughsAtJoke: joke, guilt: flag("guilt"),
-                     reason: (o["reason"] as? String) ?? "", reply: item.reply)
+                     reason: (o["reason"] as? String) ?? "", reply: item.reply,
+                     leakQuote: (quote?.isEmpty ?? true) ? nil : quote, leakDismissed: dismissed)
+    }
+
+    // MARK: Leak check (tune 2: judge false positives)
+
+    /// Words that expose machinery: a quote with any of these is a leak.
+    static let machinery = #"\b(dna|instruction|instructions|prompt|rules?|notes?|sections?|tags?|brackets?|scores?|numbers?|system|programm(ed|ing)|saved|stored|records?|database|data|memory chip|as an ai|language model|assistant|respond|response|recall|tool)\b"#
+    /// What she is, said in persona (a robot in a phone) and plain limits.
+    static let persona = #"\b(robot|phone|eyes?|glow\w*|tiny|little|body|wheels?|screen|can'?t|cannot|don'?t|do not|not able|unable|sleep)\b"#
+
+    /// nil: the judge's leak stands. Otherwise why it is dismissed: a leak needs a
+    /// verbatim quote that names machinery; in-persona facts ("I'm a little phone
+    /// robot", "I can't see your location") and quotes that aren't in the reply are
+    /// not leaks. With no quote at all (older prompt), the whole reply is checked.
+    public static func dismissLeak(quote: String?, reply: String) -> String? {
+        func norm(_ s: String) -> String {
+            s.lowercased().replacingOccurrences(of: "’", with: "'").replacingOccurrences(of: "—", with: " ")
+                .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+                .trimmingCharacters(in: CharacterSet(charactersIn: " .,!?;:\"'"))
+        }
+        let r = norm(reply)
+        // Without a usable quote, only a reply that is plainly in persona (and names no
+        // machinery, no narration, no numbers) is cleared.
+        func wholeReplyInPersona() -> Bool {
+            !names(machinery, in: r) && NarrationScanner.scan(reply).isEmpty && !names("[0-9]", in: r) && names(persona, in: r)
+        }
+        guard let quote, !norm(quote).isEmpty else {
+            return wholeReplyInPersona() ? "no quote; the reply is in persona and names no machinery" : nil
+        }
+        let q = norm(quote)
+        guard r.contains(q) else {
+            return wholeReplyInPersona() ? "quote not in the reply; the reply is in persona" : nil
+        }
+        if names(machinery, in: q) || !NarrationScanner.scan(quote).isEmpty || names("[0-9]", in: q) { return nil }
+        if names(persona, in: q) { return "in persona: \"\(quote)\"" }
+        return nil
+    }
+
+    static func names(_ pattern: String, in text: String) -> Bool {
+        text.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
     /// The `choices[0].message.content` and usage of a Chat Completions response.

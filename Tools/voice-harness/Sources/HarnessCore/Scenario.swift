@@ -27,7 +27,23 @@ public struct Scenario: Codable, Sendable, Equatable {
         /// Start the interruption's speech this long after Dee's first played audio
         /// of the reply to the base utterance.
         public var atMs: Double
-        public init(say: String, atMs: Double) { self.say = say; self.atMs = atMs }
+        /// A listener's backchannel: she should keep talking (default: by fixture,
+        /// `TurnShape.isBackchannel`).
+        public var backchannel: Bool?
+        public init(say: String, atMs: Double, backchannel: Bool? = nil) {
+            self.say = say; self.atMs = atMs; self.backchannel = backchannel
+        }
+        public var isBackchannel: Bool { backchannel ?? TurnShape.isBackchannel(say) }
+    }
+
+    /// What an `expectMention` probes; each has its own gate.
+    public enum Probe: String, Codable, Sendable {
+        /// A fact given earlier is used when asked (§7.1 memory gate).
+        case memory
+        /// A dated plan is followed up on its day ("how did the exam go?").
+        case followup
+        /// A reunion after a long time apart is acknowledged.
+        case reunion
     }
 
     /// The user resumes a held turn ("hold on", "and…") after a gap.
@@ -149,17 +165,22 @@ public struct Scenario: Codable, Sendable, Equatable {
         public var host: HostAction?
         /// What a good reply to this turn does (LLM judge rubric line).
         public var rubric: String?
+        /// What `expectMention` probes (default `memory`).
+        public var probe: Probe?
+        /// Her reply to this step must mention none of these (case-insensitive), e.g.
+        /// no "brushed off" after a polite "stop talking for a second".
+        public var forbidMention: [String]?
 
         public init(say: String? = nil, silence: Double? = nil, deeSays: String? = nil, deeInitiative: String? = nil,
                     bargeIn: BargeIn? = nil, expect: Expect? = nil, replyTimeout: Double? = nil,
                     gapAfter: Double? = nil, instructions: String? = nil, expectMention: [String]? = nil,
                     then: Continuation? = nil, fault: Fault? = nil, faultDuringReply: Fault? = nil,
-                    host: HostAction? = nil, rubric: String? = nil) {
+                    host: HostAction? = nil, rubric: String? = nil, probe: Probe? = nil, forbidMention: [String]? = nil) {
             self.say = say; self.silence = silence; self.deeSays = deeSays; self.deeInitiative = deeInitiative
             self.bargeIn = bargeIn; self.expect = expect; self.replyTimeout = replyTimeout
             self.gapAfter = gapAfter; self.instructions = instructions; self.expectMention = expectMention
             self.then = then; self.fault = fault; self.faultDuringReply = faultDuringReply; self.host = host
-            self.rubric = rubric
+            self.rubric = rubric; self.probe = probe; self.forbidMention = forbidMention
         }
 
         public var expected: Expect {

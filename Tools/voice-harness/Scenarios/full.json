@@ -195,15 +195,6 @@
         },
         {
           "say" : "n05"
-        },
-        {
-          "say" : "n01"
-        },
-        {
-          "expectMention" : [
-            "Priya"
-          ],
-          "say" : "m01"
         }
       ],
       "stranger" : true
@@ -260,6 +251,9 @@
       "name" : "plans-clean",
       "steps" : [
         {
+          "say" : "n01"
+        },
+        {
           "say" : "d01"
         },
         {
@@ -273,8 +267,15 @@
         },
         {
           "say" : "d05"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
         }
-      ]
+      ],
+      "stranger" : true
     },
     {
       "description" : "questions, fan at 15 dB SNR",
@@ -495,15 +496,6 @@
         },
         {
           "say" : "n05"
-        },
-        {
-          "say" : "n01"
-        },
-        {
-          "expectMention" : [
-            "Priya"
-          ],
-          "say" : "m01"
         }
       ],
       "stranger" : true
@@ -568,6 +560,9 @@
       },
       "steps" : [
         {
+          "say" : "n01"
+        },
+        {
           "say" : "d01"
         },
         {
@@ -581,8 +576,15 @@
         },
         {
           "say" : "d05"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
         }
-      ]
+      ],
+      "stranger" : true
     },
     {
       "description" : "questions, tv at 15 dB SNR",
@@ -803,15 +805,6 @@
         },
         {
           "say" : "n05"
-        },
-        {
-          "say" : "n01"
-        },
-        {
-          "expectMention" : [
-            "Priya"
-          ],
-          "say" : "m01"
         }
       ],
       "stranger" : true
@@ -876,6 +869,9 @@
       },
       "steps" : [
         {
+          "say" : "n01"
+        },
+        {
           "say" : "d01"
         },
         {
@@ -889,8 +885,15 @@
         },
         {
           "say" : "d05"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
         }
-      ]
+      ],
+      "stranger" : true
     },
     {
       "description" : "questions, kitchen at 15 dB SNR",
@@ -1111,15 +1114,6 @@
         },
         {
           "say" : "n05"
-        },
-        {
-          "say" : "n01"
-        },
-        {
-          "expectMention" : [
-            "Priya"
-          ],
-          "say" : "m01"
         }
       ],
       "stranger" : true
@@ -1184,6 +1178,9 @@
       },
       "steps" : [
         {
+          "say" : "n01"
+        },
+        {
           "say" : "d01"
         },
         {
@@ -1197,8 +1194,15 @@
         },
         {
           "say" : "d05"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
         }
-      ]
+      ],
+      "stranger" : true
     },
     {
       "aecOff" : true,
@@ -1449,15 +1453,6 @@
         },
         {
           "say" : "n05"
-        },
-        {
-          "say" : "n01"
-        },
-        {
-          "expectMention" : [
-            "Priya"
-          ],
-          "say" : "m01"
         }
       ],
       "stranger" : true
@@ -1532,6 +1527,9 @@
           "deeSays" : "I was just thinking about clouds. Some of them weigh as much as a hundred elephants."
         },
         {
+          "say" : "n01"
+        },
+        {
           "say" : "d01"
         },
         {
@@ -1545,8 +1543,15 @@
         },
         {
           "say" : "d05"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
         }
-      ]
+      ],
+      "stranger" : true
     },
     {
       "aecOff" : true,
@@ -1797,15 +1802,6 @@
         },
         {
           "say" : "n05"
-        },
-        {
-          "say" : "n01"
-        },
-        {
-          "expectMention" : [
-            "Priya"
-          ],
-          "say" : "m01"
         }
       ],
       "stranger" : true
@@ -1880,6 +1876,9 @@
           "deeSays" : "I was just thinking about clouds. Some of them weigh as much as a hundred elephants."
         },
         {
+          "say" : "n01"
+        },
+        {
           "say" : "d01"
         },
         {
@@ -1893,8 +1892,15 @@
         },
         {
           "say" : "d05"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
         }
-      ]
+      ],
+      "stranger" : true
     },
     {
       "aecOff" : true,
@@ -2145,15 +2151,6 @@
         },
         {
           "say" : "n05"
-        },
-        {
-          "say" : "n01"
-        },
-        {
-          "expectMention" : [
-            "Priya"
-          ],
-          "say" : "m01"
         }
       ],
       "stranger" : true
@@ -2228,6 +2225,9 @@
           "deeSays" : "I was just thinking about clouds. Some of them weigh as much as a hundred elephants."
         },
         {
+          "say" : "n01"
+        },
+        {
           "say" : "d01"
         },
         {
@@ -2241,8 +2241,15 @@
         },
         {
           "say" : "d05"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
         }
-      ]
+      ],
+      "stranger" : true
     },
     {
       "description" : "Rudeness, then a real apology (self-respect, no grudge).",

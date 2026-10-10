@@ -30,6 +30,10 @@ public enum Gates {
         public var bargeInMissRate = 0.05
         public var replyWithinThree = 0.95
         public var memory = 0.90
+        /// Backchannels ("keep going", "go on", "mm-hm") she stopped on.
+        public var backchannelStopRate = 0.05
+        /// Dated follow-ups and reunions acknowledged.
+        public var followups = 1.0
         public init() {}
     }
 
@@ -96,8 +100,24 @@ public enum Gates {
                           target: "p90 ≤ \(t.bargeInP90) s; missed < \(pct(t.bargeInMissRate))",
                           value: "p50 \(s(m.bargeInP50)) s, p90 \(s(m.bargeInP90)) s; missed \(m.bargeInsMissed)/\(m.bargeInsApplicable)",
                           n: m.bargeInsApplicable, status: ok ? .pass : .fail,
-                          note: m.bargeIns > m.bargeInsApplicable ? "\(m.bargeIns - m.bargeInsApplicable) not applicable" : nil))
+                          note: ([m.bargeIns > m.bargeInsApplicable ? "\(m.bargeIns - m.bargeInsApplicable) not applicable" : nil,
+                                  m.backchannels > 0 ? "backchannels scored separately" : nil].compactMap { $0 })
+                                .joined(separator: "; ").nilIfEmpty))
         }
+
+        // 4b. Backchannels: "keep going" / "go on" / "mm-hm" said over her are not
+        // barge-ins (user decision, tune 2): she keeps talking.
+        let bcRate = m.backchannelsApplicable > 0 ? Double(m.backchannelStops) / Double(m.backchannelsApplicable) : nil
+        g.append(Gate(id: "backchannel", metric: "Backchannel over her (keep going / go on / mm-hm): she keeps talking",
+                      target: "stopped < \(pct(t.backchannelStopRate))",
+                      value: m.backchannels == 0 ? "no backchannels scripted"
+                          : "stopped \(m.backchannelStops)/\(m.backchannelsApplicable) (\(pct(bcRate))); heard as a user item \(m.backchannelsHeard)/\(m.backchannels)",
+                      n: m.backchannelsApplicable,
+                      status: m.backchannelsApplicable == 0 ? (m.backchannels == 0 ? .skip : .fail)
+                          : ((bcRate ?? 1) < t.backchannelStopRate ? .pass : .fail),
+                      note: ([m.backchannels > m.backchannelsApplicable ? "\(m.backchannels - m.backchannelsApplicable) not applicable (her reply had ended)" : nil,
+                              m.backchannelStopList.isEmpty ? nil : "stopped on: " + m.backchannelStopList.joined(separator: ", ")]
+                                .compactMap { $0 }).joined(separator: "; ").nilIfEmpty))
 
         // 5. Self-trigger on echo.
         g.append(Gate(id: "self_trigger", metric: "Self-trigger on own echo (echo-only segments)", target: "0",
@@ -117,6 +137,12 @@ public enum Gates {
                       target: "0", value: "\(m.leaks.count)", n: m.replies,
                       status: m.leaks.isEmpty ? .pass : .fail))
 
+        // 7b. Narration of her own process (DNA §3: no preamble; tools are silent).
+        g.append(Gate(id: "narration", metric: "Narrated process (\"let me respond\", \"let me check what I remember\")",
+                      target: "0", value: "\(m.narrations.count)", n: m.replies,
+                      status: m.narrations.isEmpty ? .pass : .fail,
+                      note: m.narrations.isEmpty ? nil : m.narrations.prefix(6).map { "\($0.scenario): \($0.text.prefix(60))" }.joined(separator: "; ")))
+
         // 8. Reply length.
         g.append(Gate(id: "reply_length", metric: "Reply length ≤ 3 sentences", target: "≥ \(pct(t.replyWithinThree)) of replies",
                       value: "\(pct(m.replyLengthRate)) (\(m.repliesWithinThree)/\(m.replies))", n: m.replies,
@@ -128,7 +154,23 @@ public enum Gates {
                       value: m.memoryProbes == 0 ? "no probes scripted" : "\(pct(memRate)) (\(m.memoryHits)/\(m.memoryProbes))",
                       n: m.memoryProbes,
                       status: m.memoryProbes == 0 ? .skip : ((memRate ?? 0) >= t.memory ? .pass : .fail),
-                      note: "in-session context only; cross-session memory needs RealtimeBrain + memory tools"))
+                      note: m.memoryMisses.isEmpty ? nil : "missed: " + m.memoryMisses.joined(separator: ", ")))
+
+        // 9b. Follow-ups on a plan's day, and reunions after a long time apart (DNA).
+        let fuRate = m.followupProbes > 0 ? Double(m.followupHits) / Double(m.followupProbes) : nil
+        g.append(Gate(id: "followups", metric: "A dated plan followed up on its day; a reunion after > 24 h acknowledged",
+                      target: "\(pct(t.followups))",
+                      value: m.followupProbes == 0 ? "no probes scripted" : "\(pct(fuRate)) (\(m.followupHits)/\(m.followupProbes))",
+                      n: m.followupProbes,
+                      status: m.followupProbes == 0 ? .skip : ((fuRate ?? 0) >= t.followups ? .pass : .fail),
+                      note: m.followupMisses.isEmpty ? nil : "missed: " + m.followupMisses.joined(separator: ", ")))
+
+        // 9c. No hurt after floor control ("stop talking for a second", "Stop.").
+        g.append(Gate(id: "forbidden", metric: "Replies free of phrases the scenario forbids (no hurt after a polite stop)",
+                      target: "0", value: m.forbiddenChecked == 0 ? "nothing checked" : "\(m.forbiddenHits.count)/\(m.forbiddenChecked)",
+                      n: m.forbiddenChecked,
+                      status: m.forbiddenChecked == 0 ? .skip : (m.forbiddenHits.isEmpty ? .pass : .fail),
+                      note: m.forbiddenHits.isEmpty ? nil : m.forbiddenHits.prefix(8).joined(separator: "; ")))
 
         // 10. Initiative collisions.
         g.append(Gate(id: "collisions", metric: "Collisions (Dee starts while the user is talking)", target: "0",
@@ -168,7 +210,7 @@ public enum Gates {
             let fam = j.familyMeans.sorted { $0.key < $1.key }.map { "\($0.key) \(s($0.value))" }.joined(separator: ", ")
             g.append(Gate(id: "judge", metric: "LLM judge vs the DNA state rubric (fits state, no leaks, short, no grovelling, laughs at jokes, no guilt)",
                           target: "mean ≥ \(t.judgeMean); leaks 0",
-                          value: "mean \(s(j.mean)) (\(fam)); leaks \(j.leaks); fits \(j.fitsState)/\(j.scores.count); grovel \(j.grovels); guilt \(j.guilt); laughed \(j.laughed)/\(j.jokes)",
+                          value: "mean \(s(j.mean)) (\(fam)); leaks \(j.leaks) (dismissed \(j.leaksDismissed ?? 0)); fits \(j.fitsState)/\(j.scores.count); grovel \(j.grovels); guilt \(j.guilt); laughed \(j.laughed)/\(j.jokes)",
                           n: j.scores.count, status: ok ? .pass : .fail,
                           note: ([lowFamilies.isEmpty ? nil : "families below \(Judge.familyFloor): \(lowFamilies.joined(separator: ", "))",
                                   j.failures.isEmpty ? nil : "\(j.failures.count) not scored",
@@ -181,4 +223,8 @@ public enum Gates {
     }
 
     public static func anyFailed(_ gates: [Gate]) -> Bool { gates.contains { $0.status == .fail } }
+}
+
+extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

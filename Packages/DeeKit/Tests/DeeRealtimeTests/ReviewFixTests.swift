@@ -107,7 +107,10 @@ import Testing
         #expect(h.factory.made.count == 1)   // non-forced waits for idle to even start
         await h.advance(by: 9 * 60)
         let second = try #require(await h.factory.waitForSocket(count: 2))
-        await h.settle()
+        // Parked (open and configured) before the old one dies; under load the
+        // handshake can take longer than one settle (tune 2: flaked at load 20).
+        for _ in 0..<400 where await !h.session.hasParkedSession { try? await Task.sleep(for: .milliseconds(5)) }
+        #expect(await h.session.hasParkedSession)
         first.drop()
         #expect(await h.log.wait { if case .recovered = $0 { true } else { false } } != nil)
         #expect(!h.log.contains { $0.fallback != nil })   // seamless: no fallback advice

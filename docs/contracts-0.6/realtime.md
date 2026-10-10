@@ -65,7 +65,11 @@ try await session.connect()                             // throws RealtimeSessio
 | `seedMessages` | 12 | "last 6 turns" = 6 user + 6 Dee messages |
 | `autoReconnect`, `reconnectDelays` | true, 0.5 1 2 4 8 15 30 s | last value repeats |
 | `maxUplinkBacklogBytes` | 192 000 (~3 s) | above it mic audio is dropped + `.congested` |
-| `preconnectBufferMs` | 2000 | mic audio kept while (re)connecting, sent once ready |
+| `preconnectBufferMs` | 10 000 | mic audio kept while (re)connecting, sent once ready (tune 2: was 2000, shorter than a 429 outage) |
+| `preconnectMaxAge` | 3 s | that buffer is sent only if its newest audio is at most this old (else dropped + reported) |
+| `carryOverMs`, `carryOverMaxAge` | 20 000, 15 s | an unfinished user turn is replayed into the next connection (see Rollover and reconnect), at most this much audio, only if that connection is live within this long |
+| `commitWait` | 8 s | after `speech_stopped` the turn counts as open until its commit (semantic VAD holds), at most this long |
+| `rateLimitBaseBackoff`, `rateLimitMaxBackoff` | 1 s, 30 s | back-off for a 429 that carries no hint (exponential, jittered) |
 | `cancelUnspokenReplyOnSpeech` | true | user speech before a reply's first audio cancels it — except speech that starts while her audio is still playing (maybe echo: the app decides with `rejectEcho` / `bargeIn`) |
 | `estimatedMsPerCharacter` | 62 | starting speaking rate used to place sentences on the audio timeline before an item's audio is complete |
 | `calibrateSpeakingRate` | true | learn the rate from completed replies (audio ms ÷ transcript chars at speed 1, smoothed 0.6/0.4; live voices measured 40–82 ms/char); `speakingRateMsPerCharacter` reads it |
@@ -91,7 +95,7 @@ Every `session.update` Dee sends always includes `"tracing": null`, `output_moda
 | `dropUserItem(itemID:resumePreempted:)` | Speech that was not for her (TV, people talking to each other, a failed address wait): deleted now (or at its commit), its line removed from `recentTurns` (so from every later seed), later events for it not emitted, no longer unanswered. A reply requested for it with no audio yet is cancelled (ends `.responseDone(cancelled)`). If it preempted a reply / follow-up and `resumePreempted` (default), the session re-requests that one itself (as after `rejectEcho`). |
 | `userTurnHandled(itemID:)` | A committed turn the app dealt with without a reply (a command): it no longer holds the session busy. |
 | `resetConversation(keeping:)` | "Start over": deletes every item of the live conversation (the session's ledger of `conversation.item.added` / commits) except `keeping`, the live DNA, the response in progress (and its turn) and open speech; `recentTurns` keeps only those turns; `lastSummary` = nil; a summary being made is discarded. |
-| `hasUnansweredUserTurn` | A committed user turn has had no `requestResponse` / `userTurnHandled` / `dropUserItem` / `rejectEcho` for less than `unansweredHold`. Such a turn makes the session **not idle**: no unforced rollover switch (and a forced one waits like for open speech). |
+| `hasUnansweredUserTurn` | A committed user turn has had no `requestResponse` / `userTurnHandled` / `dropUserItem` / `rejectEcho` for less than `unansweredHold`. Such a turn makes the session **not idle**: no unforced rollover switch (and a forced one waits like for open speech). Speech **stopped but not committed yet** (up to `commitWait`) and local speech (`setLocalSpeech`) count the same way. |
 | `heardText(itemID:)` | What of her item counts as heard (`HeardRule`): after a cut the kept sentences, else all placed so far. |
 | `speakingRateMsPerCharacter` | The rate sentence hints use now (learned or the configured start). |
 | `requestResponse(cueItem:instructions:maxOutputTokens:reasoningEffort:) throws -> RequestOutcome` | Answer the committed user turn. `cueItem` (the `<dee_state>` cue) goes first as a **system message item**, then `response.create` with optional per-response `instructions` and `reasoningEffort` (`minimal` / `low` / `medium` / `high` / `xhigh`, sent as `response.reasoning.effort`; nil or empty = the session's `reasoning.effort`). A reply the session re-requests by itself (after an echo rejection) keeps its effort. `.queued` if a cancelled response is still closing (sent after its `response.done`); a second queued request replaces the first, which gets `.responseDone(cancelled, superseded)`. Every request — sent or queued — gets exactly one `.responseDone`. Each `response.create` carries `metadata.dee_turn` so a late `response.created` of an abandoned request is cancelled instead of taking over the next one. Throws `.responseInFlight` if one is generating, `.notConnected`. |
@@ -101,6 +105,8 @@ Every `session.update` Dee sends always includes `"tracing": null`, `output_moda
 | `bargeIn(playedMs:) -> BargeInOutcome` | The same for the newest item only (`truncatedItemID` / `audioEndMs` = the first truncation). Each `Truncation` also carries `heardSentences` / `heardText`: what `HeardRule` keeps at `audioEndMs` (the history keeps exactly this). |
 | `playbackFinished()` | The player drained. Required: `.speaking` (and initiative refusal) lasts until this or `bargeIn`. |
 | `setLocalPlayback(_ on: Bool)` | The app is playing her audio that the server never sent (a clip: a laugh, "one sec"). While on, user speech that starts counts as possibly her echo, exactly as during her server audio: it does not preempt a reply / follow-up without audio until the app decides (`acceptSpeech`, `bargeIn`, `rejectEcho`), initiatives are refused (`.speaking`), and a rollover waits. Turn it off once the clip's echo tail has passed. Does not change `state`. |
+| `setLocalSpeech(_ on: Bool)` | The app's own VAD (EarCore) hears the user — usually ~0.3 s before the server's `speech_started`. While on, a rollover neither starts nor switches (a forced one waits as for open server speech), and a connection that ends carries the audio from 0.5 s before this onset over to the next one. Turn it off at the local end of speech. Does not change `state`. **Ask (DeeVoice):** call it from EarCore onset / end. |
+| `commitUserSpeech() -> Bool` | Early end-of-turn seam: `input_audio_buffer.commit` now instead of waiting for semantic VAD (whose hold was 1.78 s at p90 live). Sent only while user speech is open, or stopped and not committed yet; the commit arrives as usual (`.userCommitted`); an "empty buffer" refusal (the server committed first) is swallowed. Returns whether it was sent. Optional for DeeBrain/DeeVoice. |
 | `acceptSpeech(itemID:)` | The open user speech `itemID`, which started over her audio (held as maybe-echo), is the user. From then on it is ordinary user speech: a response with no audio yet is preempted as if the speech had begun over silence (`.initiativeCancelled` / `.replyPreempted`), and no tool follow-up starts while it is open. No-op for any other item. Call it whenever the app decides an onset over her audio (or its tail) was the user — also after a `bargeIn` for that onset, and for every onset the app forwards as the user without holding it (e.g. just after a clip it cut, while local playback is still on for the echo tail). |
 | `rejectEcho(itemID:)` | That user item was Dee's own voice: `conversation.item.delete` now, or as soon as it commits. No transcript, no commit event, no reply. If a reply was already requested for that (committed) item and has no audio yet, it is cancelled (`.replyPreempted`) — Dee never answers her own echo. If that item had preempted a reply / tool follow-up, the session re-requests it by itself (a new `.responseStarted` follows; the brain does nothing). |
 | `updateSession(instructions:tools:speed:)` | Live `session.update` (never voice/model); also used by future rollovers. Instructions/tools go at once; `speed` is held until no response is in progress (the API rejects it mid-response). |
@@ -219,7 +225,8 @@ result asks for it:
 ## Rollover and reconnect
 
 Realtime sessions end at 60 minutes. A rollover starts at the first idle moment (nothing
-generating or playing, no open speech, no pending tools) after `rolloverAfter`, or at
+generating or playing, no open speech — server speech open, stopped but not committed yet, local
+speech — no unanswered turn, no pending tools) after `rolloverAfter`, or at
 `forceRolloverAfter` regardless. It asks the old connection for a summary (out-of-band
 `response.create` with `conversation: "none"`, text only, no tools, ≤6 s; once per rollover), opens
 the new connection beside the old one and **parks** it. The switch — seed with **one system
@@ -227,7 +234,10 @@ message** ("[The conversation continues…]" + summary + the last `seedMessages`
 `Person:` / `Dee:` lines), swap, close the old one — happens only at a quiet moment: fully idle
 before `forceRolloverAfter`; after it, as soon as nothing is generating, playing, queued or
 pending (the user gets 30 s to finish an utterance, after which it is switched anyway and that
-utterance is lost). Never mid-sentence, never while her audio plays, and every response ends with
+utterance is **carried over**: replayed into the new session from its `audio_start_ms`).
+Tune 2 (live fallback-rollover q02): the switch used to happen at `speech_stopped`, before the
+commit, and "Are you awake?" was never committed anywhere; the gap until the commit (and the
+reply, and the end of her playback) now holds the switch. Never mid-sentence, never while her audio plays, and every response ends with
 its own `.responseDone` on the old session. A failed attempt retries after 30 s (10 s when
 forced). A park that waits 5 min for an idle gap is discarded and redone. If the old connection
 dies while a session is parked, the parked one takes over at once (`.recovered`, no fallback).
@@ -235,8 +245,29 @@ dies while a session is parked, the parked one takes over at once (`.recovered`,
 On an unexpected drop: `.responseDone(status: "failed", reason: "connection_lost")` for any open
 response, `.disconnected`, `.fallbackAdvised(.socketLost)`, then reconnect with back-off, seeded the
 same way (previous summary + recent messages), then `.recovered` + `.connected`. Auth failures stop
-reconnecting; 429s wait `Retry-After` (or 30 s). Mic audio during the gap is buffered (2 s) and
-sent only if the newest of it is at most `preconnectBufferMs` + 1 s old (stale speech is dropped).
+reconnecting.
+
+**429 / 503 (tune 2).** The server's hint is a minimum, followed exactly plus a small jitter
+(0.05 s … 0.1 s + 15 % of the hint, ≤ 1 s): `Retry-After` on the handshake (`SocketFailure
+.rateLimited` / `.server(503, retryAfter)`) or the secret mint, "try again in 1.5s / 350ms" in a
+handshake `error` message, else the longest `reset_seconds` of an exhausted limit in the last
+`rate_limits.updated`. Without any hint: exponential from `rateLimitBaseBackoff` (1 s) with jitter
+in the upper half of each step, up to `rateLimitMaxBackoff` (30 s). The old `max(hint ?? 30, 5)`
+floor waited 5.2 s against a 1 s hint live (recovery 7.6 s) and the user's question was lost.
+
+**The user's words survive.** Mic audio during the gap is buffered (`preconnectBufferMs`, 10 s) and
+sent only if its newest piece is at most `preconnectMaxAge` (3 s) old. And the user's **unfinished
+turn** on the connection that ended — speech open (not held as possible echo), stopped but not
+committed, committed but unanswered (or its reply had no audio yet), or local speech — is
+**carried over**: the session keeps the last `carryOverMs` of audio it sent, and replays it from the
+turn's `audio_start_ms` (local speech: 0.5 s before the onset) to the end, ahead of the buffered
+audio, if the new connection is live within `carryOverMaxAge`. The server commits and transcribes it
+afresh (new item ids, so the brain answers it after `.recovered` / `.rolledOver` like any turn); its
+old user line leaves `recentTurns` so the seed does not hold it twice. `.uplinkOrigin` names the
+carried audio's first feed frame (it was fed before the drop; `UplinkMap` still holds those runs).
+A stale carry is dropped and reported (`.uplinkDropped`, `atServerMs: nil`). A rollover switch
+carries the same way (only reachable mid-turn when forced, or for an onset the server had not
+reported yet).
 
 ## Auth
 

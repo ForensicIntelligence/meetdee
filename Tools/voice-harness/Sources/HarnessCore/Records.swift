@@ -36,14 +36,28 @@ public struct RunRecord: Codable, Sendable, Equatable {
         public var continues: Int?
         /// What a good reply does (judge rubric line from the scenario).
         public var rubric: String?
+        /// What `expectMention` probes (`Scenario.Probe`; nil = memory). Tune 2.
+        public var probe: Scenario.Probe?
+        /// Her reply must mention none of these (tune 2: no hurt after floor control).
+        public var forbidMention: [String]?
+        /// A listener's backchannel said while she talks (tune 2).
+        public var backchannel: Bool?
 
         public init(index: Int, step: Int, fixture: String, role: UtteranceRole, text: String, start: Double,
                     onset: Double, endOfSpeech: Double, spans: [Interval], expect: Scenario.Expect,
-                    expectMention: [String]? = nil, turnEnd: Double? = nil, continues: Int? = nil, rubric: String? = nil) {
+                    expectMention: [String]? = nil, turnEnd: Double? = nil, continues: Int? = nil, rubric: String? = nil,
+                    probe: Scenario.Probe? = nil, forbidMention: [String]? = nil, backchannel: Bool? = nil) {
             self.index = index; self.step = step; self.fixture = fixture; self.role = role; self.text = text
             self.start = start; self.onset = onset; self.endOfSpeech = endOfSpeech; self.spans = spans
             self.expect = expect; self.expectMention = expectMention; self.turnEnd = turnEnd
-            self.continues = continues; self.rubric = rubric
+            self.continues = continues; self.rubric = rubric; self.probe = probe; self.forbidMention = forbidMention
+            self.backchannel = backchannel
+        }
+
+        /// A backchannel ("keep going", "go on", "mm-hm") said over her: she keeps
+        /// talking. Older records (no flag) are read by fixture.
+        public var isBackchannel: Bool {
+            role == .bargeIn && (backchannel ?? TurnShape.isBackchannel(fixture))
         }
 
         /// Inside a mid-turn pause (after onset, before the end of speech, not voiced).
@@ -114,10 +128,57 @@ public struct RunRecord: Codable, Sendable, Equatable {
     public enum BargeOutcome: String, Codable, Sendable {
         /// Dee's audio stopped after the user's onset.
         case stopped
-        /// She kept talking (played to the end, or > `missAfter` s after onset).
+        /// She kept talking (played to the end, or > `missAfter` s after onset). For a
+        /// backchannel this is the right outcome ("continued").
         case missed
         /// Her reply had already ended (or never started) when the user began.
         case notApplicable = "n/a"
+
+        /// How a scripted interruption ended, from her playback (pure: the runner and
+        /// the tests share it).
+        /// - `reply`: the interrupted item; `later`: every other item, for a flush of
+        ///   a queued item of the same reply.
+        /// - A barge-in is watched for `Metrics.bargeMissAfter` s after its onset; a
+        ///   backchannel until `Metrics.backchannelWatch` s after its end of speech (a
+        ///   late stop on "keep going" is still a stop).
+        /// - `pausedAt`: tune 2, DeeVoice pauses her at once on an onset over her voice
+        ///   (`TurnTimeline` `.barge_in` mark, written when the pause ends as a barge-in)
+        ///   and flushes only when the words are decided (≈ 1.6–1.9 s, up to
+        ///   `pauseHoldMax` s). A flush whose pause began inside the watch window is a
+        ///   stop even when the flush itself lands after it.
+        public static func classify(reply: Playback?, later: [Playback], onset: Double, endOfSpeech: Double,
+                                    backchannel: Bool, pausedAt: Double? = nil) -> (outcome: BargeOutcome, stoppedAt: Double?) {
+            let watchUntil = backchannel ? max(onset + Metrics.bargeMissAfter, endOfSpeech + Metrics.backchannelWatch)
+                                         : onset + Metrics.bargeMissAfter
+            // How late a flush may land: the window, or the pause's own hold limit.
+            let flushBy = pausedAt.map { $0 <= watchUntil ? max(watchUntil, $0 + pauseHoldMax) : watchUntil } ?? watchUntil
+            if let p = reply, let ended = p.ended {
+                if ended <= onset { return (.notApplicable, nil) }
+                if p.flushed == true { return ended <= flushBy ? (.stopped, ended) : (.missed, nil) }
+                if ended <= onset + 0.5 {
+                    // Ran out on its own; a queued item of the same reply may still be flushed.
+                    if let s = laterStop(later, onset: onset, until: flushBy) { return (.stopped, s) }
+                    return (.notApplicable, nil)
+                }
+            }
+            if let s = laterStop(later, onset: onset, until: flushBy) { return (.stopped, s) }
+            return (.missed, nil)
+        }
+
+        /// DeeVoice's longest pause before it decides (`CloudVoice.holdMax` 6 s) plus slack.
+        public static let pauseHoldMax = 6.5
+
+        /// The pause that ended in this stop: the latest `.barge_in` timeline mark at or
+        /// after her reply started, no earlier than 1 s before the onset, and at or before
+        /// the flush. nil when there is none (an immediate cut marks at the flush).
+        public static func pauseMark(_ marks: [Double], replyStarted: Double?, onset: Double, stoppedAt: Double) -> Double? {
+            marks.filter { $0 >= max(replyStarted ?? -.infinity, onset - 1) && $0 <= stoppedAt + 0.05 }.max()
+        }
+
+        static func laterStop(_ items: [Playback], onset: Double, until: Double) -> Double? {
+            items.filter { $0.flushed == true && ($0.ended ?? 0) > onset && ($0.ended ?? .infinity) <= until }
+                .compactMap(\.ended).min()
+        }
     }
 
     public struct BargeIn: Codable, Sendable, Equatable {
@@ -132,14 +193,26 @@ public struct RunRecord: Codable, Sendable, Equatable {
         public var onset: Double
         /// Dee's audio stopped (player flushed).
         public var stoppedAt: Double?
+        /// Tune 2: her voice went silent (DeeVoice pause, `.barge_in` mark); the flush
+        /// (`stoppedAt`) follows when the words are decided. nil in older records.
+        public var pausedAt: Double?
         public var outcome: BargeOutcome
+        /// A listener's backchannel (she should keep talking). nil in older records:
+        /// read by fixture (`TurnShape.isBackchannel`).
+        public var backchannel: Bool?
         public init(step: Int, baseFixture: String, fixture: String, targetAtMs: Double, replyItem: String?,
-                    replyStarted: Double?, onset: Double, stoppedAt: Double?, outcome: BargeOutcome) {
+                    replyStarted: Double?, onset: Double, stoppedAt: Double?, outcome: BargeOutcome, backchannel: Bool? = nil) {
             self.step = step; self.baseFixture = baseFixture; self.fixture = fixture; self.targetAtMs = targetAtMs
             self.replyItem = replyItem; self.replyStarted = replyStarted; self.onset = onset
-            self.stoppedAt = stoppedAt; self.outcome = outcome
+            self.stoppedAt = stoppedAt; self.outcome = outcome; self.backchannel = backchannel
         }
-        public var latency: Double? { stoppedAt.map { $0 - onset } }
+        public var isBackchannel: Bool { backchannel ?? TurnShape.isBackchannel(fixture) }
+        /// Onset to silence: the pause when there was one (what the listener hears),
+        /// else the flush.
+        public var latency: Double? {
+            guard let stoppedAt else { return nil }
+            return max(0, (pausedAt.map { min($0, stoppedAt) } ?? stoppedAt) - onset)
+        }
     }
 
     /// Dee spoke with nobody talking; only her echo reached the mic.

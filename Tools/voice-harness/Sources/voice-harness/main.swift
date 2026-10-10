@@ -82,6 +82,9 @@ func loadScenarios(_ args: Args, library: FixtureLibrary) throws -> [Scenario] {
 func evaluate(_ runs: [RunRecord], model: String, brain: String, maxUSD: Double, started: String, id: String,
               aborted: String?, judge: Judge.Summary? = nil) -> HarnessReport {
     let metrics = Metrics.compute(runs, pricing: Pricing.forModel(model))
+    // Stored verdicts get the tune-2 leak check too (judge false positives).
+    var judge = judge
+    judge?.recheckLeaks()
     let gates = Gates.evaluate(metrics, judge: judge)
     return HarnessReport(runID: id, started: started, finished: ISO8601DateFormatter().string(from: Date()),
                          model: model, brain: brain, maxUSD: maxUSD, aborted: aborted, gates: gates,
@@ -126,7 +129,8 @@ func main() async -> Int32 {
 
         case "suite":
             let files: [(String, [Scenario])] = [("full.json", Suite.full()), ("dna.json", Suite.dna()),
-                                                 ("fallback.json", Suite.fallback()), ("smoke-brain.json", Suite.smokeBrain())]
+                                                 ("fallback.json", Suite.fallback()), ("smoke-brain.json", Suite.smokeBrain()),
+                                                 ("tune2.json", Suite.tune2())]
             let core = Set(FixtureCatalog.core.map(\.id))
             for c in Suite.conditions {
                 let used = Set(Suite.acoustic().filter { $0.name.hasSuffix("-\(c.id)") }.flatMap(\.fixtureIDs))
@@ -163,18 +167,21 @@ func main() async -> Int32 {
             let library = try FixtureLibrary(directory: args.url("fixtures", default: "Fixtures"))
             let scenarios = try loadScenarios(args, library: library)
             let pricing = Pricing.forModel(args.flags["model"] ?? "gpt-realtime-2.1-mini")
-            var total = 0.0, utterances = 0
+            var total = 0.0, utterances = 0, seconds = 0.0
             for s in scenarios {
                 let userSeconds = s.fixtureIDs.compactMap { library.manifest.utterance($0)?.speechSeconds }.reduce(0, +)
                 let replies = s.userUtteranceCount + s.echoOnlyCount
                 let p = pricing.projected(replies: replies, userSeconds: userSeconds)
+                let t = RunEstimate.seconds(s, manifest: library.manifest)
                 total += p
+                seconds += t
                 utterances += s.userUtteranceCount
-                print(String(format: "%@: %d utterances, %d barge-ins, %d echo-only, %d faults, projected ≈ $%.3f",
-                             s.name, s.userUtteranceCount, s.bargeInCount, s.echoOnlyCount, s.faultCount, p))
+                print(String(format: "%@: %d utterances, %d barge-ins, %d echo-only, %d faults, projected ≈ $%.3f, ≈ %.1f min",
+                             s.name, s.userUtteranceCount, s.bargeInCount, s.echoOnlyCount, s.faultCount, p, t / 60))
             }
-            print(String(format: "total: %d scenarios, %d utterances, projected ≈ $%.2f (+ judge ≈ $%.2f with %@)",
-                         scenarios.count, utterances, total, Double(utterances) * 0.0005, Judge.defaultModel))
+            print(String(format: "total: %d scenarios, %d utterances, projected ≈ $%.2f (live ≈ $%.2f at the tune-1 ratio %.2f) + judge ≈ $%.2f with %@; ≈ %.0f min",
+                         scenarios.count, utterances, total, total * RunEstimate.liveOverProjection, RunEstimate.liveOverProjection,
+                         Double(utterances) * 0.0005, Judge.defaultModel, seconds / 60))
             return 0
 
         case "run", "replay":

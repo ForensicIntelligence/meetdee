@@ -40,9 +40,14 @@ import Testing
         #expect(TurnPolicy.onCommit(c) == .waitForWords, "a stranger's first turn (name)")
         c = base
         c.sinceHerVoice = -0.5
-        #expect(TurnPolicy.onCommit(c) == .waitForWords, "talked over her")
+        // Tune 2: over her voice waits for its first settled words only (a
+        // backchannel must not cut her), never for the full transcript.
+        #expect(TurnPolicy.onCommit(c) == .waitForPartial, "talked over her")
         c.sinceHerVoice = 0.2
-        #expect(TurnPolicy.onCommit(c) == .waitForWords, "overlapping her echo tail")
+        #expect(TurnPolicy.onCommit(c) == .waitForPartial, "overlapping her echo tail")
+        c.signals.repair = .strained
+        #expect(TurnPolicy.onCommit(c) == .waitForWords, "a DNA.md exact case still waits for the words")
+        c.signals.repair = .fine
         c.sinceHerVoice = 0.5
         #expect(TurnPolicy.onCommit(c) == .respondFast, "a quick answer (measured late) stays fast")
         c.sinceHerVoice = 2.0
@@ -63,9 +68,9 @@ import Testing
 
     /// Rendered DNAs have no blank lines: the notes close section 7, right before "8 THIS TURN".
     @Test func extraNotesGoIntoSectionSevenWithoutBrackets() {
-        let text = "DEE DNA v2\n7 RIGHT NOW\nSomeone is here.\n8 THIS TURN\nThey just spoke."
+        let text = "DEE DNA v3\n7 RIGHT NOW\nSomeone is here.\n8 THIS TURN\nThey just spoke."
         let out = RealtimeBrain.insert(["(Their name is Maya. You will remember it.)", "[x]"], into: text)
-        #expect(out == "DEE DNA v2\n7 RIGHT NOW\nSomeone is here.\nKeep in mind: Their name is Maya. You will remember it.\nKeep in mind: x\n8 THIS TURN\nThey just spoke.")
+        #expect(out == "DEE DNA v3\n7 RIGHT NOW\nSomeone is here.\nKeep in mind: Their name is Maya. You will remember it.\nKeep in mind: x\n8 THIS TURN\nThey just spoke.")
     }
 }
 

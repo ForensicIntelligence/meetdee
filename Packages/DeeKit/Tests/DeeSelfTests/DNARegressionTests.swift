@@ -44,7 +44,7 @@ import Testing
         // The line is a hard cap, stated first in section 9.
         let text = DNAPrompt.build(tired).text
         let s9 = Self.lines(text).drop { $0 != "9 HOW TO RESPOND" }.dropFirst()
-        #expect(s9.first?.hasPrefix("Length: ") == true && s9.first?.hasSuffix("; stop there.") == true)
+        #expect(s9.first?.hasPrefix("Length: ") == true && s9.first?.hasSuffix(" words; stop.") == true && s9.first?.contains("words") == true)
     }
 
     // MARK: Finding 7 — reunion never says "happy" over unpleasant feelings
@@ -198,7 +198,7 @@ import Testing
         #expect(insulted.contains("If they apologise, joke or are kind, let it soften you."))
         for a in DNAKit.all {
             let t = DNAPrompt.build(a.inputs).text
-            #expect(t.hasPrefix("DEE DNA v2 "))
+            #expect(t.hasPrefix("DEE DNA v3 "))
             #expect(Self.line(t, "Always: ")?.contains("offers to help; no preamble, your first words are the answer") == true, "\(a.name)")
         }
     }

@@ -117,7 +117,8 @@ final class LoopRig: @unchecked Sendable {
     /// Starts and waits until connected.
     func start() async throws {
         await voice.start()
-        let ok = await brain.wait { if case .session(.connected) = $0 { true } else { false } }
+        // Generous: the heavy room simulations run in parallel with these.
+        let ok = await brain.wait(timeout: 15) { if case .session(.connected) = $0 { true } else { false } }
         try #require(ok != nil, "never connected")
     }
 
@@ -298,8 +299,9 @@ final class LoopRig: @unchecked Sendable {
         rig.voice.shutdown()
     }
 
-    /// The user talks over her: she stops at once, the reply is cancelled and the
-    /// server keeps exactly what was played; late audio never plays.
+    /// The user talks over her: she stops at once (paused until their words are
+    /// known); their words are a real interruption, so the reply is cancelled and
+    /// the server keeps exactly what was played; late audio never plays.
     @Test func bargeInTruncatesToWhatWasPlayed() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -318,8 +320,22 @@ final class LoopRig: @unchecked Sendable {
         rig.push(Srv.speechStarted("item_u2", ms: 900))
         await rig.settle()
         try rig.talk(0.3)
+        // Silent at once, nothing cut yet: their words decide.
+        #expect(rig.voice.floorHold?.itemID == "item_u2")
+        let pausedAt = rig.output.count
+        try rig.quiet(0.2)
+        #expect(rig.audibleMs(fromSample: pausedAt) < 10)
+        #expect(rig.sent("conversation.item.truncate").isEmpty)
+        #expect(!rig.voiceEvents.contains(.bargeIn))
+        rig.push(Srv.speechStopped("item_u2", ms: 1500), Srv.committed("item_u2"),
+                 Srv.userTranscript("item_u2", "Wait, stop talking for a second."))
+        await rig.settle()
+        // No brain here to answer them: the voice ends her reply itself.
+        try rig.quiet(CloudVoice.holdAfterWords + 0.1)
         _ = await rig.events.wait { $0 == .bargeIn }
         #expect(await rig.waitSent("conversation.item.truncate"))
+        #expect(rig.voice.floorHold == nil)
+        try rig.quiet(0.06)                                            // the player reports the cut item
         let cut = try #require(rig.brain.all.compactMap { e -> Int? in
             if case .itemPlayed("item_a1", let ms, true) = e { ms } else { nil }
         }.first)

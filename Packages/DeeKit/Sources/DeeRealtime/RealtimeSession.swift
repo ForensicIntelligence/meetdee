@@ -107,6 +107,23 @@ public actor RealtimeSession {
     private var congested = false
     /// Mic bytes appended to the live session (its input timeline, 48 bytes per ms).
     private var uplinkBytes = 0
+    /// The live session's recent input audio, oldest first, each piece with its
+    /// server offset and feed position (bytes): at most `carryOverMs`.
+    private var uplinkRing: [(server: Int, fed: Int, pcm: Data)] = []
+    private var uplinkRingBytes = 0
+    /// Audio of an unfinished user turn taken from a connection that ended (with
+    /// when), replayed first into the next one.
+    private var carry: (pieces: [(fed: Int, pcm: Data)], at: Double)?
+    /// Consecutive 429s (unhinted back-off grows with it).
+    private var rateLimitAttempt = 0
+    /// The last `rate_limits.updated` (a 429 without a hint waits for its reset).
+    private var lastRateLimits: [RateLimit] = []
+    /// The app's local VAD hears the user (`setLocalSpeech`).
+    private var localSpeech = false
+    /// Where on the live input timeline (bytes) that local speech began, padded.
+    private var localSpeechFrom: Int?
+    /// Event ids of the app's early commits: an "empty buffer" error is fine.
+    private var quietCommits: Set<String> = []
     private var eventCounter = 0
     /// Last fallback reason emitted, so a burst of identical failures reports once.
     private var adviced: FallbackReason?
@@ -185,6 +202,10 @@ public actor RealtimeSession {
     private var openSpeech: String?
     /// The open speech started while her audio was still playing (maybe echo).
     private var openSpeechOverPlayback = false
+    /// `audio_start_ms` of the user speech items of the live connection.
+    private var speechStartMs: [String: Int] = [:]
+    /// Speech stopped, commit not here yet (semantic VAD may hold it), with the stop time.
+    private var awaitingCommit: [String: Double] = [:]
     private var lastCommitted: String?
     private var committed: Set<String> = []
     private var rejected: Set<String> = []
@@ -339,13 +360,14 @@ public actor RealtimeSession {
             }
             current = id
             startLinkConversation()
-            uplinkBytes = 0
+            startUplink()
             reconnectAttempt = 0
+            rateLimitAttempt = 0
             reconnectTask?.cancel(); reconnectTask = nil
-            let pending = takePreconnect()
+            let pending = takeReplay()
             emitOrigin(pending.first?.fed ?? fedBytes)
             emit(.connected(sessionID: links[id]?.sessionID, model: links[id]?.model))
-            flushPreconnect(pending)
+            flushReplay(pending)
             startTicker()
             recompute()
         } catch {
@@ -368,6 +390,8 @@ public actor RealtimeSession {
         clearConversationState(keepTurns: true, status: "cancelled", reason: "closed")
         resetRollover()
         preconnect.removeAll()
+        carry = nil
+        localSpeech = false; localSpeechFrom = nil
         summary?.waiter?.resume(returning: nil)
         summary = nil
         emit(.disconnected(code: 1000, reason: "client"))
@@ -449,14 +473,30 @@ public actor RealtimeSession {
             return
         }
         if congested, backlog < config.maxUplinkBacklogBytes / 2 { congested = false; clearAdvice(.congested) }
-        sendAudio(pcm)
+        sendAudio(pcm, fed: at)
     }
 
-    /// Appends to the live session and moves its input timeline.
-    private func sendAudio(_ pcm: Data) {
+    /// Appends to the live session and moves its input timeline (kept in the
+    /// ring an unfinished turn is carried over from).
+    private func sendAudio(_ pcm: Data, fed: Int) {
         guard current != nil else { return }
         send(.inputAudioAppend(audio: pcm.base64EncodedString()))
+        uplinkRing.append((uplinkBytes, fed, pcm))
+        uplinkRingBytes += pcm.count
+        let limit = max(config.carryOverMs, 0) * 48
+        while uplinkRingBytes > limit, let first = uplinkRing.first {
+            uplinkRing.removeFirst()
+            uplinkRingBytes -= first.pcm.count
+        }
         uplinkBytes += pcm.count
+    }
+
+    /// A new live input timeline (server offset 0).
+    private func startUplink() {
+        uplinkBytes = 0
+        uplinkRing.removeAll()
+        uplinkRingBytes = 0
+        if localSpeech { localSpeechFrom = 0 }
     }
 
     /// The feed queue overflowed (the actor fell behind): those bytes never came.
@@ -489,12 +529,71 @@ public actor RealtimeSession {
         let pending = preconnect
         preconnect.removeAll()
         // Only audio from just now: an old fragment would be answered as if just said.
-        let maxAge = Double(config.preconnectBufferMs) / 1000 + 1
-        guard clock.now() - preconnectAt <= maxAge else {
+        guard clock.now() - preconnectAt <= config.preconnectMaxAge else {
             for piece in pending { reportDropped(bytes: piece.pcm.count, at: piece.fed, live: false) }
             return []
         }
         return pending
+    }
+
+    /// What a connection that just went live gets first, in feed order: the
+    /// unfinished turn carried over from the connection that ended (if still
+    /// fresh), then the audio buffered while (re)connecting.
+    private func takeReplay() -> [(fed: Int, pcm: Data)] {
+        var pieces: [(fed: Int, pcm: Data)] = []
+        if let c = carry {
+            carry = nil
+            if clock.now() - c.at <= config.carryOverMaxAge {
+                pieces = c.pieces
+            } else {
+                // Too old to answer: it never reaches the new timeline.
+                for p in Self.runs(c.pieces) { reportDropped(bytes: p.pcm.count, at: p.fed, live: false) }
+            }
+        }
+        let buffered = takePreconnect()
+        // The carry ends where the old connection stopped; buffering starts there.
+        if let last = pieces.last, let next = buffered.first, next.fed < last.fed + last.pcm.count {
+            pieces.removeAll { $0.fed >= next.fed }
+        }
+        return pieces + buffered
+    }
+
+    /// Where (server bytes) the unfinished user turn on the live connection starts,
+    /// and its items: open speech the app has not taken for her echo, speech
+    /// stopped but not committed yet, a committed turn not answered yet (its reply
+    /// requested but without audio counts too), or local speech the app reported.
+    private func unfinishedTurn() -> (start: Int, items: [String])? {
+        let now = clock.now()
+        var items: [String] = []
+        if let o = openSpeech, !openSpeechOverPlayback { items.append(o) }
+        items += awaitingCommit.filter { now - $0.value < config.commitWait }.map(\.key)
+        items += unanswered.filter { now - $0.value < config.unansweredHold }.map(\.key)
+        if let t = track, t.kind == .reply, t.firstAudioAt == nil, let u = t.turnItemID { items.append(u) }
+        if let d = deferred, d.kind == .reply, let u = d.turnItemID { items.append(u) }
+        if let p = preempted, let u = p.request.turnItemID { items.append(u) }
+        items = items.filter { !rejected.contains($0) && speechStartMs[$0] != nil }
+        var starts = items.compactMap { speechStartMs[$0].map { $0 * 48 } }
+        if localSpeech, let from = localSpeechFrom { starts.append(from) }
+        guard let start = starts.min() else { return nil }
+        var seen: Set<String> = []
+        return (start, items.filter { seen.insert($0).inserted })
+    }
+
+    /// Takes the live connection's unfinished user turn (its audio from the ring,
+    /// from the turn's start to now) out of the conversation log, for replay on
+    /// the next connection, where it is committed and transcribed afresh.
+    private func carryUnfinishedTurn() -> [(fed: Int, pcm: Data)] {
+        guard let turn = unfinishedTurn() else { return [] }
+        var pieces: [(fed: Int, pcm: Data)] = []
+        for piece in uplinkRing where piece.server + piece.pcm.count > turn.start {
+            let skip = max(0, turn.start - piece.server) & ~1
+            pieces.append((piece.fed + skip, skip == 0 ? piece.pcm : Data(piece.pcm.dropFirst(skip))))
+        }
+        guard !pieces.isEmpty else { return [] }
+        // Its words come back with the new commit; the seed must not hold them too.
+        let items = Set(turn.items)
+        turns.removeAll { $0.role == .user && ($0.itemID.map(items.contains) ?? false) }
+        return pieces
     }
 
     // MARK: Turns
@@ -753,6 +852,37 @@ public actor RealtimeSession {
         if !on { maybeRollover() }
     }
 
+    /// The app's own VAD (EarCore) hears the user, maybe before the server does
+    /// (its `speech_started` lags ~0.3 s). While on, a rollover does not switch
+    /// (a forced one waits like for open server speech), and a connection that
+    /// ends carries the audio from about 0.5 s before this onset over to the next
+    /// one. Turn it off at the local end of speech. Does not change `state`.
+    public func setLocalSpeech(_ on: Bool) {
+        guard localSpeech != on else { return }
+        localSpeech = on
+        localSpeechFrom = on && isReady ? max(0, uplinkBytes - 500 * 48) : (on ? 0 : nil)
+        if !on { maybeRollover() }
+    }
+
+    /// Asks the server to commit the user's audio now (`input_audio_buffer.commit`)
+    /// instead of waiting for its VAD to: the app's own end-of-turn decision. Sent
+    /// only while user speech is open or stopped but not committed yet; the commit
+    /// then arrives as usual (`.userCommitted`). An "empty buffer" refusal (the
+    /// server committed first) is swallowed. Returns whether it was sent.
+    @discardableResult
+    public func commitUserSpeech() -> Bool {
+        let now = clock.now()
+        let stopped = awaitingCommit.contains { now - $0.value < config.commitWait && !rejected.contains($0.key) }
+        guard isReady, openSpeech != nil || stopped else { return false }
+        let eid = nextEventID("commit")
+        quietCommits.insert(eid)
+        if quietCommits.count > 32, let oldest = quietCommits.min(by: { Self.counter($0) < Self.counter($1) }) {
+            quietCommits.remove(oldest)
+        }
+        send(.inputAudioCommit(eventID: eid))
+        return true
+    }
+
     /// The open user speech `itemID`, held as possibly her echo because it began
     /// while her audio was playing, is the user after all (the app checked). From
     /// now on it counts as ordinary user speech: a response without audio yet is
@@ -795,6 +925,7 @@ public actor RealtimeSession {
     /// from the conversation now or as soon as it commits.
     private func withdraw(_ itemID: String) {
         rejected.insert(itemID)
+        awaitingCommit[itemID] = nil
         if openSpeech == itemID { openSpeech = nil; openSpeechOverPlayback = false }
         if lastCommitted == itemID { lastCommitted = nil }
         turns.removeAll { $0.itemID == itemID && $0.role == .user }
@@ -961,17 +1092,31 @@ public actor RealtimeSession {
         return "dee_\(tag)_\(eventCounter)"
     }
 
-    /// Sends what `takePreconnect` kept, re-chunked into ~100 ms appends so no
-    /// single frame is huge.
+    /// Contiguous pieces (on the feed stream) joined into runs.
+    private static func runs(_ pieces: [(fed: Int, pcm: Data)]) -> [(fed: Int, pcm: Data)] {
+        var runs: [(fed: Int, pcm: Data)] = []
+        for piece in pieces {
+            if let last = runs.last, last.fed + last.pcm.count == piece.fed {
+                runs[runs.count - 1].pcm.append(piece.pcm)
+            } else {
+                runs.append((piece.fed, Data(piece.pcm)))
+            }
+        }
+        return runs
+    }
+
+    /// Sends what `takeReplay` kept, re-chunked into ~100 ms appends so no
+    /// single frame is huge, each with its own feed position.
     /// (Gaps between pieces were already reported where they were.)
-    private func flushPreconnect(_ pending: [(fed: Int, pcm: Data)]) {
-        guard !pending.isEmpty else { return }
-        let pcm = pending.reduce(into: Data()) { $0.append($1.pcm) }
-        var offset = 0
-        while offset < pcm.count {
-            let end = min(offset + 4_800, pcm.count)
-            sendAudio(pcm.subdata(in: offset..<end))
-            offset = end
+    private func flushReplay(_ pending: [(fed: Int, pcm: Data)]) {
+        for piece in Self.runs(pending) {
+            let pcm = Data(piece.pcm)
+            var offset = 0
+            while offset < pcm.count {
+                let end = min(offset + 4_800, pcm.count)
+                sendAudio(pcm.subdata(in: offset..<end), fed: piece.fed + offset)
+                offset = end
+            }
         }
     }
 
@@ -1017,7 +1162,7 @@ public actor RealtimeSession {
             } else if e.error.eventID == links[id]?.updateEventID || kind == .auth || kind == .quota || kind == .rateLimit {
                 let err: RealtimeSessionError = switch kind {
                 case .auth: .unauthorized(e.error.message)
-                case .rateLimit: .rateLimited(retryAfter: nil)
+                case .rateLimit: .rateLimited(retryAfter: Self.retryHint(in: e.error.message))
                 case .quota: .rateLimited(retryAfter: nil)
                 default: .configRejected(e.error.message)
                 }
@@ -1041,6 +1186,11 @@ public actor RealtimeSession {
         }
         guard id == current else { return }
         current = nil
+        // The user's unfinished turn died with the connection: the next one hears it again.
+        if !closedByClient {
+            let pieces = carryUnfinishedTurn()
+            if pieces.isEmpty { carry = nil } else { carry = (pieces: pieces, at: clock.now()) }
+        }
         clearConversationState(keepTurns: true, status: "failed", reason: "connection_lost")
         summary?.waiter?.resume(returning: nil)
         summary = nil
@@ -1061,19 +1211,52 @@ public actor RealtimeSession {
     private func adopt(_ id: Int) {
         current = id
         startLinkConversation()
-        uplinkBytes = 0
+        startUplink()
         reconnectTask?.cancel(); reconnectTask = nil
         reconnectAttempt = 0
+        rateLimitAttempt = 0
         resetRollover()
         seed(link: id)
         adviced = nil
         emit(.recovered(sessionID: links[id]?.sessionID))
-        let pending = takePreconnect()
+        let pending = takeReplay()
         emitOrigin(pending.first?.fed ?? fedBytes)
         emit(.connected(sessionID: links[id]?.sessionID, model: links[id]?.model))
-        flushPreconnect(pending)
+        flushReplay(pending)
         startTicker()
         recompute()
+    }
+
+    /// Seconds to wait after a 429 (or a 503 with `Retry-After`): the server's
+    /// hint is a minimum, plus a small random delay (0.05 s … 0.1 s + 15 % of the
+    /// hint, at most 1 s) so many clients do not come back at once. Without a hint:
+    /// exponential back-off from `rateLimitBaseBackoff`, full jitter in its upper
+    /// half, up to `rateLimitMaxBackoff`. Never the old 5 s floor (tune 2: a 1 s
+    /// hint was waited out for 5.2 s and the user's question was lost).
+    private func rateLimitDelay(hint: Double?) -> Double {
+        rateLimitAttempt += 1
+        if let hint, hint.isFinite, hint >= 0 {
+            let spread = min(1, 0.1 + hint * 0.15)
+            return hint + Double.random(in: 0.05...max(0.05, spread))
+        }
+        let base = max(config.rateLimitBaseBackoff, 0.1)
+        let cap = min(max(config.rateLimitMaxBackoff, base), base * pow(2, Double(min(rateLimitAttempt - 1, 16))))
+        return Double.random(in: (cap / 2)...cap)
+    }
+
+    /// A hint from the last `rate_limits.updated`: the longest reset of a limit
+    /// with nothing remaining (nil when none is exhausted).
+    private func rateLimitResetHint() -> Double? {
+        lastRateLimits.filter { ($0.remaining ?? 1) <= 0 }.compactMap(\.resetSeconds).filter { $0 > 0 }.max()
+            .map { min($0, 60) }
+    }
+
+    /// "Please try again in 1.2s" / "in 350ms" in an error message.
+    static func retryHint(in message: String?) -> Double? {
+        guard let message else { return nil }
+        let pattern = #/(?i)try again in\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|seconds?)\b/#
+        guard let m = message.firstMatch(of: pattern), let value = Double(m.1) else { return nil }
+        return m.2.lowercased() == "ms" ? value / 1000 : value
     }
 
     private func scheduleReconnect(after explicit: Double? = nil) {
@@ -1101,13 +1284,20 @@ public actor RealtimeSession {
             case .closed:
                 reconnectTask = nil
                 preconnect.removeAll()
+                carry = nil
             case .unauthorized, .noKey:
                 reconnectTask = nil
                 advise(Self.fallback(for: mapped))
                 preconnect.removeAll()
+                carry = nil
             case .rateLimited(let retryAfter):
                 advise(.rateLimited(retryAfter: retryAfter))
-                scheduleReconnect(after: max(retryAfter ?? 30, 5))
+                // Honour the server's hint (a minimum) plus a little jitter; the
+                // buffered audio and the carried turn wait for it.
+                scheduleReconnect(after: rateLimitDelay(hint: retryAfter ?? rateLimitResetHint()))
+            case .socket(.server(_, let retryAfter?)):
+                // 503 overloaded with `Retry-After`: the same rule.
+                scheduleReconnect(after: rateLimitDelay(hint: retryAfter))
             default:
                 scheduleReconnect()
             }
@@ -1127,6 +1317,10 @@ public actor RealtimeSession {
         case .speechStarted(let e):
             if rejected.contains(e.itemID) { return }
             openSpeech = e.itemID
+            speechStartMs[e.itemID] = e.audioStartMs
+            if speechStartMs.count > 32, let oldest = speechStartMs.min(by: { $0.value < $1.value }) {
+                speechStartMs[oldest.key] = nil
+            }
             // While her audio is still audible this may be her own echo: the app
             // decides (`rejectEcho` / `bargeIn`), so pending output is not preempted.
             openSpeechOverPlayback = audible
@@ -1135,11 +1329,16 @@ public actor RealtimeSession {
             recompute()
         case .speechStopped(let e):
             if openSpeech == e.itemID { openSpeech = nil; openSpeechOverPlayback = false }
+            if !rejected.contains(e.itemID), !committed.contains(e.itemID) {
+                // Not over until it is committed: semantic VAD may hold it a while.
+                awaitingCommit[e.itemID] = clock.now()
+            }
             if !rejected.contains(e.itemID) { emit(.userSpeechStopped(itemID: e.itemID, audioEndMs: e.audioEndMs)) }
             recompute()
             maybeRollover()
         case .inputAudioCommitted(let e):
             committed.insert(e.itemID)
+            awaitingCommit[e.itemID] = nil
             if deleteOnCommit.remove(e.itemID) != nil {
                 send(.itemDelete(itemID: e.itemID, eventID: nextEventID("del")))
             } else if !rejected.contains(e.itemID) {
@@ -1207,6 +1406,7 @@ public actor RealtimeSession {
             responseDone(e.response)
 
         case .rateLimitsUpdated(let e):
+            if !e.rateLimits.isEmpty { lastRateLimits = e.rateLimits }
             emit(.rateLimits(e.rateLimits))
         case .error(let e):
             serverError(e.error)
@@ -1222,8 +1422,12 @@ public actor RealtimeSession {
         case .itemDeleted(let e):
             if liveDNAItemID == e.itemID { liveDNAItemID = nil }
             ledger.removeAll { $0 == e.itemID }
+        case .inputAudioCleared:
+            awaitingCommit.removeAll()
+            recompute()
+            maybeRollover()
         case .itemDone, .itemRetrieved, .itemTruncated,
-             .inputAudioCleared, .functionCallArgumentsDelta, .unknown, .malformed:
+             .functionCallArgumentsDelta, .unknown, .malformed:
             break
         }
     }
@@ -1490,6 +1694,7 @@ public actor RealtimeSession {
     private func serverError(_ e: APIError) {
         if let eid = e.eventID, cancelEventIDs.contains(eid) { return }   // nothing left to cancel: fine
         if let eid = e.eventID, quietDeletes.remove(eid) != nil { return } // already gone: fine
+        if let eid = e.eventID, quietCommits.remove(eid) != nil { return } // the server committed first: fine
         if let eid = e.eventID, let c = dnaCreates.removeValue(forKey: eid) {
             emit(.error(RealtimeIssue(kind: RealtimeIssue.classify(e), code: e.code ?? "dna_rejected",
                                       message: e.message, eventID: eid)))
@@ -1773,6 +1978,7 @@ public actor RealtimeSession {
         playing = false
         openSpeech = nil
         openSpeechOverPlayback = false
+        awaitingCommit.removeAll(); speechStartMs.removeAll()
         lastCommitted = nil
         committed.removeAll(); rejected.removeAll(); deleteOnCommit.removeAll()
         splitters.removeAll(); spoken.removeAll(); callNames.removeAll()
@@ -1815,14 +2021,23 @@ public actor RealtimeSession {
 
     private var isIdle: Bool {
         track == nil && openSpeech == nil && !audible && toolBatches.isEmpty && summary == nil && deferred == nil
-            && !hasUnansweredUserTurn
+            && !hasUnansweredUserTurn && !userTurnInProgress
+    }
+
+    /// The user is mid-turn beyond open server speech: speech stopped but not
+    /// committed yet (tune 2, fallback-rollover q02: the switch came in that gap
+    /// and "Are you awake?" was never committed anywhere), or local speech.
+    private var userTurnInProgress: Bool {
+        let now = clock.now()
+        return localSpeech || awaitingCommit.contains { now - $0.value < config.commitWait && !rejected.contains($0.key) }
     }
 
     /// Nothing generating, playing or queued: switching sessions cuts nobody off.
     /// The user is waited for too, up to 30 s past the forced deadline.
     private func quietForForcedSwitch(age: Double) -> Bool {
         track == nil && !audible && toolBatches.isEmpty && deferred == nil && summary == nil
-            && ((openSpeech == nil && !hasUnansweredUserTurn) || age >= config.forceRolloverAfter + 30)
+            && ((openSpeech == nil && !hasUnansweredUserTurn && !userTurnInProgress)
+                || age >= config.forceRolloverAfter + 30)
     }
 
     /// Starts a rollover when due, and switches to its parked session at a quiet
@@ -1893,18 +2108,25 @@ public actor RealtimeSession {
     private func switchToParked(from old: Int) {
         guard let p = parked else { return }
         parked = nil
+        // Quiet by construction. A user turn still unfinished (a forced switch
+        // after its 30 s grace, or an onset the server had not reported yet) is
+        // replayed into the new session from its start, not lost.
+        let pieces = carryUnfinishedTurn()
         seed(link: p.id)
         current = p.id
         startLinkConversation()
-        uplinkBytes = 0
+        startUplink()
         dropLink(old, code: 1000)
-        // Quiet by construction; a still-open user utterance (forced, 30 s on) is lost.
         clearConversationState(keepTurns: true, status: "cancelled", reason: "rollover")
         resetRollover()
-        emitOrigin(fedBytes)
+        emitOrigin(pieces.first?.fed ?? fedBytes)
         emit(.rolledOver(sessionID: links[p.id]?.sessionID))
+        flushReplay(pieces)
         recompute()
     }
+
+    /// A rollover's new session is open, configured and waiting (tests).
+    var hasParkedSession: Bool { parked.map { links[$0.id]?.ready == true } ?? false }
 
     private func resetRollover() {
         if let p = parked { parked = nil; dropLink(p.id, code: 1000) }

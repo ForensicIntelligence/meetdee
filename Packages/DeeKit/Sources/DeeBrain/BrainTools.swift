@@ -27,16 +27,29 @@ public struct BrainToolbox: Sendable {
         "remember": .ifSilent, "recall": .always, "forget": .ifSilent,
     ]
 
+    /// How each memory tool is used, said where the model reads it (tune 2 F-LEAK: 22
+    /// of 529 live replies narrated a call — "Got it, let me think about how to respond
+    /// to that.", "Quick save for your name, then I'll respond." — and a narrated
+    /// `remember` gets no follow-up, so she never answered). Calls are silent.
+    public static let memoryDescriptions: [String: String] = [
+        "remember": "Save a lasting fact about the current person. Answer them normally, then call this last, silently; never say you are saving, noting, tucking away or remembering it.",
+        "recall": "Look up what you know about the current person, only when the DNA does not already say it. Call it as your very first action, with no words before it, and answer from its result.",
+        "forget": "Forget a fact when the person asks. Call it silently first, then confirm in a few words.",
+    ]
+
     /// The memory tools under their DNA.md names. Empty when memories are private
     /// (Settings "Share memories with cloud voice" off).
     public static func memoryTools(store: MemoryStore, currentPerson: @escaping @Sendable () async -> UUID?,
                                    share: Bool = true) -> [any AgentTool] {
         guard share else { return [] }
         return [
-            RenamedTool(RememberTool(store: store, currentPerson: currentPerson), as: "remember"),
-            PrivateFactsFilter(RenamedTool(RecallTool(store: store, currentPerson: currentPerson), as: "recall"),
+            RenamedTool(RememberTool(store: store, currentPerson: currentPerson), as: "remember",
+                        description: memoryDescriptions["remember"]),
+            PrivateFactsFilter(RenamedTool(RecallTool(store: store, currentPerson: currentPerson), as: "recall",
+                                           description: memoryDescriptions["recall"]),
                                store: store, currentPerson: currentPerson),
-            PrivateFactsFilter(RenamedTool(ForgetTool(store: store, currentPerson: currentPerson), as: "forget"),
+            PrivateFactsFilter(RenamedTool(ForgetTool(store: store, currentPerson: currentPerson), as: "forget",
+                                           description: memoryDescriptions["forget"]),
                                store: store, currentPerson: currentPerson),
         ]
     }
@@ -61,14 +74,18 @@ public struct RenamedTool: AgentTool {
     public let base: any AgentTool
     public let name: String
 
-    public init(_ base: any AgentTool, as name: String) {
+    /// Replaces the base tool's description (nil keeps it).
+    public let description: String?
+
+    public init(_ base: any AgentTool, as name: String, description: String? = nil) {
         self.base = base
         self.name = name
+        self.description = description
     }
 
     public var spec: ToolSpec {
         let s = base.spec
-        return ToolSpec(name: name, description: s.description, parameters: s.parameters)
+        return ToolSpec(name: name, description: description ?? s.description, parameters: s.parameters)
     }
 
     public func run(_ call: ToolCall) async throws -> String {

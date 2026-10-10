@@ -75,6 +75,12 @@ struct RoomSim {
     var speakingFrames = 0
     var frames = 0
     var tag = ""
+    /// The uplink as CloudVoice sends it (`UplinkGate` with EarCore's bar), when on.
+    var gateUplink = false
+    var gate = UplinkGate()
+    var mic: [Float] = []
+    var sent: [Float] = []
+    var bars: [Double?] = []
 
     enum ServerSpeech {
         case start(String, onsetSample: Int)
@@ -138,7 +144,7 @@ struct RoomSim {
             var bins: [EchoReference.Bin] = []
             for j in 0..<4 {
                 let s = Array(out[(j * 240)..<((j + 1) * 240)])
-                bins.append(.init(t: Self.time(a + (j + 1) * 240), energy: s.reduce(0) { $0 + Double($1 * $1) } / 240))
+                bins.append(.init(t: Self.time(a + (j + 1) * 240), energy: s.reduce(0) { $0 + Double($1 * $1) } / 240, samples: s))
             }
             core.reference(bins)
             if playing { core.playbackLevel(Level.meter(Level.rmsDB(out), floor: -50, ceiling: -12), at: t) }
@@ -152,6 +158,14 @@ struct RoomSim {
                 for i in 0..<Self.frame { mic[i] += e[i] }
             }
             record(core.frame(mic, sampleRate: Self.rate, at: t), at: t)
+            if gateUplink {
+                gate.barDB = core.uplinkBarDB
+                bars.append(gate.barDB)
+                var pcm = mic.map { Int16(max(-32_768, min(32_767, ($0 * 32_768).rounded()))) }
+                gate.process(&pcm, startFrame: Int64(a))
+                self.mic += mic
+                sent += pcm.map { Float($0) / 32_768 }
+            }
             if let d = core.debugFrame, ProcessInfo.processInfo.environment["EAR_DEBUG"] == tag {
                 print(String(format: "EAR %.2f db %.1f floor %.1f bar %.1f f0 %@ low %.2f vl %d ab %d g %@ spk %d",
                              t - Self.t0, d.db, d.floor, d.bar, d.f0.map { String(format: "%.0f", $0) } ?? "-", d.low,
@@ -307,7 +321,7 @@ private func isReject(_ a: EarCore.Action) -> Bool { if case .rejectEcho = a { t
 
 private func isEmit(_ a: EarCore.Action) -> Bool {
     switch a {
-    case .emit, .uplink: true
+    case .emit, .uplink, .localSpeech: true
     default: false
     }
 }
@@ -757,6 +771,11 @@ private final class EchoRoom: @unchecked Sendable {
         rig.push(Srv.speechStarted("item_u2", ms: room.uplinkMs - 150))
         await rig.settle()
         try room.talk(0.4, amplitude: 0.5)
+        #expect(rig.voice.floorHold?.itemID == "item_u2")             // paused at once: their words decide
+        rig.push(Srv.speechStopped("item_u2", ms: room.uplinkMs), Srv.committed("item_u2"),
+                 Srv.userTranscript("item_u2", "Stop."))
+        await rig.settle()
+        try room.run(CloudVoice.holdAfterWords + 0.1)                   // no brain to answer: the voice ends it
         #expect(await rig.events.wait { $0 == .bargeIn } != nil)
         #expect(await rig.waitSent("conversation.item.truncate"))
         #expect(rig.sent("conversation.item.delete").isEmpty)

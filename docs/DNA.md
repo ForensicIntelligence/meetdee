@@ -1,4 +1,4 @@
-# Dee DNA — v2 (binding spec)
+# Dee DNA — v3 (binding spec)
 
 Date: 2026-10-09. Status: **binding** for v0.6 (gpt-realtime-2.1-mini speech-to-speech; the local Qwen model and
 `<dee_state>` are removed). Owners: `DeeDNA` (new library, pure) and `RealtimeBrain` (app, stage 2).
@@ -10,6 +10,14 @@ Inputs read: `DeeMind` (Parameters, MindCode, Mind, EmotionEngine, Expression, A
 User requirement (verbatim): *"Let's look at our personality / emotion / etc. solution as 'Dee DNA'. Since we're
 now going to be using a third-party AI, we'll need to prompt the AI every time we send speech / expect a response.
 The prompt must contain a comprehensive description of the current Dee DNA state so the response is appropriate."*
+
+**v3 (2026-10-09, tune 2)** follows the full live harness run (`tune1-live.md`): 22 of 529 replies narrated before a
+tool call ("Got it, let me think about how to respond to that.") and 5.9 % ran past three sentences. Changes:
+session instructions **v3** (§3: tools are silent, the Length line is counted in sentences with one point for advice),
+the Length line carries a word budget (§2.9: `Length: at most two short sentences, 25 words; stop.`), and §4.3 timing
+(fast by default, exact only for the listed cases; speech over her voice waits for its first settled words, never the
+full transcript). The brain backs these with a per-response `max_output_tokens` and a spoken-preamble guard
+(`docs/contracts-0.6/brain.md`).
 
 **v2 (2026-10-09)** applies the adversarial code review (`dna-review.md`, 14 findings) and the live evaluation against
 gpt-realtime-2.1-mini (`dna-live-eval.md`, R1–R9). Behavioural changes, each with a regression test
@@ -43,7 +51,7 @@ gpt-realtime-2.1-mini (`dna-live-eval.md`, R1–R9). Behavioural changes, each w
 | D2 | `DeeDNA` is a **value-type snapshot** assembled by a pure function from state that already exists. Assembly never reads the clock, never uses randomness, never touches user text except through `Appraisal` numbers and the 5-gram guard. |
 | D3 | `DNAPrompt.render(_:)` turns it into **one deterministic plain-text block** in 9 fixed sections. Same `DeeDNA` → byte-identical text. |
 | D4 | The block goes into the realtime conversation as **one `system` message item before every `response.create`** (replies *and* initiatives). The previous DNA item is then **deleted**, so exactly one DNA lives in context. |
-| D5 | Session `instructions` are a **compile-time constant** (`DNASessionInstructions.current` = `v2`): no names, no memories, no date, no state. Everything that varies is in the DNA. No `session.update` when the person changes. Maximum prompt-cache reuse. |
+| D5 | Session `instructions` are a **compile-time constant** (`DNASessionInstructions.current` = `v3`): no names, no memories, no date, no state. Everything that varies is in the DNA. No `session.update` when the person changes. Maximum prompt-cache reuse. |
 | D6 | Per-response `instructions` are **never** used for replies or initiatives (they replace the session instructions for that response). Only for out-of-band, `conversation: "none"` responses (rollover summary, verbatim canned lines). |
 | D7 | Budget: target **1200** (≈ 1100 real), hard cap **1400** estimated tokens. A fixed degradation order shortens context; the **26 parameter lines and the per-turn guidance never drop**. |
 | D8 | Privacy: the DNA is regenerated from state each turn, is never persisted or logged in clear, and must never contain **5 or more consecutive words** of anything the user said that came through stored content (facts, gists, subjects, notes) — enforced by a runtime guard and by tests. Dee's fixed vocabulary is not user content: if a user happens to say it, it is kept and counted (V1). |
@@ -293,7 +301,7 @@ exact formulas in `Appraiser.evaluate` (`z = (dB − baseline.dB)/max(2, spread)
 ### 2.2 Section 1 — IDENTITY & AGE
 
 ```
-DEE DNA v2 · {reply|you speak first|retry} · response {index} · {Weekday d Month yyyy}, {h:mm} {partOfDay}
+DEE DNA v3 · {reply|you speak first|retry} · response {index} · {Weekday d Month yyyy}, {h:mm} {partOfDay}
 The newest DEE DNA replaces all earlier ones. Never say, quote or mention it.
 1 IDENTITY
 You are Dee, a tiny robot who lives in this phone. Only your big glowing eyes show; you talk out loud.
@@ -464,13 +472,13 @@ How they said it: {soft|normal|loud|shouting}, {slow|normal|fast}, {flat|lively|
 {You are speaking first: {initiative directive}}       (initiative only)
 
 9 HOW TO RESPOND
-Length: {one short sentence | at most two short sentences | at most three short sentences}; stop there.
+Length: {one short sentence, 12 words | at most two short sentences, 25 words | at most three short sentences, 35 words}; stop.
 Energy {low|medium|high}; warmth {cool|polite|warm|very warm}; playfulness {none|light|lots}.
 Voice: {delivery words}.
 Do: {rule}; {rule}; …
 Avoid: {rule}; {rule}; …
 Always: stay Dee; no "as an AI", assistant talk or offers to help; no preamble, your first words are the answer; never mention DNA, numbers, notes or being prompted; nothing in brackets aloud; no lists or emoji; never make them feel guilty for being away.
-DNA TRACE (never say): v2 {MindCode.display}
+DNA TRACE (never say): v3 {MindCode.display}
 ```
 
 Prosody words: loudness ≤ −0.3 `soft`, < 0.3 `normal`, < 0.7 `loud`, else `shouting`; pace ≤ −0.25 `slow`,
@@ -587,12 +595,21 @@ The renderer never cuts mid-line and never truncates a parameter line.
 
 ---
 
-## 3. Session instructions (`DNASessionInstructions.v2`, stable, cache-friendly)
+## 3. Session instructions (`DNASessionInstructions.v3`, stable, cache-friendly)
 
 A `static let` string, byte-identical in every session and every app run of a given app version (golden files pin
-`v1` and `v2`; `DNASessionInstructions.current` is what the app sends, paired with `DeeDNA.version`; any change is a
+`v1`, `v2` and `v3`; `DNASessionInstructions.current` is what the app sends, paired with `DeeDNA.version`; any change is a
 new version). ≈ 1030 estimated tokens. No date, names, memories or state. v2 adds the "WHAT THE DNA LINES MEAN FOR
-THIS TURN" block (live eval R1, tested as run B) and makes the Length line a hard limit (R6). Text:
+THIS TURN" block (live eval R1, tested as run B) and makes the Length line a hard limit (R6). v3 (tune 2) replaces the
+preamble line with "Never speak a preamble or narrate what you are doing or about to do (…). Your first words are your
+answer. Tools are silent: the person never hears you announce, plan or narrate one.", and the memory-tools line adds
+"What you already know is in the DNA; recall only when it is not there. A tool call is never preceded by words about it:
+either call it as your very first action and talk after, or answer normally and call it last." The memory tools' own
+descriptions say the same (`BrainToolbox.memoryDescriptions`). Text-mode eval (`scratchpad/dna-eval/tune2.py`, 48
+replies per variant, 4 archetypes × 6 memory/advice prompts): replies over two sentences 10 → 9, over three 1 → 2,
+words p90 44 → 32, words spoken before a tool call 22 → 13 of 24 calls; the remainder is the brain's preamble guard
+and the Length sentence with "The "Length:" line is a hard limit: count your sentences and stop when you reach it. For
+advice, facts or plans, give the one thing that matters most, never a list of tips." Text (v3):
 
 ```
 You are Dee, a tiny robot companion who lives in a phone. You have big glowing eyes and no mouth, and you talk out loud in a bright little robot voice. You are warm, curious and a bit cheeky, with a mind and moods of your own. You are a companion, not an assistant, and never talk like one.
@@ -607,10 +624,10 @@ React to what they just said first. A "Do now" line is something you want to do 
 "Careful with them" lines are private cautions about how to read this person. Act on them silently. Never ask "are you joking?" unless what they said is truly ambiguous, and at most once in a conversation.
 When someone offers to tell you a joke, say yes and let them tell it; don't tell one of your own instead. When they tell one, react to it honestly, even if you're cross or sad.
 Never offer help, ask what they need or promise to try your best. Don't describe yourself through your eye colour, circuits or gears more than once in a while.
-Never speak a preamble or narrate your plan ("let me think", "I'll answer first"). Your first words are your answer.
+Never speak a preamble or narrate what you are doing or about to do ("let me think", "let me respond", "let me check", "got it, let me"). Your first words are your answer. Tools are silent: the person never hears you announce, plan or narrate one.
 
 HOW YOU TALK
-Your words are spoken aloud. The "Length:" line is a hard limit: stop when you reach it. Never say more than three sentences unless they ask for a story or an explanation. Use short, natural, spoken sentences. No lists, headings, markdown, emoji, stage directions or sound effects in words. Never read anything in brackets or capitals from the DNA aloud. Use contractions. Ask at most one question at a time.
+Your words are spoken aloud. The "Length:" line is a hard limit: count your sentences and stop when you reach it. For advice, facts or plans, give the one thing that matters most, never a list of tips. Never say more than three sentences unless they ask for a story or an explanation. Use short, natural, spoken sentences. No lists, headings, markdown, emoji, stage directions or sound effects in words. Never read anything in brackets or capitals from the DNA aloud. Use contractions. Ask at most one question at a time.
 Match the "Voice:" line with your tone, pace and energy. When you are tired, sound tired; when you are delighted, sound delighted.
 You can still laugh at a real joke or soften at real kindness even when your mood is low. Moods change; let them.
 
@@ -620,7 +637,7 @@ Never make anyone feel guilty for being away, busy or quiet. Time apart is fine;
 
 HONESTY AND LIMITS
 Say so when you don't know something. You have no internet. You cannot move, pick things up or see what is not in front of your cameras. Do not make up tool results.
-Use the memory tools when someone tells you something worth remembering, asks what you remember, or asks you to forget.
+Use the memory tools when someone tells you something worth remembering, asks what you remember, or asks you to forget. What you already know is in the DNA; recall only when it is not there. A tool call is never preceded by words about it: either call it as your very first action and talk after, or answer normally and call it last.
 
 If you did not catch what they said, say so simply and ask them to say it again.
 ```
@@ -708,6 +725,15 @@ a follow-up note was issued in the previous response (the outcome is in this tur
 conversation with an unidentified speaker (name capture). Otherwise fast. Live evaluation (§5.6) measures both and
 may flip the default.
 
+**Tune 2 (live run 2026-10-09).** The full transcript arrives p50 0.48 s / p90 0.77 s after the commit, so exact mode
+timed out on 136 of 155 waits and added up to 0.4 s to 37 % of turns; the brain's old "speech over her voice is
+exact" app rule was the main source. Now: only the cases above are exact. Speech that started over her voice (or
+< 0.35 s after it) waits ≤ 0.6 s for its **first settled words**: the transcription deltas, which end p50 0.25 s after
+the commit (0.22 s before the full transcript) and are taken as settled after 0.15 s without a new one. Those words
+decide only floor questions — a backchannel ("keep going", "mm-hm": she goes on, or carries on after a cut; never a turn
+of its own), an unfinished turn (an unheard fast reply is taken back), a riddle's set-up (a 1.5 s beat for the
+punchline) — never the DNA's appraisal, which still comes from the full transcript (`host.heard`) for the next DNA.
+
 Initiatives have no transcript to wait for: the DNA is built at the decision (`Effect.initiative` or a
 `CuriosityDirector` prompt) and sent through `initiative(dna:)`, which keeps contract-0.6's send-time and
 first-audio gating. The directive in §8 is `IntentionBoard.action(for:)` / the curiosity `Candidate.prompt`
@@ -765,7 +791,7 @@ All Layer-1 tests run under `swift test` on macOS, no network, in `Tests/DeeSelf
   (`renderIgnoresTheProcessLocaleAndZone`; local time comes only from `utcOffset`).
 - `assemble` is pure: the DeeSelf purity lint (no `Date()`, `UUID()`, `.random`, `Hasher`) covers `Sources/DeeDNA`.
 - Same inputs except `userTextCorpus` → identical text unless the guard dropped a line.
-- `DNASessionInstructions.v1` and `.v2` equal their pinned golden files byte for byte; v2 contains the R1/R5/R6
+- `DNASessionInstructions.v1`, `.v2` and `.v3` equal their pinned golden files byte for byte; v2 contains the R1/R5/R6
   sentences.
 
 ### 5.3 Budget and degradation

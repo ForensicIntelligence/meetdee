@@ -61,6 +61,11 @@ public struct Appraisal: Sendable, Equatable {
     /// is it", "I had a bad day") then doesn't count as unkindness toward Dee.
     /// Hand-built appraisals default to true.
     public var aimedAtDee = true
+    /// Floor control addressed to her: "stop", "wait, stop talking for a second", "hold
+    /// on", "be quiet for a sec". Turn-taking, not rudeness: on its own it is neutral
+    /// (tune 2; live: "Wait, stop talking for a second" read as being brushed off and
+    /// drove regard to −0.42). Hostile words said with it still count.
+    public var floorControl = false
 
     // --- Non-verbal stimuli (v0.4). Defaults leave speech appraisal unchanged. ---
 
@@ -129,9 +134,13 @@ public struct Appraiser: Sendable {
         self.baseline = baseline
     }
 
+    /// Starts where ordinary speech into a phone sits (≈ −26 dBFS) with a wide spread,
+    /// so the first sentences of a new user read as normal until their own voice is
+    /// learnt (tune 2: from −32/6 every −24 dBFS live fixture read "loud", and the first
+    /// worried question of a session counted as being shouted at).
     public struct VoiceBaseline: Sendable, Equatable, Codable {
-        public var loudnessDB = -32.0
-        public var loudnessSpread = 6.0
+        public var loudnessDB = -26.0
+        public var loudnessSpread = 8.0
         public var speechRate = 2.6
         public var samples = 0
         public init() {}
@@ -194,6 +203,13 @@ public struct Appraiser: Sendable {
         a.humor = min(1, Self.score(lower, Lexicon.laughter) + Self.laughterScore(words))
         a.aimedAtDee = addressed || rude > 0 || a.threat > 0 || dismissedDee > 0
         let polite = Self.score(lower, Lexicon.politeness)
+        // Floor control ("stop", "hold on", "be quiet for a sec"): addressed to her, and
+        // neutral unless hostile words come with it.
+        let floor = Self.floorControlScore(lower)
+        let floorOnly = floor > 0 && Self.onlyFloorControl(lower)
+        let harshWords = insults > 0 || rude > 0 || profanity > 0 || a.threat > 0
+        a.floorControl = floor > 0 && !harshWords
+        if floor > 0 { a.aimedAtDee = true }
 
         // Teasing with play signals (laughter, "I love you") is affiliative, not
         // hostile — as long as it's a mild jab, with no threat or swearing.
@@ -204,6 +220,7 @@ public struct Appraiser: Sendable {
 
         // Light sarcasm heuristics: only a few unambiguous patterns.
         a.sarcasm = Self.sarcasm(lower)
+        if a.sarcasm > 0 { a.floorControl = false }
         // The sentiment model reads playful jabs as negative; with play signals, ignore that.
         var wordSentiment = teasing && insults > 0 ? max(0, sentiment) : sentiment
         if a.sarcasm > 0 {
@@ -212,6 +229,10 @@ public struct Appraiser: Sendable {
             a.dismissal = min(1, a.dismissal + 0.3 * a.sarcasm)
             wordSentiment = min(0, sentiment)
         }
+
+        // "Wait, stop talking for a second" reads negative to the sentiment model; a
+        // plain request for the floor is not unkind.
+        if a.floorControl, floorOnly { wordSentiment = max(0, wordSentiment) }
 
         a.warmth = min(1, polite * 0.5 + Self.score(lower, Lexicon.greetings) * 0.4 + max(0, wordSentiment) * 0.4 + a.affection * 0.3)
 
@@ -227,22 +248,38 @@ public struct Appraiser: Sendable {
         var typed = min(1, max(0, (caps - 0.5) * 2) + min(0.4, bangs * 0.12))
 
         // --- Voice -----------------------------------------------------------
+        var voiceForce = 0.0
         if let p = prosody {
             let z = (p.loudnessDB - baseline.loudnessDB) / max(2, baseline.loudnessSpread)
             a.loudness = max(-1, min(1, z / 2))
             let fast = max(0, (p.speechRate - baseline.speechRate) / max(0.5, baseline.speechRate))
             let peak = max(0, (p.peakDB - baseline.loudnessDB - 12) / 12)
             let voiced = max(0, a.loudness) * 0.6 + min(1, fast) * 0.25 + min(1, peak) * 0.3
-            typed = max(typed, voiced)
+            voiceForce = voiced
+            // Floor control is said over her voice, so it is often louder: that is
+            // getting a word in, not shouting at her (typed CAPS still count).
+            typed = max(typed, a.floorControl ? min(voiced, Self.floorControlVoiceCap) : voiced)
             // Loud + negative words = aggression; soft + kind words = tenderness.
             if a.loudness > 0.3 { a.dominance = min(1, a.dominance + a.loudness * 0.5) }
             if a.loudness < -0.3 { a.dominance = max(-1, a.dominance + a.loudness * 0.4) }
         }
         a.intensity = min(1, typed)
 
-        // Shouting turns rudeness up and makes even neutral words feel harsh.
+        // Only a repeated, forceful floor-control line costs a little patience (well
+        // below rudeness); its loudness never reads as being shouted at.
+        if a.floorControl {
+            let forceful = max(voiceForce, typed)
+            a.loudness = min(a.loudness, Self.floorControlVoiceCap)
+            a.dominance = min(a.dominance, 0.2)
+            if forceful > 0.5, Self.repeatsFloorControl(recent) { a.hostility = max(a.hostility, Self.floorControlPatienceCost) }
+        }
+
+        // Shouting turns rudeness up and makes even neutral words feel harsh — when they
+        // are said at Dee, not when they ask her something ("I'm not sure it's fair to
+        // the dog. What do you think?" said loudly is worry, not an attack).
         if a.intensity > 0.3 {
-            a.hostility = min(1, a.hostility * (1 + a.intensity) + (wordSentiment < -0.2 ? a.intensity * 0.3 : 0))
+            let harsh = wordSentiment < -0.2 && a.aimedAtDee && !words.contains("?") && a.distress == 0 && !a.floorControl
+            a.hostility = min(1, a.hostility * (1 + a.intensity) + (harsh ? a.intensity * 0.3 : 0))
         }
         // Speaking softly and kindly reads as tender.
         if a.loudness < -0.3, wordSentiment > 0.1 || a.affection > 0 {
@@ -250,11 +287,14 @@ public struct Appraiser: Sendable {
         }
 
         a.hostility = min(1, a.hostility)
+        if a.floorControl { a.hostility = min(a.hostility, Self.floorControlPatienceCost) }
         a.valence = max(-1, min(1, wordSentiment * 0.6 + a.kindnessTerms - (a.hostility + a.threat) * 0.6))
 
         // --- Novelty / repetition -------------------------------------------
-        let content = Set(words.filter { $0.count > 3 && !Lexicon.stopwords.contains($0) })
-        if content.isEmpty {
+        var content = Set(words.filter { $0.count > 3 && !Lexicon.stopwords.contains($0) })
+        if a.floorControl { content.insert(Self.floorControlMark) }
+        if content.isEmpty || (a.floorControl && floorOnly) {
+            // Nothing new was said (a bare "hold on" is not a topic).
             a.novelty = 0.2
         } else {
             let overlap = recent.map { Double($0.intersection(content).count) / Double(max(1, content.count)) }.max() ?? 0
@@ -281,6 +321,68 @@ public struct Appraiser: Sendable {
         baseline.samples += 1
     }
 
+
+    // MARK: - Floor control
+
+    /// The hostility of a repeated, forceful floor-control line: a tiny patience cost,
+    /// far below rudeness (`CauseLabel` 0.3) and below the hostile-interaction count.
+    public static let floorControlPatienceCost = 0.05
+    /// Most loudness / voice intensity a floor-control line is read with.
+    public static let floorControlVoiceCap = 0.3
+    /// Marks a floor-control utterance in the repetition window (never a real word).
+    static let floorControlMark = "|floor|"
+
+    /// Floor-control phrases said as a request: each must open its clause, after at most
+    /// address / politeness words ("Dee, stop", "can you just stop talking", "wait, hold
+    /// on"). "I can't stop laughing", "I can't wait", "don't stop" are not floor control.
+    static func floorControlScore(_ text: String) -> Double {
+        let tokens = text.split(separator: " ").map(String.init)
+        let phrases = Lexicon.floorControl
+            .map { (words: $0.0.split(separator: " ").map(String.init), weight: $0.1) }
+            .sorted { $0.words.count > $1.words.count }
+        var total = 0.0
+        var i = 0
+        var clauseOpen = true     // only lead words since the last clause break
+        while i < tokens.count {
+            let t = tokens[i]
+            if clauseBreaks.contains(t) { clauseOpen = true; i += 1; continue }
+            if clauseOpen, let p = phrases.first(where: { i + $0.words.count <= tokens.count && Array(tokens[i..<i + $0.words.count]) == $0.words }),
+               !(p.words == ["wait"] && i + 1 < tokens.count && ["till", "until", "to", "and"].contains(tokens[i + 1])) {
+                total += p.weight
+                i += p.words.count
+                continue     // "wait stop talking", "hold on hold on": still a request
+            }
+            if !Lexicon.floorLead.contains(t) { clauseOpen = false }
+            i += 1
+        }
+        return min(1, total)
+    }
+
+    /// One of the last two utterances was floor control too.
+    static func repeatsFloorControl(_ recent: [Set<String>]) -> Bool {
+        recent.suffix(2).contains { $0.contains(floorControlMark) }
+    }
+
+    /// Every word is floor control, address, politeness or filler ("Wait, stop talking
+    /// for a second.", "Dee, be quiet please"): nothing else was said.
+    static func onlyFloorControl(_ text: String) -> Bool {
+        var tokens = text.split(separator: " ").map(String.init).filter { !clauseBreaks.contains($0) }
+        let phrases = (Lexicon.floorControl.map(\.0) + Lexicon.floorFiller)
+            .map { $0.split(separator: " ").map(String.init) }
+            .sorted { $0.count > $1.count }
+        var i = 0
+        var rest: [String] = []
+        while i < tokens.count {
+            if let p = phrases.first(where: { i + $0.count <= tokens.count && Array(tokens[i..<i + $0.count]) == $0 }) {
+                i += p.count
+            } else {
+                rest.append(tokens[i])
+                i += 1
+            }
+        }
+        tokens = rest
+        return tokens.isEmpty
+    }
 
     // MARK: - Text helpers
 
@@ -430,7 +532,7 @@ enum Lexicon {
     ]
     /// Inherently addressed to the listener, so never discounted as "not aimed".
     static let rudeCommands: [(String, Double)] = [
-        ("shut up", 0.7), ("shut it", 0.6), ("be quiet", 0.3), ("go away", 0.4), ("leave me alone", 0.4), ("get lost", 0.6),
+        ("shut up", 0.7), ("shut it", 0.6), ("go away", 0.4), ("leave me alone", 0.4), ("get lost", 0.6),
         ("nobody asked", 0.6),
     ]
     static let profanity: [(String, Double)] = [
@@ -462,7 +564,26 @@ enum Lexicon {
     static let dismissal: [(String, Double)] = [
         ("whatever", 0.5), ("who cares", 0.6), ("don't care", 0.5), ("so what", 0.4), ("meh", 0.35),
         ("not interested", 0.5), ("never mind", 0.25), ("forget it", 0.3), ("ok", 0.05), ("k", 0.2),
-        ("go away", 0.5), ("leave me alone", 0.4), ("stop talking", 0.5),
+        ("go away", 0.5), ("leave me alone", 0.4),
+    ]
+    /// Taking the floor (tune 2). "stop talking" and "be quiet" used to count as a
+    /// brush-off and a rude command; said to her they are turn-taking. "shut up" stays rude.
+    static let floorControl: [(String, Double)] = [
+        ("stop talking", 0.6), ("stop", 0.5), ("wait", 0.4), ("hold on", 0.5), ("hang on", 0.5), ("be quiet", 0.5),
+        ("quiet", 0.3), ("shh", 0.5), ("shhh", 0.5), ("sh", 0.4), ("shush", 0.5), ("hush", 0.5), ("pause", 0.4),
+        ("one sec", 0.4), ("one second", 0.4), ("just a sec", 0.4), ("just a second", 0.4), ("give me a sec", 0.4),
+        ("give me a second", 0.4), ("let me talk", 0.5), ("let me finish", 0.5), ("let me speak", 0.5),
+        ("let me think", 0.4), ("quiet down", 0.5), ("that's enough", 0.4), ("enough", 0.3),
+    ]
+    /// Words that may come before a floor-control phrase in its clause.
+    static let floorLead: Set<String> = ["dee", "d", "hey", "okay", "ok", "oh", "um", "uh", "just", "please", "sorry", "so",
+                                         "no", "can", "could", "would", "will", "you", "now", "alright", "right"]
+    /// Words that may surround floor control without adding anything ("Wait, stop talking
+    /// for a second, Dee").
+    static let floorFiller = [
+        "for a second", "for a sec", "for a moment", "for a minute", "for a bit", "a second", "a sec", "a moment", "a minute",
+        "please", "dee", "d", "hey", "okay", "ok", "oh", "um", "uh", "just", "now", "right now", "sorry", "can you", "could you",
+        "would you", "you", "talking", "for", "me", "a", "thanks", "thank you", "no", "so",
     ]
     /// Dismissive adjectives: full weight only when aimed at Dee ("you're boring"),
     /// not about homework.

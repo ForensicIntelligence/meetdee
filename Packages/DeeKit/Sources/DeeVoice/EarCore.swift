@@ -65,10 +65,19 @@ public struct EarCore: Sendable {
         case acceptOnset(itemID: String)
         /// A server onset was Dee's own voice: delete that user item.
         case rejectEcho(itemID: String)
+        /// A server onset over her voice that the local evidence can't settle
+        /// (a voice under her echo as loud as the user): its words decide
+        /// (`HerWords`). Neither accepted nor deleted yet. `strict`: the only hint
+        /// was sound her echo model didn't explain (no other voice's pitch) — the
+        /// words must be clearly not hers.
+        case deferToWords(itemID: String, strict: Bool)
         /// The user started talking before an initiative's first audio.
         case cancelInitiative
         /// Mic audio should (true) or should no longer (false) go to the server.
         case uplink(Bool)
+        /// The user's voice is (true) or is no longer (false) heard locally —
+        /// ~0.3 s ahead of the server's `speech_started` (`RealtimeSession.setLocalSpeech`).
+        case localSpeech(Bool)
     }
 
     // MARK: Tunables
@@ -136,6 +145,13 @@ public struct EarCore: Sendable {
     public static let nearMinDB = -45.0
     /// Pitched near-end voice in an onset's window that keeps it from being deleted as echo.
     public static let nearEndEvidence = 0.2
+    /// Voice-like near-end sound (`voiceHint`) in an onset's window that, without
+    /// the evidence to accept it, sends it to `deferToWords` instead of deleting it.
+    public static let wordsHint = 0.08
+    /// …or this much unexplained voice-shaped sound (then the words must be clearly not hers).
+    public static let wordsHintUnexplained = 0.12
+    /// Near-end voice in an undecided onset's window that holds her next item back.
+    public static let boundaryEvidence = 0.06
     /// Near-end voice that, with the server's onset, barges in at once.
     public static let corroboratedEvidence = 0.12
     /// Her echo's first moments in a stretch (after the longest echo delay) are
@@ -159,6 +175,21 @@ public struct EarCore: Sendable {
     /// Laughter / applause while she plays must beat the barge-in bar by this.
     public static let socialOverSpeechMarginDB = 4.0
     public static let soundLoudnessWindow = 1.6
+    /// The uplink gate opens this far above the room bed's ceiling (`RoomBed`)…
+    public static let uplinkMarginDB = 5.0
+    /// …but never more than this above the room's floor, nor above `uplinkMaxDB`:
+    /// whatever the bed learned, a voice at the phone always gets through.
+    public static let uplinkMaxAboveFloorDB = 12.0
+    public static let uplinkMaxDB = -28.0
+    /// Frames this far above the bed's ceiling are not learned as the bed.
+    static let bedLearnHeadroomDB = 2.0
+    /// With a known bed, the user's bar (with her voice in the room) is this far
+    /// above its ceiling and `bedFloorMarginDB` above its floor: a steady fan or
+    /// tap never reaches its ceiling + 3 dB, so a soft voice over it still counts.
+    /// Never stricter than the fixed `nearAboveFloorDB` (which holds until the
+    /// bed is known): a bed that learned some speech only means the old bar.
+    public static let bedCeilingMarginDB = 3.0
+    public static let bedFloorMarginDB = 4.0
 
     // MARK: Gates
 
@@ -174,15 +205,16 @@ public struct EarCore: Sendable {
     public var aecActive = false {
         didSet {
             configureBarge()
-            if aecActive != oldValue { echo.reset() }   // a new echo path
+            if aecActive != oldValue { echo.reset(); spectral.reset() }   // a new echo path
         }
     }
     /// Route output latency (s): her voice is still in the room this long after rendering.
     public var outputLatency = 0.0 {
         didSet {
             outputLatency = outputLatency.isFinite ? min(max(outputLatency, 0), 0.5) : 0
-            if abs(outputLatency - oldValue) > 0.005 { echo.reset() }
+            if abs(outputLatency - oldValue) > 0.005 { echo.reset(); spectral.reset() }
             echo.outputLatency = outputLatency
+            spectral.outputLatency = outputLatency
         }
     }
 
@@ -193,8 +225,15 @@ public struct EarCore: Sendable {
 
     public private(set) var vad = EnergyVAD()
     private var room = NoiseFloorTracker()
+    /// The room's bed (fan, tap, TV) and its ceiling: the uplink gate's bar.
+    public private(set) var bed = RoomBed()
+    /// The uplink gate as seen at 40 ms (frames it would pass are not the bed).
+    private var gateOpenUntil = -Double.infinity
     /// Her echo path, learned from her rendered output against the microphone.
     public private(set) var echo = EchoReference()
+    /// …and per frequency band, for a voice under her loud echo.
+    private var spectral = SpectralEcho()
+    private var lastFrameAbove = false
     private var barge = BargeInDetector()
     private var predictor = TurnPredictor()
     private var pauseLearner = PauseScaleLearner()
@@ -259,6 +298,10 @@ public struct EarCore: Sendable {
     private var wakeRun = 0.0
     private var wakeUntil = -Double.infinity
     private var uplinkReported = false
+    private var localSpeechReported = false
+    /// She went on after a hold here: what the user said before it was decided
+    /// already (a backchannel) and is no evidence for a new onset.
+    private var resumedAt = -Double.infinity
 
     /// Listening as last reported (starts closed: only an opening is news).
     private var reportedListening = false
@@ -278,6 +321,7 @@ public struct EarCore: Sendable {
         var f0: Double?
         /// Her voice was in the room.
         var her: Bool
+        /// Voiced by the energy VAD, or clearly above a known bed (a soft voice).
         var rawVoiced: Bool
         /// Pitched, voice-band.
         var voiceLike: Bool
@@ -301,6 +345,10 @@ public struct EarCore: Sendable {
         var herOnset = false
         /// Above the conservative fixed bar (used when there is no reference).
         var fallbackAbove: Bool
+        /// Per band, a voice her echo doesn't explain, above the room's bar (`SpectralEcho`).
+        var spectralNear = false
+        /// …and the frame's pitch is not hers (another voice is in it).
+        var spectralPitched = false
     }
 
     /// The user's bar for a logged frame under the echo path known now (before
@@ -321,13 +369,15 @@ public struct EarCore: Sendable {
         guard f.her else { return (f.speech, f.speech && f.voiceLike) }
         guard let bar = userBar(f) else { return (f.fallbackAbove, f.fallbackAbove && f.voiceLike) }
         if f.herOnset, onsetGuard { return (false, false) }
-        let near = f.rawVoiced && f.db >= bar
-        return (near, near && f.voiceLike)
+        if f.rawVoiced && f.db >= bar { return (true, f.voiceLike) }
+        let near = f.rawVoiced && f.spectralNear
+        return (near, near && f.spectralPitched)
     }
     private var frames: [FrameStat] = []
     /// The last frame's measurements (tests print them to tune against fixtures).
     var debugFrame: (db: Double, floor: Double, bar: Double, f0: Double?, low: Double, voiceLike: Bool, above: Bool)?
-    var debugState: String { "ev \(evidenceAt != nil) pend \(pending.map(\.itemID)) spk \(speaking) her \(herTime(at: latest)) barged \(bargedIn) fired \(barge.hasFired)" }
+    var debugSpec: SpectralEcho.Result?
+    var debugState: String { "ev \(evidenceAt != nil) pend \(pending.map(\.itemID)) spk \(speaking) her \(herTime(at: latest)) barged \(bargedIn) fired \(barge.hasFired) spec \(debugSpec.map { String(format: "%.1f f%.2f l%.2f", $0.nearDB, $0.fraction, $0.lowShare) } ?? "-") sn \(frames.last?.spectralNear == true ? 1 : 0)\(frames.last?.spectralPitched == true ? 1 : 0) rdy \(spectral.ready) conf \(echo.confident) minBar \(frames.last.map { String(format: "%.1f", $0.minBar) } ?? "-")" }
 
     public init() {
         configureBarge()
@@ -347,6 +397,22 @@ public struct EarCore: Sendable {
     /// floor, not a quiet moment between clinks), whichever is higher.
     public var roomFloorDB: Double { max(vad.noiseFloorDB, room.floorDB ?? -160) }
 
+    /// The uplink gate's bar (dBFS per 10 ms): mic audio below it is the room's bed
+    /// (a TV, a fan) and is sent attenuated (`UplinkGate`). Nil until the bed is known.
+    public var uplinkBarDB: Double? {
+        guard let c = bed.ceilingDB else { return nil }
+        return min(c + Self.uplinkMarginDB, (bed.floorDB ?? roomFloorDB) + Self.uplinkMaxAboveFloorDB, Self.uplinkMaxDB)
+    }
+
+    /// The room's part of the user's bar while her voice is in the room: over a
+    /// known bed, above its ceiling (and clearly above its floor); before that,
+    /// the fixed margin over the floor.
+    private func roomBar(extra: Double) -> Double {
+        let floor = roomFloorDB
+        guard let c = bed.ceilingDB else { return floor + Self.nearAboveFloorDB + extra }
+        return min(floor + Self.nearAboveFloorDB, max(floor + Self.bedFloorMarginDB, c + Self.bedCeilingMarginDB)) + extra
+    }
+
     /// When the user last actually made sound (no VAD hangover), host seconds.
     public var lastUserSoundTime: Double { lastUserSounding }
 
@@ -355,6 +421,15 @@ public struct EarCore: Sendable {
 
     /// The onset of `itemID` waits for the barge-in / echo decision.
     public func isDeciding(_ itemID: String) -> Bool { pending.contains { $0.itemID == itemID } }
+
+    /// An onset being decided already has near-end voice in its window (it may
+    /// well be the user): her next item waits at the boundary until it is decided.
+    public func pendingMayBeUser(at t: Double) -> Bool {
+        pending.contains { p in
+            let from = max((items[p.itemID]?.onset ?? p.arrivedAt - 0.3) - 0.3, resumedAt)
+            return nearEndVoice(from: from, to: t).all >= Self.boundaryEvidence - 1e-9
+        }
+    }
 
     /// `itemID` was rejected as echo.
     public func isRejected(_ itemID: String) -> Bool { rejected.contains(itemID) }
@@ -412,9 +487,23 @@ public struct EarCore: Sendable {
         }
         // What of this frame her playback can explain (before the echo gain).
         let reach = echo.hasReference(at: t) ? echo.reach(from: t - dt, to: t) : nil
+        // Per band: a voice under her loud echo still shows where she is quiet.
+        let spec = spectral.analyze(samples, rate: sampleRate, endingAt: t, delay: echo.delay,
+                                    broadbandGain: echo.gain ?? echo.prior,
+                                    learn: her && speaking && !bargedIn && echo.confident && !lastFrameAbove)
         // The room's own floor, learned while her voice is out of the room (what
         // is left while she talks may be the user talking over her).
         if !her { room.add(db, at: t) }
+        // The bed: frames neither hers nor (as far as the uplink gate can tell) the
+        // user's. Sound clearly above the bed's ceiling but under the gate's bar may
+        // be a soft voice: it never teaches the bed to be louder.
+        if let bar = uplinkBarDB, db >= bar { gateOpenUntil = t + UplinkGate.hangover }
+        let maybeVoice = bed.ceilingDB.map { db >= $0 + Self.bedLearnHeadroomDB } ?? false
+        if !her, uplinkBarDB == nil || (t > gateOpenUntil && !maybeVoice) {
+            bed.add(db, duration: dt, at: t)
+        } else {
+            bed.advance(to: t)
+        }
         let level = ownLevelNow(at: t)
         // Without any reference: the conservative fixed bar.
         var fallbackBar = barge.bar(floorDB: roomFloorDB, ownSpeechLevel: level)
@@ -424,33 +513,49 @@ public struct EarCore: Sendable {
         fallbackBar = max(fallbackBar, tailBar)
         // Pitched, voice-band sound: speech, not a fan, a tap or a clink.
         var f0: Double?
+        var looseF0: Double?
         var voiceLike = false
         var lowShare = 0.0
-        if rawVoiced {
+        // Over a known bed, sound clearly above it is a candidate for the user's
+        // voice even where the energy VAD (10 dB over the minima) doesn't call it
+        // voiced: a soft voice over a fan sits 7–9 dB above it.
+        let extra = aecActive ? 0 : Self.noAECNearExtraDB
+        let heard = rawVoiced || (bed.ceilingDB != nil && db >= roomBar(extra: extra) && db > vad.absoluteMinDB)
+        if heard {
             let (small, rate) = PitchDetector.decimate(samples, sampleRate: sampleRate)
             // Voicing needs periodicity, not a clean pitch track: real speech glides
             // within a frame, so a looser YIN dip counts here (prosody keeps the strict f0).
-            let pitch = PitchDetector.analyze(small, sampleRate: rate, looseThreshold: Self.voicingThreshold)
+            let pitch = PitchDetector.analyzeLoose(small, sampleRate: rate, looseThreshold: Self.voicingThreshold)
             f0 = pitch.f0
+            looseF0 = pitch.looseF0
             let periodic = pitch.f0 != nil || pitch.periodic
             lowShare = Self.lowBandShare(samples, sampleRate: sampleRate)
             voiceLike = periodic && lowShare >= Self.voiceBandShare
         }
-        let extra = aecActive ? 0 : Self.noAECNearExtraDB
         var stat = FrameStat(t: t, dt: dt, energy: energy, samples: samples.count, rate: sampleRate, peak: peak,
-                             db: db, user: false, f0: f0, her: her, rawVoiced: rawVoiced, voiceLike: voiceLike,
+                             db: db, user: false, f0: f0, her: her, rawVoiced: heard, voiceLike: voiceLike,
                              sounding: false, reach: reach, floorDB: roomFloorDB,
-                             minBar: max(roomFloorDB + Self.nearAboveFloorDB + extra, Self.nearMinDB + extra, tailBar),
+                             minBar: max(roomBar(extra: extra), Self.nearMinDB + extra, tailBar),
                              margin: aecActive ? Self.echoMarginDB : Self.noAECEchoMarginDB,
                              gainThen: reach == nil ? nil : (echo.gain ?? echo.prior),
                              herOnset: speaking && t - stretchStart < EchoReference.maxLag + outputLatency + Self.onsetGuard,
                              fallbackAbove: rawVoiced && db >= fallbackBar)
+        stat.spectralNear = spec.map { $0.isVoice && $0.nearDB >= stat.minBar } ?? false
+        if stat.spectralNear, let f = f0 ?? looseF0 {
+            // Under her echo the frame is pitched anyway: only a pitch that isn't
+            // hers says the sound she doesn't explain is a voice.
+            stat.spectralPitched = SpectralEcho.differentVoice(f, from: spectral.herPitches(at: t, delay: echo.delay))
+        }
+        debugSpec = spec
         // Above the user's bar: sound her playback doesn't explain.
         // (Over a laugh clip — all onset — talking still makes it give way.)
-        let above = her ? judge(stat, onsetGuard: !asideOnly).near : stat.fallbackAbove
+        let judged: (near: Bool, pitched: Bool) = her ? judge(stat, onsetGuard: !asideOnly)
+            : (stat.fallbackAbove, stat.fallbackAbove && voiceLike)
+        let above = judged.near
         debugFrame = (db, roomFloorDB, userBar(stat) ?? fallbackBar, f0, lowShare, voiceLike, above)
+        lastFrameAbove = above
         if her && !bargedIn {
-            if barge.update(near: above, pitched: voiceLike, frameDuration: dt) {
+            if barge.update(near: above, pitched: judged.pitched, frameDuration: dt) {
                 evidenceAt = t
             }
         }
@@ -482,7 +587,7 @@ public struct EarCore: Sendable {
             }
             lastAboveBar = t
             aboveRunFrames += 1
-            if voiceLike { aboveRunPitched += 1 }
+            if judged.pitched { aboveRunPitched += 1 }
         }
         // Evidence the user stopped giving expires (a cough long ago is not a barge-in).
         if evidenceAt != nil, t - lastAboveBar > Self.evidenceLookback {
@@ -526,6 +631,7 @@ public struct EarCore: Sendable {
         actions += decide(at: t, final: nil)
         actions += localOnlyBargeIn(at: t)
         actions += syncUplink(at: t)
+        actions += syncLocalSpeech(at: t)
         return actions
     }
 
@@ -539,7 +645,16 @@ public struct EarCore: Sendable {
         actions += decide(at: t, final: nil)
         actions += localOnlyBargeIn(at: t)
         actions += syncUplink(at: t)
+        actions += syncLocalSpeech(at: t)
         return actions
+    }
+
+    /// The user's own voice, as heard here (not the server's open speech).
+    private mutating func syncLocalSpeech(at t: Double) -> [Action] {
+        let on = isListening && t - lastUserSpeech <= Self.userSpeechHold
+        guard on != localSpeechReported else { return [] }
+        localSpeechReported = on
+        return [.localSpeech(on)]
     }
 
     // MARK: Her playback
@@ -567,6 +682,22 @@ public struct EarCore: Sendable {
         return [.emit(.speakingStarted)]
     }
 
+    /// Her paused reply goes on (the words over it were a backchannel, or the
+    /// onset was her echo): a fresh stretch of hers. Her echo builds up again
+    /// (onset guard), and a new onset over her is decided like any other.
+    public mutating func playbackResumed(at t: Double) -> [Action] {
+        latest = max(latest, t)
+        guard speaking else { return [] }
+        bargedIn = false
+        lastStretchBarged = false
+        stretchStart = t
+        resumedAt = t
+        evidenceAt = nil
+        lastAboveBar = -Double.infinity
+        barge.reset()
+        return []
+    }
+
     /// 0…1 from the samples just played.
     public mutating func playbackLevel(_ level: Double, at t: Double) {
         ownLevel = min(max(level.isFinite ? level : 0, 0), 1)
@@ -576,6 +707,7 @@ public struct EarCore: Sendable {
     /// Her rendered output (`PCMStreamPlayer.takeReference()`), for echo gating.
     public mutating func reference(_ bins: [EchoReference.Bin]) {
         echo.addReference(bins)
+        spectral.addReference(bins)
     }
 
     /// The player is idle: everything played, or was flushed.
@@ -663,6 +795,15 @@ public struct EarCore: Sendable {
         return [.emit(.heard(HeardUtterance(text: clean, prosody: p, duration: duration)))]
     }
 
+    /// Tests: an undecided onset goes to its words now (as a final decision would
+    /// when the local evidence can't settle it).
+    mutating func deferToWordsNow(_ itemID: String) -> [Action] {
+        guard pending.contains(where: { $0.itemID == itemID }) else { return [] }
+        pending.removeAll { $0.itemID == itemID }
+        if serverOpen == itemID { serverOpen = nil }
+        return [.deferToWords(itemID: itemID, strict: false)]
+    }
+
     /// The item was rejected as echo elsewhere (or deleted): forget it.
     public mutating func forget(_ itemID: String) {
         markRejected(itemID)
@@ -698,6 +839,21 @@ public struct EarCore: Sendable {
             if j.pitched { pitched += f.dt }
         }
         return (all, pitched)
+    }
+
+    /// Seconds of frames in the window that hold a voice that isn't hers:
+    /// `pitched` near-end frames (over her loud echo: bands she doesn't explain,
+    /// at a pitch she isn't speaking at), and `unexplained` voice-shaped bands her
+    /// echo model doesn't explain (her own mis-predicted echo can do that too).
+    private func voiceHint(from a: Double, to b: Double) -> (pitched: Double, unexplained: Double) {
+        var p = 0.0, u = 0.0
+        for f in frames.reversed() {
+            if f.t < a { break }
+            guard f.t <= b else { continue }
+            if judge(f).pitched { p += f.dt }
+            if f.her && !f.herOnset && f.rawVoiced && f.spectralNear { u += f.dt }
+        }
+        return (p, u)
     }
 
     // MARK: Sounds
@@ -792,7 +948,7 @@ public struct EarCore: Sendable {
     /// before the server's onset to its end, or now).
     private func nearEndEvidence(for itemID: String, arrivedAt: Double, at t: Double, need: Double) -> Bool {
         let times = items[itemID]
-        let from = (times?.onset ?? arrivedAt - 0.3) - 0.3
+        let from = max((times?.onset ?? arrivedAt - 0.3) - 0.3, resumedAt)
         let to = (times?.end ?? t) + 0.1
         let v = nearEndVoice(from: from, to: to)
         return v.all >= need - 1e-9 && v.pitched >= Self.nearEndPitched - 1e-9
@@ -842,7 +998,11 @@ public struct EarCore: Sendable {
                 continue
             }
             let waited = t - p.arrivedAt
-            let timedOut = speaking ? waited >= Self.decisionTimeout
+            // While she plays, an item the server still holds open is never given up
+            // on: the user may yet speak inside it (her echo opened it, they talked
+            // on). It is decided at its `speech_stopped`.
+            let stillOpen = items[p.itemID].map { $0.end == nil } ?? false
+            let timedOut = speaking ? waited >= Self.decisionTimeout && !stillOpen
                 : waited >= Self.decisionTimeout && t >= tailEnd + Self.userAfterTail * 2
             if isFinal || timedOut, nearEndEvidence(for: p.itemID, arrivedAt: p.arrivedAt, at: t, need: Self.nearEndEvidence) {
                 // Voice her playback doesn't explain: the user, never deleted as echo.
@@ -862,6 +1022,14 @@ public struct EarCore: Sendable {
                 continue
             }
             if isFinal || timedOut {
+                let times = items[p.itemID]
+                let hint = voiceHint(from: max((times?.onset ?? p.arrivedAt - 0.3) - 0.3, resumedAt), to: (times?.end ?? t) + 0.1)
+                if hint.pitched >= Self.wordsHint - 1e-9 || hint.unexplained >= Self.wordsHintUnexplained - 1e-9 {
+                    // Something of the user may be in it: their words decide.
+                    if serverOpen == p.itemID || isFinal { serverOpen = nil }
+                    actions.append(.deferToWords(itemID: p.itemID, strict: hint.pitched < Self.wordsHint - 1e-9))
+                    continue
+                }
                 markRejected(p.itemID)
                 actions.append(.rejectEcho(itemID: p.itemID))
                 continue

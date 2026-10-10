@@ -18,7 +18,7 @@ Tests: `swift test --filter DeeBrainTests` (offline: real `AudioGraph.manual()`,
 | `BrainHost` (protocol, `@MainActor`) | What the brain needs from the app: `answersOnCommit`, `voiceBaseline`, `modeSignals(at:)`, `heard(_:)`, `wordsFailed()`, `dnaParts(_:)`, `brainStartedReply(_:)`, `thinkingModeChanged(_:)`. Implemented by `DeeModel` (app) and `StandaloneHost` (harness, tests). |
 | `DNAWire` | **Retired (tune 1)**, deprecated pass-through kept only so the voice harness compiles: `factory(_:)` returns the socket factory unchanged. The DNA lifecycle and the conversation ledger are `RealtimeSession`'s. Never reintroduce frame rewriting (it would re-id and double-delete the session's DNA). |
 | `ProsodyTap` | Second consumer of the mic tap: 30 s of 40 ms frames; the server's utterance span laid onto them at the commit → `Prosody` / `ProsodyRead` (§1.9) without waiting for words. |
-| `TurnPolicy` | Pure: `onCommit` (fast / wait for words / wait for address), exact-mode rule, initiative gate, `unfinished(_:)` (hold-on / trailing turns). |
+| `TurnPolicy` | Pure: `onCommit` (fast / wait for words / wait for partial / wait for address), exact-mode rule, initiative gate, `unfinished(_:)` / `held(_:)` (hold-on / trailing / riddle turns), `isBackchannel`, `isMetaPreamble`, `maxOutputTokens(length:effort:)`, `isCompleteSentence`. |
 | `BrainToolbox`, `RenamedTool`, `DeviceTools` | `remember`/`recall`/`forget` (DeeMemory's tools under DNA.md's names; withheld when memories are private) + `calendar_events`, `add_calendar_event`, `reminders`, `add_reminder`, `find_contact`, `where_am_i`. Follow-ups: `recall` always, `remember`/`forget` if silent, device tools always. |
 | `CloudSettings`, `KeyIntake`, `CloudStatus`, `AIVoiceDisclosure` | Settings › Dee keys and the session config; the pasted key → validated (GET /v1/models) → Keychain → field cleared; `VoiceProblem` → chip text/symbol/"cloud off"; the disclosure line. |
 | `StandaloneHost` | A full host on a real `Mind` + `Cortex` (+ optional `MemoryStore`), body state as flags. |
@@ -32,7 +32,43 @@ On `.userCommitted(item)`:
 |---|---|---|
 | `host.answersOnCommit` false (asleep, nobody engaged) | `waitForAddress` | wait for the transcript; `host.heard` → `.answer` only if addressed to Dee (her name wakes her) → exact reply; `.ignored` → `session.dropUserItem` (deleted from the conversation and the history/seeds). Failed transcript, or none within `addressWait` (6 s) → dropped too. |
 | exact rule holds | `waitForWords` | ≤ 0.4 s for the transcript → `host.heard` → exact DNA (with `appraisal.text`) → reply; timeout or failed transcript → fast DNA. A command → `.handled`, no reply, `session.userTurnHandled`. |
+| speech started over her voice or < 0.35 s after it (`commandWindow`), no exact rule | `waitForPartial` | ≤ `overlapWait` (0.6 s) for the turn's first settled words (transcription deltas, settled after 0.15 s without a new one): a backchannel → no reply (see below); held words → held; anything else → fast reply at once; none in time → fast reply. The full transcript still runs `host.heard`. |
 | otherwise | `respondFast` | DNA now (state + `ProsodyRead`), reply now; the transcript still runs `host.heard` (commands stop the reply through the app's `stop`; `.ignored` takes an unheard reply back and drops the item). |
+
+**Tune 2 (live run 20261009-143612 + A/B).**
+- *Exact mode only for DNA.md §4.3's cases.* Speech over her voice no longer waits for the full transcript (p50 0.48 s,
+  p90 0.77 s after the commit; 136 of 155 exact waits timed out); it waits for its first settled words
+  (`waitForPartial`).
+- *Provisional words.* `.userTranscriptDelta`s are accumulated per item; 0.15 s after the last one (live: the burst ends
+  p50 0.25 s after the commit, 0.22 s before the full transcript, before her first audio) they are the turn's
+  provisional words. They decide floor questions only: `TurnPolicy.held(words)` on a turn whose fast reply is out and
+  unheard → `stopVoice`, held (trace `.held`); the full words confirm or overrule (answered at once if they are
+  finished). The appraisal and `host.heard` still use the full transcript.
+- *Held turns.* `unfinished` also covers "let me" / "lemme" / "let's see" (p20c's transcript was "Let me."), a trailing
+  "and" heard as "Ann" / "an" / "end" (t03: "…call my mom Ann."), linking verbs after a noun ("The thing is", "the answer
+  is"), "to" outside an elliptical "want to / have to / used to", and prepositions not stranded by a wh-word ("…a lot
+  of", "We talked about"). `riddle`: a classic set-up ("What do you call a…", "What's the difference between…") or any
+  why/what/how question in an utterance that announced a joke ("Want to hear a joke? Why did the scarecrow…?", j01) is
+  held `riddleWait` (1.5 s) for the punchline, then answered.
+- *Commands answered fast* (`host.heard` → `.handled`) take back the unheard reply (`stopVoice`).
+- *Backchannels (user decision: "keep going" while she talks is not a barge-in).* `TurnPolicy.isBackchannel`: every
+  clause a continuer ("keep going", "go on", "don't stop", "I'm listening", "mm-hm", "uh-huh", "yeah", "okay"…), ≤ 8
+  words, no question ("really?" aside). Over her voice: if she is still playing, no reply and no stop, the turn is
+  released (`userTurnHandled`, trace `.backchannel("continued")`); if her voice was already cut (EarCore decided on the
+  sound) or ended, a reply with the note "They want you to go on: carry on from where you stopped, without starting over
+  or repeating yourself" (trace `.backchannel("resumed")`). Cut within 3 s after a "continued" one → she carries on too.
+- *Spoken preambles.* Her reply's first 7 words (assistant transcript deltas) are checked by `isMetaPreamble` ("let me
+  think / respond / check / recall…", "I'll check / save…", "how to respond", "quick save", "let me tuck"…). Before the
+  user has spoken again: `stopVoice` (it is cut as it starts), and when its response ends the turn is answered again
+  once (kind `retry`) with the note "Answer them straight away; if you use a tool, call it without saying anything first"
+  plus, when the toolbox has `recall`, the brain's own `recall` result ("You already looked up what you know about them,
+  no need to call recall: …", ≤ 320 chars). A second preamble for the same turn is let be (trace `.preamble(cut:)`).
+- *Reply length.* Every voice reply carries `max_output_tokens` = `TurnPolicy.maxOutputTokens(length: dna.guidance.length,
+  effort:)`: 280 / 380 / 480 for one / two / three sentences at low effort (+300 at medium, none at high); none when
+  exact-mode words ask for a story or an explanation. A response that hits it (`hitTokenLimit`) stops playing at its
+  last complete sentence: the unfinished one never starts (trace `.tokenLimitStop`), never mid-word.
+- *Turn detection (A/B, same brain and fixtures).* Picked: `server_vad` 300 ms (`CloudSettings.turnDetection`), the only
+  config inside the latency gate; it waits on the DeeRealtime seam below and semantic_vad `high` stays live until then.
 
 **Turn detection and unfinished turns (tune 1).** The session runs `semantic_vad` at
 eagerness **`high`** (`CloudSettings.turnEagerness`; 2 s cap). Live, `auto` held plain turns
@@ -52,12 +88,11 @@ A question mark or exclamation is never unfinished. A reply already audible is n
 back. The session also cancels a reply with no audio yet when they go on talking
 (`cancelUnspokenReplyOnSpeech`).
 
-Exact rule (`TurnPolicy.exactModeWanted`, DNA.md §4.3 plus one app rule): repair ∈
+Exact rule (`TurnPolicy.exactModeWanted`, DNA.md §4.3): repair ∈
 {strained, ruptured, repairing}; prosody loudness ≥ 0.5 or intensity ≥ 0.6; the previous DNA
 issued a follow-up, `deixisAmbiguous` or `misread` note; a stated hypothesis or live
-distress; an unidentified speaker's first turn; **speech that started over her voice or
-< 0.35 s after it, as the brain saw it** (overlap only — a barge-in or "stop"; normal quick
-answers stay fast; to be measured on the B8 harness).
+distress; an unidentified speaker's first turn. (Tune 2: speech over her voice is no longer
+exact; it is `waitForPartial`.)
 
 Never: `stopSpeaking` on the user-utterance path except to take back an unheard reply to
 speech that was not for her or is unfinished, or a late "think hard" (commands stop her
@@ -148,6 +183,14 @@ unless an item is still playing, 300 s absolute). Initiatives are refused while 
   takes a softer, tilted, grey-blue look while the cloud is off.
 
 ## Open asks
+
+- **DeeRealtime (tune 2):** `RealtimeSessionConfig.turnDetection: TurnDetection?` used by `sessionPayload` in place of
+  `.semanticManual(eagerness:)` when set; then `CloudSettings.sessionConfig` sets it to `CloudSettings.turnDetection`
+  (one line).
+- **DeeVoice (tune 2):** a backchannel must not cut her. EarCore decides a barge-in on the sound in ~0.22 s; the words
+  come ~1 s later. Ask: duck (do not flush) her voice for speech over her that is short, and let the brain's verdict
+  decide (a `CloudVoice` API the brain calls with `continued` / `stop`), or move `TurnPolicy.isBackchannel` to DeeCore so
+  EarCore can use the transcription deltas itself. Until then the brain resumes her after a cut ("carry on").
 
 - **DeeRealtime:** done in tune 1 (DNA lifecycle, `dropUserItem`, `resetConversation`,
   `say`, `addUserText`, unanswered hold) and adopted. The session's `TraceRecorder` records

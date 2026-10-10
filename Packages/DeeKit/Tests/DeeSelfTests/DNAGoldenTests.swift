@@ -76,14 +76,21 @@ import Testing
     @Test func sessionInstructionsArePinned() throws {
         try Self.check(DNASessionInstructions.v1 + "\n", file: "session-instructions.v1.txt")
         try Self.check(DNASessionInstructions.v2 + "\n", file: "session-instructions.v2.txt")
-        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v2)
-        #expect(DeeDNA.version == "v2")
-        for banned in ["Maya", "2026", "October", "/255", "<", ">", "[", "]"] { #expect(!DNASessionInstructions.v2.contains(banned)) }
+        try Self.check(DNASessionInstructions.v3 + "\n", file: "session-instructions.v3.txt")
+        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v3)
+        #expect(DeeDNA.version == "v3")
+        for banned in ["Maya", "2026", "October", "/255", "<", ">", "[", "]"] { #expect(!DNASessionInstructions.v3.contains(banned)) }
         // Live eval R1/R5/R6: the turn block, no helper talk, no preamble, the hard length cap.
         for needed in ["WHAT THE DNA LINES MEAN FOR THIS TURN", "React to what they just said first.", "let the \"Do now\" wait",
                        "\"Careful with them\" lines are private cautions", "let them tell it; don't tell one of your own",
                        "Never offer help", "Never speak a preamble", "The \"Length:\" line is a hard limit"] {
             #expect(DNASessionInstructions.v2.contains(needed), "v2 lacks: \(needed)")
+        }
+        // Tune 2: silent tools (F-LEAK) and the counted length (F-LEN).
+        for needed in ["Tools are silent: the person never hears you announce, plan or narrate one.", "A tool call is never preceded by words about it", "\"let me respond\"",
+                       "count your sentences and stop when you reach it", "never a list of tips",
+                       "WHAT THE DNA LINES MEAN FOR THIS TURN", "let them tell it; don't tell one of your own", "Never offer help"] {
+            #expect(DNASessionInstructions.v3.contains(needed), "v3 lacks: \(needed)")
         }
     }
 

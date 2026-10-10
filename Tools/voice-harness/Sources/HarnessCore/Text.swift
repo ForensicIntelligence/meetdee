@@ -152,3 +152,25 @@ public enum Redact {
         return t
     }
 }
+
+/// Dee narrating her own process instead of just answering: "let me respond", "let me
+/// think about how to respond", "let me check what I remember", "I'll note that down"
+/// (DNA §3: no preamble; tools are called silently). Not a leak of the DNA, so it has
+/// its own gate (`narration`). Tune 1 live: 19 of 540 replies, mostly spoken before a
+/// `remember` / `recall` call.
+public enum NarrationScanner {
+    public static let rules: [LeakScanner.Rule] = [
+        .init(name: "let me respond", pattern: #"\blet me (respond|answer|reply)\b"#),
+        .init(name: "how to respond", pattern: #"\bhow (to|i should|i'd|i would) (respond|answer|reply)\b"#),
+        .init(name: "let me check", pattern: #"\blet me (check|recall|look up|look back|search|dig)\b"#),
+        .init(name: "let me think about", pattern: #"\blet me think (about|through|back|how|on|this|it|what)\b"#),
+        .init(name: "I'll check", pattern: #"\b(i'll|i will) (check|look up|look back|search|dig through)\b"#),
+        .init(name: "I'll note it", pattern: #"\b(i'll|i will|let me) (save|note|jot|store) (that|this|it)\b|\b(i'll|let me) make a note\b"#),
+        .init(name: "what I've stored", pattern: #"\bwhat i've (got )?(stored|saved)\b"#),
+    ]
+
+    public static func scan(_ text: String) -> [String] {
+        let t = text.replacingOccurrences(of: "’", with: "'")
+        return rules.compactMap { t.range(of: $0.pattern, options: [.regularExpression, .caseInsensitive]) != nil ? $0.name : nil }
+    }
+}

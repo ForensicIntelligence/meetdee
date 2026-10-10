@@ -63,6 +63,9 @@ public enum FixtureCategory: String, Codable, Sendable, CaseIterable {
     /// The rest of a held turn ("and…", "hold on"), or a scripted follow-on line
     /// (knock-knock answers). Not part of the 62 acoustic fixtures.
     case continuation
+    /// A listener's backchannel said while Dee talks ("go on", "mm-hm"): she keeps
+    /// talking (user decision, tune 2). Not part of the 62 acoustic fixtures.
+    case backchannel
 }
 
 /// One piece of a fixture: words, or a deliberate silence.
@@ -201,15 +204,32 @@ public enum FixtureCatalog {
         .init("k05", .continuation, .openai, "shimmer", .child, [w("Lettuce.")]),
         .init("k06", .continuation, .openai, "shimmer", .child, [w("Lettuce in, it's cold out here!")]),
         .init("k07", .continuation, .openai, "ballad", .soft, [w("Thanks, Dee. I really miss her.")]),
+        // Tune 2 extras (macOS `say`: rendered offline, no key, no cost). Not core.
+        // A second "call my mom and…" (the transcript renders a trailing "and" as "Ann").
+        .init("t04", .trailing, .say, "Flo (English (US))", .neutral, [w("Tomorrow I'm going to call my mom and")]),
+        .init("k08", .continuation, .say, "Flo (English (US))", .neutral, [w("ask her for her soup recipe. What should I make with it?")]),
+        // Backchannels said while she talks.
+        .init("bc01", .backchannel, .say, "Daniel", .neutral, [w("Go on.")]),
+        .init("bc02", .backchannel, .say, "Samantha", .soft, [w("Mm-hm.")]),
     ]
 
-    /// The 62 acoustic fixtures (every category but `continuation`).
-    public static var core: [FixtureSpec] { all.filter { $0.category != .continuation } }
+    /// Fixtures added for the tune-2 regression suite (not part of the 62).
+    public static let extras: Set<String> = ["t04", "k08", "bc01", "bc02"]
+
+    /// The 62 acoustic fixtures (every category but `continuation` / `backchannel`, no extras).
+    public static var core: [FixtureSpec] {
+        all.filter { $0.category != .continuation && $0.category != .backchannel && !extras.contains($0.id) }
+    }
 
     /// Fixtures after which the user has not finished: waiting is the right answer
     /// ("hold on", a trailing "and…"). Mid-sentence pauses are inside one fixture and
     /// are scored by their own spans.
-    public static let holdsFloor: Set<String> = ["c06", "t01", "t02", "t03"]
+    public static let holdsFloor: Set<String> = ["c06", "t01", "t02", "t03", "t04"]
+
+    /// Said while Dee talks, these are a listener's backchannel, not a barge-in: she
+    /// keeps talking (user decision, tune 2: "keep going" / "go on" / "mm-hm"). Scored
+    /// by the `backchannel` gate, never by `barge_in`.
+    public static let backchannels: Set<String> = ["c02", "c05", "bc01", "bc02"]
 
     public static func spec(_ id: String) -> FixtureSpec? { all.first { $0.id == id } }
 }
@@ -223,6 +243,9 @@ public enum TurnShape {
     /// The user is not done at this fixture's end of speech (answering it early is a
     /// false cut-off; the latency counts from the end of what follows).
     public static func holdsFloor(_ fixture: String) -> Bool { FixtureCatalog.holdsFloor.contains(fixture) }
+
+    /// A listener's backchannel ("keep going", "go on", "mm-hm"): she keeps talking.
+    public static func isBackchannel(_ fixture: String) -> Bool { FixtureCatalog.backchannels.contains(fixture) }
 
     public static func bucket(_ fixture: String) -> Bucket {
         if holdsFloor(fixture) { return .none }

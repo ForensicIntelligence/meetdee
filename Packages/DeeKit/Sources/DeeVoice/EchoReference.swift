@@ -29,9 +29,13 @@ public struct EchoReference: Sendable {
     public struct Bin: Sendable, Equatable {
         public var t: Double
         public var energy: Double
-        public init(t: Double, energy: Double) {
+        /// The bin's rendered samples (24 kHz; empty when not kept), for the
+        /// per-band echo model (`SpectralEcho`).
+        public var samples: [Float]
+        public init(t: Double, energy: Double, samples: [Float] = []) {
             self.t = t
             self.energy = energy
+            self.samples = samples
         }
     }
 
@@ -69,6 +73,21 @@ public struct EchoReference: Sendable {
     private var lastRefTime = -Double.infinity
 
     private var mic = [Double](repeating: 0, count: EchoReference.capacity)
+    /// The mic's excess over the floor in bins her voice can't reach (the room
+    /// wobbling on its own), for `idleExcess`.
+    private var idle = [Double](repeating: 0, count: EchoReference.idleBins)
+    private var idleHead = 0
+    private var idleCount = 0
+    static let idleBins = 300
+    static let idlePercentile = 0.9
+
+    /// The room's typical excess over its floor with her out of the room (energy):
+    /// subtracted before an uncorrelated echo estimate.
+    var idleExcess: Double {
+        guard idleCount >= 50 else { return 0 }
+        let sorted = idle.prefix(idleCount).sorted()
+        return sorted[Int(Double(sorted.count - 1) * Self.idlePercentile)]
+    }
     private var micLast: Int64?
     private var sinceLearn = 0
 
@@ -150,6 +169,13 @@ public struct EchoReference: Sendable {
         }
         mic[slot(i)] = excess
         micLast = i
+        // Her envelope can't reach this bin (nothing of hers in the whole lag
+        // range): the room's own excess over its floor.
+        if reach(i) < pow(10, Self.activeDB / 10) * 0.01 {
+            idle[idleHead] = excess
+            idleHead = (idleHead + 1) % Self.idleBins
+            idleCount = min(idleCount + 1, Self.idleBins)
+        }
         sinceLearn += 1
         if sinceLearn >= Self.learnEvery {
             sinceLearn = 0
@@ -259,7 +285,10 @@ public struct EchoReference: Sendable {
                 guard covered >= Self.minActiveBins else { return }
             }
             let lagForRatio = delay.map { Int64(($0 / Self.bin).rounded()) } ?? best.lag
-            guard let g = ratio(window: first...newest, lag: lagForRatio, percentile: Self.uncertainPercentile, jitter: true) else { return }
+            // The room alone wobbles above its floor too (a fan's beat, a TV): what
+            // the mic shows with her out of the room is not her echo.
+            guard let g = ratio(window: first...newest, lag: lagForRatio, percentile: Self.uncertainPercentile, jitter: true,
+                                minus: idleExcess) else { return }
             if let old = gain {
                 if g < old * pow(10, -Self.vanishDB / 10) {
                     gain = pow(10, (Level.powerDB(max(old, 1e-16)) * (1 - Self.gainBlend) + Level.powerDB(max(g, 1e-16)) * Self.gainBlend) / 10)
@@ -274,7 +303,8 @@ public struct EchoReference: Sendable {
     }
 
     /// Percentile of mic / reference over the window's bins where she clearly spoke.
-    private func ratio(window: ClosedRange<Int64>, lag: Int64, percentile: Double, jitter: Bool = false) -> Double? {
+    private func ratio(window: ClosedRange<Int64>, lag: Int64, percentile: Double, jitter: Bool = false,
+                       minus idle: Double = 0) -> Double? {
         let active = pow(10, Self.activeDB / 10)
         var peak = 0.0
         for i in window { peak = max(peak, refValue(i - lag)) }
@@ -287,7 +317,7 @@ public struct EchoReference: Sendable {
                 for d in 1...Int64(Self.jitterBins) { a = max(a, refValue(i - lag - d), refValue(i - lag + d)) }
             }
             guard a >= bar else { continue }
-            ratios.append(micValue(i) / a)
+            ratios.append(max(micValue(i) - idle, 0) / a)
         }
         guard ratios.count >= Self.minActiveBins / 2 else { return nil }
         ratios.sort()

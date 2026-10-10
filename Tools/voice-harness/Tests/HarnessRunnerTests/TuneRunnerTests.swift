@@ -164,4 +164,17 @@ struct TuneRunnerTests {
         let again = try #require(await host.dnaParts(DNARequest(turn: TurnContext(kind: .reply, index: 2, mode: .fast))))
         #expect(again.extraNotes.isEmpty)
     }
+
+    /// Tune-2 character finding: the harness sent `.identified(person, distance: 0.6)` once,
+    /// which the Interpreter reads as one unconfirmed sighting, so the Cortex had no person
+    /// all scenario (no reunion, follow-ups, rituals). The app sends a confirmed 0.
+    @Test @MainActor func aKnownPersonIsIdentifiedLikeTheAppDoes() async throws {
+        let id = PersonID()
+        let host = try await HarnessHost(mind: try Mind(databaseURL: nil), memory: try MemoryStore(databaseURL: nil),
+                                         selfStore: try SelfStore(url: nil), person: id, clock: HarnessClock())
+        #expect(HarnessHost.confirmedDistance == 0)
+        #expect(host.cortex.moment.ongoing.person == id)
+        host.arrive()
+        #expect(host.cortex.moment.ongoing.person == id)
+    }
 }

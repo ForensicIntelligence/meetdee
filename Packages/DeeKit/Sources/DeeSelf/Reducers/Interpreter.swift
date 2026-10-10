@@ -1228,6 +1228,16 @@ extension Interpreter {
                     if let n = count(before: i, w) { offset = x == "weeks" ? n * 7 : n }
                 case "noon", "midday": hour = 12
                 case "midnight": hour = 23; minute = 59
+                case "morning", "afternoon", "evening", "night", "lunchtime":
+                    // "Friday morning", "Friday night" (tune 2: the live exam was due at
+                    // the 17:00 day default, so the follow-up waited until 19:00 on the
+                    // exam day); "in the morning" with no day is the next one coming.
+                    let h = partOfDay[x] ?? defaultHour
+                    if let prev = at(i - 1), weekdays.contains(prev) {
+                        defaultHour = h
+                    } else if at(i - 1) == "the", at(i - 2) == "in" || at(i - 2) == "on" {
+                        if offset == nil { hour = h } else { defaultHour = h }
+                    }
                 default:
                     if let d = weekdays.firstIndex(of: x) {
                         if at(i - 1) != "last" { offset = offset ?? daysUntil(d, from: now, cal, allowToday: false) }

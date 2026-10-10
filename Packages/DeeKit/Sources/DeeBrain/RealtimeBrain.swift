@@ -80,6 +80,14 @@ public final class RealtimeBrain: ReplyEngine {
         public var stopGuard: TimeInterval = 0.3
         /// A trailing turn ("…and") is answered after this much quiet.
         public var trailingWait: TimeInterval = TurnPolicy.trailingWait
+        /// A riddle's set-up is answered after this much quiet.
+        public var riddleWait: TimeInterval = TurnPolicy.riddleWait
+        /// Speech over her voice waits this long for its first settled words.
+        public var overlapWait: TimeInterval = TurnPolicy.overlapWait
+        /// Transcription deltas are taken as the turn's words after this much quiet.
+        public var partialSettle: TimeInterval = TurnPolicy.partialSettle
+        /// Per-response `max_output_tokens` sized to the DNA `Length:` line (tune 2).
+        public var capReplyTokens = true
         public init() {}
     }
 
@@ -127,6 +135,10 @@ public final class RealtimeBrain: ReplyEngine {
         var mode: CueMode = .fast
         /// Unfinished ("…and"): waits for the rest until `deadline`.
         var held = false
+        /// `waitForPartial`: its settled first words were looked at.
+        var partialDecided = false
+        /// Its words were a backchannel ("keep going"): not a turn of its own.
+        var backchannel = false
     }
     private var utterances: [String: Utterance] = [:]
     private var speechStartedAt: [String: Date] = [:]
@@ -134,6 +146,26 @@ public final class RealtimeBrain: ReplyEngine {
     private var startedOverHerVoice: Set<String> = []
     /// An utterance whose reply could not go out (a response was in flight).
     private var retryItem: String?
+    /// Transcription deltas so far per user item, and when the last one came (the
+    /// turn's provisional words once settled, ~0.2 s before the full transcript).
+    private var partials: [String: (text: String, at: Date)] = [:]
+    private var partialsChecked: Set<String> = []
+    /// The newest committed user item.
+    private var lastCommittedItem: String?
+    /// Her reply transcript so far per item, while its first words are checked for
+    /// a spoken preamble; items done with that check.
+    private var replyOpenings: [String: String] = [:]
+    private var openingsChecked: Set<String> = []
+    /// User items whose reply was already cut once for a preamble (never twice).
+    private var preambleRetried: Set<String> = []
+    /// Her items whose response hit `max_output_tokens`: playback stops before
+    /// their unfinished last sentence.
+    private var tokenLimited: Set<String> = []
+    /// The sentence of each item playing now.
+    private var currentSentence: [String: String] = [:]
+    /// A backchannel she talked on through, and when: if her voice is cut right
+    /// after anyway (a barge-in decided on the sound), she carries on.
+    private var continuedThrough: (item: String, at: Date)?
 
     // Responses and their channels
     private struct Channel {
@@ -149,6 +181,8 @@ public final class RealtimeBrain: ReplyEngine {
         var item: String?
         /// A canned line (`say`): not a reply, never handed to the host.
         var aside = false
+        /// Cut for a spoken preamble: the user item to answer again when it ends.
+        var preambleRetry: String?
     }
     private var channels: [Int: Channel] = [:]
     private var nextChannel = 0
@@ -408,6 +442,13 @@ public final class RealtimeBrain: ReplyEngine {
         case .sentenceStarted(let item, _, let text):
             playing.insert(item)
             lastPlaybackAt = clock()
+            currentSentence[item] = text
+            if tokenLimited.contains(item), !TurnPolicy.isCompleteSentence(text) {
+                // The token limit cut this sentence short: she stops before it.
+                record(.tokenLimitStop)
+                tokenLimited.remove(item)
+                stopVoice()
+            }
             guard let id = channel(for: item) else { return }
             if speakFirst == id { speakFirst = nil }
             channels[id]?.pending.insert(item)
@@ -417,9 +458,17 @@ public final class RealtimeBrain: ReplyEngine {
             guard let id = channel(for: item) else { return }
             if heard { channels[id]?.heard[item, default: []].append(text) }
             channels[id]?.continuation.yield(.sentenceFinished(text, heard: heard))
-        case .itemPlayed(let item, _, _):
+        case .itemPlayed(let item, _, let cut):
             playing.remove(item)
             herVoiceEndedAt = clock()
+            currentSentence[item] = nil
+            tokenLimited.remove(item)
+            if cut, let c = continuedThrough, clock().timeIntervalSince(c.at) < 3 {
+                // She talked on through "keep going", then was cut anyway (a
+                // barge-in decided on the sound): she carries on.
+                continuedThrough = nil
+                if playing.isEmpty { await carryOn(c.item) }
+            }
             lastPlaybackAt = herVoiceEndedAt
             guard let id = itemChannel[item] else { return }
             let said = channels[id]?.heard[item]?.joined(separator: " ") ?? ""
@@ -457,7 +506,18 @@ public final class RealtimeBrain: ReplyEngine {
             prosody.speechStopped(item: item, audioEndMs: ms)
         case .userCommitted(let item, _):
             await committed(item, at: now)
+        case .userTranscriptDelta(let item, let delta):
+            let before = partials[item]?.text ?? ""
+            partials[item] = (before + delta, now)
+            if partials.count > 16, let oldest = partials.min(by: { $0.value.at < $1.value.at }) {
+                partials[oldest.key] = nil
+                partialsChecked.remove(oldest.key)
+            }
+        case .assistantTranscriptDelta(let item, let delta):
+            await opening(item, delta)
         case .userTranscript(let item, let text):
+            partials[item] = nil
+            partialsChecked.insert(item)
             await words(text, item: item)
         case .userTranscriptFailed(let item, _):
             host?.wordsFailed()
@@ -503,6 +563,7 @@ public final class RealtimeBrain: ReplyEngine {
             await session.userTurnHandled(itemID: held)
         }
         lastUserTurnAt = now
+        lastCommittedItem = item
         let baseline = host.voiceBaseline
         let read = prosody.read(item: item, text: nil, baseline: baseline)
         let overlapped = !playing.isEmpty || startedOverHerVoice.contains(item)
@@ -523,6 +584,11 @@ public final class RealtimeBrain: ReplyEngine {
         case .waitForWords:
             u.deadline = now.addingTimeInterval(options.exactWait)
             utterances[item] = u
+        case .waitForPartial:
+            u.deadline = now.addingTimeInterval(options.overlapWait)
+            utterances[item] = u
+            // Its words may already be in (a fast delta burst).
+            if let p = partials[item], now.timeIntervalSince(p.at) >= options.partialSettle { await provisional(p.text, item: item) }
         case .waitForAddress:
             u.deadline = now.addingTimeInterval(options.addressWait)
             utterances[item] = u
@@ -535,6 +601,9 @@ public final class RealtimeBrain: ReplyEngine {
         speechStartedAt.removeAll()
         startedOverHerVoice.removeAll()
         retryItem = nil
+        partials.removeAll()
+        partialsChecked.removeAll()
+        continuedThrough = nil
     }
 
     /// Done with an utterance (unless its refused reply waits for a retry).
@@ -564,7 +633,21 @@ public final class RealtimeBrain: ReplyEngine {
         switch verdict {
         case .answer(let appraisal):
             utterances[item]?.appraisal = appraisal
-            if let unfinished = TurnPolicy.unfinished(text), await holdBack(item, unfinished) { return }
+            if u.backchannel {
+                if TurnPolicy.isBackchannel(text) {
+                    // "Keep going": she went on (or was asked to carry on); not a turn.
+                    if !u.requested { await session.userTurnHandled(itemID: item) }
+                    settle(item)
+                    return
+                }
+                // The full words say it was more than a backchannel after all.
+                utterances[item]?.backchannel = false
+                if u.requested {
+                    settle(item)
+                    return
+                }
+            }
+            if let unfinished = TurnPolicy.held(text), await holdBack(item, unfinished) { return }
             if u.requested {
                 // Fast mode: the reply is out. A late "think hard" re-asks with more
                 // effort while nothing of it has been heard yet.
@@ -583,6 +666,8 @@ public final class RealtimeBrain: ReplyEngine {
             }
         case .handled:
             // A command: carried out, never answered (and not holding the session).
+            // A fast reply already asked for it is taken back while unheard.
+            if u.requested, let id = u.channel, channelUnheard(id) { stopVoice() }
             utterances[item] = nil
             await session.userTurnHandled(itemID: item)
         case .ignored:
@@ -619,18 +704,157 @@ public final class RealtimeBrain: ReplyEngine {
         case .holdOn:
             utterances[item] = nil
             await session.userTurnHandled(itemID: item)
-        case .trailing:
+        case .trailing, .riddle:
             utterances[item]?.requested = false
             utterances[item]?.channel = nil
             utterances[item]?.held = true
-            utterances[item]?.deadline = clock().addingTimeInterval(options.trailingWait)
+            utterances[item]?.deadline = clock().addingTimeInterval(kind == .riddle ? options.riddleWait : options.trailingWait)
         }
         return true
     }
 
+    // MARK: Provisional words (transcription deltas, tune 2)
+
+    /// The turn's settled transcription deltas: ~0.2 s before the full transcript
+    /// and before her first audio. Used only for floor decisions — a backchannel
+    /// over her voice, an unfinished turn whose fast reply must be taken back while
+    /// unheard — never for the host (the full transcript still runs `heard`).
+    private func provisional(_ text: String, item: String) async {
+        partialsChecked.insert(item)
+        guard let u = utterances[item], !u.heard else { return }
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        if u.plan == .waitForPartial, !u.requested, !u.partialDecided {
+            utterances[item]?.partialDecided = true
+            if TurnPolicy.isBackchannel(clean) {
+                utterances[item]?.backchannel = true
+                await backchannel(item)
+            } else if let kind = TurnPolicy.held(clean) {
+                record(.held(kind.rawValue))
+                // Held until the full words say more ("hold on" is released then).
+                utterances[item]?.held = true
+                utterances[item]?.deadline = clock().addingTimeInterval(kind == .riddle ? options.riddleWait : options.trailingWait)
+            } else {
+                await requestReply(item: item, mode: .fast, text: nil)
+            }
+            return
+        }
+        guard u.requested, !u.held, let kind = TurnPolicy.held(clean) else { return }
+        // A fast reply is out for a turn that is not finished: taken back while
+        // nobody has heard it; the full words confirm (or answer it after all).
+        guard let id = u.channel, channelUnheard(id) else { return }
+        stopVoice()
+        if retryItem == item { retryItem = nil }
+        record(.held(kind.rawValue))
+        utterances[item]?.requested = false
+        utterances[item]?.channel = nil
+        utterances[item]?.held = true
+        utterances[item]?.deadline = clock().addingTimeInterval(kind == .riddle ? options.riddleWait : options.trailingWait)
+    }
+
+    /// A backchannel said over her voice ("keep going", "mm-hm"): never a turn of
+    /// its own. If her voice is still going she simply goes on; if it was already
+    /// cut (the barge-in heard the sound first) or had ended, she carries on from
+    /// where she stopped.
+    private func backchannel(_ item: String) async {
+        if !playing.isEmpty || voice.graph.player.isBusy {
+            record(.backchannel("continued"))
+            continuedThrough = (item, clock())
+            await session.userTurnHandled(itemID: item)
+        } else {
+            record(.backchannel("resumed"))
+            await carryOn(item)
+        }
+    }
+
+    /// Asks her to go on after "keep going" (a reply with the carry-on note).
+    private func carryOn(_ item: String) async {
+        if utterances[item] == nil {
+            utterances[item] = Utterance(item: item, plan: .respondFast, committedAt: clock())
+            utterances[item]?.backchannel = true
+            utterances[item]?.partialDecided = true
+        }
+        guard utterances[item]?.requested == false else { return }
+        await requestReply(item: item, mode: .fast, text: nil, notes: [TurnPolicy.carryOnNote])
+        if utterances[item]?.heard == true { settle(item) }
+    }
+
+    // MARK: Spoken preambles (tune 2)
+
+    /// Her reply's first words, as they stream: a meta preamble ("Got it, let me
+    /// think about how to respond to that.") is cut before it is heard and the turn
+    /// answered again once (with a reminder to answer straight away).
+    private func opening(_ item: String, _ delta: String) async {
+        guard !openingsChecked.contains(item) else { return }
+        guard let id = itemChannel[item] ?? generating, let c = channels[id], !c.aside else {
+            openingsChecked.insert(item)
+            return
+        }
+        let text = (replyOpenings[item] ?? "") + delta
+        if TurnPolicy.isMetaPreamble(text) {
+            openingsChecked.insert(item)
+            replyOpenings[item] = nil
+            await preambleFound(channel: id)
+        } else if TurnPolicy.words(text).count > TurnPolicy.preambleWords {
+            openingsChecked.insert(item)
+            replyOpenings[item] = nil
+        } else {
+            replyOpenings[item] = text
+        }
+        if openingsChecked.count > 64 { openingsChecked.removeAll() }
+    }
+
+    private func preambleFound(channel id: Int) async {
+        guard let c = channels[id], let user = c.item, !preambleRetried.contains(user),
+              lastCommittedItem == nil || lastCommittedItem == user, !voice.userIsSpeaking else {
+            record(.preamble(cut: false))
+            return
+        }
+        record(.preamble(cut: true))
+        preambleRetried.insert(user)
+        if preambleRetried.count > 64 { preambleRetried.removeAll() }
+        channels[id]?.preambleRetry = user
+        stopVoice()
+        if c.done { await answerAfterPreamble(channel: id) }
+    }
+
+    /// The reply cut for a preamble is over: the turn is answered again (once).
+    private func answerAfterPreamble(channel id: Int) async {
+        guard let user = channels[id]?.preambleRetry else { return }
+        channels[id]?.preambleRetry = nil
+        guard lastCommittedItem == nil || lastCommittedItem == user, !voice.userIsSpeaking else { return }
+        if utterances[user] == nil { utterances[user] = Utterance(item: user, plan: .respondFast, committedAt: clock()) }
+        let u = utterances[user]!
+        utterances[user]?.requested = false
+        // Most narrated calls were a `recall` (tune 2 eval: 19 of 27): the brain looks
+        // it up itself, so the retry has nothing left to look up out loud.
+        var notes = [TurnPolicy.answerStraightNote]
+        if let looked = await lookUp() { notes.append(looked) }
+        await requestReply(item: user, mode: u.text == nil ? .fast : .exact, text: u.text, appraisal: u.appraisal,
+                           kind: .retry, notes: notes)
+        settle(user)
+    }
+
+    /// `recall` run by the brain (when the toolbox has it: memories shared), as a note.
+    private func lookUp() async -> String? {
+        guard toolbox.realtimeTools.contains(where: { $0.name == "recall" }) else { return nil }
+        let call = RealtimeToolCall(callID: "brain_recall", name: "recall", arguments: #"{"query":"everything"}"#,
+                                    responseID: "", itemID: "")
+        let out = await toolbox.run(call).output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !out.isEmpty, !out.lowercased().hasPrefix("error") else { return nil }
+        let flat = out.replacingOccurrences(of: "\n", with: "; ")
+        return TurnPolicy.lookedUpNote + String(flat.prefix(TurnPolicy.lookedUpMax))
+    }
+
     private func wordsFailed(_ item: String) async {
         guard let u = utterances[item] else { return }
-        if u.plan == .waitForWords, !u.requested {
+        if u.held || u.backchannel {
+            // Held ("…and"): answered at its deadline from the audio. A backchannel
+            // was already handled.
+            if u.backchannel, u.requested { settle(item) }
+            return
+        }
+        if u.plan == .waitForWords || u.plan == .waitForPartial, !u.requested {
             // The model hears the audio itself: answer it as heard.
             await requestReply(item: item, mode: .fast, text: nil, prosody: prosody.read(item: item, text: nil, baseline: host?.voiceBaseline ?? .init()))
             settle(item)
@@ -646,7 +870,7 @@ public final class RealtimeBrain: ReplyEngine {
     /// Asks for the reply to `item`, with a fresh DNA in front of it.
     private func requestReply(item: String, mode: CueMode, text: String?, appraisal: Appraisal? = nil,
                               prosody read: ProsodyRead? = nil, effort override: ReasoningEffort? = nil,
-                              kind: TurnContext.Kind = .reply) async {
+                              kind: TurnContext.Kind = .reply, notes: [String] = []) async {
         guard let host, connected else { utterances[item] = nil; return }
         var effort = override ?? thinking.effortBeforeWords
         if override == nil, let text {
@@ -660,7 +884,7 @@ public final class RealtimeBrain: ReplyEngine {
         responseIndex += 1
         let turn = TurnContext(kind: kind, index: responseIndex, mode: mode)
         guard let (render, dna) = await buildDNA(turn: turn, appraisal: TurnAppraisal(prosody: pr, text: appraisal, durationS: duration),
-                                                 pickNotes: true) else { utterances[item] = nil; return }
+                                                 pickNotes: true, notes: notes) else { utterances[item] = nil; return }
         if dna.relationship.waitBeforeAnswering {
             try? await Task.sleep(for: .seconds(options.waitBeforeAnswering))
             // They went on talking: their next commit is answered (both items).
@@ -675,8 +899,10 @@ public final class RealtimeBrain: ReplyEngine {
         utterances[item]?.mode = mode
         if let text { utterances[item]?.text = text }
         if let appraisal { utterances[item]?.appraisal = appraisal }
+        let cap = options.capReplyTokens && !(text.map(TurnPolicy.wantsLongAnswer) ?? false)
+            ? TurnPolicy.maxOutputTokens(length: dna.guidance.length, effort: effort) : nil
         let error = await send(render: render, mode: mode, kind: kind, channel: id) {
-            try await self.reply(dna: render.text, effort: effort)
+            try await self.reply(dna: render.text, effort: effort, maxOutputTokens: cap)
         }
         if case .responseInFlight? = error as? RealtimeSessionError, retryItem == nil || retryItem == item,
            utterances[item] != nil {
@@ -764,7 +990,7 @@ public final class RealtimeBrain: ReplyEngine {
 
     // MARK: DNA
 
-    private func buildDNA(turn: TurnContext, appraisal: TurnAppraisal, pickNotes: Bool) async -> (DNARender, DeeDNA)? {
+    private func buildDNA(turn: TurnContext, appraisal: TurnAppraisal, pickNotes: Bool, notes: [String] = []) async -> (DNARender, DeeDNA)? {
         guard let host else { return nil }
         let now = clock()
         let request = DNARequest(turn: turn, appraisal: appraisal, pickNotes: pickNotes, rings: rings, corpus: corpus,
@@ -773,7 +999,9 @@ public final class RealtimeBrain: ReplyEngine {
         var dna = DNAAssembler.assemble(parts.inputs)
         if !parts.inputs.shareMemories { Self.keepMemoriesPrivate(&dna) }
         var render = DNAPrompt.render(dna, guard: corpus)
-        if !parts.extraNotes.isEmpty { Self.addNotes(parts.extraNotes, to: &render) }
+        // The brain's own turn notes ("carry on") go first: they are about this turn.
+        let extra = notes + parts.extraNotes
+        if !extra.isEmpty { Self.addNotes(extra, to: &render) }
         rings.sample(parts.inputs.mind.code, at: now, force: true)
         lastDNANotes = Set(dna.now.notes.map(\.kind))
         lastVoiceWords = render.text.components(separatedBy: "\n").first { $0.hasPrefix("Voice: ") }
@@ -920,6 +1148,21 @@ public final class RealtimeBrain: ReplyEngine {
         if generating == id { generating = nil }
         record(.responseDone(status: s.status, reason: s.reason, audioMs: s.audioMs,
                              inputTokens: s.usage?.inputTokens, cachedTokens: s.usage?.inputTokenDetails?.cachedTokens))
+        if s.hitTokenLimit {
+            // Playback stops before the unfinished last sentence (never mid-word).
+            for item in s.itemIDs {
+                if let current = currentSentence[item], playing.contains(item), !TurnPolicy.isCompleteSentence(current) {
+                    record(.tokenLimitStop)
+                    stopVoice()
+                } else {
+                    tokenLimited.insert(item)
+                }
+            }
+        }
+        if let id, channels[id]?.preambleRetry != nil {
+            channels[id]?.done = true
+            await answerAfterPreamble(channel: id)
+        }
         if let id, channels[id] != nil {
             channels[id]?.done = true
             channels[id]?.doneAt = now
@@ -957,6 +1200,18 @@ public final class RealtimeBrain: ReplyEngine {
 
     private func housekeeping() async {
         let now = clock()
+        // Settled transcription deltas: the turn's provisional words.
+        for (item, p) in partials where !partialsChecked.contains(item) && now.timeIntervalSince(p.at) >= options.partialSettle {
+            await provisional(p.text, item: item)
+        }
+        // Over her voice, and no words in time: answer what was heard (fast).
+        for (item, u) in utterances where u.plan == .waitForPartial && !u.requested && !u.partialDecided && !u.heard {
+            if let d = u.deadline, now >= d {
+                utterances[item]?.partialDecided = true
+                utterances[item]?.deadline = nil
+                await requestReply(item: item, mode: .fast, text: nil)
+            }
+        }
         // Exact mode: the words did not come in time; answer what was heard (fast).
         for (item, u) in utterances where u.plan == .waitForWords && !u.requested && !u.heard {
             if let d = u.deadline, now >= d {
@@ -964,6 +1219,10 @@ public final class RealtimeBrain: ReplyEngine {
                 utterances[item]?.deadline = nil
                 await requestReply(item: item, mode: .fast, text: nil)
             }
+        }
+        // A backchannel she talked on through whose full words never came.
+        for (item, u) in utterances where u.backchannel && !u.requested && now.timeIntervalSince(u.committedAt) > options.addressWait {
+            utterances[item] = nil
         }
         // A fast reply whose transcript never came: nothing more to decide.
         for (item, u) in utterances where u.requested && now.timeIntervalSince(u.committedAt) > 60 && retryItem != item {
@@ -986,8 +1245,8 @@ public final class RealtimeBrain: ReplyEngine {
             }
             utterances[item]?.held = false
             utterances[item]?.deadline = nil
-            await requestReply(item: item, mode: .exact, text: u.text, appraisal: u.appraisal)
-            settle(item)
+            await requestReply(item: item, mode: u.text == nil ? .fast : .exact, text: u.text, appraisal: u.appraisal)
+            if utterances[item]?.heard == true { settle(item) }
         }
         // The user started before her initiative or canned line made a sound: it
         // gives way (CloudVoice's own initiative gate, for requests the brain sends).
@@ -1032,13 +1291,13 @@ public final class RealtimeBrain: ReplyEngine {
     // MARK: Her voice (requests to the session)
 
     /// Answers the committed user turn with this DNA (`requestResponse(dna:)`).
-    private func reply(dna: String, effort: ReasoningEffort) async throws -> RequestOutcome {
+    private func reply(dna: String, effort: ReasoningEffort, maxOutputTokens: Int? = nil) async throws -> RequestOutcome {
         // Her previous reply somehow still playing: cut it first (the session is
         // told what was heard), so the new audio never queues behind it.
         if !playing.isEmpty { stopVoice() }
         await waitOutStop()
         voice.timeline.mark(.responseCreateSent, at: voice.graph.now)
-        return try await session.requestResponse(dna: dna, reasoningEffort: effort.rawValue)
+        return try await session.requestResponse(dna: dna, maxOutputTokens: maxOutputTokens, reasoningEffort: effort.rawValue)
     }
 
     /// An initiative or canned line: refused while the user talks or her voice is
@@ -1098,4 +1357,12 @@ public enum BrainTrace: Sendable, Equatable {
     case responseStarted(kind: String)
     case responseDone(status: String, reason: String?, audioMs: Int, inputTokens: Int?, cachedTokens: Int?)
     case tool(name: String, followUp: String)
+    /// Speech over her voice was a backchannel: she went on ("continued") or was
+    /// asked to carry on after a cut ("resumed").
+    case backchannel(String)
+    /// Her reply opened with a meta preamble: cut before it was heard and the turn
+    /// answered again (`cut`), or let be (a second time, or the floor moved on).
+    case preamble(cut: Bool)
+    /// A reply cut by the token limit stopped at its last complete sentence.
+    case tokenLimitStop
 }

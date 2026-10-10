@@ -1,5 +1,5 @@
 {
-  "generatedAt" : "2026-10-09T20:31:13Z",
+  "generatedAt" : "2026-10-10T00:10:47Z",
   "impulseResponses" : [
     {
       "file" : "ir/room.wav",
@@ -1967,6 +1967,102 @@
       "style" : "soft",
       "text" : "Thanks, Dee. I really miss her.",
       "voice" : "ballad"
+    },
+    {
+      "activeLevelDB" : -23.99999998208134,
+      "category" : "trailing",
+      "endOfSpeechSample" : 60000,
+      "engine" : "say",
+      "file" : "utterances/t04.wav",
+      "id" : "t04",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 70320,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 60000,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Tomorrow I'm going to call my mom and",
+      "voice" : "Flo (English (US))"
+    },
+    {
+      "activeLevelDB" : -23.99999959506824,
+      "category" : "continuation",
+      "endOfSpeechSample" : 84480,
+      "engine" : "say",
+      "file" : "utterances/k08.wav",
+      "id" : "k08",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 94800,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 44880,
+          "start" : 3600
+        },
+        {
+          "end" : 84480,
+          "start" : 54240
+        }
+      ],
+      "style" : "neutral",
+      "text" : "ask her for her soup recipe. What should I make with it?",
+      "voice" : "Flo (English (US))"
+    },
+    {
+      "activeLevelDB" : -24.000000244787323,
+      "category" : "backchannel",
+      "endOfSpeechSample" : 17520,
+      "engine" : "say",
+      "file" : "utterances/bc01.wav",
+      "id" : "bc01",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 27840,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17520,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Go on.",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -31.951606646733467,
+      "category" : "backchannel",
+      "endOfSpeechSample" : 24960,
+      "engine" : "say",
+      "file" : "utterances/bc02.wav",
+      "id" : "bc02",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 35520,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 24960,
+          "start" : 3600
+        }
+      ],
+      "style" : "soft",
+      "text" : "Mm-hm.",
+      "voice" : "Samantha"
     }
   ],
   "version" : 1

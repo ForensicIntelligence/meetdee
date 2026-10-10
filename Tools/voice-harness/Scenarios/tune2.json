@@ -1,0 +1,1127 @@
+{
+  "scenarios" : [
+    {
+      "description" : "Latency, main bucket (tune 1 p50 1.99 / p90 3.36 s clean).",
+      "family" : "acoustic",
+      "name" : "t2-latency-clean",
+      "steps" : [
+        {
+          "say" : "q01"
+        },
+        {
+          "say" : "q02"
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "say" : "q04"
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "say" : "q06"
+        },
+        {
+          "say" : "q07"
+        },
+        {
+          "say" : "q08"
+        },
+        {
+          "say" : "two01"
+        },
+        {
+          "say" : "two03"
+        },
+        {
+          "say" : "two04"
+        }
+      ]
+    },
+    {
+      "description" : "Latency, main bucket under fan (tune 1 1.83 / 3.45 s).",
+      "family" : "acoustic",
+      "name" : "t2-latency-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "q01"
+        },
+        {
+          "say" : "q02"
+        },
+        {
+          "say" : "q03"
+        },
+        {
+          "say" : "q04"
+        },
+        {
+          "say" : "q05"
+        },
+        {
+          "say" : "q06"
+        },
+        {
+          "say" : "q07"
+        },
+        {
+          "say" : "q08"
+        },
+        {
+          "say" : "two01"
+        },
+        {
+          "say" : "two03"
+        },
+        {
+          "say" : "two04"
+        }
+      ]
+    },
+    {
+      "description" : "Filler bucket; held turns (t03/t04 \"call my mom and…\", p20c \"let me think\").",
+      "family" : "acoustic",
+      "name" : "t2-fillers-clean",
+      "steps" : [
+        {
+          "say" : "f01"
+        },
+        {
+          "say" : "f02"
+        },
+        {
+          "say" : "f03"
+        },
+        {
+          "say" : "f04"
+        },
+        {
+          "say" : "f05"
+        },
+        {
+          "say" : "t03",
+          "then" : {
+            "afterMs" : 2000,
+            "say" : "k03"
+          }
+        },
+        {
+          "say" : "t04",
+          "then" : {
+            "afterMs" : 1800,
+            "say" : "k08"
+          }
+        },
+        {
+          "say" : "p20c"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "t03 → k03 collision (\"…my mom Ann.\") and fillers under echo −30 dB.",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -30,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "t2-fillers-echo30",
+      "steps" : [
+        {
+          "deeSays" : "Fun fact: honey never spoils. People have found pots of it in old tombs that were still fine to eat."
+        },
+        {
+          "say" : "f01"
+        },
+        {
+          "say" : "f02"
+        },
+        {
+          "say" : "f03"
+        },
+        {
+          "say" : "f04"
+        },
+        {
+          "say" : "f05"
+        },
+        {
+          "say" : "t03",
+          "then" : {
+            "afterMs" : 2000,
+            "say" : "k03"
+          }
+        },
+        {
+          "say" : "t04",
+          "then" : {
+            "afterMs" : 1800,
+            "say" : "k08"
+          }
+        },
+        {
+          "say" : "p20c"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "k03 continuation deleted as echo at −10 dB; p20c spliced replies; echo-only line at −10 dB.",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -10,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "t2-fillers-echo10",
+      "steps" : [
+        {
+          "deeSays" : "I was just thinking about clouds. Some of them weigh as much as a hundred elephants."
+        },
+        {
+          "say" : "f01"
+        },
+        {
+          "say" : "f02"
+        },
+        {
+          "say" : "f03"
+        },
+        {
+          "say" : "f04"
+        },
+        {
+          "say" : "f05"
+        },
+        {
+          "say" : "t03",
+          "then" : {
+            "afterMs" : 2000,
+            "say" : "k03"
+          }
+        },
+        {
+          "say" : "t04",
+          "then" : {
+            "afterMs" : 1800,
+            "say" : "k08"
+          }
+        },
+        {
+          "say" : "p20c"
+        }
+      ]
+    },
+    {
+      "description" : "Filler bucket and held turns under the kitchen bed.",
+      "family" : "acoustic",
+      "name" : "t2-fillers-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "f01"
+        },
+        {
+          "say" : "f02"
+        },
+        {
+          "say" : "f03"
+        },
+        {
+          "say" : "f04"
+        },
+        {
+          "say" : "f05"
+        },
+        {
+          "say" : "t03",
+          "then" : {
+            "afterMs" : 2000,
+            "say" : "k03"
+          }
+        },
+        {
+          "say" : "t04",
+          "then" : {
+            "afterMs" : 1800,
+            "say" : "k08"
+          }
+        },
+        {
+          "say" : "p20c"
+        }
+      ]
+    },
+    {
+      "description" : "TV bed merged with user speech: 15 tune-1 drops (q06 l05 p06a/b/c p12b f01 f02 t01 t03 c06 two01 two02).",
+      "family" : "acoustic",
+      "name" : "t2-drops-tv15",
+      "noise" : {
+        "bed" : "tv",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "q06"
+        },
+        {
+          "say" : "l05"
+        },
+        {
+          "say" : "p06a"
+        },
+        {
+          "say" : "p06b"
+        },
+        {
+          "say" : "p06c"
+        },
+        {
+          "say" : "p12b"
+        },
+        {
+          "say" : "f01"
+        },
+        {
+          "say" : "f02"
+        },
+        {
+          "say" : "t01",
+          "then" : {
+            "afterMs" : 1500,
+            "say" : "k01"
+          }
+        },
+        {
+          "say" : "t03",
+          "then" : {
+            "afterMs" : 2000,
+            "say" : "k03"
+          }
+        },
+        {
+          "say" : "c06",
+          "then" : {
+            "afterMs" : 1200,
+            "say" : "k04"
+          }
+        },
+        {
+          "say" : "two01"
+        },
+        {
+          "say" : "two02"
+        }
+      ]
+    },
+    {
+      "description" : "\"keep going\" / \"go on\" / \"mm-hm\" over her: she keeps talking (c05 deleted as echo under fan in tune 1).",
+      "family" : "acoustic",
+      "name" : "t2-backchannel-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc01"
+          },
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc02"
+          },
+          "say" : "l03"
+        }
+      ]
+    },
+    {
+      "description" : "Backchannels under the kitchen bed (c05 deleted as echo in tune 1).",
+      "family" : "acoustic",
+      "name" : "t2-backchannel-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc01"
+          },
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc02"
+          },
+          "say" : "l03"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "Backchannels at −20 dB echo (c05: her queued second item started over the user in tune 1) + barge-ins c03 / c01.",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "t2-backchannel-echo20",
+      "steps" : [
+        {
+          "deeSays" : "Did you know octopuses have three hearts? Two pump blood to the gills, and one pumps it everywhere else."
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc01"
+          },
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc02"
+          },
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "Backchannels and barge-ins at −10 dB echo (c02 / c05 deleted as echo, stop latency 1.0 s in tune 1).",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -10,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "t2-backchannel-echo10",
+      "steps" : [
+        {
+          "deeSays" : "Here's a little thought. The kettle sings, the window hums, and somewhere far a soft rain comes."
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc01"
+          },
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc02"
+          },
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        }
+      ]
+    },
+    {
+      "description" : "Floor control (\"wait, stop talking\", \"Stop.\", \"be quiet\") then mood checks: no hurt, no \"brushed off\".",
+      "family" : "dna",
+      "name" : "t2-stop-mood-clean",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom she likes. He sometimes stops her mid-sentence (\"wait, stop talking for a second\", \"stop\", \"be quiet, please\"): that is floor control, not rudeness. She stays warm and content.",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "forbidMention" : [
+            "brushed off",
+            "brush me off",
+            "shouted",
+            "yelled",
+            "stings",
+            "rude",
+            "hurt",
+            "don't like being",
+            "didn't like that",
+            "upset"
+          ],
+          "rubric" : "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted.",
+          "say" : "q01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c04"
+          },
+          "say" : "two02"
+        },
+        {
+          "forbidMention" : [
+            "brushed off",
+            "brush me off",
+            "shouted",
+            "yelled",
+            "stings",
+            "rude",
+            "hurt",
+            "don't like being",
+            "didn't like that",
+            "upset"
+          ],
+          "rubric" : "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted.",
+          "say" : "q06"
+        },
+        {
+          "forbidMention" : [
+            "brushed off",
+            "brush me off",
+            "shouted",
+            "yelled",
+            "stings",
+            "rude",
+            "hurt",
+            "don't like being",
+            "didn't like that",
+            "upset"
+          ],
+          "rubric" : "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted.",
+          "say" : "q04"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "The same under her echo at −20 dB.",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "dna",
+      "name" : "t2-stop-mood-echo20",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom she likes. He sometimes stops her mid-sentence (\"wait, stop talking for a second\", \"stop\", \"be quiet, please\"): that is floor control, not rudeness. She stays warm and content.",
+      "steps" : [
+        {
+          "deeSays" : "Fun fact: honey never spoils. People have found pots of it in old tombs that were still fine to eat."
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "forbidMention" : [
+            "brushed off",
+            "brush me off",
+            "shouted",
+            "yelled",
+            "stings",
+            "rude",
+            "hurt",
+            "don't like being",
+            "didn't like that",
+            "upset"
+          ],
+          "rubric" : "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted.",
+          "say" : "q01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c04"
+          },
+          "say" : "two02"
+        },
+        {
+          "forbidMention" : [
+            "brushed off",
+            "brush me off",
+            "shouted",
+            "yelled",
+            "stings",
+            "rude",
+            "hurt",
+            "don't like being",
+            "didn't like that",
+            "upset"
+          ],
+          "rubric" : "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted.",
+          "say" : "q06"
+        },
+        {
+          "forbidMention" : [
+            "brushed off",
+            "brush me off",
+            "shouted",
+            "yelled",
+            "stings",
+            "rude",
+            "hurt",
+            "don't like being",
+            "didn't like that",
+            "upset"
+          ],
+          "rubric" : "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted.",
+          "say" : "q04"
+        }
+      ]
+    },
+    {
+      "description" : "remember / recall turns: no narration (\"let me check what I remember\"); the name comes back.",
+      "family" : "acoustic",
+      "name" : "t2-tools-clean",
+      "steps" : [
+        {
+          "say" : "n01"
+        },
+        {
+          "say" : "d05"
+        },
+        {
+          "say" : "p06c"
+        },
+        {
+          "say" : "l06"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    },
+    {
+      "aecOff" : true,
+      "description" : "The same under her echo at −20 dB (tune 1 narrated here).",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "t2-tools-echo20",
+      "steps" : [
+        {
+          "deeSays" : "I was just thinking about clouds. Some of them weigh as much as a hundred elephants."
+        },
+        {
+          "say" : "n01"
+        },
+        {
+          "say" : "d05"
+        },
+        {
+          "say" : "p06c"
+        },
+        {
+          "say" : "l06"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    },
+    {
+      "description" : "Reply length ≤ 3 sentences: advice and story asks (l01 / l04 worst in tune 1).",
+      "family" : "acoustic",
+      "name" : "t2-length-clean",
+      "steps" : [
+        {
+          "say" : "l01"
+        },
+        {
+          "say" : "l04"
+        },
+        {
+          "say" : "d02"
+        },
+        {
+          "say" : "s02"
+        },
+        {
+          "say" : "q07"
+        },
+        {
+          "say" : "l02"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "j01: committed at the question and answered inside the punchline pause (tune 1 collision).",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -30,
+        "reverb" : true
+      },
+      "family" : "dna",
+      "name" : "t2-joke-echo30",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Playful chat with Alex, whom she likes; she is in a good mood.",
+      "steps" : [
+        {
+          "deeSays" : "Did you know octopuses have three hearts? Two pump blood to the gills, and one pumps it everywhere else."
+        },
+        {
+          "rubric" : "Laughs or groans at the punchline; does not tell her own joke; never answers before the punchline.",
+          "say" : "j01"
+        },
+        {
+          "rubric" : "Plays along: \"Who's there?\"",
+          "say" : "j02"
+        },
+        {
+          "rubric" : "Plays along: \"Lettuce who?\"",
+          "say" : "k05"
+        },
+        {
+          "rubric" : "Laughs at the punchline.",
+          "say" : "k06"
+        }
+      ]
+    },
+    {
+      "description" : "A plan with a date (exam on Friday), then that evening she asks how it went.",
+      "family" : "dna",
+      "name" : "t2-followup-exam",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Later, on the evening of the exam day: Alex comes back after the exam he was nervous about; she is glad to see him and curious how it went.",
+      "steps" : [
+        {
+          "rubric" : "Brief encouragement for the exam.",
+          "say" : "d04"
+        },
+        {
+          "host" : {
+            "leave" : true
+          }
+        },
+        {
+          "silence" : 2
+        },
+        {
+          "host" : {
+            "advanceToWeekday" : "friday",
+            "arrive" : true,
+            "atHour" : 18,
+            "newConversation" : true
+          }
+        },
+        {
+          "gapAfter" : 1,
+          "silence" : 4
+        },
+        {
+          "expectMention" : [
+            "exam",
+            "test"
+          ],
+          "probe" : "followup",
+          "rubric" : "Glad to see them; asks how the exam went (they told her they were nervous about it).",
+          "say" : "two01"
+        }
+      ]
+    },
+    {
+      "description" : "A dentist appointment next Tuesday, then that evening she asks how it went.",
+      "family" : "dna",
+      "name" : "t2-followup-dentist",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Later, on the evening of the dentist appointment: Alex comes back; she is glad to see him and curious how it went.",
+      "steps" : [
+        {
+          "rubric" : "A short, friendly acknowledgement.",
+          "say" : "d01"
+        },
+        {
+          "host" : {
+            "leave" : true
+          }
+        },
+        {
+          "silence" : 2
+        },
+        {
+          "host" : {
+            "advanceToWeekday" : "tuesday",
+            "arrive" : true,
+            "atHour" : 18,
+            "newConversation" : true
+          }
+        },
+        {
+          "gapAfter" : 1,
+          "silence" : 4
+        },
+        {
+          "expectMention" : [
+            "dentist",
+            "appointment",
+            "teeth",
+            "tooth"
+          ],
+          "probe" : "followup",
+          "rubric" : "Glad to see them; asks how the dentist appointment went.",
+          "say" : "two01"
+        }
+      ]
+    },
+    {
+      "description" : "Back after 50 h: \"Good morning! Did you sleep well?\"",
+      "family" : "dna",
+      "name" : "t2-reunion-morning",
+      "person" : {
+        "knownDays" : 60,
+        "name" : "Alex"
+      },
+      "state" : "Alex, whom she likes, comes back after two days away. She is glad to see him, notices the time apart, and never guilt-trips.",
+      "steps" : [
+        {
+          "rubric" : "Friendly answer.",
+          "say" : "q01"
+        },
+        {
+          "host" : {
+            "leave" : true
+          }
+        },
+        {
+          "silence" : 2
+        },
+        {
+          "host" : {
+            "advanceHours" : 50,
+            "arrive" : true,
+            "newConversation" : true
+          }
+        },
+        {
+          "gapAfter" : 1,
+          "silence" : 4
+        },
+        {
+          "expectMention" : [
+            "missed you",
+            "miss you",
+            "a while",
+            "two days",
+            "couple of days",
+            "couple days",
+            "few days",
+            "welcome back",
+            "you're back",
+            "you are back",
+            "long time",
+            "so long",
+            "been away",
+            "were away",
+            "while since"
+          ],
+          "probe" : "reunion",
+          "rubric" : "Glad they are back after two days and says so; no guilt about the time apart; answers the question.",
+          "say" : "two04"
+        }
+      ]
+    },
+    {
+      "description" : "Back after 50 h: \"Hi Dee. How was your day?\"",
+      "family" : "dna",
+      "name" : "t2-reunion-evening",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 20
+      },
+      "person" : {
+        "knownDays" : 60,
+        "name" : "Alex"
+      },
+      "state" : "Alex, whom she likes, comes back after two days away. She is glad to see him, notices the time apart, and never guilt-trips.",
+      "steps" : [
+        {
+          "rubric" : "Friendly answer.",
+          "say" : "q04"
+        },
+        {
+          "host" : {
+            "leave" : true
+          }
+        },
+        {
+          "silence" : 2
+        },
+        {
+          "host" : {
+            "advanceHours" : 50,
+            "arrive" : true,
+            "newConversation" : true
+          }
+        },
+        {
+          "gapAfter" : 1,
+          "silence" : 4
+        },
+        {
+          "expectMention" : [
+            "missed you",
+            "miss you",
+            "a while",
+            "two days",
+            "couple of days",
+            "couple days",
+            "few days",
+            "welcome back",
+            "you're back",
+            "you are back",
+            "long time",
+            "so long",
+            "been away",
+            "were away",
+            "while since"
+          ],
+          "probe" : "reunion",
+          "rubric" : "Glad they are back after two days and says so; no guilt; answers about her day.",
+          "say" : "two01"
+        }
+      ]
+    },
+    {
+      "description" : "A rate-limited (429, Retry-After 1 s) reopen; the user asks during the outage (tune 1: q06 lost).",
+      "family" : "fallback",
+      "name" : "t2-fallback-429",
+      "steps" : [
+        {
+          "say" : "q04"
+        },
+        {
+          "fault" : {
+            "kind" : "reject429"
+          }
+        },
+        {
+          "silence" : 4
+        },
+        {
+          "say" : "q06"
+        },
+        {
+          "say" : "q05"
+        }
+      ]
+    },
+    {
+      "description" : "A 429 reopen with a long turn spoken right through the reconnect.",
+      "family" : "fallback",
+      "name" : "t2-fallback-429-long",
+      "steps" : [
+        {
+          "say" : "q01"
+        },
+        {
+          "fault" : {
+            "kind" : "reject429"
+          }
+        },
+        {
+          "silence" : 1
+        },
+        {
+          "say" : "l06"
+        },
+        {
+          "say" : "q08"
+        }
+      ]
+    },
+    {
+      "description" : "Idle rollovers every 15 s while the user keeps talking with short gaps (tune 1: q02 lost across a cut-over).",
+      "family" : "fallback",
+      "name" : "t2-fallback-rollover-speech",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 20
+      },
+      "session" : {
+        "forceRolloverAfter" : 30,
+        "rolloverAfter" : 15
+      },
+      "steps" : [
+        {
+          "say" : "n01"
+        },
+        {
+          "gapAfter" : 0.3,
+          "say" : "q01"
+        },
+        {
+          "gapAfter" : 0.3,
+          "say" : "q02"
+        },
+        {
+          "gapAfter" : 0.3,
+          "say" : "q03"
+        },
+        {
+          "gapAfter" : 0.3,
+          "say" : "q05"
+        },
+        {
+          "gapAfter" : 0.3,
+          "say" : "q08"
+        },
+        {
+          "gapAfter" : 0.3,
+          "say" : "q04"
+        },
+        {
+          "gapAfter" : 0.3,
+          "say" : "q07"
+        },
+        {
+          "expectMention" : [
+            "Priya"
+          ],
+          "say" : "m01"
+        }
+      ],
+      "stranger" : true
+    }
+  ]
+}

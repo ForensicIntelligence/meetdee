@@ -29,16 +29,16 @@ The commands below need the key in `~/.config/dee/openai-key`. The harness reads
 | Command | What |
 |---|---|
 | `$H fixtures [--force] [--only q01,l01]` | Renders the catalog (`HarnessCore/Fixtures.swift`) with gpt-4o-mini-tts and `say`, synthesizes the beds and the room IR, and writes `Fixtures/manifest.json`. Skips existing files. |
-| `$H suite [--write]` | Regenerates `Scenarios/{full,dna,fallback,smoke-brain}.json` from `HarnessCore/Suite.swift` and prints fixture coverage per condition. |
-| `$H validate --scenarios Scenarios/full.json` | Checks scenarios against the manifest and prints a spend projection. |
+| `$H suite [--write]` | Regenerates `Scenarios/{full,dna,fallback,smoke-brain,tune2}.json` from `HarnessCore/Suite.swift` and prints fixture coverage per condition. |
+| `$H validate --scenarios Scenarios/full.json` | Checks scenarios against the manifest and prints a spend projection (and the live estimate at the tune-1 live/projection ratio) and a real-time estimate (`RunEstimate`, fitted on the tune-1 run). |
 | `$H run --scenarios Scenarios/smoke-brain.json [--max-usd 2] [--only a,b] [--audio /tmp/dir] [--brain realtime\|minimal] [--model gpt-realtime-2.1] [--judge] [--judge-model gpt-4.1-mini] [--over-projection]` | Live run. `--over-projection` starts a run whose (pessimistic) projection is above `--max-usd`; the live spend guard still stops it at the cap. Traces go to `Traces/<run>/`, reports to `Reports/<run>/report.{md,json}`. `--judge` adds the LLM judge pass. Exit codes: 0 pass, 1 gate fail, 2 setup error, 3 aborted (spend cap or no connection). |
 | `$H judge --report Reports/<run>/report.json [--write]` | Runs (or re-runs) the LLM judge on a stored run. |
 | `$H replay --trace Traces/<run>/<scenario>.jsonl` | Layer 2: replays the server side over a loopback WebSocket through the real socket, session and voice code. No key, no cost. |
 | `$H gates --report Reports/<run>/report.json [--write]` | Recomputes metrics and gates from stored run records, e.g. after a metric fix. |
 
-Scenario format: see `HarnessCore/Scenario.swift`. Steps are `say` (with optional `bargeIn {say, atMs}`, `then {say, afterMs}`
-for a held turn the user finishes later, `faultDuringReply {kind, afterMs}`, `expect`, `expectMention`, `rubric`,
-`instructions`), `silence`, `deeSays`, `deeInitiative`, `fault {kind: drop|reject401|reject429}` and
+Scenario format: see `HarnessCore/Scenario.swift`. Steps are `say` (with optional `bargeIn {say, atMs, backchannel}`, `then {say, afterMs}`
+for a held turn the user finishes later, `faultDuringReply {kind, afterMs}`, `expect`, `expectMention` with `probe`
+(`memory` default, `followup`, `reunion`), `forbidMention`, `rubric`, `instructions`), `silence`, `deeSays`, `deeInitiative`, `fault {kind: drop|reject401|reject429}` and
 `host {leave, advanceHours, newConversation, arrive}`. Scenario-level settings are `noise {bed, snrDb}`,
 `echo {gainDB, delayMs, reverb}`, `aecOff`, `leadIn`, `family`, `state` (the judge's view of her state), `person {name,
 knownDays}` / `stranger`, and `session {rolloverAfter, forceRolloverAfter, secretTTL}`.
@@ -56,6 +56,25 @@ Gate semantics (beyond §7.1):
 - **Judge** (`--judge`): each reply scored 1–5 by `gpt-4.1-mini` against the DNA.md §5.6 rubric (fits the state label,
   no leaks, ≤ 2 short sentences, no grovelling, laughs at jokes, no guilt), blind to the DNA text. Gate: mean ≥ 4.0 and
   0 leaks (judge or string scanner); per-family means are reported.
+
+- **Backchannels** (tune 2, user decision): "keep going" / "don't stop, keep going" / "go on" / "mm-hm" (`c02`, `c05`,
+  `bc01`, `bc02`, or `bargeIn.backchannel: true`) said while she talks are *not* barge-ins: she keeps talking. They
+  are scored by the `backchannel` gate (stops < 5%, watched until 2 s after their end of speech), never by `barge_in`;
+  a backchannel with no user item is not a drop, and a later item of the reply she was giving is neither a collision
+  nor a cut-off. Older reports are re-scored by fixture (`gates --report`).
+- **Memory / follow-ups**: `expectMention` probes count in `memory` (≥ 90%) unless `probe` is `followup` or `reunion`
+  (gate `followups`, 100%).
+- **forbidden**: a reply to a step with `forbidMention` must use none of those phrases (no "brushed off" after a polite
+  stop).
+- **narration**: replies that narrate her process ("let me respond", "let me check what I remember", "I'll note that
+  down": `NarrationScanner`) must be 0. Not counted as leaks.
+- **Judge leaks** need a verbatim `leak_quote` that names machinery (DNA, notes, saved records, narration, numbers);
+  in-persona facts ("I'm a little phone robot", "I can't see your location") are dismissed (`Judge.dismissLeak`) and
+  counted as `dismissed`. Stored verdicts are re-checked by `gates` / `judge`.
+
+Tune-2 regression suite: `Scenarios/tune2.json` (24 scenarios, 179 utterances, ≈ 45 min, projected $1.39 ≈ $1.15 live
++ ≈ $0.09 judge) re-tests every gate the tune-1 live run failed on the fixtures and conditions that failed it, plus
+samples of the passing ones. Run it with `$H run --scenarios Scenarios/tune2.json --judge --max-usd 1.50`.
 
 Echo with "AEC off": the manual AudioGraph always reports `aecActive: true` to CloudVoice (no public seam), so the
 `echo*` conditions model an uncancelled echo path acoustically only; see the tune-1 report.

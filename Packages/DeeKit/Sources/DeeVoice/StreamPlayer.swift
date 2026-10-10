@@ -21,6 +21,11 @@ import Synchronization
 /// - **Flush.** `flush()` stops output at the next render cycle (with a 5 ms fade
 ///   so it doesn't click) and reports the cut utterance — also when it was still
 ///   prebuffering (0 ms played: the server must still drop all of it).
+/// - **Hold.** `hold()` pauses where it is (a 5 ms fade, then silence; nothing is
+///   dropped, nothing more counts as played) and `resume()` goes on from exactly
+///   there (fading back in); `flush()` ends a hold. `holdAtBoundary` lets the
+///   utterance playing now finish but starts no new one until it is cleared: she
+///   never begins her next sentence item over someone who may be talking.
 /// - **Ended items.** Audio for an utterance that was flushed or `finish`ed is
 ///   dropped: late deltas never play (again).
 /// - **Level.** `.level` events come from the samples just played (the eye bounce).
@@ -178,11 +183,17 @@ public final class PCMStreamPlayer: @unchecked Sendable {
         var endedNames: [String] = []
         var overflowed = false
         var renderClock = false
+        /// Paused (`hold`); `gain` ramps to 0 then nothing more is read.
+        var held = false
+        var holdAtBoundary = false
+        var gain: Float = 1
         /// Frames the node has rendered (silence included).
         var renderedFrames: Int64 = 0
         /// Echo reference ring: energy of each 10 ms bin, its last frame, and the
         /// render cycle it ended in (host time + that cycle's first frame).
         var refEnergy = [Double](repeating: 0, count: State.referenceBins)
+        /// The rendered samples of each reference bin (preallocated).
+        var refSamples = [Float](repeating: 0, count: State.referenceBins * State.referenceBinFrames)
         var refFrame = [Int64](repeating: 0, count: State.referenceBins)
         var refHost = [UInt64](repeating: 0, count: State.referenceBins)
         var refCycle = [Int64](repeating: 0, count: State.referenceBins)
@@ -313,6 +324,8 @@ public final class PCMStreamPlayer: @unchecked Sendable {
             }
             s.readPos = s.writePos
             s.buffering = true
+            s.held = false
+            s.gain = 1
             return cut
         }
         withExtendedLifetime(garbage) {}
@@ -333,6 +346,34 @@ public final class PCMStreamPlayer: @unchecked Sendable {
 
     /// Something is queued or playing.
     public var isBusy: Bool { shared.state.withLock { !$0.segments.isEmpty } }
+
+    /// Pauses playback where it is (5 ms fade, then silence). Nothing is dropped;
+    /// `resume()` goes on from there, `flush()` drops it all.
+    public func hold() {
+        shared.state.withLock { $0.held = true }
+    }
+
+    /// Goes on after `hold()` (fading back in).
+    public func resume() {
+        shared.state.withLock { $0.held = false }
+    }
+
+    /// Held by `hold()`.
+    public var isHeld: Bool { shared.state.withLock { $0.held } }
+
+    /// While true, the utterance playing finishes but the next one doesn't start.
+    public var holdAtBoundary: Bool {
+        get { shared.state.withLock { $0.holdAtBoundary } }
+        set { shared.state.withLock { $0.holdAtBoundary = newValue } }
+    }
+
+    /// Something queued is waiting at an utterance boundary (`holdAtBoundary`).
+    public var waitingAtBoundary: Bool {
+        shared.state.withLock { s in
+            guard s.holdAtBoundary, let i = s.segments.firstIndex(where: { !($0.closed && s.readPos >= $0.end) }) else { return false }
+            return !s.segments[i].firstRendered && s.readPos == s.segments[i].start
+        }
+    }
 
     /// Milliseconds buffered ahead of the play position.
     public var bufferedMs: Int { shared.state.withLock { Self.ms($0.writePos - $0.readPos) } }
@@ -420,11 +461,19 @@ public final class PCMStreamPlayer: @unchecked Sendable {
             }
             var sumSq = 0.0
             var audible = 0
+            let step = Float(1) / Float(Self.fadeFrames)
             while produced < n {
+                // Held and faded out: silence, the play position stays.
+                if s.held && s.gain <= 0 { break }
                 // The segment holding the play position: skip the ones fully played.
                 let pos = s.readPos
                 guard let i = s.segments.firstIndex(where: { !($0.closed && pos >= $0.end) }) else { break }
                 let seg = s.segments[i]
+                // A new utterance waits while the boundary is held; a hold never starts one.
+                if !seg.firstRendered, s.readPos == seg.start {
+                    if s.held { s.gain = 0; break }
+                    if s.holdAtBoundary { break }
+                }
                 let available = seg.end - s.readPos
                 if s.buffering {
                     if seg.closed || available >= s.targetFrames {
@@ -448,13 +497,28 @@ public final class PCMStreamPlayer: @unchecked Sendable {
                     s.segments[i].firstCycleFrame = s.renderedFrames
                     s.segments[i].firstRenderFrame = s.renderedFrames + Int64(produced)
                 }
-                let k = Int(min(available, Int64(n - produced)))
+                var k = Int(min(available, Int64(n - produced)))
                 var r = s.readPos
-                for j in 0..<k {
-                    let v = Float(shared.ring[Int(r & shared.mask)]) / 32768
-                    out[produced + j] = v
-                    sumSq += Double(v * v)
-                    r += 1
+                if s.held || s.gain < 1 {
+                    // Fading out for a hold (or back in after one), sample by sample.
+                    var j = 0
+                    while j < k {
+                        if s.held { s.gain = max(0, s.gain - step) } else { s.gain = min(1, s.gain + step) }
+                        let v = Float(shared.ring[Int(r & shared.mask)]) / 32768 * s.gain
+                        out[produced + j] = v
+                        sumSq += Double(v * v)
+                        r += 1
+                        j += 1
+                        if s.held && s.gain <= 0 { break }
+                    }
+                    k = j
+                } else {
+                    for j in 0..<k {
+                        let v = Float(shared.ring[Int(r & shared.mask)]) / 32768
+                        out[produced + j] = v
+                        sumSq += Double(v * v)
+                        r += 1
+                    }
                 }
                 s.readPos = r
                 produced += k
@@ -484,12 +548,14 @@ public final class PCMStreamPlayer: @unchecked Sendable {
         var i = 0
         while i < n {
             let take = min(State.referenceBinFrames - s.binFill, n - i)
+            let base = (s.refWritten % State.referenceBins) * State.referenceBinFrames + s.binFill
             if i < produced {
                 let upto = min(i + take, produced)
                 var sum = 0.0
                 for j in i..<upto { let v = Double(out[j]); sum += v * v }
                 s.binSum += sum
             }
+            for j in 0..<take { s.refSamples[base + j] = i + j < produced ? out[i + j] : 0 }
             s.binFill += take
             i += take
             if s.binFill >= State.referenceBinFrames {
@@ -519,7 +585,9 @@ public final class PCMStreamPlayer: @unchecked Sendable {
                 let k = w % State.referenceBins
                 let t = Self.time(frame: s.refFrame[k], host: s.refHost[k], cycle: s.refCycle[k],
                                   renderClock: s.renderClock, now: fallback, latestFrame: s.renderedFrames)
-                bins.append(EchoReference.Bin(t: t, energy: s.refEnergy[k]))
+                let at = k * State.referenceBinFrames
+                bins.append(EchoReference.Bin(t: t, energy: s.refEnergy[k],
+                                              samples: Array(s.refSamples[at..<(at + State.referenceBinFrames)])))
             }
             s.refRead = s.refWritten
             return bins

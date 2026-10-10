@@ -39,6 +39,12 @@ public struct Metrics: Codable, Sendable, Equatable {
         /// Answered before the user was done (inside a pause, or a held turn before
         /// its continuation / within `holdGrace`).
         public var answeredEarly = false
+        /// A listener's backchannel said over her (tune 2).
+        public var backchannel: Bool? = nil
+        /// What `expectMention` probed (nil: no probe).
+        public var probe: Scenario.Probe? = nil
+        /// A `forbidMention` phrase her reply used.
+        public var forbidden: [String]? = nil
     }
 
     public struct Leak: Codable, Sendable, Equatable {
@@ -131,6 +137,29 @@ public struct Metrics: Codable, Sendable, Equatable {
 
     public var memoryProbes = 0
     public var memoryHits = 0
+    /// Follow-ups (a dated plan on its day) and reunions (time apart acknowledged).
+    public var followupProbes = 0
+    public var followupHits = 0
+    public var followupMisses: [String] = []
+    public var memoryMisses: [String] = []
+
+    /// Backchannels said over her ("keep going", "go on", "mm-hm"): she must keep
+    /// talking. Applicable = her reply was still playing when they started.
+    public var backchannels = 0
+    public var backchannelsApplicable = 0
+    public var backchannelStops = 0
+    public var backchannelStopList: [String] = []
+    /// Backchannels that reached the server as a user item (informational: either is fine).
+    public var backchannelsHeard = 0
+
+    /// Replies that used a phrase the scenario forbids there (e.g. "brushed off" after
+    /// a polite stop): `scenario:fixture "phrase"`.
+    public var forbiddenHits: [String] = []
+    public var forbiddenChecked = 0
+
+    /// Replies that narrate her own process before answering or calling a tool
+    /// ("let me respond", "let me check what I remember"): DNA §3.
+    public var narrations: [Leak] = []
 
     public var collisions: [Collision] = []
 
@@ -184,6 +213,9 @@ public struct Metrics: Codable, Sendable, Equatable {
     public static let truncationToleranceMs = 21
     /// Her audio still playing this long after a barge-in onset counts as a miss.
     public static let bargeMissAfter = 2.0
+    /// A backchannel is watched until this long after its end of speech: a stop
+    /// that late is still a stop on "keep going".
+    public static let backchannelWatch = 2.0
 
     public static func compute(_ runs: [RunRecord], pricing: Pricing) -> Metrics {
         var m = Metrics()
@@ -224,9 +256,14 @@ public struct Metrics: Codable, Sendable, Equatable {
 
         for (k, u) in run.utterances.enumerated() {
             var r = Utterance(scenario: run.scenario, index: u.index, fixture: u.fixture, role: u.role, expect: u.expect)
+            let backchannel = u.isBackchannel
+            if backchannel { r.backchannel = true }
             let next = run.utterances.dropFirst(k + 1).first?.onset ?? .infinity
             let windowEnd = min(next, u.endOfSpeech + 20)
-            let replyStarts = starts.filter { $0.t > u.onset && $0.t < windowEnd && isReply(run, $0.item) }
+            // Over a backchannel she goes on with the reply she was giving: its later
+            // items are not a reply to it (nor a cut-off).
+            let replyStarts = starts.filter { $0.t > u.onset && $0.t < windowEnd && isReply(run, $0.item)
+                && !(backchannel && continuesEarlierReply(run, $0.item, before: u.onset)) }
             let holds = TurnShape.holdsFloor(u.fixture) && u.role != .bargeIn
             // Held: the user is not done until what finishes it (or a grace period).
             let doneAt = holds ? min(u.turnEnd ?? u.endOfSpeech + Self.holdGrace, next) : u.endOfSpeech
@@ -270,7 +307,10 @@ public struct Metrics: Codable, Sendable, Equatable {
             } else if !items.isEmpty && !borrowed {
                 missingTranscripts += 1
             }
-            if u.expect != .noReply {
+            if backchannel {
+                // She keeps talking either way; whether the server kept an item is not a drop.
+                if !items.isEmpty { backchannelsHeard += 1 }
+            } else if u.expect != .noReply {
                 spokenUtterances += 1
                 if items.isEmpty {
                     r.dropped = true; r.droppedReason = "no user item"
@@ -302,10 +342,26 @@ public struct Metrics: Codable, Sendable, Equatable {
                 .joined(separator: " ")
             r.deeReply = replyText.isEmpty ? nil : replyText
             if let mention = u.expectMention, !mention.isEmpty {
-                memoryProbes += 1
                 let ok = mention.contains { replyText.range(of: $0, options: .caseInsensitive) != nil }
+                let kind = u.probe ?? .memory
                 r.mentionOK = ok
-                if ok { memoryHits += 1 }
+                r.probe = kind
+                let tag = "\(run.scenario):\(u.fixture)"
+                if kind == .memory {
+                    memoryProbes += 1
+                    if ok { memoryHits += 1 } else { memoryMisses.append(tag) }
+                } else {
+                    followupProbes += 1
+                    if ok { followupHits += 1 } else { followupMisses.append("\(tag) (\(kind.rawValue))") }
+                }
+            }
+            if let forbid = u.forbidMention, !forbid.isEmpty, !replyText.isEmpty {
+                forbiddenChecked += 1
+                let hits = forbid.filter { replyText.range(of: $0, options: .caseInsensitive) != nil }
+                if !hits.isEmpty {
+                    r.forbidden = hits
+                    forbiddenHits.append("\(run.scenario):\(u.fixture) \"\(hits.joined(separator: "\", \""))\"")
+                }
             }
             utterances.append(r)
         }
@@ -328,6 +384,18 @@ public struct Metrics: Codable, Sendable, Equatable {
         }
 
         for b in run.bargeIns {
+            if b.isBackchannel {
+                backchannels += 1
+                switch b.outcome {
+                case .notApplicable: break
+                case .missed: backchannelsApplicable += 1          // she kept talking: right
+                case .stopped:
+                    backchannelsApplicable += 1
+                    backchannelStops += 1
+                    backchannelStopList.append("\(run.scenario):\(b.fixture)")
+                }
+                continue
+            }
             bargeIns += 1
             switch b.outcome {
             case .notApplicable: break
@@ -375,6 +443,8 @@ public struct Metrics: Codable, Sendable, Equatable {
             scanned.insert(item)
             let rules = LeakScanner.scan(text)
             if !rules.isEmpty { leaks.append(Leak(scenario: run.scenario, itemID: item, rules: rules, text: text)) }
+            let said = NarrationScanner.scan(text)
+            if !said.isEmpty { narrations.append(Leak(scenario: run.scenario, itemID: item, rules: said, text: text)) }
         }
         for r in run.responses {
             guard let text = r.transcript, !r.itemIDs.contains(where: scanned.contains) else { continue }
@@ -401,9 +471,18 @@ public struct Metrics: Codable, Sendable, Equatable {
             guard let u = run.utterances.first(where: { u in
                 u.spans.contains { s.t > $0.start + 0.02 && s.t < $0.end }
             }) else { continue }
+            // Going on with the reply she was giving while they say "keep going" is
+            // what they asked for.
+            if u.isBackchannel && continuesEarlierReply(run, s.item, before: u.onset) { continue }
             collisions.append(Collision(scenario: run.scenario, itemID: s.item, at: s.t, fixture: u.fixture,
                                         kind: run.kind(ofItem: s.item)))
         }
+    }
+
+    /// `item` belongs to a response created before `t` (she is going on with it).
+    func continuesEarlierReply(_ run: RunRecord, _ item: String, before t: Double) -> Bool {
+        guard let r = run.response(forItem: item), let created = r.startedAt else { return false }
+        return created < t
     }
 
     /// Every in-band response must have a DEE DNA in the conversation (real brain).

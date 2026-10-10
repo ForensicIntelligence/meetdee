@@ -42,6 +42,10 @@ public final class HarnessClock: Sendable {
 ///   the next DNA says "Their name is …" (DeeModel's note).
 @MainActor
 final class HarnessHost: BrainHost {
+    /// A confirmed identity, as the app sends it (`DeeModel`: `.identified(id, distance: 0)`).
+    /// Tune-2 live cause: 0.6 is one unconfirmed sighting (the Interpreter needs 3), so the
+    /// Cortex had no person all scenario: reunion, follow-ups and rituals were silently off.
+    static let confirmedDistance: Float = 0
     let mind: Mind
     let memory: MemoryStore
     let selfStore: SelfStore
@@ -91,7 +95,7 @@ final class HarnessHost: BrainHost {
                         utcOffset: TimeInterval(TimeZone.current.secondsFromGMT(for: now)))
         voiceBaseline = await mind.voiceBaseline
         _ = cortex.step(.conversationStarted(now), mind: snap, at: now)
-        if let person { _ = cortex.step(.identified(person, distance: 0.6), mind: snap, at: now) }
+        if let person { _ = cortex.step(.identified(person, distance: Self.confirmedDistance), mind: snap, at: now) }
         _ = cortex.step(.presence(arrived: true), mind: snap, at: now)
         lastSeenAt = now
     }
@@ -167,7 +171,7 @@ final class HarnessHost: BrainHost {
         someoneHere = true
         engaged = true
         sense(.presence(arrived: true))
-        if let person { sense(.identified(person, distance: 0.6)) }
+        if let person { sense(.identified(person, distance: Self.confirmedDistance)) }
     }
 
     // MARK: BrainHost
@@ -234,7 +238,7 @@ final class HarnessHost: BrainHost {
             onPerson?(p.id)
             extraNotes.append("Their name is \(p.name). You will remember it.")
             onNote?("learnt a name")
-            sense(.identified(p.id, distance: 0.6))
+            sense(.identified(p.id, distance: Self.confirmedDistance))
         default:
             break
         }

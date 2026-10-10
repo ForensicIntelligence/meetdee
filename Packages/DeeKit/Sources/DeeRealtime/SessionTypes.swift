@@ -73,7 +73,30 @@ public struct RealtimeSessionConfig: Sendable, Equatable {
     /// than this many bytes are queued on the socket (~3 s of base64 PCM16).
     public var maxUplinkBacklogBytes = 192_000
     /// Mic audio appended while (re)connecting is kept, up to this, and sent once ready.
-    public var preconnectBufferMs = 2_000
+    ///
+    /// Long enough to cover a reconnect that has to wait out a 429 (tune 2: the
+    /// live 429 outage took 7.6 s and a 2 s buffer kept only "…a day").
+    public var preconnectBufferMs = 10_000
+    /// Buffered audio is sent only if its newest piece is at most this many
+    /// seconds old (the mic went quiet long ago: stale speech is dropped).
+    public var preconnectMaxAge: Double = 3
+    /// An unfinished user turn (speech open, stopped but not committed yet,
+    /// committed but not answered, or local speech the app reported) is replayed
+    /// into the next connection — reconnect or rollover — from its start, up to
+    /// this much audio, so the server hears it whole and commits it there.
+    public var carryOverMs = 20_000
+    /// Carried audio is replayed only if the new connection is live within this
+    /// many seconds of the old one ending (a stale question is not answered).
+    public var carryOverMaxAge: Double = 15
+    /// After `speech_stopped` the server may hold the item (semantic VAD) before
+    /// committing it; until then the turn counts as open (no rollover switch).
+    /// Past this many seconds without a commit it no longer holds anything.
+    public var commitWait: Double = 8
+    /// A 429 without a usable hint (`Retry-After`, "try again in …",
+    /// `rate_limits.updated`) backs off exponentially from this, with jitter,
+    /// up to `rateLimitMaxBackoff`.
+    public var rateLimitBaseBackoff: Double = 1
+    public var rateLimitMaxBackoff: Double = 30
     /// User speech that starts before a reply's first audio cancels the reply
     /// (`.replyPreempted`): she never answers half a thought. Speech that starts
     /// while her previous audio is still playing is left to the app (it may be

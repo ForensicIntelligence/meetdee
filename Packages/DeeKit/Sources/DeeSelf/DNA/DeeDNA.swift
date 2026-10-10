@@ -371,7 +371,9 @@ public struct Guidance: Sendable, Equatable {
 /// docs/DNA.md §1 — the snapshot.
 public struct DeeDNA: Sendable, Equatable {
     /// v2: guard/minimal/lesson/length fixes of the 2026-10-09 review and live eval.
-    public static let version = "v2"
+    /// v3 (tune 2): session instructions v3 (silent tools, counted length) and the
+    /// Length line with its word budget.
+    public static let version = "v3"
 
     public var turn: TurnContext
     // §1.2

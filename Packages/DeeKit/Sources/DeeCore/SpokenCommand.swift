@@ -115,9 +115,15 @@ public enum SpokenCommand: Sendable, Equatable {
     static let leading: [[String]] = [
         ["hey", "dee"], ["okay", "dee"], ["ok", "dee"], ["oh", "dee"], ["dee"], ["hey"], ["okay"], ["ok"],
         ["alright"], ["all", "right"], ["please"], ["just"], ["um"], ["uh"], ["oh"], ["so"], ["now"],
+        // Tune 2: "Wait, stop talking for a second" / "hold on, be quiet" / "can you stop"
+        // are the stop command when she is talking (live they went to the model and were
+        // appraised as a brush-off). Alone, "wait" / "hold on" stay conversation.
+        ["wait"], ["hold", "on"], ["hang", "on"], ["sorry"], ["can", "you"], ["could", "you"], ["would", "you"],
     ].sorted { $0.count > $1.count }
     static let trailing: [[String]] = [
         ["thank", "you"], ["right", "now"], ["dee"], ["please"], ["now"], ["thanks"], ["okay"], ["ok"],
+        ["for", "a", "second"], ["for", "a", "sec"], ["for", "a", "moment"], ["for", "a", "minute"], ["for", "a", "bit"],
+        ["a", "second"], ["a", "sec"], ["a", "moment"], ["for", "now"],
     ].sorted { $0.count > $1.count }
 
     static let stopPhrases: Set<String> = [

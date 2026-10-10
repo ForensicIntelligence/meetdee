@@ -48,6 +48,24 @@ public struct CloudSettings: Sendable, Equatable {
     /// (`cancelUnspokenReplyOnSpeech`). `low` would wait up to 8 s on every pause.
     public static let turnEagerness = "high"
 
+    /// The turn detection chosen by the tune-2 live A/B (`scratchpad/tune2-brain.md`):
+    /// `server_vad`, 300 ms of silence, 300 ms prefix, threshold 0.5, no auto
+    /// response or interrupt. Same brain, same fixtures, end of a complete turn →
+    /// first audio (p50 / p90): server 300 ms 1.07 / 1.59 s and 1.21 / 1.54 s (the
+    /// only config inside the gate, both rounds); server 450 ms 1.40 / 1.94; 600 ms
+    /// 1.45 / 1.87; semantic `high` 1.55 / 2.75 and 1.73 / 3.51; `auto` 1.62 / 3.93.
+    /// What it costs — a commit at every 0.3 s pause — the brain absorbs from the
+    /// transcription deltas (`TurnPolicy.held`: trailing words, "let me", riddles;
+    /// an unheard fast reply is taken back) and the session cancels a reply with no
+    /// audio yet when they go on (`cancelUnspokenReplyOnSpeech`).
+    ///
+    /// Live only once `RealtimeSessionConfig` can carry it (ask to DeeRealtime:
+    /// `public var turnDetection: TurnDetection?`, used by `sessionPayload` instead
+    /// of `.semanticManual(eagerness:)` when set); until then the session runs
+    /// semantic_vad at `turnEagerness`.
+    public static let turnDetection = TurnDetection(type: "server_vad", createResponse: false, interruptResponse: false,
+                                                    threshold: 0.5, prefixPaddingMs: 300, silenceDurationMs: 300)
+
     /// docs/DNA.md §3/D5: stable instructions (no names, memories or state), the
     /// tools, the voice; `semantic_vad` (eagerness `turnEagerness`) with
     /// `create_response: false` and `interrupt_response: false` is the session's own

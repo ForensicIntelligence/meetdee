@@ -433,7 +433,8 @@ public final class ScenarioRunner: @unchecked Sendable {
     @discardableResult
     private func speak(step: Int, id: String, role: RunRecord.UtteranceRole, expect: Scenario.Expect,
                        mention: [String]?, onsetAt: Double? = nil, rubric: String? = nil,
-                       continues: Int? = nil) throws -> RunRecord.Utterance {
+                       continues: Int? = nil, probe: Scenario.Probe? = nil, forbid: [String]? = nil,
+                       backchannel: Bool? = nil) throws -> RunRecord.Utterance {
         let (u, samples) = try library.utterance(id)
         let rate = Double(Self.rate)
         return locked {
@@ -449,7 +450,8 @@ public final class ScenarioRunner: @unchecked Sendable {
                 index: utteranceCounter, step: step, fixture: id, role: role, text: u.text, start: base,
                 onset: base + Double(u.onsetSample) / rate, endOfSpeech: base + Double(u.endOfSpeechSample) / rate,
                 spans: u.spans.map { .init(start: base + Double($0.start) / rate, end: base + Double($0.end) / rate) },
-                expect: expect, expectMention: mention, continues: continues, rubric: rubric)
+                expect: expect, expectMention: mention, continues: continues, rubric: rubric,
+                probe: mention == nil ? nil : probe, forbidMention: forbid, backchannel: backchannel)
             record.utterances.append(rec)
             return rec
         }
@@ -457,13 +459,15 @@ public final class ScenarioRunner: @unchecked Sendable {
 
     private func userTurn(step i: Int, id: String, s: Scenario.Step) async throws {
         var u = try speak(step: i, id: id, role: .turn, expect: s.expected, mention: s.then == nil ? s.expectMention : nil,
-                          rubric: s.then == nil ? s.rubric : nil)
+                          rubric: s.then == nil ? s.rubric : nil, probe: s.probe,
+                          forbid: s.then == nil ? s.forbidMention : nil)
         log("user \(id) “\(u.text)” onset \(f(u.onset)) eos \(f(u.endOfSpeech))")
         if let cont = s.then {
             // The user finishes a held turn after a gap: one turn, two fixtures.
             let held = u
             let c = try speak(step: i, id: cont.say, role: .continuation, expect: s.expect ?? .reply, mention: s.expectMention,
-                              onsetAt: held.endOfSpeech + cont.afterMs / 1000, rubric: s.rubric, continues: held.index)
+                              onsetAt: held.endOfSpeech + cont.afterMs / 1000, rubric: s.rubric, continues: held.index,
+                              probe: s.probe, forbid: s.forbidMention)
             locked {
                 if let k = record.utterances.firstIndex(where: { $0.index == held.index }) { record.utterances[k].turnEnd = c.endOfSpeech }
             }
@@ -508,42 +512,60 @@ public final class ScenarioRunner: @unchecked Sendable {
         _ = await waitUntil(timeout: timeout) { self.replyStarted(after: base.onset) != nil }
         guard let reply = replyStarted(after: base.onset) else {
             log("barge-in: no reply to interrupt; speaking \(barge.say) as a plain turn")
-            let u = try speak(step: i, id: barge.say, role: .bargeIn, expect: .any, mention: nil)
+            let u = try speak(step: i, id: barge.say, role: .bargeIn, expect: .any, mention: nil,
+                              backchannel: barge.isBackchannel)
             locked {
                 record.bargeIns.append(.init(step: i, baseFixture: base.fixture, fixture: barge.say, targetAtMs: barge.atMs,
                                              replyItem: nil, replyStarted: nil, onset: u.onset, stoppedAt: nil,
-                                             outcome: .notApplicable))
+                                             outcome: .notApplicable, backchannel: barge.isBackchannel))
             }
             try await sleepUntil(u.endOfSpeech)
             try await waitQuiet(since: u.endOfSpeech, gap: s.gapAfter ?? options.gapAfter)
             return
         }
         let target = reply.t + barge.atMs / 1000
-        let u = try speak(step: i, id: barge.say, role: .bargeIn, expect: .any, mention: nil, onsetAt: target)
-        log("barge-in \(barge.say) onset \(f(u.onset)) (reply \(reply.item) started \(f(reply.t)))")
-        // Watch her audio until it stops or the miss window passes.
-        _ = await waitUntil(timeout: max(0, u.onset - now) + Metrics.bargeMissAfter + 0.5) {
-            self.locked { self.playIndex[reply.item].map { self.record.playback[$0].ended != nil } ?? false }
+        let backchannel = barge.isBackchannel
+        let u = try speak(step: i, id: barge.say, role: .bargeIn, expect: .any, mention: nil, onsetAt: target,
+                          backchannel: backchannel)
+        log("\(backchannel ? "backchannel" : "barge-in") \(barge.say) onset \(f(u.onset)) (reply \(reply.item) started \(f(reply.t)))")
+        // A barge-in: watch her audio until it stops or the miss window passes. A
+        // backchannel: watch through its end (a late stop on "keep going" is a stop).
+        let watchUntil = backchannel ? max(u.onset + Metrics.bargeMissAfter, u.endOfSpeech + Metrics.backchannelWatch)
+                                     : u.onset + Metrics.bargeMissAfter
+        _ = await waitUntil(timeout: max(0, watchUntil - now) + 0.5) {
+            self.locked {
+                guard let k = self.playIndex[reply.item] else { return false }
+                // A backchannel is watched to the end of the window unless she was cut.
+                return backchannel ? self.record.playback[k].flushed == true : self.record.playback[k].ended != nil
+            }
         }
-        let p = locked { playIndex[reply.item].map { record.playback[$0] } }
-        var outcome: RunRecord.BargeOutcome = .missed
-        var stopped: Double?
-        if let p, let ended = p.ended {
-            if ended <= u.onset { outcome = .notApplicable }
-            else if p.flushed == true { outcome = .stopped; stopped = ended }
-            else if ended <= u.onset + 0.5 { outcome = .notApplicable }     // ran out on its own
+        // Tune 2: DeeVoice pauses her at the onset and flushes when the words are decided
+        // (up to its hold limit): give a paused reply that long to end.
+        _ = await waitUntil(timeout: RunRecord.BargeOutcome.pauseHoldMax) {
+            self.locked { self.playIndex[reply.item].map { self.record.playback[$0].ended != nil } ?? true }
         }
-        // A flush of a *later* item of the same reply (still queued) also counts as stopping.
-        if outcome == .missed, let laterStop = locked({ record.playback.first { $0.flushed == true && ($0.ended ?? 0) > u.onset }?.ended }),
-           laterStop <= u.onset + Metrics.bargeMissAfter {
-            outcome = .stopped; stopped = laterStop
+        let pauseMarks = timeline.turns().flatMap(\.marks).filter { $0.stage == .bargeIn }.map(\.t)
+        let (p, later) = locked { () -> (RunRecord.Playback?, [RunRecord.Playback]) in
+            // Queued items of the same response (all items when the response is unknown).
+            let siblings = record.response(forItem: reply.item).map { Set($0.itemIDs) }
+            return (playIndex[reply.item].map { record.playback[$0] },
+                    record.playback.filter { $0.itemID != reply.item && (siblings?.contains($0.itemID) ?? true) })
         }
-        locked {
-            record.bargeIns.append(.init(step: i, baseFixture: base.fixture, fixture: barge.say, targetAtMs: barge.atMs,
-                                         replyItem: reply.item, replyStarted: reply.t, onset: u.onset, stoppedAt: stopped,
-                                         outcome: outcome))
+        // The pause that ended in a flush (any flush of this reply or its queued items).
+        let flushEnd = ([p] + later.map { Optional($0) }).compactMap { $0 }
+            .filter { $0.flushed == true && ($0.ended ?? 0) > u.onset }.compactMap(\.ended).min()
+        let paused = flushEnd.flatMap {
+            RunRecord.BargeOutcome.pauseMark(pauseMarks, replyStarted: reply.t, onset: u.onset, stoppedAt: $0)
         }
-        log("barge-in outcome \(outcome.rawValue)\(stopped.map { " after \(f($0 - u.onset)) s" } ?? "")")
+        let (outcome, stopped) = RunRecord.BargeOutcome.classify(reply: p, later: later, onset: u.onset,
+                                                                  endOfSpeech: u.endOfSpeech, backchannel: backchannel,
+                                                                  pausedAt: paused)
+        var entry = RunRecord.BargeIn(step: i, baseFixture: base.fixture, fixture: barge.say, targetAtMs: barge.atMs,
+                                      replyItem: reply.item, replyStarted: reply.t, onset: u.onset, stoppedAt: stopped,
+                                      outcome: outcome, backchannel: backchannel)
+        if outcome == .stopped { entry.pausedAt = paused }
+        locked { record.bargeIns.append(entry) }
+        log("\(backchannel ? "backchannel" : "barge-in") outcome \(backchannel && outcome == .missed ? "continued" : outcome.rawValue)\(entry.latency.map { " silent after \(f($0)) s" } ?? "")\(stopped.map { ", flushed after \(f($0 - u.onset)) s" } ?? "")")
         try await sleepUntil(u.endOfSpeech)
         _ = await waitUntil(timeout: timeout) { self.replyStarted(after: u.onset) != nil }
         try await waitQuiet(since: u.endOfSpeech, gap: s.gapAfter ?? options.gapAfter)

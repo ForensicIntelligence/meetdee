@@ -29,7 +29,7 @@ struct EarHarness {
     var decisions: [EarCore.Action] {
         log.filter {
             switch $0 {
-            case .emit, .uplink: false
+            case .emit, .uplink, .localSpeech: false
             default: true
             }
         }
@@ -171,14 +171,29 @@ struct EarHarness {
         #expect(h.core.serverTranscript(itemID: "item_e", text: "my own words", at: h.t).isEmpty)
     }
 
-    @Test func echoThatNeverStopsIsRejectedAfterTheTimeout() {
+    /// An echo item the server keeps open while she plays is never given up on
+    /// at the timeout (the user may yet talk inside it: tune-1 live, long-echo10
+    /// c02); it is decided when it stops — or once she stops, at the timeout.
+    @Test func echoThatStaysOpenIsDecidedWhenItStops() {
         var h = EarHarness()
         h.startPlayback()
         h.clear()
         h.serverStart("item_e")
-        h.echo(EarCore.decisionTimeout - 0.1)
+        h.echo(EarCore.decisionTimeout + 1.0)
         #expect(h.decisions.isEmpty)
-        h.echo(0.2)
+        h.serverStop("item_e")
+        #expect(h.decisions == [.rejectEcho(itemID: "item_e")])
+    }
+
+    @Test func echoThatNeverStopsIsRejectedOnceSheStops() {
+        var h = EarHarness()
+        h.startPlayback()
+        h.clear()
+        h.serverStart("item_e")
+        h.echo(EarCore.decisionTimeout + 0.2)
+        #expect(h.decisions.isEmpty)
+        h.stopPlayback()
+        h.quiet(EarCore.echoTail + EarCore.userAfterTail * 2 + 0.3)
         #expect(h.decisions == [.rejectEcho(itemID: "item_e")])
     }
 

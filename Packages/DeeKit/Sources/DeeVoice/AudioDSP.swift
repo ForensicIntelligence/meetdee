@@ -134,11 +134,22 @@ public enum PitchDetector {
     /// glides within a frame). The difference function runs on Accelerate.
     public static func analyze(_ x: [Float], sampleRate: Double, minHz: Double = 70, maxHz: Double = 500,
                                threshold: Double = 0.15, looseThreshold: Double) -> (f0: Double?, periodic: Bool) {
-        guard sampleRate > 0, minHz > 0, maxHz > minHz else { return (nil, false) }
+        let r = analyzeLoose(x, sampleRate: sampleRate, minHz: minHz, maxHz: maxHz, threshold: threshold,
+                             looseThreshold: looseThreshold)
+        return (r.f0, r.periodic)
+    }
+
+    /// `analyze`, plus `looseF0`: the strongest period's pitch when the frame is
+    /// only loosely periodic (two voices at once: neither is clean, the louder
+    /// one's period still shows).
+    public static func analyzeLoose(_ x: [Float], sampleRate: Double, minHz: Double = 70, maxHz: Double = 500,
+                                    threshold: Double = 0.15, looseThreshold: Double)
+        -> (f0: Double?, periodic: Bool, looseF0: Double?) {
+        guard sampleRate > 0, minHz > 0, maxHz > minHz else { return (nil, false, nil) }
         let maxLag = Int(sampleRate / minHz)
         let minLag = max(2, Int(sampleRate / maxHz))
         let w = x.count - maxLag - 1
-        guard w >= minLag * 2, maxLag > minLag else { return (nil, false) }
+        guard w >= minLag * 2, maxLag > minLag else { return (nil, false, nil) }
 
         // d(τ) = Σ x[j]² + Σ x[j+τ]² − 2 Σ x[j]·x[j+τ] over j < w.
         var d = [Double](repeating: 0, count: maxLag + 2)
@@ -167,6 +178,9 @@ public enum PitchDetector {
         }
         var periodic = false
         var tauEstimate = -1
+        var best = minLag
+        for k in minLag...maxLag where cmnd[k] < cmnd[best] { best = k }
+        let looseF0: Double? = cmnd[best] < looseThreshold ? sampleRate / Double(best) : nil
         var tau = minLag
         while tau <= maxLag {
             if cmnd[tau] < looseThreshold { periodic = true }
@@ -177,7 +191,7 @@ public enum PitchDetector {
             }
             tau += 1
         }
-        guard tauEstimate > 0 else { return (nil, periodic) }
+        guard tauEstimate > 0 else { return (nil, periodic, looseF0) }
         // Parabolic interpolation for sub-sample precision.
         let t = tauEstimate
         var refined = Double(t)
@@ -186,9 +200,9 @@ public enum PitchDetector {
             let denom = a - 2 * b + c
             if abs(denom) > 1e-12 { refined = Double(t) + 0.5 * (a - c) / denom }
         }
-        guard refined > 0 else { return (nil, true) }
+        guard refined > 0 else { return (nil, true, looseF0) }
         let f = sampleRate / refined
-        return ((minHz * 0.9...maxHz * 1.1).contains(f) ? f : nil, true)
+        return ((minHz * 0.9...maxHz * 1.1).contains(f) ? f : nil, true, looseF0)
     }
 
     /// Box-filter decimation to at most `targetRate` (keeps YIN cheap at 48 kHz).

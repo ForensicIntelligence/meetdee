@@ -184,8 +184,14 @@ import Testing
         rig.push(Srv.speechStarted("item_u2", ms: uplinkMs(rig)))
         await rig.settle()
         try rig.talk(0.3)
+        #expect(rig.voice.floorHold?.itemID == "item_u2")             // paused: their words decide
+        rig.push(Srv.speechStopped("item_u2", ms: uplinkMs(rig)), Srv.committed("item_u2"),
+                 Srv.userTranscript("item_u2", "Hang on, what about tomorrow?"))
+        await rig.settle()
+        try rig.quiet(CloudVoice.holdAfterWords + 0.1)                 // no brain to answer: the voice ends it
         _ = await rig.events.wait { $0 == .bargeIn }
         #expect(await rig.waitSent("conversation.item.truncate", count: 2))
+        try rig.quiet(0.06)                                            // the player reports the cut item
         let truncates = rig.sent("conversation.item.truncate").map {
             "\($0["item_id"] as? String ?? "?")@\($0["audio_end_ms"] as? Int ?? -1)"
         }
