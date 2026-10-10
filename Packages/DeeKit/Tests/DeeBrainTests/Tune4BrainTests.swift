@@ -72,7 +72,10 @@ import Testing
         try rig.quiet(0.6)
         try await Self.turn(rig, "item_u1", talk: 1.7, lag: 0.19)
         let start = rig.output.count
-        #expect(rig.responseCreates().count == 1, "requested at the commit (speed)")
+        // Tune 7: `.speculated` is traced just before the request reaches the session
+        // actor; under a parallel full run the `response.create` frame comes a moment
+        // later (tune-6 live pre-flight flake): wait for it, never assert at once.
+        #expect(await rig.until { rig.responseCreates().count == 1 }, "requested at the commit (speed): \(rig.trail())")
         try rig.quiet(0.2)                                            // 32.89
         Self.audio(rig, "resp_1", "item_a1", ms: 900, text: "Hmm, that sounds rough. Did something keep you up?")
         try rig.quiet(0.2)                                            // 33.09: they go on
@@ -228,7 +231,9 @@ import Testing
         for (i, s) in said.enumerated() {
             rig.brain.inject(.sentenceStarted(itemID: "item_a1", index: i, text: s))
             await rig.settle()
-            #expect(rig.brain.trace.contains(.sentenceCapStop) == (i == 3), "sentence \(i + 1)")
+            // Tune 7 (T6-6): the cap is the turn's own budget — this DNA's Length line allows
+            // two sentences, so she now stops before the third ("Oof."), not the fourth.
+            #expect(rig.brain.trace.contains(.sentenceCapStop) == (i >= 2), "sentence \(i + 1)")
         }
         rig.shutdown()
 

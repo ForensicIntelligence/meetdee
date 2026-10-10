@@ -410,7 +410,9 @@ extension LoopRig {
         #expect(try await rig.stepUntil(0.6) { !rig.sent("input_audio_buffer.commit").isEmpty } != nil)
         rig.push(Srv.committed("item_u2"))
         try rig.quiet(0.12)
-        rig.deltas("item_u2", ["Hm", "pf", "."])
+        // Tune 7 (T6-3): "Hmpf." is now a misheard fragment (a backchannel over her voice);
+        // words that clearly are not "go on" still wait for the transcript.
+        rig.deltas("item_u2", ["I'm", " cold", "."])
         try rig.quiet(0.3)
         await rig.settle()
         #expect(rig.voice.floorHold != nil && rig.voice.floorHold?.wordsAt == nil, "decided on partial words")

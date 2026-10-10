@@ -43,10 +43,11 @@ struct Tune6DNATests {
         _ = C.reply(&cx, at: t, mind: mind)
         let dna = Tune4DNATests.render(cx, at: t, index: 1, heardReplies: 0)
         let doLine = try #require(dna.components(separatedBy: "\n").first { $0.hasPrefix("Do: ") })
-        #expect(doLine.hasPrefix("Do: Your very first sentence is your \"Ask now\" question, with a warm hello and that it's been about a week folded into it; never a hello on its own before it"), "\(doLine)")
+        // v8 (tune 7) spells the opening words out (Tune7DNATests).
+        #expect(doLine.hasPrefix("Do: Your very first sentence is \"Hi "), "\(doLine)")
         #expect(!doLine.contains("Open with a warm hello"), "\(doLine)")
         #expect(dna.contains("Ask now, first: how their exam went."), "\(dna)")
-        #expect(dna.hasPrefix("DEE DNA v7 "))
+        #expect(dna.hasPrefix("DEE DNA \(DeeDNA.version) "))
     }
 
     // MARK: T5-5 — the name as a sentence
@@ -62,8 +63,8 @@ struct Tune6DNATests {
 
     @Test func sessionInstructionsV7() {
         let v7 = DNASessionInstructions.v7
-        #expect(DNASessionInstructions.current == v7 && DeeDNA.version == "v7")
-        #expect(DNAPrompt.sessionInstructions() == v7)
+        // v8 is current since tune 7 (Tune7DNATests); v7 stays pinned as it was.
+        #expect(DNASessionInstructions.current != v7 && DeeDNA.version == "v8")
         // T5-8: the question is the first sentence, the hello inside it.
         #expect(v7.contains("the question is your very first sentence, before anything else, even before answering their own question"))
         #expect(v7.contains("a hello goes inside that sentence, never on its own before it"))

@@ -289,7 +289,11 @@ public enum DNAAssembler {
         // v5: a due follow-up is asked first (with the greeting, if any, in the same
         // sentence): its line leads, and the G5 / G15 lines it replaces are left out.
         let askFirst = rules.contains(.g12) && d.now.notes.contains { $0.role == .aim && [.followUp, .followUpGentle].contains($0.kind) }
-        if askFirst { doLines.append(DNATables.askFirstDo(greeting: rules.contains(.g5), since: r.sinceLastTalk)) }
+        if askFirst {
+            // v8 (tune 7): their name spelled into the opening words.
+            let name: String? = { if case .named(let n, _) = r.who { return n } else { return nil } }()
+            doLines.append(DNATables.askFirstDo(greeting: rules.contains(.g5), since: r.sinceLastTalk, name: name))
+        }
         for rule in rules {
             let t = DNATables.rule(rule)
             switch rule {

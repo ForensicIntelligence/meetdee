@@ -158,10 +158,14 @@ public actor RealtimeSession {
         var token: Int
         var instructions: String?
         var maxTokens: Int?
-        /// The committed user item a reply answers.
+        /// The committed user item a reply answers (the newest of `answers`).
         var turnItemID: String?
         /// Out of band (`say`): not in the conversation, never in the history.
         var outOfBand = false
+        /// Every committed user item this reply answers, in commit order (tune 7, T6-1).
+        var answers: [String] = []
+        /// Sent behind the session's own commit (`respondToSpeech`): answers the next commit.
+        var bindsCommit = false
     }
     private var track: Track?
     private var trackToken = 0
@@ -178,6 +182,10 @@ public actor RealtimeSession {
         var input: [RealtimeItem]? = nil
         /// This request's DNA is already the fallback for a refused one.
         var dnaFallback = false
+        /// Every committed user item it answers, in commit order (tune 7, T6-1).
+        var answers: [String] = []
+        /// Answers the next commit (`respondToSpeech`).
+        var bindsCommit = false
     }
     private var deferred: Request?
     /// A reply / follow-up that user speech preempted, re-requested if that speech
@@ -263,6 +271,11 @@ public actor RealtimeSession {
     private var orphanResponses: Set<String> = []
     /// Committed user turns not answered yet, with their commit time.
     private var unanswered: [String: Double] = [:]
+    /// Commit order of the user items of the live connection (newest 64).
+    private var commitSeq: [String: Int] = [:]
+    private var commitCounter = 0
+    /// User items whose transcript came back empty: nothing was said (newest 32).
+    private var wordless: [String: Int] = [:]
     /// Bumped by `resetConversation`: a summary made before it is discarded.
     private var conversationEpoch = 0
     private var callNames: [String: String] = [:]
@@ -616,12 +629,17 @@ public actor RealtimeSession {
     /// for this response only.
     /// `reasoningEffort` (`minimal` … `xhigh`) overrides the session's
     /// `reasoning.effort` for this response only (nil: the session's).
+    ///
+    /// The reply answers `answering` when given (a committed user item), else every
+    /// committed user turn not answered yet (tune 7, T6-1): dropping or rejecting a
+    /// user item cancels only a reply that answers it (`dropUserItem`).
     @discardableResult
     public func requestResponse(cueItem: String? = nil, instructions: String? = nil,
-                                maxOutputTokens: Int? = nil, reasoningEffort: String? = nil) throws -> RequestOutcome {
+                                maxOutputTokens: Int? = nil, reasoningEffort: String? = nil,
+                                answering: String? = nil) throws -> RequestOutcome {
         try submit(Request(kind: .reply, cue: cueItem, instructions: instructions,
-                           maxTokens: maxOutputTokens, turnItemID: lastCommitted,
-                           reasoningEffort: reasoningEffort))
+                           maxTokens: maxOutputTokens, turnItemID: nil,
+                           reasoningEffort: reasoningEffort), answering: answering)
     }
 
     /// Dee answers the committed user turn with this DNA (docs/DNA.md §4.1). The
@@ -633,18 +651,84 @@ public actor RealtimeSession {
     /// the previous DNA, restored under a fresh id (or ends `.responseDone(failed,
     /// "dna_rejected")` when there is none): no response ever runs without a DNA.
     /// Queued requests send their DNA when they go out; a superseded one sends nothing.
+    ///
+    /// `answering` (tune 7, T6-1): the committed user item this reply answers. nil:
+    /// every committed user turn not answered yet (and the newest commit). Live
+    /// (interrupt-clean q02), the brain asked for the answer to "Are you awake?" just
+    /// after the server committed an empty tail of the same burst; dropping that tail
+    /// cancelled the answer, because the reply was keyed to the newest commit only.
     @discardableResult
     public func requestResponse(dna: String, maxOutputTokens: Int? = nil,
-                                reasoningEffort: String? = nil) throws -> RequestOutcome {
+                                reasoningEffort: String? = nil, answering: String? = nil) throws -> RequestOutcome {
         dnaInUse = true
         return try submit(Request(kind: .reply, cue: nil, instructions: nil, maxTokens: maxOutputTokens,
-                                  turnItemID: lastCommitted, reasoningEffort: reasoningEffort, dna: dna))
+                                  turnItemID: nil, reasoningEffort: reasoningEffort, dna: dna), answering: answering)
     }
 
-    private func submit(_ request: Request) throws -> RequestOutcome {
+    /// Dee answers the user's speech that is still open (or stopped but not yet
+    /// committed) right now, without waiting for the server's commit (tune 7, the
+    /// brain's early request): in one actor turn the session sends
+    /// `input_audio_buffer.commit`, then the DNA (as `requestResponse(dna:)`), then
+    /// `response.create`. The server handles them in order, so the response sees the
+    /// committed speech. The reply answers the next user item committed (the
+    /// session's commit, or the server's own if it committed first); until then it
+    /// has no `turnItemID`. Nothing open: the same as `requestResponse(dna:)` (the
+    /// turn is committed already). A reply in flight: throws `responseInFlight` and
+    /// commits nothing. The session's second gate is unchanged: open speech when the
+    /// first audio arrives (the user still talking by the server's VAD) preempts it.
+    @discardableResult
+    public func respondToSpeech(dna: String, maxOutputTokens: Int? = nil,
+                                reasoningEffort: String? = nil) throws -> RequestOutcome {
+        guard isReady else { throw RealtimeSessionError.notConnected }
+        if let t = track, !t.cancelRequested { throw RealtimeSessionError.responseInFlight }
+        guard commitUserSpeech() else {
+            return try requestResponse(dna: dna, maxOutputTokens: maxOutputTokens, reasoningEffort: reasoningEffort)
+        }
+        dnaInUse = true
+        var request = Request(kind: .reply, cue: nil, instructions: nil, maxTokens: maxOutputTokens,
+                              turnItemID: nil, reasoningEffort: reasoningEffort, dna: dna)
+        request.bindsCommit = true
+        return try submit(request, answering: nil)
+    }
+
+    /// The committed user items a reply asked for now answers, oldest first.
+    private func answersNow(_ answering: String?) -> [String] {
+        if let a = answering { return [a] }
+        var items = Set(unanswered.keys)
+        if let l = lastCommitted { items.insert(l) }
+        return items.filter { !rejected.contains($0) }
+            .sorted { (commitSeq[$0] ?? Int.max) < (commitSeq[$1] ?? Int.max) }
+    }
+
+    /// A reply sent behind the session's own commit answers this, the first item
+    /// committed after it. Returns whether one did.
+    private func bindCommit(_ itemID: String) -> Bool {
+        if var t = track, t.bindsCommit, t.turnItemID == nil {
+            t.bindsCommit = false
+            t.answers = [itemID]
+            t.turnItemID = itemID
+            track = t
+            return true
+        }
+        if var d = deferred, d.bindsCommit, d.turnItemID == nil {
+            d.bindsCommit = false
+            d.answers = [itemID]
+            d.turnItemID = itemID
+            deferred = d
+            return true
+        }
+        return false
+    }
+
+    private func submit(_ request: Request, answering: String? = nil) throws -> RequestOutcome {
         guard isReady else { throw RealtimeSessionError.notConnected }
         preempted = nil
         if let t = track, !t.cancelRequested { throw RealtimeSessionError.responseInFlight }
+        var request = request
+        if request.kind == .reply, !request.bindsCommit {
+            request.answers = answersNow(answering)
+            request.turnItemID = request.answers.last
+        }
         // Everything committed so far is being answered.
         unanswered.removeAll()
         if track != nil {
@@ -728,11 +812,33 @@ public actor RealtimeSession {
     /// ends with `.responseDone(cancelled)`). If this item had preempted a reply or
     /// tool follow-up and `resumePreempted`, the session re-requests that one by
     /// itself, exactly as after `rejectEcho` (a new `.responseStarted` follows).
+    ///
+    /// Tune 7 (T6-1): only a reply that answers this item is touched. A reply that
+    /// also answers other committed items, when this one said nothing (its
+    /// transcript came back empty: the server's empty tail of a burst), is kept and
+    /// now answers the others; one that answers only this item, or that heard words
+    /// in it, is cancelled as before. The same goes for a queued request.
     public func dropUserItem(itemID: String, resumePreempted: Bool = true) {
         guard !rejected.contains(itemID) else { return }
         withdraw(itemID)
-        if let t = track, t.kind == .reply, t.turnItemID == itemID, t.firstAudioAt == nil, !t.cancelRequested {
-            cancelTrack()
+        if var t = track, t.kind == .reply, t.firstAudioAt == nil, !t.cancelRequested,
+           t.turnItemID == itemID || t.answers.contains(itemID) {
+            let rest = t.answers.filter { $0 != itemID }
+            if !rest.isEmpty, wordless[itemID] != nil {
+                t.answers = rest
+                t.turnItemID = rest.last
+                track = t
+            } else {
+                cancelTrack()
+            }
+        }
+        if var d = deferred, d.kind == .reply, d.answers.contains(itemID) {
+            let rest = d.answers.filter { $0 != itemID }
+            if !rest.isEmpty, wordless[itemID] != nil {
+                d.answers = rest
+                d.turnItemID = rest.last
+                deferred = d
+            }
         }
         if resumePreempted { self.resumePreempted(by: itemID) } else if preempted?.byItem == itemID { preempted = nil }
         recompute()
@@ -752,6 +858,8 @@ public actor RealtimeSession {
         send(.itemCreate(.userText(words, id: id), eventID: nextEventID("txt")))
         committed.insert(id)
         lastCommitted = id
+        commitCounter += 1
+        commitSeq[id] = commitCounter
         unanswered[id] = clock.now()
         noteItem(id)
         log(.init(role: .user, text: words, itemID: id))
@@ -946,7 +1054,11 @@ public actor RealtimeSession {
         rejected.insert(itemID)
         awaitingCommit[itemID] = nil
         if openSpeech == itemID { openSpeech = nil; openSpeechOverPlayback = false }
-        if lastCommitted == itemID { lastCommitted = nil }
+        if lastCommitted == itemID {
+            // The newest commit still in the conversation is the turn now.
+            lastCommitted = commitSeq.filter { !rejected.contains($0.key) && committed.contains($0.key) }
+                .max { $0.value < $1.value }?.key
+        }
         turns.removeAll { $0.itemID == itemID && $0.role == .user }
         unanswered[itemID] = nil
         if committed.contains(itemID) {
@@ -1368,7 +1480,16 @@ public actor RealtimeSession {
                 send(.itemDelete(itemID: e.itemID, eventID: nextEventID("del")))
             } else if !rejected.contains(e.itemID) {
                 lastCommitted = e.itemID
-                unanswered[e.itemID] = clock.now()
+                commitCounter += 1
+                commitSeq[e.itemID] = commitCounter
+                if commitSeq.count > 64, let oldest = commitSeq.min(by: { $0.value < $1.value }) {
+                    commitSeq[oldest.key] = nil
+                }
+                if bindCommit(e.itemID) {
+                    // Already being answered (`respondToSpeech`).
+                } else {
+                    unanswered[e.itemID] = clock.now()
+                }
                 noteItem(e.itemID)
                 // Placeholder keeps the user's words in commit order; the
                 // transcript (asynchronous) fills it in.
@@ -1384,6 +1505,10 @@ public actor RealtimeSession {
         case .inputTranscriptionCompleted(let e):
             guard !rejected.contains(e.itemID) else { return }
             let text = e.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty {
+                wordless[e.itemID] = commitSeq[e.itemID] ?? 0
+                if wordless.count > 32, let oldest = wordless.min(by: { $0.value < $1.value }) { wordless[oldest.key] = nil }
+            }
             if let i = turns.lastIndex(where: { $0.itemID == e.itemID && $0.role == .user }) {
                 turns[i].text = text
             } else if !text.isEmpty {
@@ -1517,7 +1642,7 @@ public actor RealtimeSession {
         cancelTrack()
         preempted = (itemID, Request(kind: t.kind, cue: nil, instructions: t.instructions,
                                      maxTokens: t.maxTokens, turnItemID: t.turnItemID,
-                                     reasoningEffort: t.reasoningEffort))
+                                     reasoningEffort: t.reasoningEffort, answers: t.answers))
         emit(.replyPreempted(responseID: t.id))
         return true
     }
@@ -1808,7 +1933,7 @@ public actor RealtimeSession {
         send(.responseCreate(params, eventID: eid))
         track = Track(kind: r.kind, reasoningEffort: effort, createEventID: eid, sentAt: clock.now(), token: trackToken,
                       instructions: r.instructions, maxTokens: r.maxTokens, turnItemID: r.turnItemID,
-                      outOfBand: r.kind == .say)
+                      outOfBand: r.kind == .say, answers: r.answers, bindsCommit: r.bindsCommit)
         let token = trackToken
         Task { [clock, weak self, timeout = config.responseTimeout] in
             do { try await clock.sleep(seconds: timeout) } catch { return }
@@ -1862,7 +1987,7 @@ public actor RealtimeSession {
             }
             let again = Request(kind: t.kind, cue: nil, instructions: t.instructions, maxTokens: t.maxTokens,
                                 turnItemID: t.turnItemID, reasoningEffort: t.reasoningEffort,
-                                dna: fallback, dnaFallback: true)
+                                dna: fallback, dnaFallback: true, answers: t.answers, bindsCommit: t.bindsCommit)
             if fallback == nil {
                 track = nil
                 emit(.responseDone(summaryFor(t, status: "failed", reason: "dna_rejected", usage: nil, itemIDs: [])))
@@ -2026,6 +2151,7 @@ public actor RealtimeSession {
         openSpeechOverPlayback = false
         awaitingCommit.removeAll(); speechStartMs.removeAll()
         lastCommitted = nil
+        commitSeq.removeAll(); wordless.removeAll()
         committed.removeAll(); rejected.removeAll(); deleteOnCommit.removeAll()
         splitters.removeAll(); spoken.removeAll(); callNames.removeAll()
         toolBatches.removeAll(); toolResults.removeAll(); seenCalls.removeAll()
@@ -2296,7 +2422,7 @@ public actor RealtimeSession {
         guard let t = track, !t.cancelRequested, t.firstAudioAt == nil, !t.outOfBand else { return }
         let again = Request(kind: t.kind, cue: nil, instructions: t.instructions, maxTokens: t.maxTokens,
                             turnItemID: t.turnItemID, reasoningEffort: t.reasoningEffort,
-                            dna: dnaSent.last?.text ?? lastDNAText)
+                            dna: dnaSent.last?.text ?? lastDNAText, answers: t.answers, bindsCommit: t.bindsCommit)
         if t.id == nil {
             // In order, the refusal comes before its response.created: that one is an orphan now.
             track = nil

@@ -29,7 +29,7 @@ struct EarHarness {
     var decisions: [EarCore.Action] {
         log.filter {
             switch $0 {
-            case .emit, .uplink, .localSpeech: false
+            case .emit, .uplink, .localSpeech, .probe, .probeEnded: false     // a probe pauses, it decides nothing
             default: true
             }
         }

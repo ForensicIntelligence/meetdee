@@ -137,6 +137,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// Tune 5: items said in a short burst — the hold-only continuers count
         /// for them ("Keep going" heard as "She's not going.").
         public var shortItems: Set<String> = []
+        /// Tune 7: items whose burst was measured short once it was closed (the ear
+        /// forgets an item at its transcript; its full words decide a fragment after).
+        var shortBursts: Set<String> = []
         /// The brain said "go on" while more of the burst was still coming: she
         /// goes on once they are quiet and no item waits for its words.
         var goOn = false
@@ -153,6 +156,11 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         }
         /// Items whose full transcript came back empty: nothing was said in them.
         var emptyWords: Set<String> = []
+        /// Tune 7 (T6-4): a probe (`EarCore.Action.probe`): she is paused while the
+        /// ear listens into her silence for an onset her loud echo masks. No items
+        /// yet, nothing announced; the user's voice or words confirm it (a hold from
+        /// `since`), quiet ends it (she goes on, nothing happened).
+        public internal(set) var probe = false
 
         public init(itemID: String?, since: Double) {
             self.since = since
@@ -179,7 +187,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             for item in items.dropLast() {
                 guard let w = (final[item] ?? partial[item])?.trimmingCharacters(in: .whitespacesAndNewlines),
                       !w.isEmpty else { continue }
-                if !Backchannel.isBackchannel(w, inHold: shortItems.contains(item)) { return false }
+                if !Backchannel.isBackchannel(w, inHold: shortItems.contains(item), final: final[item] != nil) { return false }
             }
             return true
         }
@@ -228,7 +236,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     continue
                 }
                 allEmpty = false
-                if !Backchannel.isBackchannel(clean, inHold: shortItems.contains(item)) {
+                if !Backchannel.isBackchannel(clean, inHold: shortItems.contains(item), final: isFinal) {
                     if isFinal || partialAnswers { return .answer }
                     pendingAnswer = true                            // its full words decide
                     continue
@@ -508,6 +516,11 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var spec: SpeculativeReply?
         /// Tune 6: when she last went on from a backchannel (graph clock).
         var lastResumeAt: Double?
+        /// Tune 7 (T6-1): empty tails waiting to be dropped (`flushTailDrops`).
+        var tailDrops: [String] = []
+        /// When the latest response started / ended (graph clock).
+        var lastResponseStartAt: Double?
+        var lastResponseDoneAt: Double?
         /// Onsets inside `resumeGrace` left to their words (newest 16).
         var graceItems: [String] = []
         /// The open response is held by `spec` (its audio is gated in the player).
@@ -576,7 +589,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         guard Backchannel.isBackchannel(text, inHold: true) else { return false }
         let t = graph.now
         return inner.withLock { s in
-            if s.hold?.shortItems.contains(itemID) == true || s.shortHoldItems.contains(itemID) { return true }
+            if s.hold?.shortItems.contains(itemID) == true || s.shortHoldItems.contains(itemID)
+                || s.hold?.shortBursts.contains(itemID) == true { return true }
             guard s.hold?.items.contains(itemID) == true || s.backchannelItems.contains(itemID) else { return false }
             return isShort(itemID, s, at: t)
         }
@@ -605,7 +619,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
 
     /// Her reply paused for the user right now (nil: not paused). While held she
     /// is silent, nothing is cut yet, and `.bargeIn` hasn't been emitted.
-    public var floorHold: FloorHold? { inner.withLock { $0.hold } }
+    public var floorHold: FloorHold? { inner.withLock { $0.hold?.probe == true ? nil : $0.hold } }
+
+    /// Tune 7 (T6-4): she is paused for a probe right now (an onset over her that
+    /// her echo masks: the ear listens into her silence). Not a hold yet: the brain
+    /// hears `.paused` only if their voice or words confirm it.
+    public var isProbing: Bool { inner.withLock { $0.hold?.probe == true } }
 
     /// The words over her voice were a backchannel: she goes on from where she
     /// paused. No-op without a hold. Returns whether she resumed.
@@ -613,7 +632,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     public func continueAfterBackchannel() -> Bool {
         let t = graph.now
         return inner.withLock { s in
-            guard let h = s.hold else { return false }
+            guard let h = s.hold, !h.probe else { return false }
             // Tune 5 (live kitchen15 / echo20 c05): the server split one burst —
             // "Keep going" | "I'm listening." — and the brain's go-on for the first
             // came while the second was still being said. She goes on once all of
@@ -963,6 +982,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         inner.withLock { s in apply(s.core.deferToWordsNow(item), &s) }
     }
 
+    /// Tests: a probe for the undecided onset `item` now (`EarCore.Action.probe`).
+    func probeForTesting(_ item: String) {
+        let t = graph.now
+        inner.withLock { s in apply(s.core.probeNow(item, at: t), &s) }
+    }
+
     /// Items waiting for their words to decide them (tests, harness).
     var itemsAwaitingWords: Set<String> { inner.withLock { Set($0.wordsPending.keys) } }
 
@@ -1001,6 +1026,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 for e in s.sentences.progress(item, playedMs: ms) { brain.yield(Self.brainEvent(e)) }
             }
             checkHold(&s, at: t)
+            flushTailDrops(&s, at: t)
             if let sp = s.spec, t - sp.armedAt >= Self.speculativeMax - 1e-9 {
                 discardSpec(&s, at: t, byVoice: true, why: "timeout")
             }
@@ -1025,11 +1051,16 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
 
     /// A hold's deadlines and settled words.
     private func checkHold(_ s: inout Inner, at t: Double) {
-        guard var h = s.hold else { return }
+        guard var h = s.hold, !h.probe else { return }
+        for item in h.items where !h.shortBursts.contains(item) && h.closedAt[item] != nil && isShort(item, s, at: t) {
+            h.shortBursts.insert(item)
+            s.hold?.shortBursts.insert(item)
+        }
         // Words that are a continuer only in a hold: count when the burst was short.
         for item in h.items where !h.shortItems.contains(item) {
             guard let w = h.final[item] ?? h.partial[item], !Backchannel.isBackchannel(w),
-                  Backchannel.isBackchannel(w, inHold: true), isShort(item, s, at: t) else { continue }
+                  Backchannel.isBackchannel(w, inHold: true, final: h.final[item] != nil),
+                  h.shortBursts.contains(item) || isShort(item, s, at: t) else { continue }
             h.shortItems.insert(item)
             s.hold?.shortItems.insert(item)
             s.shortHoldItems.append(item)
@@ -1310,7 +1341,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     speculativeContinuation.yield(.discarded(responseID: sp.responseID, items: sp.items,
                                                              bufferedMs: buffered, byVoice: true, why: "disconnected"))
                 }
-                if s.hold != nil {
+                if s.hold?.probe == true {
+                    graph.player.flush()
+                    s.hold = nil
+                } else if s.hold != nil {
                     // Nothing more comes for her reply: it ends where she paused.
                     graph.player.flush()
                     releaseHold(&s, announce: true)
@@ -1326,6 +1360,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 s.wordsPartial.removeAll()
                 s.responseOpen = false
                 s.lastDoneCompleted = false
+                s.tailDrops.removeAll()                 // the next session never had them
                 resolvePlayedOut(&s)
             case .rolledOver:
                 break                                // the map was rebased at `.uplinkOrigin`
@@ -1348,7 +1383,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 }
                 if forward { brain.yield(.session(e)); forward = false }
                 apply(actions, &s)
-                if s.hold != nil, !s.rejected.contains(item), s.heldStarts[item] == nil {
+                if s.hold != nil, s.hold?.probe != true, !s.rejected.contains(item), s.heldStarts[item] == nil {
                     // More of what they say over her: it decides the hold too.
                     s.hold?.add(item)
                 }
@@ -1438,9 +1473,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     }
                     if empty, s.tailItems.contains(item) {
                         // The tail of a burst, with nothing in it: out of the conversation,
-                        // and never "words failed" for the brain (that answers it).
-                        mark(.note, detail: "empty tail dropped \(item)")
-                        command(.run { await $0.dropUserItem(itemID: item, resumePreempted: false) })
+                        // and never "words failed" for the brain (that answers it). Tune 7
+                        // (T6-1): not while a reply may be on its way unheard — the session
+                        // cancels a reply whose turn the dropped item is (it was the latest
+                        // commit when the brain asked): "Are you awake?" was never answered.
+                        if !s.tailDrops.contains(item) { s.tailDrops.append(item) }
+                        flushTailDrops(&s, at: t)
                         forward = false
                     }
                 }
@@ -1465,6 +1503,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
 
             case .responseStarted(let id, let kind):
                 s.responseOpen = true
+                s.lastResponseStartAt = t
                 // Stopped before we saw it start (its events were still in the pump)?
                 if s.gate.responseStarted(at: t) { mark(.note, detail: "response \(id) was stopped before it started") }
                 s.responseKind = kind
@@ -1496,6 +1535,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 for id in summary.itemIDs { s.itemCompleted[id] = completed }
                 s.lastDoneCompleted = completed
                 s.responseOpen = false
+                s.lastResponseDoneAt = t
                 if s.responseGated, let sp = s.spec, let id = summary.responseID, sp.responseIDs.contains(id) {
                     s.spec?.complete = true
                     let buffered = sp.items.reduce(0) { $0 + graph.player.bufferedMs(utterance: $1) }
@@ -1546,6 +1586,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         if !s.responseHasAudio {
             s.responseHasAudio = true
             mark(.firstAudioDelta, detail: item)
+            flushTailDrops(&s, at: t)          // its first audio is in: the session no longer cancels it
             if s.responseKind == .initiative {
                 s.core.initiativePending = false
                 if s.core.userIsSpeaking(at: t) {
@@ -1785,6 +1826,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 s.graceItems.append(item)
                 if s.graceItems.count > 16 { s.graceItems.removeFirst(s.graceItems.count - 16) }
                 mark(.note, detail: "after resume: words decide \(item)")
+            case .bargeIn(let item) where s.hold?.probe == true:
+                // Their voice in her silence: the probe was them. A hold since the pause.
+                confirmProbe(item, &s)
+                if let item { accept(item, &s) }
             case .bargeIn(let item):
                 if configuration.holdOnBargeIn, s.sessionPlaying, s.lastSessionItem != nil, s.hold == nil, herVoiceQueued(s) {
                     // Silent at once; whether her reply ends here their words decide.
@@ -1814,6 +1859,23 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             case .deferToWords(let item, let strict):
                 if s.wordsPending[item] == nil { s.wordsPending[item] = (graph.now, [], strict) }
                 mark(.note, detail: "words decide \(item)")
+            case .probe(let item):
+                // Tune 7 (T6-4): pause her and listen. Not right after she went on from
+                // a backchannel (`resumeGrace`: those onsets are left to their words).
+                let now = graph.now
+                guard configuration.holdOnBargeIn, s.sessionPlaying, s.lastSessionItem != nil, s.hold == nil,
+                      herVoiceQueued(s), s.lastResumeAt.map({ now - $0 <= Self.resumeGrace + 1e-9 }) != true else { break }
+                graph.player.hold()
+                var h = FloorHold(itemID: nil, since: now)
+                h.probe = true
+                s.hold = h
+                mark(.note, detail: "probe \(item)")
+            case .probeEnded:
+                guard s.hold?.probe == true else { break }
+                // Nobody spoke into her silence: she goes on from exactly there.
+                s.hold = nil
+                graph.player.resume()
+                mark(.note, detail: "probe over")
             case .cancelInitiative:
                 // Its first audio may already be on the way: dropped on arrival.
                 closeGateBeforeAudio(&s, at: graph.now)
@@ -1835,6 +1897,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     private func wordsDecided(_ item: String, user: Bool, _ s: inout Inner) {
         s.wordsPartial[item] = nil
         guard let pending = s.wordsPending.removeValue(forKey: item) else { return }
+        s.core.wordsDecided(itemID: item)
         if user {
             release(item, &s)
             for e in pending.events {
@@ -1909,6 +1972,16 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// they say "go on", she goes quiet now and the brain answers them (which
     /// ends her reply where she paused).
     private func holdForWords(_ item: String, text: String, partialAt: Double?, _ s: inout Inner) {
+        if s.hold?.probe == true, s.sessionPlaying, !Backchannel.isBackchannel(text) {
+            // Words she never said, while a probe has her paused: it is a hold since then.
+            confirmProbe(item, &s)
+            s.core.probeConfirmed()
+            if let partialAt {
+                s.hold?.partial[item] = text
+                s.hold?.lastDeltaAt = partialAt
+            }
+            return
+        }
         guard s.sessionPlaying, herVoiceQueued(s), s.hold == nil, !Backchannel.isBackchannel(text) else { return }
         graph.player.hold()
         var h = FloorHold(itemID: item, since: graph.now)
@@ -1921,11 +1994,51 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         holdContinuation.yield(.paused(itemID: item))
     }
 
+    /// Tune 7 (T6-1): a reply may be on its way with no audio yet — requested (the
+    /// brain's `.responseCreateSent` mark, an armed speculation) or started — or a
+    /// queued one may start right after the last response ended. Dropping a user
+    /// item now could cancel it (`RealtimeSession.dropUserItem`).
+    private func replyMayBeComing(_ s: Inner, at t: Double) -> Bool {
+        if s.responseOpen, !s.responseHasAudio, s.responseKind != .initiative { return true }
+        if s.spec?.phase == .armed { return true }
+        if let sent = timeline.lastTime(of: .responseCreateSent), sent > (s.lastResponseStartAt ?? -.infinity),
+           t - sent < Self.requestWait { return true }
+        if let done = s.lastResponseDoneAt, t - done < Self.doneGuard { return true }
+        return false
+    }
+
+    /// A request with no response this long after it was refused or lost.
+    static let requestWait = 2.0
+    /// A queued request is sent when the previous response ends: its response
+    /// starts within this.
+    static let doneGuard = 0.5
+
+    /// Drops the empty tails once no reply can be cancelled by it.
+    private func flushTailDrops(_ s: inout Inner, at t: Double) {
+        guard !s.tailDrops.isEmpty, !replyMayBeComing(s, at: t) else { return }
+        for item in s.tailDrops {
+            mark(.note, detail: "empty tail dropped \(item)")
+            command(.run { await $0.dropUserItem(itemID: item, resumePreempted: false) })
+        }
+        s.tailDrops.removeAll()
+    }
+
+    /// Tune 7: the probe was the user (their voice in her silence, or their words):
+    /// a hold from when she paused, announced to the brain now.
+    private func confirmProbe(_ item: String?, _ s: inout Inner) {
+        guard s.hold?.probe == true else { return }
+        s.hold?.probe = false
+        if let item { s.hold?.add(item) }
+        mark(.note, detail: "probe confirmed \(item ?? "-")")
+        holdContinuation.yield(.paused(itemID: item))
+    }
+
     /// A hold ended as a real barge-in: marked when she paused (she was silent
     /// from then on); announced (`.bargeIn`) only when `announce`.
     private func releaseHold(_ s: inout Inner, announce: Bool) {
         guard let h = s.hold else { return }
         s.hold = nil
+        if h.probe { return }                      // nothing was announced: nothing ends
         timeline.mark(.bargeIn, at: h.since, detail: h.itemID)
         if announce { continuation.yield(.bargeIn) }
         holdContinuation.yield(.ended(itemIDs: h.items, byVoice: announce))

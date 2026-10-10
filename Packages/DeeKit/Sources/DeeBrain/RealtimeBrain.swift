@@ -280,6 +280,8 @@ public final class RealtimeBrain: ReplyEngine {
         var sentencesStarted = 0
         /// A story or an explanation was asked for: no sentence cap.
         var longOK = false
+        /// Tune 7 (T6-6): the sentences its DNA `Length:` line allows (`TurnPolicy.sentenceBudget`).
+        var budget: Int?
         /// One of its sentences was heard (counted in `heardReplies`).
         var heardOnce = false
         /// When the brain asked for it (tune 6: a turn committed before this saw it).
@@ -589,7 +591,8 @@ public final class RealtimeBrain: ReplyEngine {
                 tokenLimited.remove(item)
                 stopVoice()
             } else if narrationItems.contains(item),
-                      TurnPolicy.isNarration(text) || TurnPolicy.isUnfinishedAim(text) || TurnPolicy.isAppReferral(text) {
+                      TurnPolicy.isNarration(text) || TurnPolicy.isUnfinishedAim(text) || TurnPolicy.isAppReferral(text)
+                        || TurnPolicy.isSelfReport(text) {
                 // A narrated sentence after her answer ("Let me think about how to respond."): never heard.
                 narrationReached(item)
             } else if let id, let c = channels[id], overSentenceCap(c) {
@@ -766,6 +769,20 @@ public final class RealtimeBrain: ReplyEngine {
 
     private func overHerVoice(_ item: String) -> Bool {
         inHold(item) || startedOverHerVoice.contains(item) || voice.wasBackchannel(itemID: item)
+    }
+
+    /// Tune 7 (T6-3): `item` was said while she talks — over her voice, or her reply is
+    /// playing or paused in a hold right now (a tail with no start of its own, said after
+    /// she went on through a backchannel).
+    private func duringHerSpeech(_ item: String) -> Bool {
+        overHerVoice(item) || !playing.isEmpty || voice.floorHold != nil
+    }
+
+    /// Words over her voice that only mean "go on": a backchannel, or a misheard short
+    /// fragment (`TurnPolicy.isMisheardFragment`: "Put going.", "Grand.", "She.", "Done.").
+    /// Tune 7 decision: backchannels continue her.
+    private func goOnWords(_ item: String, _ text: String) -> Bool {
+        isBackchannel(item, text) || (duringHerSpeech(item) && TurnPolicy.isMisheardFragment(text))
     }
 
     /// The item is in the voice's current hold (her reply paused for it).
@@ -1093,7 +1110,7 @@ public final class RealtimeBrain: ReplyEngine {
         case .answer(let appraisal):
             utterances[item]?.appraisal = appraisal
             if u.backchannel {
-                if isBackchannel(item, text) {
+                if goOnWords(item, text) {
                     // "Keep going": she went on (or was asked to carry on); not a turn.
                     if !u.requested { await session.userTurnHandled(itemID: item) }
                     settle(item)
@@ -1109,7 +1126,8 @@ public final class RealtimeBrain: ReplyEngine {
             }
             // Tune 5 F6: a continuer said over her ("Sheep going." for "Keep going", a bare
             // "I'm listening.") is never answered: she goes on.
-            if !u.requested, !u.backchannel, overHerVoice(item), isBackchannel(item, text) {
+            // Tune 7 (T6-3): a misheard short fragment while she talks ("Grand.", the tail "Done.").
+            if !u.requested, !u.backchannel, duringHerSpeech(item), goOnWords(item, text) {
                 utterances[item]?.backchannel = true
                 await backchannel(item)
                 settle(item)
@@ -1202,7 +1220,11 @@ public final class RealtimeBrain: ReplyEngine {
               overHerVoice(item), let p = partials[item] else { return }
         let text = p.text.trimmingCharacters(in: .whitespacesAndNewlines)
         let w = TurnPolicy.words(text)
-        guard w.count >= 2, !Backchannel.mayBecomeBackchannel(text), !Self.mayBecomeHoldContinuer(w),
+        // Tune 7 (T6-3): never on one or two words ("Put going" was "Keep going"): those wait
+        // for their settled or full words, where a misheard fragment is a backchannel. Two
+        // words that already ask ("Who made", "Are you") still decide at once.
+        guard w.count >= 3 || (w.count == 2 && TurnPolicy.startsQuestion(w)), !TurnPolicy.isMisheardFragment(text),
+              !Backchannel.mayBecomeBackchannel(text), !Self.mayBecomeHoldContinuer(w),
               !TurnPolicy.isBackchannel(text), TurnPolicy.unfinished(text) != .holdOn else { return }
         partialsChecked.insert(item)
         utterances[item]?.partialDecided = true
@@ -1233,7 +1255,7 @@ public final class RealtimeBrain: ReplyEngine {
         guard !clean.isEmpty else { return }
         if u.plan == .waitForPartial, !u.requested, !u.partialDecided {
             utterances[item]?.partialDecided = true
-            if isBackchannel(item, clean) {
+            if goOnWords(item, clean) {
                 utterances[item]?.backchannel = true
                 await backchannel(item)
             } else if let kind = TurnPolicy.held(clean, after: previousWords(before: item)) {
@@ -1341,6 +1363,19 @@ public final class RealtimeBrain: ReplyEngine {
             record(.appReferral(takenBack: false))
             narrationItems.insert(item)
             if let now = currentSentence[item], TurnPolicy.isAppReferral(now) { narrationReached(item) }
+        } else if let k = TurnPolicy.selfReportSentence(in: text) {
+            // Tune 7 (T6-7): "Tiny robot report: it feels like…" — a status read-out of
+            // herself, never heard. First sentence: taken back and asked again once (with
+            // `noReportNote`); later: she stops before it.
+            openingsChecked.insert(item)
+            replyOpenings[item] = nil
+            if k == 0, await preambleFound(channel: id, note: TurnPolicy.noReportNote) {
+                record(.selfReport(takenBack: true))
+                return
+            }
+            record(.selfReport(takenBack: false))
+            narrationItems.insert(item)
+            if let now = currentSentence[item], TurnPolicy.isSelfReport(now) { narrationReached(item) }
         } else if let k = TurnPolicy.metaSentence(in: text) {
             openingsChecked.insert(item)
             replyOpenings[item] = nil
@@ -1522,6 +1557,7 @@ public final class RealtimeBrain: ReplyEngine {
         host.brainStartedReply(BrainReply(kind: kind == .retry ? .retry : .voice, events: channelStream(id)))
         channels[id]?.item = item
         channels[id]?.requestedAt = clock()
+        channels[id]?.budget = TurnPolicy.sentenceBudget(length: dna.guidance.length)
         if let t = text ?? utterances[item]?.text, TurnPolicy.wantsLongAnswer(t) { channels[id]?.longOK = true }
         // Speculative (tune 4): the turn may not be over yet; her audio is held until it is.
         let gate = speculationWanted(item: item)
@@ -1753,7 +1789,8 @@ public final class RealtimeBrain: ReplyEngine {
     /// explanation, nor in thinking mode.
     private func overSentenceCap(_ c: Channel) -> Bool {
         guard let cap = options.sentenceCap, !c.aside, !c.longOK, !thinking.isOn else { return false }
-        return c.sentencesStarted > cap
+        // Tune 7 (T6-6): the turn's own budget, never more than the cap.
+        return c.sentencesStarted > min(cap, c.budget ?? cap)
     }
 
     private func channelUnheard(_ id: Int) -> Bool {
@@ -2013,7 +2050,13 @@ public final class RealtimeBrain: ReplyEngine {
             voice.releaseSpeculative()
         }
         voice.timeline.mark(.responseCreateSent, at: voice.graph.now)
-        return try await session.requestResponse(dna: dna, maxOutputTokens: maxOutputTokens, reasoningEffort: effort.rawValue)
+        // Tune 7 (T6-1): the reply answers the turn the brain asked it for, by name — never
+        // whatever the server committed last. Live (interrupt-clean q02, fan15 q08) the
+        // answer to "Are you awake?" went out just after the server committed an empty tail
+        // of the same burst; keyed to that tail, it was cancelled when the tail was dropped.
+        let answering = (channel ?? speculate?.channel).flatMap { channels[$0]?.item }
+        return try await session.requestResponse(dna: dna, maxOutputTokens: maxOutputTokens, reasoningEffort: effort.rawValue,
+                                                 answering: answering)
     }
 
     /// An initiative or canned line: refused while the user talks or her voice is
@@ -2128,4 +2171,7 @@ public enum BrainTrace: Sendable, Equatable {
     /// Over her voice, the first words that cannot become a backchannel decided the turn
     /// before they settled (tune 6).
     case earlyWords
+    /// Her reply frames itself as a robot's report or status ("Tiny robot report: …",
+    /// tune 7): taken back unheard in its first sentence (`takenBack`), else she stops before it.
+    case selfReport(takenBack: Bool)
 }

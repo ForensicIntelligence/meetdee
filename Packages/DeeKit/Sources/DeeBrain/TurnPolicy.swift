@@ -410,6 +410,60 @@ public enum TurnPolicy {
         Backchannel.isBackchannel(text)
     }
 
+    // MARK: Misheard fragments over her voice (tune 7, T6-3)
+
+    /// Clear stop words: said over her voice they are never a backchannel, however short.
+    static let stopFragments: Set<String> = [
+        "stop", "wait", "pause", "quiet", "shush", "shh", "sh", "hush", "enough", "no", "nope", "cancel", "bye", "goodbye",
+        "goodnight", "nevermind", "sorry", "help", "hey", "excuse", "hold", "hang", "shut", "listen", "look", "dee", "d",
+    ]
+    /// Two-word stops ("hold on", "be quiet").
+    static let stopPhrases: Set<String> = [
+        "hold on", "hang on", "be quiet", "shut up", "never mind", "good night", "not now", "too much", "too long", "that's enough",
+    ]
+    /// A question without its question mark ("Who made", "Why not").
+    static let questionStarters: Set<String> = [
+        "what", "what's", "whats", "why", "how", "how's", "who", "who's", "where", "where's", "when", "which", "can", "could",
+        "do", "does", "did", "is", "are", "was", "were", "will", "would", "should", "may", "am", "have", "has", "shall",
+    ]
+    /// A two-word sentence about them or her ("I'm bored", "Love you") is a clear turn…
+    static let personal: Set<String> = [
+        "i", "i'm", "im", "i've", "i'd", "i'll", "me", "my", "you", "you're", "youre", "your", "we", "we're", "let's", "lets",
+    ]
+    /// …unless it is a reaction that only says "go on".
+    static let reactionPhrases: Set<String> = [
+        "i see", "i know", "me too", "thank you", "you bet", "i bet", "i agree", "you're right", "me neither", "i guess",
+    ]
+    static let humFillers: Set<String> = ["um", "uh", "er", "erm", "hmm"]
+
+    /// Tune 7 (T6-3): over her voice, a short (≤ 2 words) fragment that is not clearly a
+    /// stop or a question is a backchannel, however the transcriber spelled it. Live tune
+    /// 6, four backchannels stopped her: "Keep going" came back as "Put going." and as
+    /// "She.", "Go on" as "Grand.", and the tail of "Mm-hm" as "Done." — each answered
+    /// (or decided early) as a turn, cutting her reply. A clear stop ("Stop.", "Wait.",
+    /// "No.", "Hold on."), a question ("Why?", "Who made…"), a call of her name or a letter
+    /// ("Dee.", "D.": the start of a turn), a number, or a two-word sentence about them or
+    /// her ("I'm bored.", "Love you.") still counts as words for her.
+    public static func isMisheardFragment(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty, !t.contains("?") else { return false }
+        let w = words(t).filter { !humFillers.contains($0) }
+        guard (1...2).contains(w.count) else { return false }
+        let phrase = w.joined(separator: " ")
+        if stopPhrases.contains(phrase) || w.contains(where: stopFragments.contains) { return false }
+        if questionStarters.contains(w[0]) { return false }
+        if isFragmentOrAddress(w) || w.contains(where: addressWords.contains) { return false }
+        if w.contains(where: { $0.contains(where: \.isNumber) }) { return false }
+        if w.count == 2, w.contains(where: personal.contains), !reactionPhrases.contains(phrase) { return false }
+        return true
+    }
+
+    /// The first words of a partial that are already a question ("Who made", "Are you").
+    public static func startsQuestion(_ words: [String]) -> Bool {
+        guard let first = words.first else { return false }
+        return questionStarters.contains(first)
+    }
+
     /// The note on a turn answered again after a spoken preamble was cut.
     public static let answerStraightNote = "Answer them straight away; if you use a tool, call it without saying anything first"
 
@@ -675,6 +729,59 @@ public enum TurnPolicy {
     /// The note on a turn answered again after her first sentence sent them to an app.
     public static let noAppNote =
         "You have no apps, clock, forecast or calendar to send them to: answer as Dee in a few words, from what you know or feel"
+
+    // MARK: The reply's sentence budget (tune 7, T6-6)
+
+    /// Sentences she may say for a DNA `Length:` value, counting every sentence the voice
+    /// plays (a short exclamation too: "Oh, wow." "Nice."): "at most three" → 3, "at most
+    /// two" → 2, "one short sentence" → 2 (a one-word opener must not leave her with
+    /// nothing). Live tune 6, excited replies ran to six short sentences under a two-
+    /// sentence Length ("Oh, wow. That sounds amazing. Biggest volcano in class? Nice. …")
+    /// and the fixed cap of three let the third play.
+    public static func sentenceBudget(length: String) -> Int {
+        length.lowercased().contains("three") ? 3 : 2
+    }
+
+    // MARK: Self-narrated status reports (tune 7, T6-7)
+
+    /// Her talking about herself as a machine giving a status read-out ("Tiny robot report:
+    /// it feels like a lot of effort…", live tune 6 interrupt-fan15 l02; the judge read it
+    /// as machinery): never heard.
+    static let reportNouns: Set<String> = [
+        "report", "update", "status", "bulletin", "log", "diagnostic", "diagnostics", "readout", "read-out", "alert",
+        "announcement", "scan", "analysis", "assessment", "check-in", "checkin",
+    ]
+    static let reportSelves: Set<String> = ["robot", "dee", "dee's", "bot", "system", "systems", "circuit", "circuits", "sensor", "sensors", "mood", "feelings", "heart"]
+    static let reportPhrases: [[String]] = [
+        ["status", "report"], ["status", "update"], ["system", "check"], ["systems", "check"], ["system", "status"],
+        ["robot", "status"], ["mood", "report"], ["feelings", "report"], ["heart", "report"], ["internal", "report"],
+        ["processing", "complete"], ["beep", "boop"], ["self", "report"],
+    ]
+
+    /// A sentence that frames her own words as a robot's report or status ("Tiny robot
+    /// report:", "Dee update:", "Status report:", "Mood report: sunny").
+    public static func isSelfReport(_ sentence: String) -> Bool {
+        let head = sentence.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
+        let w = Array(words(sentence).prefix(preambleWords))
+        if contains(w, anyOf: reportPhrases) { return true }
+        // "<…> robot report:" — a self noun and a report noun before a colon.
+        if head.count == 2 {
+            let lead = words(String(head[0]))
+            if lead.count <= 5, lead.contains(where: reportNouns.contains), lead.contains(where: reportSelves.contains) { return true }
+        }
+        for i in 0..<max(0, w.count - 1) where reportSelves.contains(w[i]) && reportNouns.contains(w[i + 1]) { return true }
+        return false
+    }
+
+    /// The first sentence of `text` that is a self-narrated report.
+    public static func selfReportSentence(in text: String) -> Int? {
+        for (i, s) in sentences(text).enumerated() where isSelfReport(s) { return i }
+        return nil
+    }
+
+    /// The note on a turn answered again after her first sentence was a status report.
+    public static let noReportNote =
+        "Talk like yourself, a little companion, never a robot giving a report or a status: answer in plain, warm words"
 
     /// Whether `words` are nothing but hold phrases, possibly repeated ("hold on hold on").
     static func coveredByHoldPhrases(_ words: [String]) -> Bool {

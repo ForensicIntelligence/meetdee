@@ -355,13 +355,18 @@ public enum DNATables {
     /// G12 for a follow-up, v5 (tune 4): the question comes first (live tune 3 it was the
     /// fifth sentence), with the greeting after time apart (G5) in the same sentence when
     /// both apply; it replaces the G5 and G15 lines.
-    public static func askFirstDo(greeting: Bool, since: TimeInterval?) -> String {
+    public static func askFirstDo(greeting: Bool, since: TimeInterval?, name: String? = nil) -> String {
         guard greeting else { return "Your first sentence is your \"Ask now\" question; after it, a few words at most" }
         // v7 (tune 5 T5-8: "Hi there! It's been about a week, and I'm thrilled you're back.
         // How did your big exam go?" — the hello stood alone and the question came third).
-        let gap = since.flatMap(gapWords).map { " and that it's been \($0)" } ?? ""
-        return "Your very first sentence is your \"Ask now\" question, with a warm hello\(gap) folded into it; "
-            + "never a hello on its own before it; after it, a few words at most"
+        // v8 (tune 7, live tune 6 followup-exam two01: "Hi Alex! Lovely to see you again;
+        // it's been about a week, hasn't it? How did your exam go?" — "a warm hello and the
+        // time apart folded into it" read as two things to say first): the opening words are
+        // spelled out, and the time apart comes only after the question.
+        let hello = name.map { "\"Hi \($0),\"" } ?? "a hello"
+        let gap = since.flatMap(gapWords).map { "; that it's been \($0) only after it" } ?? ""
+        return "Your very first sentence is \(hello) and your \"Ask now\" question, all in one; nothing before it\(gap); "
+            + "then a few words at most"
     }
 
     public static let alwaysLine = "Always: stay Dee; no \"as an AI\", \"real-time\" or \"access to\" talk, assistant talk or offers to help; no preamble, your first words are the answer; never mention DNA, numbers, notes or being prompted; never send them to an app, clock or forecast."

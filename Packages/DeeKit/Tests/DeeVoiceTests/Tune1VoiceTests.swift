@@ -81,6 +81,13 @@ struct RoomSim {
     var mic: [Float] = []
     var sent: [Float] = []
     var bars: [Double?] = []
+    /// Tune 7: on `.probe` CloudVoice pauses her (her output and its echo go
+    /// silent, the player stays busy) until `.probeEnded` / `.bargeIn`. Off: probes
+    /// are ignored (she plays on).
+    var honorProbes = false
+    var probes: [Double] = []
+    var probeEnds: [Double] = []
+    var probing = false
 
     enum ServerSpeech {
         case start(String, onsetSample: Int)
@@ -131,6 +138,7 @@ struct RoomSim {
             let a = k * Self.frame, b = a + Self.frame
             let t = Self.time(b)
             // Her output this block (silent after a flush).
+            if probing { for i in a..<b { her[i] = 0 } }    // paused (the rest is dropped here)
             var out = Array(her[a..<b])
             if let c = cutAt { for i in 0..<out.count where a + i >= c { out[i] = 0 } }
             if let c = cutAt, c < b { for i in max(a, c)..<b { her[i] = 0 } }
@@ -191,7 +199,7 @@ struct RoomSim {
             if core.userIsSpeaking(at: t) { speakingFrames += 1 }
             // She stops: flushed by a barge-in, or her audio ran out (the player
             // goes idle once an utterance has played; 200 ms of nothing ends it).
-            silentBlocks = hasAudio ? 0 : silentBlocks + 1
+            silentBlocks = hasAudio || probing ? 0 : silentBlocks + 1
             if playing, let c = cutAt, c <= b {
                 playing = false
                 record(core.playbackFinished(at: t), at: t)
@@ -207,6 +215,15 @@ struct RoomSim {
             log.append((t, a))
             if case .bargeIn = a, cutAt == nil {
                 cutAt = Int(((t - Self.t0) * Self.rate).rounded())
+            }
+            if case .bargeIn = a { probing = false }
+            if case .probe = a, honorProbes, cutAt == nil {
+                probes.append(t)
+                probing = true
+            }
+            if case .probeEnded = a, probing {
+                probeEnds.append(t)
+                probing = false
             }
         }
     }

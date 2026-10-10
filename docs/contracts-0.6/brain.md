@@ -262,6 +262,34 @@ exact, higher effort) while nothing of the fast reply was heard.
   A sentence that sends them to an app, a clock, a forecast, a calendar or a search (`isAppReferral`) is taken back in
   her first sentence (asked again once with `noAppNote`) or stopped before later (trace `.appReferral`).
 
+### Tune 7 (live run 20261010-035320, `tune6-live.md`)
+
+- **The answer belongs to the question (T6-1).** Every reply names the turn it answers
+  (`requestResponse(dna:…, answering: item)`, the channel's user item), never whatever the server committed last.
+  Live (interrupt-clean q02, interrupt-fan15 q08) the answer was asked for just after the server committed an empty
+  tail of the same burst; keyed to that tail, the voice's drop of it cancelled the answer. Taking a tail away (dropped
+  empty, rejected as her echo, not for her) now never touches the question's answer. DeeRealtime (tune 7) adds the
+  parameter and keeps a reply whose dropped item said nothing.
+- **Misheard short fragments over her are backchannels (T6-3; decision: backchannels continue her).** While she
+  talks (over her voice, her reply playing or paused in a hold), one or two words that are not clearly a stop ("Stop.",
+  "Wait.", "No.", "Hold on."), a question ("Why?", "Who made…"), her name or a letter ("Dee.", "D."), a number or a
+  two-word sentence about them or her ("I'm bored.", "Love you.") are a backchannel (`TurnPolicy.isMisheardFragment`,
+  `goOnWords`): "Put going.", "Grand.", "She.", the tail "Done.". Over her voice the early words decide only from three
+  words, or two that ask ("Who made", "Are you"); one or two wait for their settled or full words. The same rule for the
+  voice's hold is `scratchpad/tune7-brain-to-voice.patch` (`Backchannel.isBackchannel(_:inHold: true)`).
+- **The sentence budget (T6-6).** She stops before the sentence past the turn's own budget
+  (`TurnPolicy.sentenceBudget` of the DNA Length line: three → 3, two or one → 2; never more than `sentenceCap`; not for
+  a story, an explanation or thinking mode). Every sentence the voice plays counts, a short exclamation too.
+- **Never a robot's report (T6-7).** A sentence that frames her words as a robot's report or status
+  (`TurnPolicy.isSelfReport`: "Tiny robot report: …", "Status update: …", "Beep boop") is taken back in her first
+  sentence (asked again once with `noReportNote`) or stopped before later (trace `.selfReport`).
+- **Early request at the local end of speech (T6-5): tried on paper, not kept.** Tune-6 live: end of speech → commit
+  p50 0.51 s (n = 153); a request at EarCore's last voice + 0.25 s would save ≈ 0.2 s, but the release gate (0.8 s quiet
+  + 0.12 s re-check ≈ 0.92 s) would then be the only thing holding her where today the audio itself comes at ≈ 1.15 s.
+  joke-echo30 j01 (punchline 1.04 s after the set-up) falls in that window: today the resume holds her; with the early
+  request she would play over the punchline. And 90 of 253 within-turn pauses (0.28–0.45 s) that the server does not
+  split today would be split by the client commit. DeeRealtime's `respondToSpeech` stays available.
+
 ## DNA delivery (DNA.md §4)
 
 `buildDNA`: `host.dnaParts(DNARequest)` (the host calls `Cortex.cue(at:)` first unless the
@@ -335,9 +363,14 @@ unless an item is still playing, 300 s absolute). Initiatives are refused while 
 
 ## Open asks
 
-- **DeeRealtime (tune 6, T5-2):** apply `scratchpad/tune6-voice-realtime-openSpeech.patch` (a committed open speech
-  ends at the next `speech_stopped` of any item). Until then every answer whose question the voice committed early is
-  preempted at its first audio. Then drop the `withKnownIssue` in `Tune6BrainTests.liveQ02TheEmptyTailIsNeverAnswered`.
+- **DeeVoice (tune 7, T6-3):** apply `scratchpad/tune7-brain-to-voice.patch`: the hold's short-burst rule
+  (`Backchannel.isBackchannel(_:inHold: true)`) takes a misheard one- or two-word fragment as "go on", so the voice's
+  own hold decision and the brain agree ("Put going.", "Grand.", "She.", "Done.").
+- **Voice harness (tune 7, T6-6):** the reply-length gate still counts generated sentences; the brain stops her at the
+  turn's budget, so count heard sentences too (heard ≤ 3 was 144/145 in tune 6).
+
+- **DeeRealtime (tune 6, T5-2):** done (the `openSpeech` patch is in checkpoint 6ba5e91; the `withKnownIssue`
+  wrappers are gone).
 - **DeeVoice (tune 6, T5-3):** an "end the hold, keep the speculation" path (`stopSpeaking` / `cutReply` without
   `specCut`, the speculative response's gate kept open, only her old items flushed). With it the brain asks for the
   answer at the hold's commit (≈ 1.1–1.2 s instead of ≈ 1.5 s).

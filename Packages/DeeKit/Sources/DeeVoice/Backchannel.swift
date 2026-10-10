@@ -51,9 +51,12 @@ public enum Backchannel {
         isBackchannel(text, inHold: false)
     }
 
-    /// `inHold`: said in a hold, in a short burst — the hold-only continuers count too.
-    public static func isBackchannel(_ text: String, inHold: Bool) -> Bool {
+    /// `inHold`: said in a hold, in a short burst — the hold-only continuers count too,
+    /// and (tune 7), in its full transcript (`final`), a misheard fragment
+    /// (`isMisheardFragment`; a settled partial "I'm" may still become a turn).
+    public static func isBackchannel(_ text: String, inHold: Bool, final: Bool = true) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if inHold, final, isMisheardFragment(trimmed) { return true }
         guard !trimmed.isEmpty, !trimmed.hasSuffix("?") || questionContinuers.contains(trimmed.lowercased()) else { return false }
         let all = words(trimmed.replacingOccurrences(of: "-", with: " "))
         guard !all.isEmpty, all.count <= 8 else { return false }
@@ -69,6 +72,34 @@ public enum Backchannel {
                 || segments(kept, inHold: inHold)
         }
     }
+
+    /// Words that are never a misheard "go on": they stop her, call her, or ask.
+    static let notFragments: Set<String> = [
+        "stop", "wait", "hold", "pause", "quiet", "shush", "shh", "hush", "enough", "halt", "cancel", "never",
+        "nevermind", "no", "nope", "not", "don't", "dont", "hey", "hello", "hi", "dee", "excuse", "sorry", "help",
+        "listen", "what", "why", "how", "who", "where", "when", "which", "whose", "can", "could", "will", "would",
+        "should", "do", "does", "did", "is", "are", "am", "was", "were", "tell", "say", "repeat", "again", "but",
+        "actually", "i", "me", "my", "you", "your", "we", "it", "that", "this",
+    ]
+
+    /// Tune 7 (T6-3, live): a backchannel over her voice comes back from transcription
+    /// as a short fragment that means nothing on its own — "Put going.", "Grand." ("Go
+    /// on."), "She." ("Keep going"), "Done." ("Mm-hm."'s tail). In a hold, in a short
+    /// burst, it is a "go on" (the decision: backchannels continue her): at most two
+    /// words (fillers aside), no question, no number, none of `notFragments`.
+    public static func isMisheardFragment(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.contains("?") else { return false }
+        let kept = words(trimmed.replacingOccurrences(of: "-", with: " ")).filter { !fillers.contains($0) || $0 == "no" }
+        guard (1...2).contains(kept.count) else { return false }
+        if kept.contains(where: { notFragments.contains($0) || $0.contains(where: \.isNumber) }) { return false }
+        // Two words: only the end of a continuer survived ("Put going."); "I'm hungry." is a turn.
+        return kept.count == 1 || fragmentEnds.contains(kept[1]) || isHum(kept[1])
+    }
+
+    /// The last word a misheard two-word continuer keeps.
+    static let fragmentEnds: Set<String> = ["going", "goin", "on", "listening", "ahead"]
+
 
     /// Tune 6: partial words that are, or may still become, a backchannel ("I'm",
     /// "Keep", "I'm listen"): every clause but the last is one, and the last is the
@@ -121,7 +152,7 @@ public enum Backchannel {
     /// A hum however it is spelled: "mm-hm", "mhm", "hmm", "mmhn" (tune 2 live:
     /// "Mm-hm." came back as "MMHN.").
     static func isHum(_ w: String) -> Bool {
-        w.count >= 2 && w.count <= 6 && w.allSatisfy { "mhnu".contains($0) } && w.contains("m")
+        (w.count >= 2 && w.count <= 6 && w.allSatisfy { "mhnu".contains($0) } && w.contains("m")) || w == "hn"
     }
 
     static func words(_ text: String) -> [String] {

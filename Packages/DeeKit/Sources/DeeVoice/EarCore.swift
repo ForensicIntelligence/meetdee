@@ -71,6 +71,17 @@ public struct EarCore: Sendable {
         /// was sound her echo model didn't explain (no other voice's pitch) — the
         /// words must be clearly not hers.
         case deferToWords(itemID: String, strict: Bool)
+        /// Tune 7 (T6-4): without echo cancellation (her echo as loud as the user),
+        /// an onset over her voice is still undecided, but there is a
+        /// voice in its window her echo model doesn't explain: pause her now and
+        /// listen in her silence (her loud echo masks the user; without it their
+        /// voice shows at once). Neither accepted nor deleted: the decision follows
+        /// as usual (`.bargeIn` once the evidence is there). Once per item.
+        case probe(itemID: String)
+        /// Tune 7: the probe heard nobody (quiet `probeQuiet` once her echo had
+        /// cleared, or `probeMax`): she goes on from where she paused. A probe the
+        /// user's voice confirms ends with `.bargeIn` instead.
+        case probeEnded
         /// The user started talking before an initiative's first audio.
         case cancelInitiative
         /// Mic audio should (true) or should no longer (false) go to the server.
@@ -84,6 +95,13 @@ public struct EarCore: Sendable {
 
     /// Her voice's room tail after the last sample leaves the speaker.
     public static let echoTail = 0.5
+    /// Tune 7 (T6-4): a probe (`.probe`) ends once nobody made a sound into her
+    /// silence for this long — longer than the gap in "Wait, … stop talking" — …
+    public static let probeQuiet = 0.7
+    /// …counted from when her echo has left the room after the pause…
+    public static let probeEchoClear = 0.15
+    /// …and never lasts longer than this.
+    public static let probeMax = 1.5
     /// Longest wait for evidence on a server onset while she keeps playing.
     public static let decisionTimeout = 1.5
     /// Tune 3: an onset the server still holds open after she stopped is given up
@@ -288,6 +306,13 @@ public struct EarCore: Sendable {
         var arrivedAt: Double
     }
     private var pending: [Pending] = []
+    /// Tune 7: onsets a `.probe` was sent for (newest 16).
+    private var probed: [String] = []
+    /// Tune 7: when the current probe paused her (nil: none).
+    private var probeSince: Double?
+    /// Items left to their words while the probe is on: it waits for them (their
+    /// words may be the user's "Stop." that her echo hid), up to `probeMax`.
+    private var probeWaits: Set<String> = []
     /// The user's speech item the server has open (and that is not echo).
     public private(set) var serverOpen: String?
     /// Tune 6: `serverOpen` was committed while still open (the voice's quick commit
@@ -665,6 +690,7 @@ public struct EarCore: Sendable {
         }
         actions += decide(at: t, final: nil)
         actions += localOnlyBargeIn(at: t)
+        actions += checkProbe(at: t)
         actions += syncUplink(at: t)
         actions += syncLocalSpeech(at: t)
         return actions
@@ -679,6 +705,7 @@ public struct EarCore: Sendable {
         }
         actions += decide(at: t, final: nil)
         actions += localOnlyBargeIn(at: t)
+        actions += checkProbe(at: t)
         actions += syncUplink(at: t)
         actions += syncLocalSpeech(at: t)
         return actions
@@ -723,6 +750,8 @@ public struct EarCore: Sendable {
     public mutating func playbackResumed(at t: Double) -> [Action] {
         latest = max(latest, t)
         guard speaking else { return [] }
+        probeSince = nil
+        probeWaits.removeAll()
         bargedIn = false
         lastStretchBarged = false
         stretchStart = t
@@ -749,6 +778,8 @@ public struct EarCore: Sendable {
     public mutating func playbackFinished(at t: Double) -> [Action] {
         latest = max(latest, t)
         guard speaking else { return [] }
+        probeSince = nil
+        probeWaits.removeAll()
         speaking = false
         playbackEnd = t
         lastStretchBarged = bargedIn
@@ -943,6 +974,49 @@ public struct EarCore: Sendable {
         }
         return (all, pitched)
     }
+
+    /// Tune 7 (T6-4): a voice in the pending onset's window that her echo doesn't
+    /// explain — the same hint that leaves an item to its words at its stop
+    /// (`deferToWords`), seen while the item is still open.
+    private func probeHint(_ p: Pending, at t: Double) -> Bool {
+        let from = max((items[p.itemID]?.onset ?? p.arrivedAt - 0.3) - 0.3, resumedAt)
+        let hint = voiceHint(from: from, to: t)
+        return hint.pitched >= Self.wordsHint - 1e-9 || hint.unexplained >= Self.wordsHintUnexplained - 1e-9
+    }
+
+    /// Tune 7: the probe is over when nobody spoke into her silence (`probeQuiet`
+    /// after her echo cleared and after their last sound), or at `probeMax`.
+    private mutating func checkProbe(at t: Double) -> [Action] {
+        guard let since = probeSince else { return [] }
+        guard speaking, !bargedIn else { probeSince = nil; probeWaits.removeAll(); return [] }
+        let quietFrom = max(since + Self.probeEchoClear, lastUserSounding)
+        let quiet = t - quietFrom >= Self.probeQuiet - 1e-9 && probeWaits.isEmpty
+        guard quiet || t - since >= Self.probeMax - 1e-9 else { return [] }
+        probeSince = nil
+        probeWaits.removeAll()
+        return [.probeEnded]
+    }
+
+    /// Tests: a probe for the undecided onset `itemID` now (as its hint would start one).
+    mutating func probeNow(_ itemID: String, at t: Double) -> [Action] {
+        guard pending.contains(where: { $0.itemID == itemID }), speaking, !bargedIn, probeSince == nil else { return [] }
+        probed.append(itemID)
+        probeSince = t
+        return [.probe(itemID: itemID)]
+    }
+
+    /// The voice confirmed the probe by their words (`holdForWords`): it is a hold now.
+    public mutating func probeConfirmed() {
+        probeSince = nil
+        probeWaits.removeAll()
+    }
+
+    /// An item left to its words (`deferToWords`) was decided by them (the user's
+    /// or her echo): a probe no longer waits for it.
+    public mutating func wordsDecided(itemID: String) { probeWaits.remove(itemID) }
+
+    /// A probe is on: her voice is paused while the ear listens (`.probe`).
+    public var isProbing: Bool { probeSince != nil }
 
     /// Seconds of frames in the window that hold a voice that isn't hers:
     /// `pitched` near-end frames (over her loud echo: bands she doesn't explain,
@@ -1147,12 +1221,19 @@ public struct EarCore: Sendable {
                     || afterHer >= Self.voiceAfterHer - 1e-9 {
                     // Something of the user may be in it: their words decide.
                     if serverOpen == p.itemID || isFinal { serverOpen = nil }
+                    if probeSince != nil { probeWaits.insert(p.itemID) }
                     actions.append(.deferToWords(itemID: p.itemID, strict: hint.pitched < Self.wordsHint - 1e-9))
                     continue
                 }
                 markRejected(p.itemID)
                 actions.append(.rejectEcho(itemID: p.itemID))
                 continue
+            }
+            if !aecActive, speaking, !bargedIn, !asideOnly, probeSince == nil, !probed.contains(p.itemID), probeHint(p, at: t) {
+                probed.append(p.itemID)
+                if probed.count > 16 { probed.removeFirst(probed.count - 16) }
+                probeSince = t
+                actions.append(.probe(itemID: p.itemID))
             }
             keep.append(p)
         }
@@ -1227,6 +1308,7 @@ public struct EarCore: Sendable {
     }
 
     private mutating func markRejected(_ id: String) {
+        probeWaits.remove(id)
         pending.removeAll { $0.itemID == id }
         if serverOpen == id { serverOpen = nil }
         items[id] = nil

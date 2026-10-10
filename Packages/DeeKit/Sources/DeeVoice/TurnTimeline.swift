@@ -99,6 +99,8 @@ public final class TurnTimeline: Sendable {
     private struct State {
         var turns: [Turn] = []
         var nextID = 1
+        /// Tune 7: when each stage was last marked.
+        var last: [Stage: Double] = [:]
     }
 
     private let state = Mutex(State())
@@ -124,6 +126,7 @@ public final class TurnTimeline: Sendable {
             s.nextID += 1
             let m = Mark(turn: id, stage: stage, t: time, ms: 0, detail: detail)
             s.turns.append(Turn(id: id, start: time, marks: [m]))
+            s.last[stage] = time
             if s.turns.count > keep { s.turns.removeFirst(s.turns.count - keep) }
             return m
         }
@@ -142,6 +145,7 @@ public final class TurnTimeline: Sendable {
                 s.turns.append(Turn(id: id, start: time, marks: []))
             }
             let i = s.turns.count - 1
+            s.last[stage] = time
             if stage.oncePerTurn, s.turns[i].marks.contains(where: { $0.stage == stage }) { return nil }
             let m = Mark(turn: s.turns[i].id, stage: stage, t: time, ms: (time - s.turns[i].start) * 1000, detail: detail)
             s.turns[i].marks.append(m)
@@ -149,6 +153,10 @@ public final class TurnTimeline: Sendable {
         }
         if let mark { publish(mark) }
     }
+
+    /// Tune 7: when `stage` was last marked (any turn; nil: never). The brain marks
+    /// `.responseCreateSent` right before it asks the session for a response.
+    public func lastTime(of stage: Stage) -> Double? { state.withLock { $0.last[stage] } }
 
     /// The turns still in memory, oldest first.
     public func turns() -> [Turn] { state.withLock { $0.turns } }
