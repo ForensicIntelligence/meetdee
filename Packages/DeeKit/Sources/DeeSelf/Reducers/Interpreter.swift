@@ -1100,11 +1100,10 @@ extension Interpreter {
             "rehearsal", "class", "lesson", "shift", "procedure", "biopsy", "physio", "x-ray", "mri", "jab", "vaccine",
             "vet", "court", "trial", "memorial",
         ]
-        static let healthWords: Set<String> = ["surgery", "operation", "doctor", "doctor's", "dentist", "dentist's", "hospital",
-                                               "scan", "checkup", "check-up", "therapy", "biopsy", "physio", "x-ray", "mri",
-                                               "procedure", "jab", "vaccine", "blood", "gp", "clinic", "chemo",
-                                               // Not cheerful either: "how did it go?" is wrong for these.
-                                               "funeral", "hearing", "court", "vet", "trial", "memorial", "results", "treatment"]
+        /// Subjects whose follow-up is the gentle one: serious health and heavy events. An
+        /// ordinary appointment (dentist, check-up, doctor, vet, jab) is asked by name
+        /// ("How did the dentist go?", tune 4 decision a), so it is not listed here.
+        static let healthWords: Set<String> = IntentionBoard.healthWords
         /// A clause with one of these before the event is not a plan ("I have no meeting").
         static let negations: Set<String> = ["no", "not", "don't", "didn't", "won't", "never", "haven't", "hasn't", "isn't",
                                              "aren't", "wasn't", "without"]

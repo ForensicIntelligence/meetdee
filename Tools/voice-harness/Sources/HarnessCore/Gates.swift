@@ -146,7 +146,9 @@ public enum Gates {
         // 8. Reply length.
         g.append(Gate(id: "reply_length", metric: "Reply length ≤ 3 sentences", target: "≥ \(pct(t.replyWithinThree)) of replies",
                       value: "\(pct(m.replyLengthRate)) (\(m.repliesWithinThree)/\(m.replies))", n: m.replies,
-                      status: m.replies == 0 ? .skip : ((m.replyLengthRate ?? 0) >= t.replyWithinThree ? .pass : .fail)))
+                      status: m.replies == 0 ? .skip : ((m.replyLengthRate ?? 0) >= t.replyWithinThree ? .pass : .fail),
+                      note: m.replies == 0 ? nil
+                          : "heard ≤ 3: \(m.repliesHeardWithinThree)/\(m.repliesHeard); unplayed (not counted): \(m.repliesUnplayed)"))
 
         // 9. Memory.
         let memRate = m.memoryProbes > 0 ? Double(m.memoryHits) / Double(m.memoryProbes) : nil

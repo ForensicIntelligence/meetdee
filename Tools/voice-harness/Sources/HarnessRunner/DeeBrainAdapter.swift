@@ -46,6 +46,9 @@ final class HarnessHost: BrainHost {
     /// Tune-2 live cause: 0.6 is one unconfirmed sighting (the Interpreter needs 3), so the
     /// Cortex had no person all scenario: reunion, follow-ups and rituals were silently off.
     static let confirmedDistance: Float = 0
+    /// A/B switch: `DEE_HARNESS_CORTEX_STOP=0` skips the app's `stop()` on a Cortex
+    /// `.stopSpeaking` (default: run it, as DeeModel does).
+    static let cortexStopOff = ProcessInfo.processInfo.environment["DEE_HARNESS_CORTEX_STOP"] == "0"
     let mind: Mind
     let memory: MemoryStore
     let selfStore: SelfStore
@@ -66,6 +69,11 @@ final class HarnessHost: BrainHost {
     private(set) var initiativesStarted = 0
     private(set) var persisted = 0
     var onSentence: ((String, Bool) -> Void)?
+    /// Barge-ins the brain reported (`bargedIn`) and Cortex `.stopSpeaking` effects run.
+    private(set) var bargeInsSensed = 0
+    private(set) var stopsExecuted = 0
+    /// Overrides what `.stopSpeaking` does (tests); nil: the app's `stop()` on the brain.
+    var stopSpeaking: (() -> Void)?
     var onNote: ((String) -> Void)?
     private var snapshot: MindSnapshot
     private var speakingUntil = Date.distantPast
@@ -128,6 +136,17 @@ final class HarnessHost: BrainHost {
             case .say(let line):
                 onNote?("cortex canned line")
                 if let brain { Task { _ = await brain.say(line) } }
+            case .stopSpeaking:
+                // DeeModel.execute(.stopSpeaking) → stop(): the brain stops her voice and
+                // cancels (not a hush). The Cortex asks for it on `.bargeIn` (FloorKeeper).
+                onNote?("cortex stopSpeaking")
+                stopsExecuted += 1
+                if let stopSpeaking { stopSpeaking() } else if Self.cortexStopOff {
+                    onNote?("cortex stopSpeaking skipped (DEE_HARNESS_CORTEX_STOP=0)")
+                } else if let brain {
+                    brain.stopVoice()
+                    Task { await brain.cancel(hush: false) }
+                }
             default:
                 break
             }
@@ -299,6 +318,14 @@ final class HarnessHost: BrainHost {
     }
 
     func thinkingModeChanged(_ on: Bool) { onNote?("thinking \(on)") }
+
+    /// App parity (DeeModel.bargedIn, tune 3): the brain's answer ended a floor hold, so
+    /// the Cortex senses the barge-in. Its effects run as the app runs them.
+    func bargedIn() {
+        bargeInsSensed += 1
+        onNote?("brain bargedIn")
+        sense(.bargeIn)
+    }
 }
 
 /// `--brain realtime`: DeeBrain's real `RealtimeBrain` on a `HarnessHost` with real

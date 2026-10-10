@@ -133,6 +133,11 @@ public struct Metrics: Codable, Sendable, Equatable {
     public var replies = 0
     public var repliesWithinThree = 0
     public var replyLengthRate: Double?
+    /// Completed replies that never played (a discarded speculative reply): not counted.
+    public var repliesUnplayed = 0
+    /// Played replies with heard sentences, and those with ≤ 3 heard sentences.
+    public var repliesHeard = 0
+    public var repliesHeardWithinThree = 0
     public var replySentenceCounts: [Int] = []
 
     public var memoryProbes = 0
@@ -458,10 +463,20 @@ public struct Metrics: Codable, Sendable, Equatable {
             let text = r.itemIDs.compactMap { run.deeTranscripts[$0] }.joined(separator: " ")
             let t = text.isEmpty ? (r.transcript ?? "") : text
             guard !t.isEmpty else { continue }
+            // Tune 4: a speculative reply the brain held and discarded completes on the
+            // server but is never played. Nobody heard it, so it has no length.
+            let played = run.playback.contains { p in r.itemIDs.contains(p.itemID) && p.started != nil }
+            guard played || run.playback.isEmpty else { repliesUnplayed += 1; continue }
             let n = Sentences.count(t)
             replies += 1
             replySentenceCounts.append(n)
             if n <= 3 { repliesWithinThree += 1 }
+            // What she actually said: the sentences the player finished (heard).
+            let heard = r.itemIDs.reduce(0) { $0 + (run.heardSentences[$1]?.count ?? 0) }
+            if heard > 0 {
+                repliesHeard += 1
+                if heard <= 3 { repliesHeardWithinThree += 1 }
+            }
         }
 
         addDNA(run)

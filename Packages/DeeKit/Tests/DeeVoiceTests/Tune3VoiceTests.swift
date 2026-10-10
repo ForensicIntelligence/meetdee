@@ -212,7 +212,11 @@ extension LoopRig {
         rig.push(Srv.committed("item_u2"))
         try rig.quiet(0.12)
         rig.deltas("item_u2", ["Stop", "."])
-        try rig.quiet(0.4)
+        // Tune 4: a quick burst's partial words that aren't "go on" decide with its
+        // full transcript (live: 0.25 s after the deltas), or `holdFinalWait`.
+        try rig.quiet(0.25)
+        rig.push(Srv.userTranscript("item_u2", "Stop."))
+        try rig.quiet(0.15)
         await rig.settle()
         #expect(rig.voice.floorHold?.wordsAt != nil, "their words were not taken as a real turn")
         try rig.quiet(CloudVoice.holdAfterWords)

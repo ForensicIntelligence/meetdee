@@ -125,12 +125,22 @@ public struct IntentionBoard: SubReducer {
     /// Max characters of an `intention` note's action (the template's slot cap).
     public static let maxAction = NoteTemplates.slotCaps(.intention)[0]
 
-    /// Subjects that get the gentle follow-up ("Gently ask how today went.").
+    /// Subjects that get the gentle follow-up ("Gently ask how they've been feeling."):
+    /// serious health and heavy events only. Tune 4 decision (a): an ordinary appointment
+    /// (dentist, check-up, doctor, vet, haircut, jab) is followed up by name ("How did the
+    /// dentist go?"); live, the oblique wording never named the dentist at all.
     public static let healthWords: Set<String> = [
-        "surgery", "operation", "doctor", "doctor's", "hospital", "scan", "mri", "x-ray", "biopsy", "therapy",
-        "checkup", "check-up", "dentist", "treatment", "chemo", "chemotherapy", "results", "diagnosis", "physio",
+        "surgery", "operation", "hospital", "scan", "mri", "x-ray", "biopsy", "therapy", "therapist", "treatment", "chemo",
+        "chemotherapy", "results", "diagnosis", "procedure", "blood", "clinic", "rehab", "ultrasound", "transplant",
+        "cancer", "tumour", "tumor", "specialist", "oncologist", "oncology", "ivf", "miscarriage",
         // Not health, but "how did it go?" is just as wrong (review finding 10).
-        "funeral", "hearing", "court", "vet", "trial", "memorial",
+        "funeral", "hearing", "court", "trial", "memorial",
+    ]
+    /// Ordinary appointments: asked by name even when an older build persisted them as
+    /// health (`healthReason`), unless a serious word is in the subject too.
+    public static let ordinaryAppointmentWords: Set<String> = [
+        "dentist", "dentist's", "dental", "checkup", "check-up", "doctor", "doctor's", "gp", "vet", "vet's", "haircut",
+        "hairdresser", "barber", "physio", "jab", "vaccine", "flu", "optician", "eye", "teeth", "orthodontist",
     ]
     /// Absence this long resets the initiative back-off (a flapping presence does not).
     public static let absenceResetsBackoff: TimeInterval = 60
@@ -682,7 +692,9 @@ public struct IntentionBoard: SubReducer {
             // The gentle follow-up does not name its subject ("Gently ask how they've been
             // feeling."), so any question in the reply asked it (review finding 11).
             let gentleAsked = it.kind == .followUp && (Self.isGentle(it) ? reply.contains("?") : Self.howDidItGo.contains { reply.contains($0) })
-            if Self.mentions(reply, it.subject) || gentleAsked {
+            // "How did the dentist go?" names the dentist appointment by its first word (tune 4).
+            let namedAsked = it.kind == .followUp && reply.contains("?") && Self.mentionsAnyWord(reply, it.subject)
+            if Self.mentions(reply, it.subject) || gentleAsked || namedAsked {
                 fx += stepDone(i, &m)
                 if it.kind == .followUp, let x = Self.expectation(for: it, in: m), m.ongoing.expectations[x].status == .pending {
                     m.ongoing.expectations[x].status = .asked
@@ -890,7 +902,11 @@ public struct IntentionBoard: SubReducer {
 
     public static func isHealth(_ s: Subject) -> Bool { s.words.contains { healthWords.contains($0) } }
 
-    static func isGentle(_ it: Intention) -> Bool { it.reason == healthReason || isHealth(it.subject) }
+    static func isGentle(_ it: Intention) -> Bool {
+        isHealth(it.subject) || (it.reason == healthReason && !isOrdinaryAppointment(it.subject))
+    }
+
+    public static func isOrdinaryAppointment(_ s: Subject) -> Bool { s.words.contains { ordinaryAppointmentWords.contains($0) } }
 
     /// The aim's wording for a non-follow-up intention (≤ 88 characters).
     public static func action(for it: Intention) -> String {
@@ -1075,6 +1091,17 @@ public struct IntentionBoard: SubReducer {
 
     /// The reply mentions the subject: every word of it, or its last word (the head
     /// noun: "job interview" → "interview"), as whole words, plural tolerated.
+    /// Any distinctive word of the subject (3+ letters, not "appointment"-like filler).
+    static func mentionsAnyWord(_ reply: String, _ subject: Subject) -> Bool {
+        let words = Set(reply.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" }).map { String($0) })
+        let filler: Set<String> = ["appointment", "appointments", "the", "and", "visit", "thing", "day"]
+        return subject.words.contains { w in
+            let bare = w.hasSuffix("'s") ? String(w.dropLast(2)) : w
+            guard bare.count >= 3, !filler.contains(bare) else { return false }
+            return words.contains(bare) || words.contains(bare + "'s") || words.contains(bare + "s")
+        }
+    }
+
     public static func mentions(_ reply: String, _ subject: Subject) -> Bool {
         let words = Set(reply.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" }).map { String($0) })
         func has(_ w: String) -> Bool { words.contains(w) || words.contains(w + "s") || words.contains(w + "es") }

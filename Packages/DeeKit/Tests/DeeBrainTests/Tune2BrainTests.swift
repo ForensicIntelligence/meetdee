@@ -391,7 +391,8 @@ import Testing
     @Test func lengthCaps() {
         #expect(TurnPolicy.maxOutputTokens(length: "at most two short sentences", effort: .low) == 380)
         #expect(TurnPolicy.maxOutputTokens(length: "one short sentence", effort: .low) == 280)
-        #expect(TurnPolicy.maxOutputTokens(length: "at most three short sentences", effort: .minimal) == 480)
+        #expect(TurnPolicy.maxOutputTokens(length: "at most three short sentences", effort: .low) == 480)
+        #expect(TurnPolicy.maxOutputTokens(length: "at most three short sentences", effort: .minimal) == 440, "tune 4: tighter at minimal")
         #expect(TurnPolicy.maxOutputTokens(length: "at most two short sentences", effort: .medium) == 680)
         #expect(TurnPolicy.maxOutputTokens(length: "at most two short sentences", effort: .high) == nil)
         #expect(TurnPolicy.wantsLongAnswer("Can you tell me a story about dragons?"))

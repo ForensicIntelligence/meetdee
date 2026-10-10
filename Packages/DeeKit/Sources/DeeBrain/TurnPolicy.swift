@@ -95,6 +95,36 @@ public enum TurnPolicy {
         return false
     }
 
+    // MARK: Speculative replies (tune 4)
+
+    /// Total quiet since the user's last voiced frame before her speculative reply
+    /// may be heard. server_vad commits after 0.3 s of silence (live tune 3: speech
+    /// end → commit 0.19 s as the brain saw it; commit → first audio p50 ~0.5 s), so
+    /// a window ≤ ~0.7 s costs nothing on most turns. Live tune 3, the resumes that
+    /// collided came 0.59 s (l05) and ~0.7 s (j01) after the first part ended.
+    ///
+    /// Tune 4 A/B (500 / 650 / 800 ms live, then the same windows replayed on every
+    /// turn of the tune-3 run and the three A/B runs, 309 turns): her first audio
+    /// arrives ≥ ~1.0 s after the end of speech on nearly every turn, so any window up
+    /// to 1.0 s left end → first audio p50 / p90 unchanged (1.17 / 1.53 s tune 3); the
+    /// collisions fell 10 → 4 at 500 ms, 3 at 650, 2 at 800 (2 at 1.0 s too; 1.2 s
+    /// raised the p50 to 1.24 s). The two left resumed 1.04 s after the end: j01's
+    /// punchline, now a riddle hold (`held(_:after:)`). 800 ms: the largest free window.
+    public static let confirmWindow: TimeInterval = 0.8
+    /// Local sound alone never holds a speculative reply longer than this after the
+    /// commit (the server, not the room, decides it was speech: a TV, a kitchen).
+    public static let confirmMax: TimeInterval = 1.6
+    /// A turn whose held reply was dropped because they went on waits this long for
+    /// their next commit (which answers both parts), then is answered anyway.
+    public static let resumeWait: TimeInterval = 2.0
+    /// Without a local voiced frame to go by (no microphone audio), their speech is
+    /// taken to have ended this long before the commit reached the brain.
+    public static let commitLag: TimeInterval = 0.25
+    /// She stops before sentence 4 of an ordinary reply (tune 4: live tune 3 at
+    /// `minimal`, 16 of 152 replies ran to 4–5 sentences, 11 of them under a
+    /// "two sentences" Length line).
+    public static let sentenceCap = 3
+
     /// The §4.1 `waitBeforeAnswering` delay (an `interruptedThem` lesson): a short
     /// beat before `response.create`; the model is never told to wait.
     public static let waitBeforeAnswering: TimeInterval = 0.7
@@ -234,7 +264,11 @@ public enum TurnPolicy {
     /// teller answers themselves ("Why did the chicken cross the road?"). "Why did
     /// you…" is a question for her, never a riddle; "knock knock" wants "who's there"
     /// at once.
-    public static func isRiddleSetUp(_ text: String) -> Bool {
+    ///
+    /// Tune 4: `after` is their previous turn (if recent). server_vad 300 ms commits "Want
+    /// to hear a joke?" on its own (live tune 3 / tune 4 j01), so the announcement can
+    /// come one turn before the set-up.
+    public static func isRiddleSetUp(_ text: String, after previous: String? = nil) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasSuffix("?") else { return false }
         let sentences = trimmed.split { ".!?".contains($0) }.map { words(String($0)) }.filter { !$0.isEmpty }
@@ -250,8 +284,10 @@ public enum TurnPolicy {
         ]
         if classic.contains(where: starts) { return true }
         let all = words(trimmed)
-        let announced = all.contains { ["joke", "jokes", "riddle", "riddles"].contains($0) }
-        guard announced, sentences.count >= 2, let opener = w.first,
+        let jokeWords: Set<String> = ["joke", "jokes", "riddle", "riddles"]
+        let announcedBefore = previous.map { words($0).contains { jokeWords.contains($0) } } ?? false
+        let announced = all.contains { jokeWords.contains($0) } && sentences.count >= 2
+        guard announced || announcedBefore, let opener = w.first,
               ["why", "what", "what's", "how", "where", "who", "when"].contains(opener) else { return false }
         // "Why do you like jokes?": a question about her or them.
         let personal: Set<String> = ["you", "your", "you're", "i", "i'm", "me", "my", "we", "us", "our"]
@@ -259,10 +295,13 @@ public enum TurnPolicy {
     }
 
     /// `unfinished(text)`, plus a riddle's set-up (only once the words are settled).
-    public static func held(_ text: String) -> Unfinished? {
+    public static func held(_ text: String, after previous: String? = nil) -> Unfinished? {
         if let u = unfinished(text) { return u }
-        return isRiddleSetUp(text) ? .riddle : nil
+        return isRiddleSetUp(text, after: previous) ? .riddle : nil
     }
+
+    /// Their previous turn counts for `held(_:after:)` this long (tune 4).
+    public static let previousTurnWindow: TimeInterval = 20
 
     // MARK: Backchannels (tune 2: user decision — "keep going" while she talks is not a barge-in)
 
@@ -380,11 +419,18 @@ public enum TurnPolicy {
     /// a reply that runs past it ends at its last complete sentence (the brain stops
     /// her voice there; never mid-word). Thinking turns get room (nil: the session's
     /// runaway guard).
+    ///
+    /// Tune 4: tighter at `minimal` (its reasoning is ~30 tokens, not ~50–100):
+    /// live tune 3 completed replies, output tokens p50 / p90 — two sentences 220 /
+    /// 303, three 245 / 341, four 287 / 459. 340 for a two-sentence line keeps the
+    /// three-sentence p90 and stops most four-sentence runs at their third sentence.
     public static func maxOutputTokens(length: String, effort: ReasoningEffort) -> Int? {
         let l = length.lowercased()
         let base = l.contains("one short sentence") ? 280 : l.contains("three") ? 480 : 380
         switch effort {
-        case .minimal, .low: return base
+        case .minimal:
+            return l.contains("one short sentence") ? 240 : l.contains("three") ? 440 : 340
+        case .low: return base
         case .medium: return base + 300
         case .high, .xhigh: return nil
         }

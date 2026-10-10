@@ -78,3 +78,8 @@ samples of the passing ones. Run it with `$H run --scenarios Scenarios/tune2.jso
 
 Echo with "AEC off": the manual AudioGraph always reports `aecActive: true` to CloudVoice (no public seam), so the
 `echo*` conditions model an uncancelled echo path acoustically only; see the tune-1 report.
+
+App parity (tune 4): `HarnessHost.bargedIn()` senses `.bargeIn` like `DeeModel.bargedIn`, and a Cortex `.stopSpeaking`
+effect runs the app's `stop()` (`brain.stopVoice()` + `brain.cancel(hush: false)`). `DEE_HARNESS_CORTEX_STOP=0` skips
+that stop, for A/B runs only. The `reply_length` gate skips completed replies that never played (a discarded
+speculative reply) and notes how many replies had ≤ 3 *heard* sentences.

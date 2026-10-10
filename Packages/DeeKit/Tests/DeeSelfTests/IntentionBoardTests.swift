@@ -802,7 +802,11 @@ import Testing
 
     @Test func healthWordsAreDetected() {
         #expect(IntentionBoard.isHealth(Subject("knee surgery")!))
-        #expect(IntentionBoard.isHealth(Subject("doctor's appointment")!))
+        // Tune 4 decision (a): ordinary appointments are asked by name, not gently.
+        #expect(!IntentionBoard.isHealth(Subject("doctor's appointment")!))
+        #expect(IntentionBoard.isOrdinaryAppointment(Subject("doctor's appointment")!))
+        #expect(!IntentionBoard.isHealth(Subject("dentist appointment")!))
+        #expect(IntentionBoard.isHealth(Subject("biopsy results")!))
         #expect(!IntentionBoard.isHealth(Subject("job interview")!))
     }
 

@@ -25,6 +25,8 @@ public enum Backchannel {
         "keep on going", "keep it going",
         // How "keep going" comes back from transcription when said softly (tune 2 live: "Cheap, going.").
         "cheap going", "cheap", "going", "keep go",
+        // How a soft "go on" comes back (tune 3 live, echo20 bc01: "Jeron.").
+        "jeron", "jerron", "geron", "gerron", "jaron", "goan", "gowan", "go one", "goon",
     ]
 
     /// Words that don't change what a clause means here.

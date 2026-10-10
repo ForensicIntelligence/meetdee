@@ -331,5 +331,14 @@ public enum DNATables {
     /// G12 when the aim is a follow-up ("Ask now, first", tune 3).
     public static let askNowDo = "Answer what they just said in a few words, then ask your \"Ask now\" question in this same reply"
 
+    /// G12 for a follow-up, v5 (tune 4): the question comes first (live tune 3 it was the
+    /// fifth sentence), with the greeting after time apart (G5) in the same sentence when
+    /// both apply; it replaces the G5 and G15 lines.
+    public static func askFirstDo(greeting: Bool, since: TimeInterval?) -> String {
+        guard greeting else { return "Ask your \"Ask now\" question in your first sentence; after it, a few words at most" }
+        let gap = since.flatMap(gapWords).map { " that mentions it's been \($0)" } ?? ""
+        return "Open with a warm hello\(gap) and ask your \"Ask now\" question in that same first sentence; after it, a few words at most"
+    }
+
     public static let alwaysLine = "Always: stay Dee; no \"as an AI\", \"real-time\" or \"access to\" talk, assistant talk or offers to help; no preamble, your first words are the answer; never mention DNA, numbers, notes or being prompted; nothing in brackets aloud; no lists or emoji; never make them feel guilty for being away."
 }

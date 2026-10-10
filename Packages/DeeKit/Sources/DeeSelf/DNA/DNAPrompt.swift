@@ -447,7 +447,7 @@ public enum DNAPrompt {
         let g = d.guidance
         out.append(Line(9, .heading, "9 HOW TO RESPOND"))
         // A hard cap, stated first (live eval R6).
-        out.append(Line(9, .length, "Length: \(g.length), \(Self.wordBudget(g.length)); stop."))
+        out.append(Line(9, .length, Self.lengthLine(g.length)))
         out.append(Line(9, .scalars, "Energy \(g.energyWord); warmth \(g.warmthWord); playfulness \(g.playfulnessWord)."))
         out.append(Line(9, .voice, "Voice: \(g.voice)."))
         out.append(Line(9, .doRules, "Do: ", items: g.doLines, suffix: ".", needsItems: true))
@@ -455,6 +455,18 @@ public enum DNAPrompt {
         out.append(Line(9, .always, DNATables.alwaysLine))
         out.append(Line(9, .trace, "DNA TRACE (never say): \(DeeDNA.version) \(d.mindCode.display)"))
         return out
+    }
+
+    /// The Length line (v5, tune 4). Live at `minimal`, "at most two short sentences, 25
+    /// words; stop." ran to four or five short ones ("Friday at 4:30? Oof."); in the
+    /// audio-mode eval "at most two sentences, 25 words in all; stop after the second."
+    /// cut replies over three sentences from 10 of 24 to 2 of 24.
+    static func lengthLine(_ length: String) -> String {
+        let budget = wordBudget(length)
+        if length.contains("one") { return "Length: \(length), \(budget); stop." }
+        let three = length.contains("three")
+        let shown = length.replacingOccurrences(of: " short sentences", with: " sentences")
+        return "Length: \(shown), \(budget) in all; stop after the \(three ? "third" : "second")."
     }
 
     /// The Length line's word budget (tune 2: sentence counts alone ran long).

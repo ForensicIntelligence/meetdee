@@ -271,6 +271,9 @@ public struct Learner: SubReducer {
     var reunion: (person: PersonID, turns: Int)?
     /// `ongoing.reunionTurn` saw its first user turn (it ends with Dee's reply).
     var reunionTurnHeard = false
+    /// A reply on the reunion turn was cancelled with nothing heard (tune 3 live,
+    /// t2-reunion-morning): the turn then lasts until a reply is heard.
+    var reunionReplyUnheard = false
     /// The reunion note went out on a cue; it is spent only once a reply carrying it is
     /// actually heard (tune 2 live: a reply cancelled as the server split "Hi, Dee." /
     /// "How was your day?" consumed it, and the reply they heard had none).
@@ -376,9 +379,16 @@ public struct Learner: SubReducer {
                 m.ongoing.noteCandidates.removeAll { $0.owner == Self.name && $0.kind == .reunion }
             }
             finishDeeTurn(&m)
-            if reunionTurnHeard {
+            // The reunion turn ends with a reply they actually heard (tune 3 live,
+            // t2-reunion-morning: the server split "Good morning." / "Did you sleep
+            // well?", reply 1 was cancelled unheard, and its `.deeTurnFinished` ended the
+            // reunion turn, so reply 2's DNA lost the "Greet them warmly … 2 days" line).
+            if reunionTurnHeard, delivered {
                 m.ongoing.reunionTurn = false
                 reunionTurnHeard = false
+                reunionReplyUnheard = false
+            } else if !delivered, m.ongoing.reunionTurn {
+                reunionReplyUnheard = true
             }
         case .speakingFinished:
             if turnActive {
@@ -512,8 +522,11 @@ public struct Learner: SubReducer {
         fx += considerCallback(&m, &rng)
         let hostility = m.inbox(for: Self.name).last { $0.name == "hostility" && $0.owner == Interpreter.name }?.value ?? a.hostility
         carryReunion(hostile: hostility >= RepairKeeper.hostileAt || a.threat >= RepairKeeper.hostileAt, &m)
+        // Their first turn of the reunion is heard; it ends with her heard reply, or with
+        // their next turn when she never tried one. After a reply cancelled unheard, their
+        // next fragment is still the reunion turn (split "Good morning." / "Did you sleep well?").
         if m.ongoing.reunionTurn {
-            if reunionTurnHeard { m.ongoing.reunionTurn = false } else { reunionTurnHeard = true }
+            if reunionTurnHeard, !reunionReplyUnheard { m.ongoing.reunionTurn = false; reunionTurnHeard = false } else { reunionTurnHeard = true }
         }
 
         lastActivityEnd = now
@@ -981,6 +994,7 @@ public struct Learner: SubReducer {
         // A reunion turn whatever the note's fate: no "lonely" in the mood (§9).
         m.ongoing.reunionTurn = true
         reunionTurnHeard = false
+        reunionReplyUnheard = false
         guard m.ongoing.repair == .fine || m.ongoing.repair == .reconciled, !m.ongoing.distressLive(at: m.now) else { return }
         reunion = (person, 1)
         reunionIssued = false
@@ -1062,7 +1076,7 @@ public struct Learner: SubReducer {
         if reunion == nil {
             m.ongoing.reunionTurn = false
             reunionTurnHeard = false
-        }
+            }
         turnPauses = []
         pauseStart = nil
         userTurnStart = nil

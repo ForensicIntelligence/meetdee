@@ -269,7 +269,10 @@ public enum DNAAssembler {
         if g3 { rules.append(.g3) }
         if unknown && !g3 { rules.append(.g4) }   // asking their name yields to distress (live eval R8)
         // The greeting after time apart: the reunion turn, or the first turn after a day or more.
-        if d.now.reunion || ((r.sinceLastTalk ?? 0) >= 86_400 && d.now.turnsThisConversation == 0) { rules.append(.g5) }
+        // "First" means before any reply of hers was heard (tune 4): a reply cancelled or never
+        // heard does not use the greeting up. Without the brain's count, the turn count decides.
+        let notGreetedYet = d.turn.heardReplies.map { $0 == 0 } ?? (d.now.turnsThisConversation == 0)
+        if d.now.reunion || ((r.sinceLastTalk ?? 0) >= 86_400 && notGreetedYet) { rules.append(.g5) }
         if busy { rules.append(.g6) }
         if (d.moodBand == .negLow || d.moodBand == .negHigh) && r.regard > 0.3 { rules.append(.g7) }
         if d.now.playGate && play >= 0.5 && !g1 { rules.append(.g8) }
@@ -283,13 +286,17 @@ public enum DNAAssembler {
 
         var doLines: [String] = []
         var avoidLines: [String] = []
+        // v5: a due follow-up is asked first (with the greeting, if any, in the same
+        // sentence): its line leads, and the G5 / G15 lines it replaces are left out.
+        let askFirst = rules.contains(.g12) && d.now.notes.contains { $0.role == .aim && [.followUp, .followUpGentle].contains($0.kind) }
+        if askFirst { doLines.append(DNATables.askFirstDo(greeting: rules.contains(.g5), since: r.sinceLastTalk)) }
         for rule in rules {
             let t = DNATables.rule(rule)
             switch rule {
             case .g8: doLines.append("A little play is welcome, in your \(SelfBlock.humourPhrase(d.selfModel.humour)) style")
+            case .g5 where askFirst: break
             case .g5: doLines.append(DNATables.reunionDo(r.sinceLastTalk))
-            case .g12 where d.now.notes.contains(where: { $0.role == .aim && [.followUp, .followUpGentle].contains($0.kind) }):
-                doLines.append(DNATables.askNowDo)
+            case .g12 where askFirst, .g15 where askFirst: break
             default: if let x = t.do { doLines.append(x) }
             }
             if let a = t.avoid { avoidLines.append(a) }

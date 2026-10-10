@@ -143,6 +143,58 @@ answered instead. Thinking: the brain owns `ThinkingMode` per conversation; fast
 use `effortBeforeWords`, exact ones `turn(for:)`; a late "think hard" re-asks (stop +
 exact, higher effort) while nothing of the fast reply was heard.
 
+**Tune 4 (live run 20261009-224148; A/B 20261009-235320/-235323/-235326, confirmation 20261010-001323).**
+- *Speculative reply with gated playback (`Options.speculative`, default on).* The reply to a fresh voice turn is still
+  requested at the commit, so it costs no latency. Right before `requestResponse` the brain calls
+  `voice.speculate()` (CloudVoice tune 4: the response's audio is buffered in the player and never heard), unless another
+  response is in flight (`speculationSkipped(busy:)`). Trace `.speculated`.
+  - **Release** (`voice.releaseSpeculative()`, trace `.speculationReleased(heldMs:quietMs:overdue:ready:)`): once
+    `confirmWindow` (**0.8 s**) has passed since the end of their speech, nobody is talking by the voice's own ear
+    (`voice.userIsSpeaking`: their voice in the last 0.6 s, or the server's speech open), and settled transcription
+    deltas are not still arriving.
+    - The end of speech is the server's: the commit time − `commitLag` (0.25 s), since server_vad commits after its 300 ms
+      of silence.
+    - A voice that the server never calls speech holds the reply at most `confirmMax` (1.6 s) after the commit.
+    - A reply asked for once the window has already passed is not gated (`speculationSkipped(late:)`).
+  - **Drop** (`voice.discardSpeculative()`, trace `.speculationDropped(why)`):
+    - `"speech"`: a new server `speech_started` (another item) while it is held. The turn is held (`resumeWait` 2 s,
+      postponed while they talk), and their next commit answers both parts (`committed` releases held items with
+      `userTurnHandled`).
+    - `"taken back"`: every unheard take-back (settled words unfinished or a riddle, a command, not for her, a rethink, a
+      preamble) discards a held reply instead of cutting it: nothing is truncated beyond the voice's cancel and
+      truncate-at-0.
+    - `channelUnheard` is true while held.
+    - After a drop the next request waits out `stopGuard`, as after a stop.
+  - **Voice-side ends** (`.discarded(byVoice:)` other than `"rearmed"`) clear the brain's speculation. A response that
+    ends cancelled or failed before any audio releases it, and so does a channel that closed. A non-speculative request
+    while the voice is still armed releases it first, so the voice never holds what the brain will not release.
+  - Why the brain does not use its own energy VAD: in the first A/B its pitch-gated `ProsodyTap` end read 0.6 s early on
+    TTS voices, so 128 of 128 releases came before any audio.
+    - Without the pitch gate, a kitchen bed read as one long voice: 7 overdue holds, filler p50 2.13 s in the
+      confirmation run.
+    - In a fan bed most speech was missed.
+    - EarCore (`userIsSpeaking`) showed no false frame over the kitchen, fan and TV beds at 15 dB SNR.
+  - Window choice: the live A/B ran 500/650/800 ms, but the gate never held audio there (the bug above), so the
+    windows were compared on every turn of the four runs (309 turns): ground-truth speech spans, recorded first-audio
+    arrival, and resume detection 80 ms after onset.
+    - Her first audio arrives ≥ ~1.0 s after the end of speech on nearly every turn, so any window ≤ 1.0 s left end →
+      first audio unchanged (p50 / p90 1.17 / 1.53 s on tune 3).
+    - Collisions fell from 10 to 4 at 500 ms, 3 at 650 and 2 at 800. A 1.2 s window raised the p50 to 1.24 s.
+    - The two left resumed 1.04 s after the end (j01's punchline), which is now a riddle hold.
+- *A joke announced one turn earlier* (`TurnPolicy.held(_:after:)`, `isRiddleSetUp(_:after:)`): server_vad commits "Want
+  to hear a joke?" on its own. A why/what/how set-up whose previous user turn (≤ 20 s) said joke or riddle is a riddle
+  hold: the held reply is taken back and the punchline is theirs.
+- *Sentence cap* (`Options.sentenceCap` 3): she stops before sentence 4 of a reply (trace `.sentenceCapStop`, never
+  mid-word). Not for a story or an explanation (`wantsLongAnswer` on the words, also when they arrive after a fast
+  reply), not in thinking mode, not for canned lines.
+- *Token caps at `minimal`:* 240 / 340 / 440 for one / two / three sentences (`low`: 280 / 380 / 480).
+  - Live tune 3 output tokens p50 / p90: two sentences 220 / 303, three 245 / 341, four 287 / 459.
+  - Tighter caps cut good replies before they cut long ones: at 300, 23 of 152 replies of three sentences or fewer would
+    lose a sentence, and 8 would still run over three. So the cap is a backstop. The DNA v5 Length line does the work.
+- *Greeting kept until heard:* the brain counts replies of hers with a heard sentence this conversation
+  (`heardReplies`, reset by `newConversation`) and passes it in every `TurnContext`. DNA v5's G5 holds until one was
+  heard.
+
 ## DNA delivery (DNA.md §4)
 
 `buildDNA`: `host.dnaParts(DNARequest)` (the host calls `Cortex.cue(at:)` first unless the
@@ -215,6 +267,12 @@ unless an item is still playing, 300 s absolute). Initiatives are refused while 
   takes a softer, tilted, grey-blue look while the cloud is off.
 
 ## Open asks
+
+- **DeeVoice (tune 4):** expose EarCore's last near-end voiced time (`lastUserSpeech`). The gate reads
+  `userIsSpeaking`, which holds for 0.6 s, so the window cannot go below ~0.65 s, and the end of speech is taken from
+  the server's commit. Optional: a `.speculative` mark in TurnTimeline, so the harness can show held time per turn.
+- **Voice harness (tune 4):** the reply-length gate counts the generated transcript, so a reply the sentence cap stopped
+  still counts its unheard 4th sentence. Count heard sentences (`heardSentences`), or count both.
 
 - **DeeRealtime / DeeVoice (tune 2):** done in tune 3 and adopted (`turnDetection`; floor holds, `holdEvents`,
   `wasBackchannel`, `continueAfterBackchannel`, `Backchannel.isBackchannel`).

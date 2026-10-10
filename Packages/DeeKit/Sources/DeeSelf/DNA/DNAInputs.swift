@@ -27,12 +27,20 @@ public struct TurnContext: Sendable, Equatable {
     /// candidate's template. Lexicon-safe; never user text.
     public var initiative: String?
     public var mode: CueMode
+    /// Her replies actually heard this conversation (audio played), from the brain;
+    /// nil when unknown. The greeting after time apart (G5) stays until one was
+    /// heard, so a reply cancelled or never heard does not use it up (tune 4: live,
+    /// "Good morning." / "Did you sleep well?" split, reply 1 cancelled, and reply 2
+    /// had lost the greeting because the turn count had moved on).
+    public var heardReplies: Int?
 
-    public init(kind: Kind = .reply, index: Int = 1, initiative: String? = nil, mode: CueMode = .fast) {
+    public init(kind: Kind = .reply, index: Int = 1, initiative: String? = nil, mode: CueMode = .fast,
+                heardReplies: Int? = nil) {
         self.kind = kind
         self.index = index
         self.initiative = initiative
         self.mode = mode
+        self.heardReplies = heardReplies
     }
 }
 

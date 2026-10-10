@@ -91,6 +91,25 @@ public final class RealtimeBrain: ReplyEngine {
         public var holdLimit: TimeInterval = 6.5
         /// Per-response `max_output_tokens` sized to the DNA `Length:` line (tune 2).
         public var capReplyTokens = true
+        /// Speculative reply with gated playback (tune 4): the reply to a voice turn is
+        /// still requested at the commit, but CloudVoice holds its audio until the turn
+        /// is confirmed over (`confirmWindow` of quiet since their last voiced frame, no
+        /// new speech from the server, settled words not unfinished). If they go on
+        /// first, the held reply is dropped unheard and the next commit answers it all.
+        public var speculative = true
+        /// Total quiet since the user's last voiced frame before her held reply plays
+        /// (server_vad commits after 0.3 s of it; live tune 3 resumes came 0.4–0.7 s
+        /// after the end of the first part). Tune 4 A/B: see `TurnPolicy.confirmWindow`.
+        public var confirmWindow: TimeInterval = TurnPolicy.confirmWindow
+        /// A held reply plays anyway this long after the commit when only local sound
+        /// (not the server) says they might be talking (a TV, a clattering kitchen).
+        public var confirmMax: TimeInterval = TurnPolicy.confirmMax
+        /// A turn whose held reply was dropped because they went on is answered with
+        /// their next commit; if none comes (it was not speech), after this.
+        public var resumeWait: TimeInterval = TurnPolicy.resumeWait
+        /// She stops before a 4th sentence of an ordinary reply (never mid-word; not
+        /// for a story or an explanation, nor in thinking mode). Tune 4.
+        public var sentenceCap: Int? = TurnPolicy.sentenceCap
         public init() {}
     }
 
@@ -154,6 +173,8 @@ public final class RealtimeBrain: ReplyEngine {
         var partialDecided = false
         /// Its words were a backchannel ("keep going"): not a turn of its own.
         var backchannel = false
+        /// The commit on the graph clock (the speculative gate measures from it).
+        var committedG: Double?
     }
     private var utterances: [String: Utterance] = [:]
     private var speechStartedAt: [String: Date] = [:]
@@ -183,6 +204,31 @@ public final class RealtimeBrain: ReplyEngine {
     /// A backchannel she talked on through, and when: if her voice is cut right
     /// after anyway (a barge-in decided on the sound), she carries on.
     private var continuedThrough: (item: String, at: Date)?
+    /// Her replies heard this conversation (a sentence of it played): the greeting after
+    /// time apart stays in the DNA until one was (tune 4, `TurnContext.heardReplies`).
+    private var heardReplies = 0
+    /// The newest user transcript, and the one before it (a joke announced one turn
+    /// before its set-up, tune 4).
+    private var lastWords: (item: String, text: String, at: Date)?
+    private var previousWordsEntry: (item: String, text: String, at: Date)?
+
+    /// The speculative reply whose audio CloudVoice holds (tune 4). Times are the
+    /// graph clock (the microphone's and the voice's).
+    private struct Speculation {
+        var item: String
+        var channel: Int
+        /// When the commit reached the brain.
+        var commitG: Double
+        /// Their speech ended about here (the last voiced frame before the commit).
+        var speechEndG: Double
+        var responseIDs: [String] = []
+        /// Its first audio is held in the player.
+        var ready = false
+        var readyG: Double?
+        /// The release was waited for because of local voice (for the trace).
+        var heldForVoice = false
+    }
+    private var spec: Speculation?
 
     // Responses and their channels
     private struct Channel {
@@ -200,6 +246,12 @@ public final class RealtimeBrain: ReplyEngine {
         var aside = false
         /// Cut for a spoken preamble: the user item to answer again when it ends.
         var preambleRetry: String?
+        /// Sentences of it that started playing (the sentence cap).
+        var sentencesStarted = 0
+        /// A story or an explanation was asked for: no sentence cap.
+        var longOK = false
+        /// One of its sentences was heard (counted in `heardReplies`).
+        var heardOnce = false
     }
     private var channels: [Int: Channel] = [:]
     private var nextChannel = 0
@@ -216,6 +268,7 @@ public final class RealtimeBrain: ReplyEngine {
     private enum Input {
         case brain(CloudVoice.BrainEvent)
         case hold(CloudVoice.HoldEvent)
+        case spec(CloudVoice.SpeculativeEvent)
         case tick
         case request(ReplyRequest, Int)
         case cancel(hush: Bool, at: Date)
@@ -262,6 +315,8 @@ public final class RealtimeBrain: ReplyEngine {
         pumps.append(Task { for await e in events { feed.yield(.brain(e)) } })
         let holds = voice.holdEvents
         pumps.append(Task { for await e in holds { feed.yield(.hold(e)) } })
+        let specs = voice.speculativeEvents
+        pumps.append(Task { for await e in specs { feed.yield(.spec(e)) } })
         let period = options.tick
         pumps.append(Task {
             while !Task.isCancelled {
@@ -374,6 +429,7 @@ public final class RealtimeBrain: ReplyEngine {
     public func newConversation(persona: Persona, now: Date) async {
         thinking = ThinkingMode()
         responseIndex = 0
+        heardReplies = 0
         lastUserTurnAt = nil
         lastDNANotes = []
         lastMode = .fast
@@ -448,6 +504,7 @@ public final class RealtimeBrain: ReplyEngine {
         switch input {
         case .brain(let e): await handleBrain(e)
         case .hold(let e): await handleHold(e)
+        case .spec(let e): await handleSpeculative(e)
         case .tick: await housekeeping()
         case .request(let r, let id): await serve(r, channel: id)
         case .cancel(let hush, let at):
@@ -469,6 +526,10 @@ public final class RealtimeBrain: ReplyEngine {
             playing.insert(item)
             lastPlaybackAt = clock()
             currentSentence[item] = text
+            let id = channel(for: item)
+            if let id { channels[id]?.sentencesStarted += 1 }
+            // Playing: whatever held it has let it go.
+            if let id, spec?.channel == id { spec = nil }
             if tokenLimited.contains(item), !TurnPolicy.isCompleteSentence(text) {
                 // The token limit cut this sentence short: she stops before it.
                 record(.tokenLimitStop)
@@ -477,14 +538,22 @@ public final class RealtimeBrain: ReplyEngine {
             } else if narrationItems.contains(item), TurnPolicy.isNarration(text) {
                 // A narrated sentence after her answer ("Let me think about how to respond."): never heard.
                 narrationReached(item)
+            } else if let id, let c = channels[id], overSentenceCap(c) {
+                // A 4th sentence of an ordinary reply: she stops before it (tune 4).
+                record(.sentenceCapStop)
+                stopVoice()
             }
-            guard let id = channel(for: item) else { return }
+            guard let id else { return }
             if speakFirst == id { speakFirst = nil }
             channels[id]?.pending.insert(item)
             channels[id]?.continuation.yield(.content(text + " "))
         case .sentenceFinished(let item, _, let text, let heard):
             lastPlaybackAt = clock()
             guard let id = channel(for: item) else { return }
+            if heard, let c = channels[id], !c.aside, !c.heardOnce {
+                channels[id]?.heardOnce = true
+                heardReplies += 1
+            }
             if heard { channels[id]?.heard[item, default: []].append(text) }
             channels[id]?.continuation.yield(.sentenceFinished(text, heard: heard))
         case .itemPlayed(let item, _, let cut):
@@ -528,6 +597,8 @@ public final class RealtimeBrain: ReplyEngine {
             prosody.speechStarted(item: item, audioStartMs: ms)
             speechStartedAt[item] = now
             if !playing.isEmpty { startedOverHerVoice.insert(item) }
+            // They go on before her held reply was heard: it never plays (tune 4).
+            if let sp = spec, sp.item != item, playing.isEmpty { await speculationResumed(why: "speech") }
             if speechStartedAt.count > 16, let oldest = speechStartedAt.min(by: { $0.value < $1.value }) {
                 speechStartedAt[oldest.key] = nil
                 startedOverHerVoice.remove(oldest.key)
@@ -622,6 +693,125 @@ public final class RealtimeBrain: ReplyEngine {
         voice.floorHold?.items.contains(item) ?? false
     }
 
+    /// Their turn before `item` (its words), if it was recent.
+    private func previousWords(before item: String) -> String? {
+        let e = lastWords?.item == item ? previousWordsEntry : lastWords
+        guard let e, clock().timeIntervalSince(e.at) <= TurnPolicy.previousTurnWindow else { return nil }
+        return e.text
+    }
+
+    // MARK: Speculative replies (tune 4: asked at the commit, heard once the turn is over)
+
+    /// Whether the reply to `item` is speculative: returns the end of their speech
+    /// (graph clock) when its audio must wait for the turn to be confirmed, nil when
+    /// it may play at once (already confirmed, or not a fresh voice turn).
+    ///
+    /// The end is the server's: server_vad commits after its 300 ms of silence, so
+    /// speech ended about `commitLag` before the commit reached the brain. (Tune 4: the
+    /// brain's own energy VAD was no judge of it — in a kitchen bed every frame was
+    /// "loud", in a fan bed most speech was not, and YIN found no pitch in most TTS
+    /// frames; EarCore's `userIsSpeaking` is what tells a voice from the room.)
+    private func speculationWanted(item: String) -> Double? {
+        guard options.speculative, let c = utterances[item]?.committedG else { return nil }
+        let g = voice.graph.now
+        let end = c - TurnPolicy.commitLag
+        if g - c >= options.confirmMax {
+            record(.speculationSkipped(late: true))
+            return nil
+        }
+        if g - end >= options.confirmWindow, !voice.userIsSpeaking {
+            record(.speculationSkipped(late: false))
+            return nil
+        }
+        return end
+    }
+
+    /// The speculative reply's gate: released once the turn is confirmed over —
+    /// `confirmWindow` since the end of their speech, nobody talking now by the voice's
+    /// own ear (`userIsSpeaking`: their voice in the last 0.6 s, or the server's speech
+    /// open), and settled words (if any came) that do not say it is unfinished (those
+    /// take it back: `provisional`). New speech from the server drops it
+    /// (`speculationResumed`). A voice the server never calls speech holds it at most
+    /// `confirmMax` after the commit.
+    private func gateCheck() async {
+        guard let sp = spec else { return }
+        guard channels[sp.channel] != nil else {
+            // Its reply is over (closed with nothing to play): nothing to hold.
+            spec = nil
+            voice.releaseSpeculative()
+            return
+        }
+        let g = voice.graph.now
+        let quiet = g - sp.speechEndG
+        let talking = voice.userIsSpeaking
+        let settling = partials[sp.item].map { !partialsChecked.contains(sp.item) && clock().timeIntervalSince($0.at) < options.partialSettle } ?? false
+        let overdue = g - sp.commitG >= options.confirmMax
+        if !overdue, quiet < options.confirmWindow || talking || settling {
+            if talking, quiet >= options.confirmWindow { spec?.heldForVoice = true }
+            return
+        }
+        spec = nil
+        voice.releaseSpeculative()
+        let held = sp.readyG.map { max(0, g - $0) } ?? 0
+        record(.speculationReleased(heldMs: Int((held * 1000).rounded()), quietMs: Int((quiet * 1000).rounded()),
+                                    overdue: overdue && (talking || settling), ready: sp.ready))
+    }
+
+    /// They went on talking before her held reply was heard: it is dropped (never
+    /// heard: the voice cancels it and the server keeps none of it) and the turn is
+    /// held: their next commit answers all of it (both items are in the conversation).
+    private func speculationResumed(why: String) async {
+        guard let sp = spec else { return }
+        spec = nil
+        voice.discardSpeculative()
+        lastStopAt = clock()
+        record(.speculationDropped(why))
+        if retryItem == sp.item { retryItem = nil }
+        var u = utterances[sp.item] ?? Utterance(item: sp.item, plan: .respondFast, committedAt: clock())
+        guard u.channel == nil || u.channel == sp.channel else { return }
+        u.requested = false
+        u.channel = nil
+        u.held = true
+        u.deadline = clock().addingTimeInterval(options.resumeWait)
+        utterances[sp.item] = u
+    }
+
+    /// A reply asked for and not heard yet is taken back: a speculative one is
+    /// discarded (no cut, nothing to truncate), any other is stopped.
+    private func takeBack() {
+        if spec != nil {
+            spec = nil
+            voice.discardSpeculative()
+            lastStopAt = clock()
+            record(.speculationDropped("taken back"))
+        } else {
+            stopVoice()
+        }
+    }
+
+    private func handleSpeculative(_ e: CloudVoice.SpeculativeEvent) async {
+        switch e {
+        case .started(let rid):
+            spec?.responseIDs.append(rid)
+        case .ready(_, _, let at):
+            guard spec != nil else { return }
+            spec?.ready = true
+            spec?.readyG = at
+            await gateCheck()
+        case .complete:
+            break
+        case .released:
+            break
+        case .discarded(let rid, _, _, let byVoice, let why):
+            // "rearmed": the voice dropped the previous one for the brain's new one.
+            guard byVoice, let sp = spec, why != "rearmed" else { return }
+            if let rid, !sp.responseIDs.isEmpty, !sp.responseIDs.contains(rid) { return }
+            // The voice dropped it (a cut of her voice, a timeout, a lost connection).
+            spec = nil
+            record(.speculationDropped("voice-\(why)"))
+        }
+    }
+
     // MARK: User turns
 
     private func committed(_ item: String, at now: Date) async {
@@ -652,6 +842,7 @@ public final class RealtimeBrain: ReplyEngine {
                                      prosody: read, previousNotes: lastDNANotes, sinceHerVoice: since)
         let plan = TurnPolicy.onCommit(ctx)
         var u = Utterance(item: item, plan: plan, committedAt: now)
+        u.committedG = voice.graph.now
         record(.committed(plan: "\(plan)"))
         switch plan {
         case .respondFast:
@@ -673,6 +864,10 @@ public final class RealtimeBrain: ReplyEngine {
 
     /// Utterances of a connection that is gone.
     private func forgetPendingTurns() {
+        if spec != nil {
+            spec = nil
+            voice.discardSpeculative()
+        }
         utterances.removeAll()
         speechStartedAt.removeAll()
         startedOverHerVoice.removeAll()
@@ -695,6 +890,8 @@ public final class RealtimeBrain: ReplyEngine {
             return
         }
         corpus.add(text)
+        if lastWords?.item != item { previousWordsEntry = lastWords }
+        lastWords = (item, text, clock())
         guard let host else { return }
         let u = utterances[item]
         let measured = prosody.mindProsody(item: item, text: text, baseline: host.voiceBaseline)
@@ -706,6 +903,7 @@ public final class RealtimeBrain: ReplyEngine {
         u.heard = true
         u.text = text
         utterances[item] = u
+        if let id = u.channel, TurnPolicy.wantsLongAnswer(text) { channels[id]?.longOK = true }
         switch verdict {
         case .answer(let appraisal):
             utterances[item]?.appraisal = appraisal
@@ -723,7 +921,7 @@ public final class RealtimeBrain: ReplyEngine {
                     return
                 }
             }
-            if let unfinished = TurnPolicy.held(text), await holdBack(item, unfinished) { return }
+            if let unfinished = TurnPolicy.held(text, after: previousWords(before: item)), await holdBack(item, unfinished) { return }
             if u.requested {
                 // Fast mode: the reply is out. A late "think hard" re-asks with more
                 // effort while nothing of it has been heard yet.
@@ -732,7 +930,7 @@ public final class RealtimeBrain: ReplyEngine {
                 let (turn, rethink) = thinking.wordsArrived(text, answeredAt: answered)
                 if let on = turn.modeChanged { host.thinkingModeChanged(on) }
                 if rethink, let id = u.channel, channelUnheard(id) {
-                    stopVoice()
+                    takeBack()
                     utterances[item]?.requested = false
                     await requestReply(item: item, mode: .exact, text: text, appraisal: appraisal,
                                        effort: turn.reasoningEffort)
@@ -745,7 +943,7 @@ public final class RealtimeBrain: ReplyEngine {
         case .handled:
             // A command: carried out, never answered (and not holding the session).
             // A fast reply already asked for it is taken back while unheard.
-            if u.requested, let id = u.channel, channelUnheard(id) { stopVoice() }
+            if u.requested, let id = u.channel, channelUnheard(id) { takeBack() }
             utterances[item] = nil
             await session.userTurnHandled(itemID: item)
         case .ignored:
@@ -753,7 +951,7 @@ public final class RealtimeBrain: ReplyEngine {
             // for it is taken back while unheard, and it leaves the conversation
             // (and every later seed).
             if u.requested, let id = u.channel, channelUnheard(id) {
-                stopVoice()
+                takeBack()
                 utterances[item] = nil
                 await session.dropUserItem(itemID: item, resumePreempted: false)
             } else if !u.requested {
@@ -774,7 +972,7 @@ public final class RealtimeBrain: ReplyEngine {
         guard let u = utterances[item] else { return false }
         if u.requested {
             guard let id = u.channel, channelUnheard(id) else { return false }
-            stopVoice()
+            takeBack()
         }
         if retryItem == item { retryItem = nil }
         record(.held(kind.rawValue))
@@ -807,7 +1005,7 @@ public final class RealtimeBrain: ReplyEngine {
             if TurnPolicy.isBackchannel(clean) {
                 utterances[item]?.backchannel = true
                 await backchannel(item)
-            } else if let kind = TurnPolicy.held(clean) {
+            } else if let kind = TurnPolicy.held(clean, after: previousWords(before: item)) {
                 record(.held(kind.rawValue))
                 // Held until the full words say more ("hold on" is released then).
                 utterances[item]?.held = true
@@ -817,11 +1015,11 @@ public final class RealtimeBrain: ReplyEngine {
             }
             return
         }
-        guard u.requested, !u.held, let kind = TurnPolicy.held(clean) else { return }
+        guard u.requested, !u.held, let kind = TurnPolicy.held(clean, after: previousWords(before: item)) else { return }
         // A fast reply is out for a turn that is not finished: taken back while
         // nobody has heard it; the full words confirm (or answer it after all).
         guard let id = u.channel, channelUnheard(id) else { return }
-        stopVoice()
+        takeBack()
         if retryItem == item { retryItem = nil }
         record(.held(kind.rawValue))
         utterances[item]?.requested = false
@@ -914,7 +1112,7 @@ public final class RealtimeBrain: ReplyEngine {
         preambleRetried.insert(user)
         if preambleRetried.count > 64 { preambleRetried.removeAll() }
         channels[id]?.preambleRetry = user
-        stopVoice()
+        takeBack()
         if c.done { await answerAfterPreamble(channel: id) }
     }
 
@@ -983,7 +1181,7 @@ public final class RealtimeBrain: ReplyEngine {
         let pr = read ?? prosody.read(item: item, text: text, baseline: baseline)
         let duration = prosody.duration(item: item)
         responseIndex += 1
-        let turn = TurnContext(kind: kind, index: responseIndex, mode: mode)
+        let turn = TurnContext(kind: kind, index: responseIndex, mode: mode, heardReplies: heardReplies)
         guard let (render, dna) = await buildDNA(turn: turn, appraisal: TurnAppraisal(prosody: pr, text: appraisal, durationS: duration),
                                                  pickNotes: true, notes: notes) else { utterances[item] = nil; return }
         if dna.relationship.waitBeforeAnswering {
@@ -994,6 +1192,9 @@ public final class RealtimeBrain: ReplyEngine {
         let id = openChannel(nil)
         host.brainStartedReply(BrainReply(kind: kind == .retry ? .retry : .voice, events: channelStream(id)))
         channels[id]?.item = item
+        if let t = text ?? utterances[item]?.text, TurnPolicy.wantsLongAnswer(t) { channels[id]?.longOK = true }
+        // Speculative (tune 4): the turn may not be over yet; her audio is held until it is.
+        let gate = speculationWanted(item: item)
         utterances[item]?.requested = true
         utterances[item]?.effort = effort
         utterances[item]?.channel = id
@@ -1003,7 +1204,12 @@ public final class RealtimeBrain: ReplyEngine {
         let cap = options.capReplyTokens && !(text.map(TurnPolicy.wantsLongAnswer) ?? false)
             ? TurnPolicy.maxOutputTokens(length: dna.guidance.length, effort: effort) : nil
         let error = await send(render: render, mode: mode, kind: kind, channel: id) {
-            try await self.reply(dna: render.text, effort: effort, maxOutputTokens: cap)
+            try await self.reply(dna: render.text, effort: effort, maxOutputTokens: cap,
+                                 speculate: gate.map { (item, id, $0) })
+        }
+        if error != nil, let sp = spec, sp.channel == id {
+            spec = nil
+            voice.discardSpeculative()
         }
         if case .responseInFlight? = error as? RealtimeSessionError, retryItem == nil || retryItem == item,
            utterances[item] != nil {
@@ -1029,12 +1235,13 @@ public final class RealtimeBrain: ReplyEngine {
             let t = thinking.turn(for: text)
             if let on = t.modeChanged { host.thinkingModeChanged(on) }
             responseIndex += 1
-            let turn = TurnContext(kind: .reply, index: responseIndex, mode: .exact)
+            let turn = TurnContext(kind: .reply, index: responseIndex, mode: .exact, heardReplies: heardReplies)
             guard let (render, _) = await buildDNA(turn: turn, appraisal: TurnAppraisal(text: appraisal), pickNotes: true) else {
                 finish(id)
                 return
             }
             // The words go in as a user item, then the DNA and the request.
+            if TurnPolicy.wantsLongAnswer(text) { channels[id]?.longOK = true }
             guard let typed = await session.addUserText(text) else { finish(id); return }
             let error = await send(render: render, mode: .exact, kind: .reply, channel: id) {
                 try await self.reply(dna: render.text, effort: Self.effective(t.reasoningEffort))
@@ -1049,7 +1256,8 @@ public final class RealtimeBrain: ReplyEngine {
             let clean = directive.trimmingCharacters(in: .whitespacesAndNewlines)
             lastInitiativeDirective = clean.isEmpty ? nil : clean
             responseIndex += 1
-            let turn = TurnContext(kind: .initiative, index: responseIndex, initiative: clean.isEmpty ? nil : clean, mode: .fast)
+            let turn = TurnContext(kind: .initiative, index: responseIndex, initiative: clean.isEmpty ? nil : clean, mode: .fast,
+                                   heardReplies: heardReplies)
             // A Cortex initiative (empty directive) already issued its aim with it.
             guard let (render, _) = await buildDNA(turn: turn, appraisal: TurnAppraisal(), pickNotes: !clean.isEmpty) else {
                 finish(id)
@@ -1170,7 +1378,7 @@ public final class RealtimeBrain: ReplyEngine {
         if call.name == "forget" {
             // The forgotten fact must not stay in context: a fresh DNA replaces the
             // live one before the follow-up (§4.1).
-            let turn = TurnContext(kind: .reply, index: max(1, responseIndex), mode: lastMode)
+            let turn = TurnContext(kind: .reply, index: max(1, responseIndex), mode: lastMode, heardReplies: heardReplies)
             if let (render, _) = await buildDNA(turn: turn, appraisal: TurnAppraisal(), pickNotes: false) {
                 await session.replaceDNA(render.text)
                 record(.dnaReplaced(estimatedTokens: render.estimatedTokens, sha256: render.sha256))
@@ -1208,8 +1416,17 @@ public final class RealtimeBrain: ReplyEngine {
         return g
     }
 
+    /// A reply past `sentenceCap` sentences (tune 4): not a canned line, a story or an
+    /// explanation, nor in thinking mode.
+    private func overSentenceCap(_ c: Channel) -> Bool {
+        guard let cap = options.sentenceCap, !c.aside, !c.longOK, !thinking.isOn else { return false }
+        return c.sentencesStarted > cap
+    }
+
     private func channelUnheard(_ id: Int) -> Bool {
         guard let c = channels[id] else { return false }
+        // Held by the speculative gate: nothing of it has played (tune 4).
+        if spec?.channel == id { return true }
         return c.items.allSatisfy { !playing.contains($0) } && c.heard.isEmpty && c.pending.isEmpty
     }
 
@@ -1260,6 +1477,12 @@ public final class RealtimeBrain: ReplyEngine {
                 }
             }
         }
+        if let id, let sp = spec, sp.channel == id, s.status != "completed", !sp.ready {
+            // Cancelled or failed before any audio (the session preempted it for
+            // speech, a lost connection): nothing to hold any more.
+            spec = nil
+            voice.releaseSpeculative()
+        }
         if let id, channels[id]?.preambleRetry != nil {
             channels[id]?.done = true
             await answerAfterPreamble(channel: id)
@@ -1301,6 +1524,7 @@ public final class RealtimeBrain: ReplyEngine {
 
     private func housekeeping() async {
         let now = clock()
+        await gateCheck()
         // Settled transcription deltas: the turn's provisional words.
         for (item, p) in partials where !partialsChecked.contains(item) && now.timeIntervalSince(p.at) >= options.partialSettle {
             await provisional(p.text, item: item)
@@ -1389,7 +1613,7 @@ public final class RealtimeBrain: ReplyEngine {
     private func armRetryDNA(kind: TurnContext.Kind) async {
         guard connected, host != nil else { return }
         let turn = TurnContext(kind: kind, index: max(1, responseIndex), initiative: kind == .initiative ? lastInitiativeDirective : nil,
-                               mode: lastMode)
+                               mode: lastMode, heardReplies: heardReplies)
         if let (render, _) = await buildDNA(turn: turn, appraisal: TurnAppraisal(), pickNotes: false) {
             await session.replaceDNA(render.text)
             record(.dnaReplaced(estimatedTokens: render.estimatedTokens, sha256: render.sha256))
@@ -1399,11 +1623,28 @@ public final class RealtimeBrain: ReplyEngine {
     // MARK: Her voice (requests to the session)
 
     /// Answers the committed user turn with this DNA (`requestResponse(dna:)`).
-    private func reply(dna: String, effort: ReasoningEffort, maxOutputTokens: Int? = nil) async throws -> RequestOutcome {
+    private func reply(dna: String, effort: ReasoningEffort, maxOutputTokens: Int? = nil,
+                       speculate: (item: String, channel: Int, speechEndG: Double)? = nil) async throws -> RequestOutcome {
         // Her previous reply somehow still playing: cut it first (the session is
         // told what was heard), so the new audio never queues behind it.
         if !playing.isEmpty { stopVoice() }
         await waitOutStop()
+        if let sp = speculate, channels[sp.channel] != nil, generating == nil, awaiting.allSatisfy({ $0 == sp.channel }) {
+            // Armed last thing before the request: a stop above must not take it.
+            // Never while another response is in flight (the session refuses or
+            // queues this one; arming would drop that one).
+            voice.speculate()
+            let g = voice.graph.now
+            spec = Speculation(item: sp.item, channel: sp.channel, commitG: utterances[sp.item]?.committedG ?? g,
+                               speechEndG: sp.speechEndG)
+            record(.speculated)
+        } else if speculate != nil {
+            record(.speculationSkipped(late: false, busy: true))
+        }
+        if spec == nil, voice.speculative != nil {
+            // Nothing of the brain's is held: the voice must not hold this one.
+            voice.releaseSpeculative()
+        }
         voice.timeline.mark(.responseCreateSent, at: voice.graph.now)
         return try await session.requestResponse(dna: dna, maxOutputTokens: maxOutputTokens, reasoningEffort: effort.rawValue)
     }
@@ -1481,4 +1722,17 @@ public enum BrainTrace: Sendable, Equatable {
     /// A committed item the voice already settled as a backchannel it went on
     /// through (`CloudVoice.wasBackchannel`): released, never answered (tune 3).
     case backchannelReleased
+    /// A reply asked for speculatively: its audio is held until the turn is over (tune 4).
+    case speculated
+    /// Not speculative: confirmed already (`late`: past `confirmMax`; else the window
+    /// passed with nobody talking), or another response was in flight (`busy`).
+    case speculationSkipped(late: Bool, busy: Bool = false)
+    /// The held reply plays: how long its first audio waited, the quiet since their last
+    /// voiced frame, whether only `confirmMax` let it go, whether audio had arrived.
+    case speculationReleased(heldMs: Int, quietMs: Int, overdue: Bool, ready: Bool)
+    /// The held reply was dropped unheard ("speech": they went on; "taken back":
+    /// unfinished words, a command, not for her; "voice-…": the voice dropped it).
+    case speculationDropped(String)
+    /// She stopped before a sentence past the cap (tune 4).
+    case sentenceCapStop
 }

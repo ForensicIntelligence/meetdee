@@ -45,7 +45,7 @@ struct Tune3DNATests {
         #expect(dna.contains("Do: Greet them warmly and, in the same sentence, mention lightly that it's been 2 days, glad they're back"), "\(dna)")
         #expect(dna.contains("Avoid: any guilt about the time apart"))
         // Not longer: allowing three made 12 of 18 reunion replies run to four (tune 3 eval).
-        #expect(dna.contains("Length: at most two short sentences"), "\(dna)")
+        #expect(dna.contains("Length: at most two sentences, 25 words in all; stop after the second."), "v5: \(dna)")
         #expect(!dna.contains("any hint they were away too long"))
 
         // A later turn of the same conversation: still the time before it, said as such,
@@ -89,12 +89,13 @@ struct Tune3DNATests {
         let dna = Self.render(cx, at: t)
         #expect(dna.contains("Ask now, first: how their exam went. They were nervous about it. (priority p7)"), "\(dna)")
         #expect(!dna.contains("Do now (once, only if it still fits"), "\(dna)")
-        #expect(dna.contains("answer what they just said in a few words, then ask your \"Ask now\" question in this same reply"), "\(dna)")
-        #expect(dna.contains("mention lightly that it's been 6 days"), "a reunion too: \(dna)")
+        // v5 (tune 4): asked first, with the greeting after 6 days in the same sentence.
+        #expect(dna.contains("Do: Open with a warm hello that mentions it's been 6 days and ask your \"Ask now\" question in that same first sentence; after it, a few words at most"), "\(dna)")
+        #expect(!dna.contains("answer their question first"), "the follow-up leads: \(dna)")
         #expect(!dna.contains("On your mind (only if the moment invites it): Ask one short question about exam"), "\(dna)")
     }
 
-    /// t2-followup-dentist: a health subject is asked gently, still first.
+    /// t2-followup-dentist: asked first, by name (tune 4 decision a: dentist is ordinary).
     @Test func liveDentistFollowUpIsAskedFirstGently() throws {
         let mind = Kit.snap()
         let t0 = SimClock.at("Sat 04:11", week: 2)!
@@ -104,7 +105,9 @@ struct Tune3DNATests {
         let t = back.addingTimeInterval(7.7)
         _ = C.reply(&cx, at: t, mind: mind)
         let dna = Self.render(cx, at: t)
-        #expect(dna.contains("Ask now, first, gently: how they've been feeling."), "\(dna)")
+        // Tune 4 decision (a): an ordinary appointment is asked by name, not gently.
+        #expect(dna.contains("Ask now, first: how their dentist appointment went."), "\(dna)")
+        #expect(!dna.contains("how they've been feeling"), "\(dna)")
     }
 
     @Test func askNowWording() {

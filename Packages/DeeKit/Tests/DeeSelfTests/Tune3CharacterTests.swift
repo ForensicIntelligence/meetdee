@@ -12,6 +12,7 @@ import Testing
 struct Tune3CharacterTests {
     static let pdt: TimeInterval = -7 * 3600
     static let gentle = "Gently ask how they've been feeling."
+    static let named = "Ask how their dentist appointment went."
 
     /// The live first conversation: one reply in fast mode, then a plan, then they leave.
     static func firstConversation(_ text: String, at t0: Date, mind: MindSnapshot, _ a: Appraisal = Appraisal()) -> Cortex {
@@ -66,15 +67,17 @@ struct Tune3CharacterTests {
         Self.comeBack(&cx, at: back, mind: mind)
         // Reply 1 (fast: notes picked at the commit, before their words).
         let r1 = Self.reply(&cx, at: back.addingTimeInterval(7.7), mind: mind)
-        #expect(r1.contains(Self.gentle), "\(r1)")
+        // Tune 4 decision (a): an ordinary appointment is asked by name.
+        #expect(r1.contains(Self.named), "\(r1)")
+        #expect(!r1.contains(Self.gentle), "\(r1)")
         #expect(r1.contains("They're back"), "\(r1)")
-        #expect(cx.stance.notes.contains { $0.role == .aim && $0.kind == .followUpGentle }, "the reply's aim (Do now)")
+        #expect(cx.stance.notes.contains { $0.role == .aim && $0.kind == .followUp }, "the reply's aim (Do now)")
         // The brain cancels it: nothing of it is heard.
         _ = cx.step(.deeTurnFinished(text: ""), mind: mind, at: back.addingTimeInterval(7.8))
         _ = cx.step(Kit.heard("Hi, Dee."), mind: mind, at: back.addingTimeInterval(8.1))
         // Reply 2 still carries both.
         let r2 = Self.reply(&cx, at: back.addingTimeInterval(9.2), mind: mind)
-        #expect(r2.contains(Self.gentle), "\(r2)")
+        #expect(r2.contains(Self.named), "\(r2)")
         #expect(r2.contains("They're back"), "\(r2)")
         // She asks; the next turn is the outcome.
         _ = cx.step(.deeSaid(tag: nil, sentence: "Hi Alex! How did the dentist go?"), mind: mind, at: back.addingTimeInterval(10))
@@ -84,7 +87,7 @@ struct Tune3CharacterTests {
         // Spent: the next reply carries neither.
         _ = cx.step(Kit.heard("Not bad, no cavities."), mind: mind, at: back.addingTimeInterval(14))
         let r3 = Self.reply(&cx, at: back.addingTimeInterval(14.5), mind: mind)
-        #expect(!r3.contains(Self.gentle) && !r3.contains("They're back"), "\(r3)")
+        #expect(!r3.contains(Self.named) && !r3.contains(Self.gentle) && !r3.contains("They're back"), "\(r3)")
     }
 
     /// Conservative: before the follow-up time (15:00 + 2 h) there is no aim, only the

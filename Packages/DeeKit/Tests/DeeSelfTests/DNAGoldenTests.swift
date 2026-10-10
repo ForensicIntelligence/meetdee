@@ -78,8 +78,15 @@ import Testing
         try Self.check(DNASessionInstructions.v2 + "\n", file: "session-instructions.v2.txt")
         try Self.check(DNASessionInstructions.v3 + "\n", file: "session-instructions.v3.txt")
         try Self.check(DNASessionInstructions.v4 + "\n", file: "session-instructions.v4.txt")
-        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v4)
-        #expect(DeeDNA.version == "v4")
+        try Self.check(DNASessionInstructions.v5 + "\n", file: "session-instructions.v5.txt")
+        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v5)
+        #expect(DeeDNA.version == "v5")
+        for banned in ["Maya", "2026", "October", "/255", "<", ">", "[", "]"] { #expect(!DNASessionInstructions.v5.contains(banned)) }
+        // Tune 4: the follow-up is asked first; every sentence counts. Nothing else changed.
+        #expect(DNASessionInstructions.v5.contains("An \"Ask now, first\" line is not optional: ask it in your first sentence"))
+        #expect(DNASessionInstructions.v5.contains("count every sentence, even a one-word one"))
+        let v4Lines = DNASessionInstructions.v4.components(separatedBy: "\n").filter { !$0.isEmpty }
+        #expect(v4Lines.filter { DNASessionInstructions.v5.contains($0) }.count == v4Lines.count - 2, "only the two tune-4 lines changed")
         for banned in ["Maya", "2026", "October", "/255", "<", ">", "[", "]"] { #expect(!DNASessionInstructions.v4.contains(banned)) }
         // Tune 3: "Ask now, first" is asked, a reunion names the time apart lightly, no assistant talk about limits.
         for needed in ["An \"Ask now, first\" line is not optional", "say lightly how long it has been",

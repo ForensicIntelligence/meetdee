@@ -375,7 +375,11 @@ public struct DeeDNA: Sendable, Equatable {
     /// Length line with its word budget.
     /// v4 (tune 3): session instructions v4, "Ask now, first" follow-ups, the reunion
     /// greeting with the time apart, "last talked" from before this conversation.
-    public static let version = "v4"
+    /// v5 (tune 4): session instructions v5, the Length line counted "in all" and
+    /// stopped after the last allowed sentence, a due follow-up asked first (with the
+    /// greeting after time apart in the same sentence), the greeting kept until a
+    /// reply of hers was actually heard (`TurnContext.heardReplies`).
+    public static let version = "v5"
 
     public var turn: TurnContext
     // §1.2

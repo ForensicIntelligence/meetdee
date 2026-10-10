@@ -26,6 +26,10 @@ import Synchronization
 ///   there (fading back in); `flush()` ends a hold. `holdAtBoundary` lets the
 ///   utterance playing now finish but starts no new one until it is cleared: she
 ///   never begins her next sentence item over someone who may be talking.
+/// - **Gate** (tune 4, speculative replies). `gate(utterance:)` buffers an
+///   utterance without ever starting it; `release(utterance:)` lets it start at
+///   the next render cycle (`minTargetMs` buffered suffices), `discard(utterance:)`
+///   removes it with no events, no fade and nothing rendered.
 /// - **Ended items.** Audio for an utterance that was flushed or `finish`ed is
 ///   dropped: late deltas never play (again).
 /// - **Level.** `.level` events come from the samples just played (the eye bounce).
@@ -157,6 +161,10 @@ public final class PCMStreamPlayer: @unchecked Sendable {
         var firstRendered = false
         var reportedStart = false
         var flushed = false
+        /// Never starts until released (`gate(utterance:)`: a speculative reply).
+        var gated = false
+        /// Released from a gate: starts as soon as `minTargetMs` is buffered.
+        var released = false
     }
 
     struct State {
@@ -183,6 +191,8 @@ public final class PCMStreamPlayer: @unchecked Sendable {
         var endedNames: [String] = []
         var overflowed = false
         var renderClock = false
+        /// Utterances whose audio must wait for `release` (bounded).
+        var gatedNames: [String] = []
         /// Paused (`hold`); `gain` ramps to 0 then nothing more is read.
         var held = false
         var holdAtBoundary = false
@@ -207,7 +217,10 @@ public final class PCMStreamPlayer: @unchecked Sendable {
             segments.reserveCapacity(Self.segmentReserve)
             history.reserveCapacity(Self.historyLimit + 1)
             endedNames.reserveCapacity(Self.endedLimit + 1)
+            gatedNames.reserveCapacity(Self.gatedLimit + 1)
         }
+
+        static let gatedLimit = 8
 
         /// Remembers `name` as ended; returns the name that fell out (release it
         /// after unlocking).
@@ -265,7 +278,9 @@ public final class PCMStreamPlayer: @unchecked Sendable {
                 }
                 if appendTo == nil {
                     if let last = s.segments.indices.last { s.segments[last].closed = true }
-                    s.segments.append(Segment(name: utterance, start: s.writePos, end: s.writePos))
+                    var seg = Segment(name: utterance, start: s.writePos, end: s.writePos)
+                    seg.gated = s.gatedNames.contains(utterance)
+                    s.segments.append(seg)
                 }
                 let oldest = s.fadeLeft > 0 ? s.fadePos : s.readPos
                 let room = Int64(Self.capacity) - (s.writePos - oldest)
@@ -300,7 +315,7 @@ public final class PCMStreamPlayer: @unchecked Sendable {
     @discardableResult
     public func flush() -> Cut? {
         var garbage: [String] = []
-        garbage.reserveCapacity(4)
+        garbage.reserveCapacity(4 + State.gatedLimit)
         let cut = shared.state.withLock { s -> Cut? in
             var cut: Cut?
             for i in s.segments.indices {
@@ -326,6 +341,8 @@ public final class PCMStreamPlayer: @unchecked Sendable {
             s.buffering = true
             s.held = false
             s.gain = 1
+            for name in s.gatedNames { if let old = s.ended(name) { garbage.append(old) } }
+            s.gatedNames.removeAll(keepingCapacity: true)
             return cut
         }
         withExtendedLifetime(garbage) {}
@@ -346,6 +363,91 @@ public final class PCMStreamPlayer: @unchecked Sendable {
 
     /// Something is queued or playing.
     public var isBusy: Bool { shared.state.withLock { !$0.segments.isEmpty } }
+
+    // MARK: Gate (speculative replies)
+
+    /// Audio of `utterance` (queued now or still to come) is buffered but never
+    /// starts until `release(utterance:)`; `discard(utterance:)` drops it. Only an
+    /// utterance that hasn't started rendering can be gated.
+    public func gate(utterance: String) {
+        let dropped = shared.state.withLock { s -> String? in
+            for i in s.segments.indices where s.segments[i].name == utterance && !s.segments[i].firstRendered {
+                s.segments[i].gated = true
+                s.segments[i].released = false
+            }
+            guard !s.gatedNames.contains(utterance) else { return nil }
+            s.gatedNames.append(utterance)
+            return s.gatedNames.count > State.gatedLimit ? s.gatedNames.removeFirst() : nil
+        }
+        withExtendedLifetime(dropped) {}
+    }
+
+    /// `utterance` may play: it starts at the next render cycle once
+    /// `minTargetMs` of it is buffered (or it is complete), not at the jitter
+    /// target. Played time counts from its first sample, as always.
+    public func release(utterance: String) {
+        let dropped = shared.state.withLock { s -> String? in
+            for i in s.segments.indices where s.segments[i].name == utterance && s.segments[i].gated {
+                s.segments[i].gated = false
+                s.segments[i].released = true
+            }
+            guard let k = s.gatedNames.firstIndex(of: utterance) else { return nil }
+            return s.gatedNames.remove(at: k)
+        }
+        withExtendedLifetime(dropped) {}
+    }
+
+    /// Drops the gated `utterance` without a trace: no `.started` / `.finished`
+    /// events, no fade, nothing rendered (so no echo reference) and no timeline
+    /// mark; later audio for it is dropped. Its ring space is reclaimed when it is
+    /// the newest audio (otherwise the render skips it). Never touches audio that
+    /// has started rendering. Returns the milliseconds dropped.
+    @discardableResult
+    public func discard(utterance: String) -> Int {
+        var garbage: [String] = []
+        garbage.reserveCapacity(2)
+        let ms = shared.state.withLock { s -> Int in
+            if let k = s.gatedNames.firstIndex(of: utterance) { garbage.append(s.gatedNames.remove(at: k)) }
+            if let old = s.ended(utterance) { garbage.append(old) }
+            var dropped: Int64 = 0
+            var lowest: Int64?
+            var i = 0
+            while i < s.segments.count {
+                let seg = s.segments[i]
+                if seg.name == utterance && !seg.firstRendered {
+                    dropped += max(0, seg.end - max(seg.start, s.readPos))
+                    lowest = min(lowest ?? seg.start, seg.start)
+                    s.segments.remove(at: i)                     // in place: capacity kept
+                    continue
+                }
+                i += 1
+            }
+            // The newest audio: give its ring space back.
+            if let lowest, s.segments.allSatisfy({ $0.end <= lowest }) {
+                s.writePos = max(s.readPos, lowest)
+                if s.segments.isEmpty { s.buffering = true }
+            }
+            return Self.ms(dropped)
+        }
+        withExtendedLifetime(garbage) {}
+        return ms
+    }
+
+    /// `utterance` is waiting at a gate.
+    public func isGated(utterance: String) -> Bool {
+        shared.state.withLock { s in
+            s.gatedNames.contains(utterance) || s.segments.contains { $0.name == utterance && $0.gated }
+        }
+    }
+
+    /// Milliseconds of `utterance` buffered and not yet played.
+    public func bufferedMs(utterance: String) -> Int {
+        shared.state.withLock { s in
+            var frames: Int64 = 0
+            for seg in s.segments where seg.name == utterance { frames += max(0, seg.end - max(seg.start, s.readPos)) }
+            return Self.ms(frames)
+        }
+    }
 
     /// Pauses playback where it is (5 ms fade, then silence). Nothing is dropped;
     /// `resume()` goes on from there, `flush()` drops it all.
@@ -469,14 +571,19 @@ public final class PCMStreamPlayer: @unchecked Sendable {
                 let pos = s.readPos
                 guard let i = s.segments.firstIndex(where: { !($0.closed && pos >= $0.end) }) else { break }
                 let seg = s.segments[i]
-                // A new utterance waits while the boundary is held; a hold never starts one.
+                // Audio of a discarded utterance lies before it: skipped, never played.
+                if s.readPos < seg.start { s.readPos = seg.start }
+                // A new utterance waits while the boundary is held, or at its gate; a
+                // hold never starts one.
                 if !seg.firstRendered, s.readPos == seg.start {
                     if s.held { s.gain = 0; break }
-                    if s.holdAtBoundary { break }
+                    if s.holdAtBoundary || seg.gated { break }
                 }
                 let available = seg.end - s.readPos
                 if s.buffering {
-                    if seg.closed || available >= s.targetFrames {
+                    let releasedReady = seg.released && !seg.firstRendered
+                        && available >= Self.frames(ms: Self.minTargetMs)
+                    if seg.closed || available >= s.targetFrames || releasedReady {
                         s.buffering = false
                     } else {
                         break

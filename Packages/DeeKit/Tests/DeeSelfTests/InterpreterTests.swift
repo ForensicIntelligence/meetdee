@@ -439,7 +439,7 @@ import Testing
 
     static let planCases: [PlanCase] = [
         PlanCase(text: "I've got a job interview Thursday, I'm really nervous", subject: "job interview", due: "Thu 17:00", framing: .nervous),
-        PlanCase(text: "I have a dentist appointment tomorrow at 3pm", subject: "dentist appointment", due: "Tue 15:00", health: true),
+        PlanCase(text: "I have a dentist appointment tomorrow at 3pm", subject: "dentist appointment", due: "Tue 15:00"),
         PlanCase(text: "my math exam is on friday and I can't wait", subject: "math exam", due: "Fri 17:00", framing: .excited),
         PlanCase(text: "I'm going to a party tonight", subject: "party", due: "Mon 20:00"),
         PlanCase(text: "I have surgery next week, I'm scared", subject: "surgery", due: "Mon 17:00+1", framing: .nervous, health: true),
@@ -447,7 +447,7 @@ import Testing
         PlanCase(text: "I'm going to finish the painting tomorrow", subject: "painting", due: "Tue 17:00", finishing: true),
         PlanCase(text: "I've got a presentation in two days", subject: "presentation", due: "Wed 17:00"),
         PlanCase(text: "I have my driving test tomorrow morning", subject: "driving test", due: "Tue 09:00"),
-        PlanCase(text: "I have a doctor's appointment on Wednesday at 10:30", subject: "doctor's appointment", due: "Wed 10:30", health: true),
+        PlanCase(text: "I have a doctor's appointment on Wednesday at 10:30", subject: "doctor's appointment", due: "Wed 10:30"),
         PlanCase(text: "I'm going on a trip on friday, so excited!", subject: "trip", due: "Fri 17:00", framing: .excited),
         PlanCase(text: "I've got an exam at 9 tomorrow", subject: "exam", due: "Tue 09:00"),
         PlanCase(text: "I've got a football match this weekend", subject: "football match", due: "Sat 17:00"),
@@ -510,8 +510,12 @@ import Testing
         #expect(Interpreter.plan(from: s)?.dated == false)
         let recital = try #require(Interpreter.PlanDetector.detect("I have my daughter's recital tomorrow", appraisal: Appraisal(), now: now, calendar: cal))
         #expect(recital.subject.text == "daughter's recital")
-        for gentle in ["I have the funeral on friday", "my court hearing is tomorrow", "I'm taking the cat to the vet tomorrow"] {
+        for gentle in ["I have the funeral on friday", "my court hearing is tomorrow", "I have a biopsy tomorrow"] {
             #expect(Interpreter.PlanDetector.detect(gentle, appraisal: Appraisal(), now: now, calendar: cal)?.health == true, "\(gentle)")
+        }
+        // Tune 4 decision (a): ordinary appointments are not gentle (asked by name).
+        for named in ["I'm taking the cat to the vet tomorrow", "I have a dentist appointment tomorrow"] {
+            #expect(Interpreter.PlanDetector.detect(named, appraisal: Appraisal(), now: now, calendar: cal)?.health == false, "\(named)")
         }
     }
 
