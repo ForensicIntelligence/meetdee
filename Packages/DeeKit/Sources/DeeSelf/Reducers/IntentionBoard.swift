@@ -178,6 +178,16 @@ public struct IntentionBoard: SubReducer {
     var undatedSubjects: [Subject] = []
     /// When the user was last seen leaving (presence false).
     var leftAt: Date?
+    /// The due follow-up raised on `.promptSubmitted` for the reply being built (fast
+    /// mode picks a reply's notes before its words arrive). Withdrawn on the next step
+    /// if no cue took it, so it never rides on a later initiative.
+    var preAim: UUID?
+    /// Her sentences heard since the last `.deeTurnFinished` (follow-through reads them
+    /// when the finished text is empty, and a reply with none was never delivered).
+    var saidThisTurn: [String] = []
+    /// What each aim issued since the last `.deeTurnFinished` changed, so an undelivered
+    /// reply (cancelled before a sentence was heard) gives it back.
+    var issueUndo: [UUID: (status: Intention.Status, issuedAt: Int?, newFollowUp: Bool)] = [:]
 
     public init() {}
 
@@ -192,6 +202,10 @@ public struct IntentionBoard: SubReducer {
             directorSeeded = true
         }
         var fx: [Effect] = []
+        if let id = preAim {
+            m.ongoing.noteCandidates.removeAll { $0.owner == Self.name && $0.intention == id }
+            preAim = nil
+        }
         fx += expire(&m)
         observe(p, &m)
         fx += readSignals(&m, &rng)
@@ -210,8 +224,18 @@ public struct IntentionBoard: SubReducer {
         case .heard(let text, _, _, let appraisal):
             fx += outcome(text: text, appraisal: appraisal, &m)
             raiseAim(&m, &rng)
+        case .promptSubmitted:
+            raiseDueFollowUp(&m)
         case .deeTurnFinished(let text):
-            fx += followThrough(text.lowercased(), &m)
+            let said = saidThisTurn
+            saidThisTurn = []
+            let reply = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? said.joined(separator: " ") : text
+            if reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                fx += undeliveredReply(&m)
+            } else {
+                issueUndo = [:]
+                fx += followThrough(reply.lowercased(), &m)
+            }
         default:
             break
         }
@@ -233,6 +257,8 @@ public struct IntentionBoard: SubReducer {
         userTurnsThisConversation = 0
         misreadsThisConversation = []
         awaitingOutcome = nil
+        saidThisTurn = []
+        issueUndo = [:]
         // Repair aims belong to the conversation they were born in (never "make things
         // right" days later).
         var fx: [Effect] = []
@@ -253,6 +279,10 @@ public struct IntentionBoard: SubReducer {
             return []
         }
         guard let i = m.ongoing.intentions.firstIndex(where: { $0.id == id }) else { return [] }
+        if issueUndo[id] == nil {
+            issueUndo[id] = (m.ongoing.intentions[i].status, issuedAtTurn[id],
+                             m.ongoing.intentions[i].kind == .followUp && !followedUpThisConversation.contains(id))
+        }
         m.ongoing.intentions[i].status = .issued
         m.ongoing.intentions[i].issuedCount += 1
         m.ongoing.intentions[i].updated = m.now
@@ -303,6 +333,8 @@ public struct IntentionBoard: SubReducer {
         aimedThisTurn.removeAll { !live.contains($0) }
         issuedAtTurn = issuedAtTurn.filter { live.contains($0.key) }
         followedUpThisConversation.removeAll { !live.contains($0) }
+        issueUndo = issueUndo.filter { live.contains($0.key) }
+        if let a = preAim, !live.contains(a) { preAim = nil }
         if let a = awaitingOutcome, !m.ongoing.expectations.contains(where: { $0.id == a }) { awaitingOutcome = nil }
     }
 
@@ -336,6 +368,8 @@ public struct IntentionBoard: SubReducer {
         case .speakingFinished, .deeTurnFinished:
             lastSpeechAt = now
             director.note(.deeSpoke, at: now)
+        case .deeSaid(_, let sentence):
+            saidThisTurn.append(sentence)
         case .sight(let camera, _, let novel):
             if !novel.isEmpty { director.noteSight(novel, camera: camera.rawValue, novelty: nil, at: now) }
         case .sound(let label, let unexpected):
@@ -818,7 +852,7 @@ public struct IntentionBoard: SubReducer {
     }
 
     /// The board's intentions that may be aimed now.
-    func eligible(_ it: Intention, _ m: Moment, userTurn: Bool) -> Bool {
+    func eligible(_ it: Intention, _ m: Moment, userTurn: Bool, replyPending: Bool = false) -> Bool {
         let now = m.now
         guard it.isLive, it.kind != .skill, now >= it.notBefore, now < it.expires, it.issuedCount < Intention.maxIssues else { return false }
         if it.status == .issued {
@@ -833,7 +867,8 @@ public struct IntentionBoard: SubReducer {
         }
         if it.kind == .followUp {
             guard let x = Self.expectation(for: it, in: m), m.ongoing.expectations[x].status == .pending else { return false }
-            guard m.ongoing.turnsThisConversation >= 1 else { return false }
+            // A reply being built is their turn even before its words arrive (fast mode).
+            guard m.ongoing.turnsThisConversation >= 1 || replyPending else { return false }
             if m.ongoing.followUpsThisConversation > 0, !followedUpThisConversation.contains(it.id) { return false }
             // The arrival grace keeps her from pouncing as they walk in; once they have
             // spoken, their first turn is the natural place to ask (with the reunion note).
@@ -950,9 +985,56 @@ public struct IntentionBoard: SubReducer {
     // MARK: Aim on a user turn
 
     mutating func raiseAim(_ m: inout Moment, _ rng: inout Rand) {
+        // A due follow-up is the aim of the first reply it can ride on, whatever the
+        // score (tune 3: live it lost to the threshold or never got a cue).
+        if let it = dueFollowUp(m, replyPending: false) {
+            m.ongoing.noteCandidates.removeAll { $0.owner == Self.name && $0.intention == it.id }
+            m.ongoing.raise(note(for: it, m), by: Self.name)
+            return
+        }
         guard let best = options(m, userTurn: true).first, best.score > Self.aimThreshold else { return }
         let n = bind(best, &rng)
         m.ongoing.raise(n, by: Self.name)
+    }
+
+    /// The due follow-up of the identified speaker that may be asked on this reply.
+    func dueFollowUp(_ m: Moment, replyPending: Bool) -> Intention? {
+        guard let person = m.ongoing.person else { return nil }
+        return m.ongoing.intentions
+            .filter { $0.kind == .followUp && $0.person == person && eligible($0, m, userTurn: true, replyPending: replyPending) }
+            .min { ($0.notBefore, $0.id.uuidString) < ($1.notBefore, $1.id.uuidString) }
+    }
+
+    /// `.promptSubmitted`: a reply's notes are picked now, in fast mode before `.heard`.
+    /// The due follow-up rides on it (with the reunion note) instead of waiting for a
+    /// cue that never comes (tune 2 live: exam and dentist both missed).
+    mutating func raiseDueFollowUp(_ m: inout Moment) {
+        guard present, !asleep, let it = dueFollowUp(m, replyPending: true) else { return }
+        m.ongoing.noteCandidates.removeAll { $0.owner == Self.name && $0.intention == it.id }
+        m.ongoing.raise(note(for: it, m), by: Self.name)
+        preAim = it.id
+    }
+
+    /// A reply that ended with no sentence heard (cancelled, refused, superseded) asked
+    /// nothing: its aims are given back as they were, so the next reply can carry them.
+    mutating func undeliveredReply(_ m: inout Moment) -> [Effect] {
+        let undo = issueUndo
+        issueUndo = [:]
+        aimedThisTurn = []
+        var fx: [Effect] = []
+        for (id, u) in undo.sorted(by: { $0.key.uuidString < $1.key.uuidString }) {
+            guard let i = m.ongoing.intentions.firstIndex(where: { $0.id == id }), m.ongoing.intentions[i].status == .issued else { continue }
+            m.ongoing.intentions[i].status = u.status
+            m.ongoing.intentions[i].issuedCount = max(0, m.ongoing.intentions[i].issuedCount - 1)
+            m.ongoing.intentions[i].updated = m.now
+            issuedAtTurn[id] = u.issuedAt
+            if u.newFollowUp, let k = followedUpThisConversation.firstIndex(of: id) {
+                followedUpThisConversation.remove(at: k)
+                m.ongoing.followUpsThisConversation = max(0, m.ongoing.followUpsThisConversation - 1)
+            }
+            fx.append(.persist(.intention(m.ongoing.intentions[i])))
+        }
+        return fx
     }
 
     // MARK: Initiative

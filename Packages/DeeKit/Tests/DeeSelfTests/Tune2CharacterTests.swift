@@ -110,10 +110,9 @@ struct Tune2CharacterTests {
         _ = cx.step(.promptSubmitted, mind: mind, at: back.addingTimeInterval(4))
         let (first, _) = cx.cue(at: back.addingTimeInterval(4))
         #expect(first.contains("They're back"), "a week apart: reunion on the first reply")
-        _ = cx.step(Kit.heard("Hi Dee."), mind: mind, at: back.addingTimeInterval(4))
-        _ = cx.step(.promptSubmitted, mind: mind, at: back.addingTimeInterval(5))
-        let (second, _) = cx.cue(at: back.addingTimeInterval(5))
-        #expect(second.contains("Ask how their exam went. They were nervous about it."), "\(second)")
+        // Tune 3: the follow-up now rides on that first (fast) reply too, with the
+        // reunion (Tune3CharacterTests.liveExamFollowUpIsTheFirstFastReplysAim).
+        #expect(first.contains("Ask how their exam went. They were nervous about it."), "\(first)")
     }
 
     @Test func partOfDayAfterAWeekdayOrInThe() {

@@ -118,6 +118,16 @@ public protocol BrainHost: AnyObject {
     func brainStartedReply(_ reply: BrainReply)
     /// Thinking mode changed for this conversation (on/off).
     func thinkingModeChanged(_ on: Bool)
+    /// They talked over her and she stopped for it, and the brain is answering them
+    /// (tune 3: CloudVoice pauses her reply for a barge-in and emits `.bargeIn` only
+    /// when it ends the pause itself; when the brain's answer ends it, this is the
+    /// signal). Sense it (`Percept.bargeIn`); never stop anything here — the reply
+    /// being started is the answer to it.
+    func bargedIn()
+}
+
+extension BrainHost {
+    public func bargedIn() {}
 }
 
 /// The Cortex state the exact-mode rule reads (docs/DNA.md §4.3).

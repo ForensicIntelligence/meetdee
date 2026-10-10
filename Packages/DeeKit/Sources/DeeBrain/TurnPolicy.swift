@@ -1,5 +1,6 @@
 import DeeCore
 import DeeSelf
+import DeeVoice
 import Foundation
 
 /// The brain's decisions as pure functions (unit-tested without audio or network).
@@ -78,14 +79,19 @@ public enum TurnPolicy {
     /// those: everything else is fast, tune 2). Speech over her voice is not one of
     /// them any more: it waits for its first words (`waitForPartial`), not the
     /// full transcript.
+    ///
+    /// Tune 3: a loud voice and a stranger's first turn are fast too. Live tune 2,
+    /// 7 of 9 exact waits timed out (the transcript came > 0.4 s after the commit),
+    /// so they cost 0.4 s and gained nothing; with server_vad 300 ms the commit comes
+    /// earlier still. Loudness is in the fast DNA anyway (prosody), and the model
+    /// hears a stranger's words itself. What remains needs the words: repair, a
+    /// follow-up's answer, distress, a stated mood, an ambiguous "that" or a misread.
     public static func exactModeWanted(_ c: Context) -> Bool {
         let s = c.signals
         if [.strained, .ruptured, .repairing].contains(s.repair) { return true }
-        if let p = c.prosody, p.loudness >= 0.5 || p.intensity >= 0.6 { return true }
         if !c.previousNotes.isDisjoint(with: [.followUp, .followUpGentle]) { return true }
         if s.statedHypothesis || s.distressLive { return true }
         if !c.previousNotes.isDisjoint(with: [.deixisAmbiguous, .misread]) { return true }
-        if s.unidentifiedSpeaker && s.turnsThisConversation == 0 { return true }
         return false
     }
 
@@ -260,35 +266,12 @@ public enum TurnPolicy {
 
     // MARK: Backchannels (tune 2: user decision — "keep going" while she talks is not a barge-in)
 
-    /// Whole-utterance continuers: said while she talks (or right as she was cut),
-    /// they mean "go on", never "stop" or a new turn.
-    static let continuers: Set<String> = [
-        "keep going", "go on", "go ahead", "carry on", "continue", "don't stop", "do not stop", "please continue",
-        "i'm listening", "im listening", "i am listening", "listening", "i'm still listening", "still listening",
-        "mm hm", "mm hmm", "mhm", "mmhm", "mmhmm", "mm", "mmm", "uh huh", "uh-huh", "uhhuh", "yeah", "yeah yeah", "yep", "yes",
-        "right", "okay", "ok", "sure", "i see", "got it", "cool", "nice", "wow", "oh", "ah", "aha", "really", "interesting",
-        "and then", "then what", "what else", "tell me more", "more", "yes go on", "sure go on",
-        "keep talking", "you can keep going", "you can go on", "please go on", "i'm here", "go for it",
-    ]
-
-    static let backchannelFiller: Set<String> = ["dee", "d", "please", "just", "so", "well", "no", "now"]
-
     /// Whether `text` is only a backchannel ("Keep going, I'm listening.", "Mm-hm.",
-    /// "Don't stop, keep going."): every clause a continuer, at most 8 words, no
-    /// question. "Stop", "wait", "no" or anything else make it a real turn.
+    /// "MMHN.", "HM.", "Don't stop, keep going."): DeeVoice's `Backchannel.isBackchannel`,
+    /// so the brain and the voice's floor hold use one rule (tune 3: the brain's own
+    /// copy had no hum rule, and answered "MMHN." / "HM." after the voice resumed).
     public static func isBackchannel(_ text: String) -> Bool {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !trimmed.hasSuffix("?") || ["really?", "yeah?", "and?", "and then?", "then what?"]
-            .contains(trimmed.lowercased()) else { return false }
-        let all = words(trimmed.replacingOccurrences(of: "-", with: " "))
-        guard !all.isEmpty, all.count <= 8 else { return false }
-        let clauses = trimmed.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
-            .replacingOccurrences(of: "-", with: " ")
-            .split { ",.!?;…".contains($0) }
-            .map { words(String($0)).filter { !backchannelFiller.contains($0) } }
-            .filter { !$0.isEmpty }
-        guard !clauses.isEmpty else { return false }
-        return clauses.allSatisfy { continuers.contains($0.joined(separator: " ")) }
+        Backchannel.isBackchannel(text)
     }
 
     /// The note on a turn answered again after a spoken preamble was cut.
@@ -330,9 +313,63 @@ public enum TurnPolicy {
         return false
     }
 
-    /// How far into a reply a preamble is looked for (later, it is already audible
+    /// How far into a sentence a preamble is looked for (later, it is already audible
     /// as an answer and cutting it would cut words).
     public static let preambleWords = 7
+
+    /// The sentences of a reply transcript so far (split after . ! ? …), the last one
+    /// possibly unfinished.
+    public static func sentences(_ text: String) -> [String] {
+        var out: [String] = []
+        var cur = ""
+        var prev: Character?
+        for ch in text {
+            if let p = prev, ".!?…".contains(p), ch.isWhitespace {
+                let t = cur.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !t.isEmpty { out.append(t) }
+                cur = ""
+            }
+            cur.append(ch)
+            prev = ch
+        }
+        let t = cur.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !t.isEmpty { out.append(t) }
+        return out
+    }
+
+    /// The index of the first sentence of `text` that opens with meta narration
+    /// ("Oh no, that sounds disappointing. Let me think about how to respond." → 1),
+    /// or nil. Every sentence start is checked (tune 3: the live preamble was the
+    /// second sentence), each on its first `preambleWords` words only. The first
+    /// sentence uses `preamblePatterns`; later ones only `narrationPatterns` (talk
+    /// about answering, looking up or saving), so "Let me think of another one!" or
+    /// "Let me think about it with you." after a real answer is left alone.
+    public static func metaSentence(in text: String) -> Int? {
+        for (i, s) in sentences(text).enumerated() where i == 0 ? isMetaPreamble(s) : isNarration(s) { return i }
+        return nil
+    }
+
+    /// Narration about her own answering, look-ups or memory, anywhere in a reply.
+    static let narrationPatterns: [[String]] = [
+        ["let", "me", "think", "about", "how"], ["let", "me", "think", "about", "what"], ["let", "me", "think", "how"],
+        ["how", "to", "respond"], ["how", "i", "should", "respond"], ["how", "to", "answer"],
+        ["let", "me", "respond"], ["let", "me", "answer"], ["let", "me", "check"], ["let", "me", "recall"],
+        ["let", "me", "remember"], ["let", "me", "look"], ["let", "me", "save"], ["let", "me", "note"], ["let", "me", "jot"],
+        ["let", "me", "make", "a", "note"], ["let", "me", "process"], ["let", "me", "store"], ["let", "me", "write"],
+        ["let", "me", "tuck"], ["let", "me", "pull", "up"], ["let", "me", "grab"], ["let", "me", "see", "what", "i"],
+        ["i'll", "note"], ["i'll", "save"], ["i'll", "store"], ["i'll", "jot"], ["i'll", "tuck"], ["i'll", "make", "a", "note"],
+        ["i'll", "remember", "that"], ["i'll", "check", "what"], ["i", "need", "to", "think"], ["thinking", "about", "how"],
+        ["memory", "check"], ["quick", "save"],
+    ]
+
+    /// Whether a later sentence of a reply opens with narration (`narrationPatterns`).
+    public static func isNarration(_ sentence: String) -> Bool {
+        let w = Array(words(sentence).prefix(preambleWords))
+        for p in narrationPatterns where w.count >= p.count {
+            for i in 0...(w.count - p.count) where Array(w[i..<(i + p.count)]) == p { return true }
+        }
+        return false
+    }
 
     // MARK: Reply length (tune 2: ≥ 95 % of replies ≤ 3 sentences)
 

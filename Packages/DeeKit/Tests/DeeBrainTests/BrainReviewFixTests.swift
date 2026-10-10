@@ -13,7 +13,7 @@ import Testing
     /// Correctness #1: a barge-in's cancel never drops the utterance that caused it
     /// (its commit can reach the brain just before the cancel). A hush does.
     @Test func aBargeInKeepsTheTurnThatInterrupted() async throws {
-        let rig = try await BrainRig(identified: false)          // exact: waits for the words
+        let rig = try await BrainRig(identified: false, exactWords: true)          // exact: waits for the words
         try await rig.start()
         rig.utterance("item_u1")
         #expect(await rig.until { rig.brain.trace.contains(.committed(plan: "waitForWords")) })
@@ -22,7 +22,7 @@ import Testing
         #expect(await rig.until { rig.responseCreates().count == 1 }, "the interruption is answered")
         rig.shutdown()
 
-        let hush = try await BrainRig(identified: false)
+        let hush = try await BrainRig(identified: false, exactWords: true)
         try await hush.start()
         hush.utterance("item_u1")
         #expect(await hush.until { hush.brain.trace.contains(.committed(plan: "waitForWords")) })

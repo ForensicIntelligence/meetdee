@@ -366,7 +366,10 @@ import Testing
                 #expect(l.hasPrefix("Always:") || l.contains("Never guilt") || l.contains("never blame"), "reproach '\(w)': \(l)")
             }
         }
-        #expect(DNAAssembler.assemble(a.inputs).guidance.avoidLines.contains("any hint they were away too long"))
+        // Tune 3: the time apart is named lightly (glad, no guilt) instead of avoided.
+        let g = DNAAssembler.assemble(a.inputs).guidance
+        #expect(g.avoidLines.contains("any guilt about the time apart"))
+        #expect(g.doLines.contains { $0.contains("in the same sentence, mention lightly that it's been 9 days, glad they're back") }, "\(g.doLines)")
     }
 }
 

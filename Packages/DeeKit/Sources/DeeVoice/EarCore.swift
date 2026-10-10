@@ -86,6 +86,16 @@ public struct EarCore: Sendable {
     public static let echoTail = 0.5
     /// Longest wait for evidence on a server onset while she keeps playing.
     public static let decisionTimeout = 1.5
+    /// Tune 3: an onset the server still holds open after she stopped is given up
+    /// (her echo) only this long after her echo left the room — the user may yet
+    /// talk into it (tune-2 live, tv15 p06a: the TV opened it, the user spoke
+    /// 0.7 s after her tail, and it was deleted at the timeout). Its stop decides
+    /// it sooner.
+    public static let openItemAfterTail = 4.0
+    /// Tune 3: voice that is not hers (out of her playback and its tail) this long
+    /// in an onset's window, without the evidence to accept it, sends it to its
+    /// words instead of deleting it on the sound.
+    public static let voiceAfterHer = 0.15
     /// Local evidence this long before the server's onset still counts.
     public static let evidenceLookback = 1.0
     /// Continuous voice above the bar (gaps up to `runGap`) this long, with no
@@ -756,7 +766,11 @@ public struct EarCore: Sendable {
     public mutating func serverSpeechStopped(itemID: String, end: Double?, at t: Double) -> [Action] {
         latest = max(latest, t)
         if var times = items[itemID] {
-            times.end = end.map { min($0, t) } ?? t - 0.2
+            // An end mapped before the item's onset is from another timeline (a
+            // rollover rebased the map under a late event): the window would be
+            // empty and the words in it unseen. The server stopped it about now.
+            let mapped = end.map { min($0, t) }
+            times.end = mapped.flatMap { $0 > times.onset ? $0 : nil } ?? t - 0.2
             items[itemID] = times
         }
         var actions = decide(at: t, final: itemID)
@@ -768,6 +782,33 @@ public struct EarCore: Sendable {
         }
         actions += syncUplink(at: t)
         return actions
+    }
+
+    /// `input_audio_buffer.committed`: an onset still undecided is decided now, as
+    /// at its stop (a commit may come with no `speech_stopped`, e.g. one the app
+    /// sent). No-op for anything else.
+    public mutating func serverCommitted(itemID: String, at t: Double) -> [Action] {
+        guard pending.contains(where: { $0.itemID == itemID }) else { return [] }
+        return serverSpeechStopped(itemID: itemID, end: nil, at: t)
+    }
+
+    /// The user's last burst of sound since `since`: its first and last sounding
+    /// frame (bursts are split by `gap` of silence), and the seconds of sound in it.
+    /// Nil when they made no sound since then.
+    public func lastUserBurst(since: Double, gap: Double) -> (start: Double, end: Double, sound: Double)? {
+        var end: Double?, start = 0.0, sound = 0.0
+        for f in frames.reversed() {
+            if f.t < since { break }
+            guard f.sounding else { continue }
+            if end == nil {
+                end = f.t
+            } else if start - f.t >= gap - 1e-9 {
+                break
+            }
+            start = f.t - f.dt
+            sound += f.dt
+        }
+        return end.map { (start, $0, sound) }
     }
 
     /// The server's transcript of a user item: `.heard` with local prosody over
@@ -854,6 +895,18 @@ public struct EarCore: Sendable {
             if f.her && !f.herOnset && f.rawVoiced && f.spectralNear { u += f.dt }
         }
         return (p, u)
+    }
+
+    /// Seconds of voice-like sound in the window that her voice can't be (out of
+    /// her playback and its tail): someone else's, however soft.
+    private func voiceAfterHer(from a: Double, to b: Double) -> Double {
+        var v = 0.0
+        for f in frames.reversed() {
+            if f.t < a { break }
+            guard f.t <= b, !f.her, f.rawVoiced, f.voiceLike else { continue }
+            v += f.dt
+        }
+        return v
     }
 
     // MARK: Sounds
@@ -1002,8 +1055,11 @@ public struct EarCore: Sendable {
             // on: the user may yet speak inside it (her echo opened it, they talked
             // on). It is decided at its `speech_stopped`.
             let stillOpen = items[p.itemID].map { $0.end == nil } ?? false
+            // After she stopped, an item still open waits for its stop (or
+            // `openItemAfterTail`): the user may yet talk into it (tv15 p06a).
             let timedOut = speaking ? waited >= Self.decisionTimeout && !stillOpen
                 : waited >= Self.decisionTimeout && t >= tailEnd + Self.userAfterTail * 2
+                    && (!stillOpen || t >= tailEnd + Self.openItemAfterTail - 1e-9)
             if isFinal || timedOut, nearEndEvidence(for: p.itemID, arrivedAt: p.arrivedAt, at: t, need: Self.nearEndEvidence) {
                 // Voice her playback doesn't explain: the user, never deleted as echo.
                 evidenceAt = nil
@@ -1024,7 +1080,9 @@ public struct EarCore: Sendable {
             if isFinal || timedOut {
                 let times = items[p.itemID]
                 let hint = voiceHint(from: max((times?.onset ?? p.arrivedAt - 0.3) - 0.3, resumedAt), to: (times?.end ?? t) + 0.1)
-                if hint.pitched >= Self.wordsHint - 1e-9 || hint.unexplained >= Self.wordsHintUnexplained - 1e-9 {
+                let afterHer = voiceAfterHer(from: max((times?.onset ?? p.arrivedAt - 0.3) - 0.3, resumedAt), to: t)
+                if hint.pitched >= Self.wordsHint - 1e-9 || hint.unexplained >= Self.wordsHintUnexplained - 1e-9
+                    || afterHer >= Self.voiceAfterHer - 1e-9 {
                     // Something of the user may be in it: their words decide.
                     if serverOpen == p.itemID || isFinal { serverOpen = nil }
                     actions.append(.deferToWords(itemID: p.itemID, strict: hint.pitched < Self.wordsHint - 1e-9))

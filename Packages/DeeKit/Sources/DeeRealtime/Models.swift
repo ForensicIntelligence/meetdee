@@ -246,6 +246,27 @@ public struct TurnDetection: Codable, Sendable, Equatable {
     public static func semanticManual(eagerness: String = "auto") -> TurnDetection {
         TurnDetection(type: "semantic_vad", createResponse: false, interruptResponse: false, eagerness: eagerness)
     }
+
+    /// `semantic_vad`: a model decides when the turn is over. `eagerness` `low`,
+    /// `medium`, `high` or `auto` (max waits 8 / 4 / 2 / 4 s); nil is omitted.
+    public static func semantic(eagerness: String? = nil, createResponse: Bool = false,
+                                interruptResponse: Bool = false) -> TurnDetection {
+        TurnDetection(type: "semantic_vad", createResponse: createResponse, interruptResponse: interruptResponse,
+                      eagerness: eagerness)
+    }
+
+    /// `server_vad`: the turn ends after `silenceDurationMs` of silence (API
+    /// default 500), with `prefixPaddingMs` of audio kept before the onset (300)
+    /// and an activation `threshold` 0…1 (0.5). `idleTimeoutMs` (nil: none) makes
+    /// the server answer by itself after that much silence past her last audio
+    /// (`RealtimeSession` cancels such responses). nil fields are omitted.
+    public static func serverVAD(threshold: Double? = nil, prefixPaddingMs: Int? = nil,
+                                 silenceDurationMs: Int? = nil, idleTimeoutMs: Int? = nil,
+                                 createResponse: Bool = false, interruptResponse: Bool = false) -> TurnDetection {
+        TurnDetection(type: "server_vad", createResponse: createResponse, interruptResponse: interruptResponse,
+                      threshold: threshold, prefixPaddingMs: prefixPaddingMs, silenceDurationMs: silenceDurationMs,
+                      idleTimeoutMs: idleTimeoutMs)
+    }
 }
 
 public struct AudioInputConfig: Codable, Sendable, Equatable {

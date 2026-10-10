@@ -123,7 +123,8 @@ final class BrainRig {
     private(set) var output: [Float] = []
     static let rate = 48_000.0
 
-    init(identified: Bool = true, engaged: Bool = true, tools: [any AgentTool] = [],
+    /// `exactWords`: every turn waits for its words (a stated mood: the exact rule).
+    init(identified: Bool = true, engaged: Bool = true, exactWords: Bool = false, tools: [any AgentTool] = [],
          sockets: [FakeSocket] = [], memory: MemoryStore? = nil, person: UUID? = nil,
          configure: (inout RealtimeSessionConfig) -> Void = { _ in },
          tune: (inout RealtimeBrain.Options) -> Void = { _ in }) async throws {
@@ -142,6 +143,7 @@ final class BrainRig {
         let mind = try Mind(databaseURL: nil)
         host = await StandaloneHost(mind: mind, memory: memory, person: person ?? (identified ? UUID() : nil))
         host.engaged = engaged
+        if exactWords { host.modeSignalsOverride = CueModeSignals(statedHypothesis: true, turnsThisConversation: 1) }
         var options = RealtimeBrain.Options()
         options.tick = 0.01
         options.toolFollowUpWait = 0.3

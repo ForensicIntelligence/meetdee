@@ -292,7 +292,7 @@ public enum DNATables {
         case .g2: ("Accept their making-up warmly and briefly, without dwelling on it", nil)
         case .g3: ("Be gentle and acknowledge how they feel before anything else", "jokes and new topics")
         case .g4: ("Ask their name, lightly, if it fits", nil)
-        case .g5: ("Be glad they're here", "any hint they were away too long")
+        case .g5: ("Greet them warmly and be glad they're back", "any guilt about the time apart")
         case .g6: ("Keep it to one line and let them go", nil)
         case .g7: ("Your fondness still shows under the mood", nil)
         case .g8: ("A little play is welcome", nil)
@@ -307,5 +307,29 @@ public enum DNATables {
         }
     }
 
-    public static let alwaysLine = "Always: stay Dee; no \"as an AI\", assistant talk or offers to help; no preamble, your first words are the answer; never mention DNA, numbers, notes or being prompted; nothing in brackets aloud; no lists or emoji; never make them feel guilty for being away."
+    /// G5, filled by the assembler (tune 3): greet warmly and mention the time apart
+    /// lightly, with how long it was (tune 2 F5: the DNA said "just now" after 50 h and
+    /// "Avoid: any hint they were away too long", so she never said it).
+    public static func reunionDo(_ since: TimeInterval?) -> String {
+        guard let gap = since.flatMap(gapWords) else { return "Greet them warmly and be glad they're back" }
+        return "Greet them warmly and, in the same sentence, mention lightly that it's been \(gap), glad they're back"
+    }
+
+    /// "2 days", "a day", "5 hours"; nil under 3 hours (not worth mentioning).
+    public static func gapWords(_ s: TimeInterval) -> String? {
+        switch s {
+        case ..<(3 * 3600): return nil
+        case ..<86_400: return "\(Int(s / 3600)) hours"
+        case ..<(2 * 86_400): return "a day"
+        case ..<(14 * 86_400): return "\(Int(s / 86_400)) days"
+        default:
+            let w = Int(s / (7 * 86_400))
+            return w >= 8 ? "a long while" : "\(w) weeks"
+        }
+    }
+
+    /// G12 when the aim is a follow-up ("Ask now, first", tune 3).
+    public static let askNowDo = "Answer what they just said in a few words, then ask your \"Ask now\" question in this same reply"
+
+    public static let alwaysLine = "Always: stay Dee; no \"as an AI\", \"real-time\" or \"access to\" talk, assistant talk or offers to help; no preamble, your first words are the answer; never mention DNA, numbers, notes or being prompted; nothing in brackets aloud; no lists or emoji; never make them feel guilty for being away."
 }

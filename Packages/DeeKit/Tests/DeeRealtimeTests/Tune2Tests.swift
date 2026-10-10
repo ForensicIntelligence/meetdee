@@ -268,6 +268,9 @@ extension FakeSocket {
         config.rolloverAfter = 60
         let h = try await Harness.connected(config: config)
         let first = h.socket
+        if let id = await h.session.addUserText("What's your favorite color?") {
+            await h.session.userTurnHandled(itemID: id)
+        }
         await h.advance(by: 61)
         #expect(await h.log.wait { $0 == .rolloverStarted(forced: false) } != nil)
         // The old session is asked for its summary; the user starts talking meanwhile.

@@ -144,7 +144,7 @@ import Testing
 
     /// A command is never answered and does not hold the session busy (rollover).
     @Test func aCommandReleasesTheTurn() async throws {
-        let rig = try await BrainRig(identified: false)
+        let rig = try await BrainRig(identified: false, exactWords: true)
         try await rig.start()
         rig.utterance("item_u1")
         #expect(await rig.until { await rig.session.hasUnansweredUserTurn })
@@ -280,7 +280,7 @@ import Testing
 
     /// A trailing turn nothing follows is answered after `trailingWait`.
     @Test func aTrailingTurnIsAnsweredIfNothingFollows() async throws {
-        let rig = try await BrainRig(identified: false, tune: { $0.trailingWait = 0.3 })     // exact: waits for words
+        let rig = try await BrainRig(identified: false, exactWords: true, tune: { $0.trailingWait = 0.3 })     // exact: waits for words
         try await rig.start()
         rig.utterance("item_u1")
         rig.push(Srv.userTranscript("item_u1", "I was going to call my mom and"))
@@ -335,12 +335,16 @@ import Testing
         }
     }
 
-    /// The session ends turns at `high` eagerness (tune 1).
-    @Test func sessionTurnDetectionIsEager() throws {
+    /// Tune 3: the session ends turns with the A/B winner, server_vad 300 ms
+    /// (tune 2 live: every session.update still said semantic_vad `high`).
+    @Test func sessionTurnDetectionIsServerVAD300() throws {
         let c = CloudSettings().sessionConfig()
-        #expect(c.eagerness == "high")
+        #expect(c.turnDetection == CloudSettings.turnDetection)
         let json = String(data: try JSONEncoder().encode(c.sessionPayload()), encoding: .utf8) ?? ""
-        #expect(json.contains(#""eagerness":"high""#), "\(json)")
-        #expect(json.contains(#""create_response":false"#))
+        #expect(json.contains(#""type":"server_vad""#), "\(json)")
+        #expect(json.contains(#""silence_duration_ms":300"#) && json.contains(#""prefix_padding_ms":300"#))
+        #expect(json.contains(#""threshold":0.5"#))
+        #expect(json.contains(#""create_response":false"#) && json.contains(#""interrupt_response":false"#))
+        #expect(!json.contains("eagerness"), "no semantic_vad field")
     }
 }

@@ -70,6 +70,38 @@ On `.userCommitted(item)`:
 - *Turn detection (A/B, same brain and fixtures).* Picked: `server_vad` 300 ms (`CloudSettings.turnDetection`), the only
   config inside the latency gate; it waits on the DeeRealtime seam below and semantic_vad `high` stays live until then.
 
+**Tune 3 (live run 20261009-203321).**
+- *Turn detection is live.* `CloudSettings.sessionConfig` sets `RealtimeSessionConfig.turnDetection =
+  CloudSettings.turnDetection` (`.serverVAD(threshold: 0.5, prefixPaddingMs: 300, silenceDurationMs: 300)`,
+  `create_response` / `interrupt_response` false); `turnEagerness` is unused while it is set. The unfinished-turn holds
+  below are unchanged (a commit at every 0.3 s pause is absorbed by them).
+- *No post-commit wait in ordinary turns.* The exact rule no longer fires on a loud / intense voice or a stranger's first
+  turn (live: 7 of 9 exact waits timed out at 0.4 s, all of the brain's 0.44 s commit → create p90); loudness rides in
+  the fast DNA's prosody line. Remaining waits: the exact rule's word-dependent cases and `waitForPartial` (speech over
+  or right after her voice).
+- *Reasoning effort.* Ordinary turns ask for `RealtimeBrain.ordinaryEffort` = `minimal` (`effective(_:)` maps
+  `ThinkingMode.chatEffort` to it; thinking efforts are kept; the session default is the same). Live create → first
+  audio followed reasoning tokens, not DNA size: 0 tokens 0.44 s p50, 40–99 0.72, 100–199 1.06, 200+ 1.64 s. Text eval:
+  mean reasoning tokens 30 vs 50 (low), first text p90 0.47–0.62 s vs 0.67–0.93 s, narration before tool calls 4–7 vs
+  13 of 64. An ordinary fast turn is never re-asked for its words (`answeredAt` counts `minimal` as the chat effort).
+- *Backchannels: one rule.* `TurnPolicy.isBackchannel` is DeeVoice's `Backchannel.isBackchannel` (hums: "MMHN.", "HM.",
+  "mm", "uh-huh"; live F4: the brain's own copy answered both after the voice resumed her).
+- *Floor holds (CloudVoice `holdEvents`).* `.resumed(itemIDs:)` → each unrequested item is released
+  (`userTurnHandled`, trace `.backchannel("resumed-<why>")`) and never answered; a commit of an item the voice already
+  settled (`wasBackchannel(itemID:)`) → released at once (trace `.backchannelReleased`); a `waitForPartial` item in
+  `voice.floorHold?.items` is not answered blind at `overlapWait` (re-checked every tick, at most `holdLimit` 6.5 s
+  after its commit); a backchannel the brain recognises calls `voice.continueAfterBackchannel()`. `.ended(byVoice:
+  false)` (the brain's answer cut the hold, so the voice emitted no `.bargeIn`) → `host.bargedIn()` (trace
+  `.bargeInSensed`): the app senses `Percept.bargeIn` without stopping anything; `byVoice: true` was announced by the
+  voice (`.bargeIn` → the app's `stop()`).
+- *Narration in any sentence.* The reply transcript is split into sentences (`TurnPolicy.sentences`); the first is checked
+  with `isMetaPreamble` (tune-2 path: cut + one retry), every later one with `isNarration` (talk about answering,
+  looking up or saving: "Let me think about how to respond.", "Let me check what I remember", "I'll note that"; not
+  "Let me think of another one!" / "Let me think about it with you."). A later one stops her when that sentence starts
+  (`sentenceStarted`, trace `.narrationStop` then `.preamble(cut: true)`); what she said stands, no retry.
+- *Host.* `BrainHost.bargedIn()` (default no-op); `StandaloneHost.modeSignalsOverride` and `bargeIns` for tests and the
+  harness.
+
 **Turn detection and unfinished turns (tune 1).** The session runs `semantic_vad` at
 eagerness **`high`** (`CloudSettings.turnEagerness`; 2 s cap). Live, `auto` held plain turns
 0.6–1.0 s past their last word and 3–4.5 s after a punchline or filler — the main latency
@@ -89,10 +121,10 @@ back. The session also cancels a reply with no audio yet when they go on talking
 (`cancelUnspokenReplyOnSpeech`).
 
 Exact rule (`TurnPolicy.exactModeWanted`, DNA.md §4.3): repair ∈
-{strained, ruptured, repairing}; prosody loudness ≥ 0.5 or intensity ≥ 0.6; the previous DNA
-issued a follow-up, `deixisAmbiguous` or `misread` note; a stated hypothesis or live
-distress; an unidentified speaker's first turn. (Tune 2: speech over her voice is no longer
-exact; it is `waitForPartial`.)
+{strained, ruptured, repairing}; the previous DNA issued a follow-up, `deixisAmbiguous` or
+`misread` note; a stated hypothesis or live distress. (Tune 2: speech over her voice is no
+longer exact; it is `waitForPartial`. Tune 3: a loud voice and a stranger's first turn are
+fast.)
 
 Never: `stopSpeaking` on the user-utterance path except to take back an unheard reply to
 speech that was not for her or is unfinished, or a late "think hard" (commands stop her
@@ -184,13 +216,11 @@ unless an item is still playing, 300 s absolute). Initiatives are refused while 
 
 ## Open asks
 
-- **DeeRealtime (tune 2):** `RealtimeSessionConfig.turnDetection: TurnDetection?` used by `sessionPayload` in place of
-  `.semanticManual(eagerness:)` when set; then `CloudSettings.sessionConfig` sets it to `CloudSettings.turnDetection`
-  (one line).
-- **DeeVoice (tune 2):** a backchannel must not cut her. EarCore decides a barge-in on the sound in ~0.22 s; the words
-  come ~1 s later. Ask: duck (do not flush) her voice for speech over her that is short, and let the brain's verdict
-  decide (a `CloudVoice` API the brain calls with `continued` / `stop`), or move `TurnPolicy.isBackchannel` to DeeCore so
-  EarCore can use the transcription deltas itself. Until then the brain resumes her after a cut ("carry on").
+- **DeeRealtime / DeeVoice (tune 2):** done in tune 3 and adopted (`turnDetection`; floor holds, `holdEvents`,
+  `wasBackchannel`, `continueAfterBackchannel`, `Backchannel.isBackchannel`).
+- **Voice harness (tune 3):** `DeeBrainAdapter` may implement `bargedIn()` to count barge-ins sensed from the brain's
+  answer; its `BodyInputs(lastContact:)` is now overridden by `Cortex.lastContactBeforeConversation` inside
+  `dnaInputs`, so nothing to change for the reunion line.
 
 - **DeeRealtime:** done in tune 1 (DNA lifecycle, `dropUserItem`, `resetConversation`,
   `say`, `addUserText`, unanswered hold) and adopted. The session's `TraceRecorder` records

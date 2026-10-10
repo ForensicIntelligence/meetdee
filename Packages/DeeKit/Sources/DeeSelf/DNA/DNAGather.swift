@@ -53,9 +53,19 @@ extension Cortex {
     /// into `stance` and returns their bookkeeping effects, which the app executes).
     public func dnaInputs(at now: Date, memories person: PersonInputs?, turn: TurnContext,
                           appraisal: TurnAppraisal = TurnAppraisal(), context c: DNAContext = DNAContext()) -> DNAInputs {
-        DNAInputs(now: now, utcOffset: utcOffset, turn: turn, mind: moment.ongoing.mind, aging: c.aging, inner: c.inner,
+        // §4 "last talked …": the contact before this conversation (tune 3). The host's
+        // `lastContact` (`PersonInputs.lastSeen`) and `lastUserTurnAt` are refreshed by
+        // the conversation itself, so a reunion after 50 h read "last talked just now".
+        // A first meeting has none: no "last talked" line at all (never "just now").
+        var body = c.body
+        var person = person
+        if let who = person?.id ?? moment.ongoing.person {
+            body.lastContact = lastContactBeforeConversation(who)
+            if body.lastContact == nil { person?.lastSeen = nil }
+        }
+        return DNAInputs(now: now, utcOffset: utcOffset, turn: turn, mind: moment.ongoing.mind, aging: c.aging, inner: c.inner,
                   moodHistory: c.rings.history, causes: c.rings.causes, moment: moment, stance: stance,
-                  episodes: episodeLines(person: person?.id ?? moment.ongoing.person, at: now), person: person, body: c.body,
+                  episodes: episodeLines(person: person?.id ?? moment.ongoing.person, at: now), person: person, body: body,
                   appraisal: appraisal, daily: c.daily, shareMemories: c.shareMemories, userTextCorpus: c.userTextCorpus,
                   guardCorpus: c.guardCorpus)
     }

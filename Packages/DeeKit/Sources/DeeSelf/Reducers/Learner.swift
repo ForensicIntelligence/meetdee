@@ -271,6 +271,15 @@ public struct Learner: SubReducer {
     var reunion: (person: PersonID, turns: Int)?
     /// `ongoing.reunionTurn` saw its first user turn (it ends with Dee's reply).
     var reunionTurnHeard = false
+    /// The reunion note went out on a cue; it is spent only once a reply carrying it is
+    /// actually heard (tune 2 live: a reply cancelled as the server split "Hi, Dee." /
+    /// "How was your day?" consumed it, and the reply they heard had none).
+    var reunionIssued = false
+    /// Her sentences heard since the last `.deeTurnFinished`.
+    var saidSinceTurnEnd = 0
+    /// Last contact per person before the current conversation started (carried
+    /// contact, or this launch's last sighting): `Cortex.lastContact(before:)`.
+    public internal(set) var contactBeforeConversation: [PersonID: Date] = [:]
 
     public init(utcOffset: TimeInterval = 0) {
         self.utcOffset = utcOffset
@@ -354,10 +363,18 @@ public struct Learner: SubReducer {
             for l in (novel + things) { meet(l, at: now, &m) }
         case .deeSaid(let tag, let sentence):
             turnActive = true
+            saidSinceTurnEnd += 1
             if let t = m.momentary.llmTag?.value ?? tag, Self.playfulTags.contains(t) { turnPlayfulSentences += 1 }
             if sentence.contains("?") { turnAsked = true }
         case .deeTurnFinished(let text):
             if text.contains("?") { turnAsked = true }
+            let delivered = saidSinceTurnEnd > 0 || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            saidSinceTurnEnd = 0
+            if reunionIssued, delivered {
+                reunion = nil
+                reunionIssued = false
+                m.ongoing.noteCandidates.removeAll { $0.owner == Self.name && $0.kind == .reunion }
+            }
             finishDeeTurn(&m)
             if reunionTurnHeard {
                 m.ongoing.reunionTurn = false
@@ -966,6 +983,7 @@ public struct Learner: SubReducer {
         reunionTurnHeard = false
         guard m.ongoing.repair == .fine || m.ongoing.repair == .reconciled, !m.ongoing.distressLive(at: m.now) else { return }
         reunion = (person, 1)
+        reunionIssued = false
         m.ongoing.noteCandidates.removeAll { $0.owner == Self.name && $0.kind == .reunion }
         m.ongoing.raise(.reunion(), by: Self.name)
         m.signal("reunion", by: Self.name)
@@ -979,6 +997,7 @@ public struct Learner: SubReducer {
         let quarrel = m.ongoing.repair == .ruptured || m.ongoing.repair == .repairing
         guard r.person == m.ongoing.person, r.turns > 0, !hostile, !quarrel else {
             reunion = nil
+            reunionIssued = false
             m.ongoing.noteCandidates.removeAll { $0.owner == Self.name && $0.kind == .reunion }
             return
         }
@@ -1037,7 +1056,9 @@ public struct Learner: SubReducer {
         turnAsked = false
         callbackThisTurn = nil
         tainted = []
-        if let r = reunion, r.person != m.ongoing.person { reunion = nil }
+        contactBeforeConversation = carriedContact.merging(lastSeen) { max($0, $1) }
+        saidSinceTurnEnd = 0
+        if let r = reunion, r.person != m.ongoing.person { reunion = nil; reunionIssued = false }
         if reunion == nil {
             m.ongoing.reunionTurn = false
             reunionTurnHeard = false
@@ -1053,6 +1074,7 @@ public struct Learner: SubReducer {
 
     public mutating func seed(from c: Carried, _ m: inout Moment) {
         carriedContact = c.lastContact
+        contactBeforeConversation = c.lastContact
         m.ongoing.interests = c.interests
         m.ongoing.recentMisreads = c.misreads
         seenMisreads = Array(c.misreads.map(\.id).suffix(32))
@@ -1061,7 +1083,13 @@ public struct Learner: SubReducer {
     public mutating func noteIssued(_ n: Note, _ m: inout Moment) -> [Effect] {
         switch n.kind {
         case .reunion:
-            reunion = nil
+            // Kept as a candidate until a reply carrying it is heard (see `reunionIssued`);
+            // `carryReunion` still lets it go after their first turn.
+            guard reunion != nil else { return [] }
+            reunionIssued = true
+            if !m.ongoing.noteCandidates.contains(where: { $0.owner == Self.name && $0.kind == .reunion }) {
+                m.ongoing.raise(.reunion(), by: Self.name)
+            }
             return []
         case .tasteReveal:
             m.ongoing.revealedThisConversation = true
@@ -1112,6 +1140,8 @@ public struct Learner: SubReducer {
         dirtyProfiles.removeAll { $0 == id }
         lastProfileWrite[id] = nil
         lastSeen[id] = nil
+        carriedContact[id] = nil
+        contactBeforeConversation[id] = nil
         peopleThisConversation.removeAll { $0 == id }
         if previousPerson == id { previousPerson = m.ongoing.person }
         if lastDeeTurn?.person == id { lastDeeTurn = nil }
@@ -1129,6 +1159,9 @@ public struct Learner: SubReducer {
         }
         if let w = lastProfileWrite.removeValue(forKey: from) { lastProfileWrite[into] = max(w, lastProfileWrite[into] ?? w) }
         if let s = lastSeen.removeValue(forKey: from) { lastSeen[into] = max(s, lastSeen[into] ?? s) }
+        if let s = contactBeforeConversation.removeValue(forKey: from) {
+            contactBeforeConversation[into] = max(s, contactBeforeConversation[into] ?? s)
+        }
         if let i = peopleThisConversation.firstIndex(of: from) {
             peopleThisConversation.remove(at: i)
             if !peopleThisConversation.contains(into) { peopleThisConversation.append(into) }
@@ -1143,6 +1176,7 @@ public struct Learner: SubReducer {
         let contact = carriedContact
         self = Learner(utcOffset: utcOffset)
         carriedContact = contact
+        contactBeforeConversation = contact
         previousPerson = m.ongoing.person
     }
 

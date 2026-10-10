@@ -16,11 +16,13 @@ import Testing
         c.signals.repair = .ruptured
         #expect(TurnPolicy.onCommit(c) == .waitForWords, "repair")
         c = base
+        // Tune 3: a loud or intense voice is fast (its prosody is in the fast DNA; live,
+        // 7 of 9 exact waits timed out for nothing).
         c.prosody = ProsodyRead(loudness: 0.6)
-        #expect(TurnPolicy.onCommit(c) == .waitForWords, "loud")
+        #expect(TurnPolicy.onCommit(c) == .respondFast, "loud")
         c = base
         c.prosody = ProsodyRead(intensity: 0.7)
-        #expect(TurnPolicy.onCommit(c) == .waitForWords, "intense")
+        #expect(TurnPolicy.onCommit(c) == .respondFast, "intense")
         c = base
         c.previousNotes = [.followUp]
         #expect(TurnPolicy.onCommit(c) == .waitForWords, "a follow-up was asked")
@@ -37,7 +39,7 @@ import Testing
         c.signals.unidentifiedSpeaker = true
         #expect(TurnPolicy.onCommit(c) == .respondFast, "a stranger after the first turn")
         c.signals.turnsThisConversation = 0
-        #expect(TurnPolicy.onCommit(c) == .waitForWords, "a stranger's first turn (name)")
+        #expect(TurnPolicy.onCommit(c) == .respondFast, "a stranger's first turn is fast too (tune 3)")
         c = base
         c.sinceHerVoice = -0.5
         // Tune 2: over her voice waits for its first settled words only (a
@@ -192,7 +194,7 @@ enum CloudVoiceProblemText {
         let c = CloudSettings(voice: "cedar").sessionConfig()
         #expect(c.voice == .named("cedar"))
         #expect(c.instructions == DNASessionInstructions.current)
-        #expect(c.reasoningEffort == "low")
+        #expect(c.reasoningEffort == "minimal", "tune 3: ordinary turns at minimal effort")
         #expect(c.model == "gpt-realtime-2.1-mini")
     }
 }

@@ -1243,7 +1243,7 @@ extension Interpreter {
                         if at(i - 1) != "last" { offset = offset ?? daysUntil(d, from: now, cal, allowToday: false) }
                     } else if x == "a", at(i + 1) == "week", at(i - 1) == "in" {
                         offset = 7
-                    } else if let t = time(x, next: at(i + 1), prev: at(i - 1)) {
+                    } else if let t = time(x, next: at(i + 1), prev: at(i - 1)) ?? spokenTime(w, i) {
                         hour = t.0
                         minute = t.1
                     }
@@ -1271,6 +1271,40 @@ extension Interpreter {
             let today = cal.component(.weekday, from: now) - 1
             let d = (target - today + 7) % 7
             return d == 0 && !allowToday ? 7 : d
+        }
+
+        /// Spoken clock hours (transcripts write "at three", not "at 3").
+        static let hourWords: [String: Int] = ["one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+                                               "nine": 9, "ten": 10, "eleven": 11, "twelve": 12]
+        static let minuteWords: [String: Int] = ["fifteen": 15, "twenty": 20, "thirty": 30, "forty": 40, "forty-five": 45, "fifty": 50]
+        /// "at three" never names a time in these ("at one point", "at three of them").
+        static let notAfterSpokenHour: Set<String> = ["point", "time", "times", "stage", "of", "or", "another", "each", "once",
+                                                      "least", "most", "all", "first", "last", "day", "days", "years", "year"]
+
+        /// Tune 3: the live "I have a dentist appointment next Tuesday at three." was due
+        /// at the 17:00 day default, so the follow-up waited until 19:00 and never came
+        /// that evening. "at three", "three o'clock", "three pm", "at three thirty",
+        /// "half past three" (an hour word only with one of these anchors).
+        static func spokenTime(_ w: [String], _ i: Int) -> (Int, Int)? {
+            func at(_ k: Int) -> String? { k >= 0 && k < w.count ? w[k] : nil }
+            guard let h = hourWords[w[i]] else { return nil }
+            var minute = 0
+            var j = i + 1
+            if let m = at(j).flatMap({ minuteWords[$0] }) { minute = m; j += 1 }
+            let next = at(j)
+            var pm: Bool?
+            if ["pm", "p.m", "p.m."].contains(next ?? "") { pm = true }
+            if ["am", "a.m", "a.m."].contains(next ?? "") { pm = false }
+            let past = at(i - 1) == "past" && (at(i - 2) == "half" || at(i - 2) == "quarter")
+            if past { minute = at(i - 2) == "half" ? 30 : 15 }
+            let anchored = pm != nil || next == "o'clock" || next == "oclock" || past
+                || (at(i - 1) == "at" && !notAfterSpokenHour.contains(next ?? ""))
+            guard anchored else { return nil }
+            var hour = h
+            if pm == true, h < 12 { hour += 12 }
+            if pm == false, h == 12 { hour = 0 }
+            if pm == nil, (1...7).contains(h) { hour += 12 }
+            return (hour, minute)
         }
 
         /// "3pm", "3:30pm", "15:30", "at 3", "3 o'clock", "3 pm".

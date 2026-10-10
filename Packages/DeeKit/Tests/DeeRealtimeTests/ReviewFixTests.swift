@@ -13,6 +13,8 @@ import Testing
     @Test func forcedRolloverNeverKillsAReplyThatStartedDuringIt() async throws {
         let h = try await Harness.connected()
         let first = h.socket
+        // Something to summarise (with nothing said, no summary is asked for).
+        if let id = await h.session.addUserText("Hi Dee.") { await h.session.userTurnHandled(itemID: id) }
         await h.advance(by: 59 * 60 + 1)
         #expect(await h.log.wait { $0 == .rolloverStarted(forced: true) } != nil)
         #expect(await first.waitForSent(type: "response.create", count: 1))   // the summary request

@@ -185,6 +185,9 @@ struct EarHarness {
         #expect(h.decisions == [.rejectEcho(itemID: "item_e")])
     }
 
+    /// Tune 3: an item still open after she stopped waits for its stop — the user
+    /// may yet talk into it (tv15 p06a) — but never longer than
+    /// `openItemAfterTail` after her echo left the room.
     @Test func echoThatNeverStopsIsRejectedOnceSheStops() {
         var h = EarHarness()
         h.startPlayback()
@@ -194,6 +197,8 @@ struct EarHarness {
         #expect(h.decisions.isEmpty)
         h.stopPlayback()
         h.quiet(EarCore.echoTail + EarCore.userAfterTail * 2 + 0.3)
+        #expect(h.decisions.isEmpty, "given up while the server still held it open")
+        h.quiet(EarCore.openItemAfterTail - EarCore.userAfterTail * 2)
         #expect(h.decisions == [.rejectEcho(itemID: "item_e")])
     }
 

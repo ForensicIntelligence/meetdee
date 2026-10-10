@@ -113,6 +113,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// The latest item was committed.
         public var committed = false
         var commitSent = false
+        /// When the latest item's audio was closed: our commit sent, or the
+        /// server's commit seen. Their sound after it is in no item yet.
+        public var commitAt: Double?
+        /// The latest commit was ours on a short burst (`holdQuickBurst`): its
+        /// delta burst is short, so its words settle sooner (`holdSettleQuick`).
+        var quickCommit = false
 
         public init(itemID: String?, since: Double) {
             self.since = since
@@ -131,6 +137,17 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             speechStoppedAt = nil
             committed = false
             commitSent = false
+            quickCommit = false
+        }
+
+        /// Every item before the latest whose words are in said "go on" (or nothing).
+        var earlierWordsGoOn: Bool {
+            for item in items.dropLast() {
+                guard let w = (final[item] ?? partial[item])?.trimmingCharacters(in: .whitespacesAndNewlines),
+                      !w.isEmpty else { continue }
+                if !Backchannel.isBackchannel(w) { return false }
+            }
+            return true
         }
 
         mutating func remove(_ item: String) {
@@ -143,7 +160,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         enum Verdict: Equatable { case wait, resume, answer }
 
         /// What their words say so far. `settled`: partial words count (no new
-        /// delta for `holdSettle`); `quiet`: they aren't talking now.
+        /// delta for `holdSettle`); `quiet`: an item still without words decides
+        /// nothing (they are quiet and its words are late).
         func verdict(settled: Bool, quiet: Bool) -> Verdict {
             var anyBackchannel = false, undecided = false
             for item in items {
@@ -176,6 +194,29 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// server's `speech_stopped` (a commit mid-speech splits their words). Her
     /// voice is silent in a hold: the local end of speech is clean.
     public static let holdCommitSilence = 0.3
+    /// Tune 3 (live: "Go on." / "Mm-hm." / "Don't stop, keep going." resumed
+    /// 1.4–4.6 s after they paused her — the server's semantic VAD reported the
+    /// end of their speech only with its commit, 0.7–2.6 s after the words). In a
+    /// hold, a short burst of their voice (at most this long) that ended
+    /// `holdCommitSilence` ago is committed at once, without waiting for the
+    /// server's `speech_stopped`: the backchannel's words come ~0.15 s later and
+    /// she goes on ~0.5 s after they stopped. Longer speech is left to the server
+    /// (a commit inside a sentence would split it). Only while every earlier item
+    /// of the hold said "go on": a real turn is never cut into pieces.
+    public static let holdQuickBurst = 1.0
+    /// Settled deltas of a quick commit (a short burst: a few words in one burst).
+    public static let holdSettleQuick = 0.1
+    /// She goes on only once they have been quiet this long (never over them:
+    /// "Don't stop, … keep going." — the first words are in while they talk on).
+    public static let holdResumeQuiet = 0.2
+    /// Their sound after the latest commit that no server item holds yet: she
+    /// waits up to this long after it for the item that will (its words decide).
+    public static let holdUncoveredWait = 1.0
+    /// An item of a hold with no words this long after its commit decides nothing
+    /// (live deltas come ~0.15 s after a commit).
+    public static let holdWordsLate = 0.8
+    /// How far before the pause their burst may have begun.
+    static let holdBurstLookback = 1.5
 
     /// What the brain (RealtimeBrain) consumes.
     public enum BrainEvent: Sendable, Equatable {
@@ -199,6 +240,20 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         case connection(VoiceProblem?)
     }
 
+    /// A hold's life, for the brain (`holdEvents`).
+    public enum HoldEvent: Sendable, Equatable {
+        /// Her reply paused for a barge-in (`floorHold` is set); their words decide.
+        case paused(itemID: String?)
+        /// Their words were a backchannel (`why` "words"), the onset was her echo
+        /// ("echo"), or the brain said so (`continueAfterBackchannel`, "brain"):
+        /// she goes on from where she paused. `itemIDs`: their items in the hold —
+        /// committed turns that need no answer (`wasBackchannel(itemID:)`).
+        case resumed(itemIDs: [String], text: String, why: String)
+        /// The hold ended as a barge-in: her reply ends where she paused.
+        /// `byVoice`: no answer came, the voice ended it (`.bargeIn` was emitted).
+        case ended(itemIDs: [String], byVoice: Bool)
+    }
+
     public let session: RealtimeSession
     public let graph: AudioGraph
     public let clips: ClipCache?
@@ -209,6 +264,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     private let continuation: AsyncStream<VoiceEvent>.Continuation
     public let brainEvents: AsyncStream<BrainEvent>
     private let brain: AsyncStream<BrainEvent>.Continuation
+    /// Every hold's pause / resume / end, in order (single consumer; the newest
+    /// 64 are kept if nobody reads).
+    public let holdEvents: AsyncStream<HoldEvent>
+    private let holdContinuation: AsyncStream<HoldEvent>.Continuation
     private let commands: AsyncStream<Command>.Continuation
     private let commandStream: AsyncStream<Command>
 
@@ -291,6 +350,11 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// Items whose words decide whether they are hers (`deferToWords`): their
         /// session events, held back from the brain until then, and since when.
         var wordsPending: [String: (since: Double, events: [RealtimeEvent], strict: Bool)] = [:]
+        /// Settled deltas of items waiting for their words: words she never said
+        /// decide "the user" before the full transcript (~0.2 s sooner).
+        var wordsPartial: [String: (text: String, at: Double)] = [:]
+        /// User items she went on through (a backchannel in a hold), newest last.
+        var backchannelItems: [String] = []
     }
 
     /// An item waiting for its words is given up on (deleted as her echo) after this.
@@ -311,6 +375,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         self.configuration = configuration
         (stream, continuation) = AsyncStream<VoiceEvent>.makeStream(bufferingPolicy: .bufferingNewest(512))
         (brainEvents, brain) = AsyncStream<BrainEvent>.makeStream(bufferingPolicy: .unbounded)
+        (holdEvents, holdContinuation) = AsyncStream<HoldEvent>.makeStream(bufferingPolicy: .bufferingNewest(64))
         (commandStream, commands) = AsyncStream<Command>.makeStream(bufferingPolicy: .unbounded)
         inner.withLock { $0.core.wakeOnVoice = configuration.wakeOnVoice }
         graph.player.timeline = timeline                 // `.firstAudioPlayed` / `.flushed` land in the same turns
@@ -353,6 +418,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             resumeHold(&s, at: t, why: "brain")
             return true
         }
+    }
+
+    /// `itemID` was (part of) a backchannel she went on through: a committed turn
+    /// that needs no answer (`session.userTurnHandled`). Remembers the last 32.
+    public func wasBackchannel(itemID: String) -> Bool {
+        inner.withLock { $0.backchannelItems.contains(itemID) }
     }
 
     /// The cloud voice's current problem (nil when it works).
@@ -418,6 +489,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         commands.finish()
         continuation.finish()
         brain.finish()
+        holdContinuation.finish()
         tasks.withLock { list in list.forEach { $0.cancel() } }
     }
 
@@ -605,6 +677,15 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 for e in s.sentences.progress(item, playedMs: ms) { brain.yield(Self.brainEvent(e)) }
             }
             checkHold(&s, at: t)
+            for (item, p) in s.wordsPartial where t - p.at >= Self.holdSettle - 1e-9 {
+                // Settled words she never said: the user (her own words wait for
+                // the full transcript — more of them may yet come).
+                guard let pending = s.wordsPending[item] else { s.wordsPartial[item] = nil; continue }
+                guard !s.herWords.isHerEcho(p.text, at: t, strict: pending.strict) else { continue }
+                mark(.note, detail: "words of \(item): the user (settled)")
+                wordsDecided(item, user: true, &s)
+                holdForWords(item, text: p.text, partialAt: p.at, &s)
+            }
             for (item, w) in s.wordsPending where t - w.since >= Self.wordsWait {
                 mark(.note, detail: "no words for \(item): her echo")
                 wordsDecided(item, user: false, &s)
@@ -615,16 +696,40 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// A hold's deadlines and settled words.
     private func checkHold(_ s: inout Inner, at t: Double) {
         guard let h = s.hold else { return }
-        let quiet = t - s.core.lastUserSoundTime >= Self.holdCommitSilence
-        if h.itemID != nil, h.speechStoppedAt != nil, !h.committed, !h.commitSent, h.wordsAt == nil, quiet {
+        let lastSound = s.core.lastUserSoundTime
+        let quiet = t - lastSound >= Self.holdCommitSilence
+        if let item = h.itemID, !h.committed, !h.commitSent, h.wordsAt == nil, quiet {
             // The server stopped their speech and they are quiet: their words now,
-            // not after the server's end-of-turn hold.
-            s.hold?.commitSent = true
-            command(.commitSpeech)
+            // not after the server's end-of-turn hold. Or (tune 3) a short burst of
+            // theirs has ended — "Go on.", "Mm-hm." — and the server hasn't said so
+            // yet: the same, at once.
+            let stopped = h.speechStoppedAt != nil
+            let quick = !stopped && h.earlierWordsGoOn
+                && (s.core.lastUserBurst(since: h.since - Self.holdBurstLookback, gap: Self.holdCommitSilence).map {
+                    $0.end - $0.start <= Self.holdQuickBurst + 1e-9 && $0.end > (h.commitAt ?? -.infinity)
+                } ?? false)
+            if stopped || quick {
+                s.hold?.commitSent = true
+                s.hold?.commitAt = t
+                s.hold?.quickCommit = quick
+                if quick { mark(.note, detail: "quick commit (hold) \(item)") }
+                command(.commitSpeech)
+            }
         }
-        let settled = h.lastDeltaAt.map { t - $0 >= Self.holdSettle - 1e-9 } ?? false
-        switch h.verdict(settled: settled, quiet: quiet) {
+        guard let h = s.hold else { return }
+        let settle = h.quickCommit ? Self.holdSettleQuick : Self.holdSettle
+        let settled = h.lastDeltaAt.map { t - $0 >= settle - 1e-9 } ?? false
+        // Never over them; and not while what they said since the latest commit
+        // is in no item yet (its words may say more than "go on").
+        let quietNow = t - lastSound >= Self.holdResumeQuiet - 1e-9
+        let uncovered = h.committed && (h.commitAt.map { lastSound > $0 + 0.05 } ?? false)
+            && t - lastSound < Self.holdUncoveredWait
+        // An item still without words holds her unless its words are late (its
+        // commit long past): the user may have said more than "go on" in it.
+        let wordsLate = quiet && h.committed && (h.commitAt.map { t - $0 >= Self.holdWordsLate - 1e-9 } ?? false)
+        switch h.verdict(settled: settled, quiet: wordsLate) {
         case .resume:
+            guard quietNow, !uncovered else { break }
             resumeHold(&s, at: t, why: "words")
             return
         case .answer:
@@ -636,7 +741,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         }
         guard let h = s.hold else { return }
         if t - h.since >= Self.holdMax - 1e-9
-                    || (h.speechStoppedAt.map { t - $0 >= Self.holdWordsWait - 1e-9 } ?? false)
+                    || ((h.speechStoppedAt ?? (h.committed ? h.commitAt : nil)).map { t - $0 >= Self.holdWordsWait - 1e-9 } ?? false)
                     || (h.wordsAt.map { t - $0 >= Self.holdAfterWords - 1e-9 } ?? false)
                     || (h.itemID == nil && t - h.since >= Self.holdNoItem - 1e-9) {
             mark(.note, detail: "hold ended by the voice \(h.itemID ?? "-")")
@@ -853,6 +958,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 s.finishDueAt = nil
                 s.heldStarts.removeAll()
                 s.wordsPending.removeAll()
+                s.wordsPartial.removeAll()
                 s.responseOpen = false
                 s.lastDoneCompleted = false
                 resolvePlayedOut(&s)
@@ -900,7 +1006,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     timeline.beginTurn(.speechStopped, at: end.map { min($0, t) } ?? t, detail: item)
                 }
             case .userCommitted(let item, _):
-                if s.hold?.itemID == item { s.hold?.committed = true }
+                // An onset still undecided (an early commit) is decided now.
+                if s.core.isDeciding(item) { apply(s.core.serverCommitted(itemID: item, at: t), &s) }
+                if s.hold?.itemID == item {
+                    s.hold?.committed = true
+                    if s.hold?.commitSent != true { s.hold?.commitAt = t }
+                }
                 if s.wordsPending[item] != nil {
                     s.wordsPending[item]?.events.append(e)
                     forward = false
@@ -912,6 +1023,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 }
                 if s.wordsPending[item] != nil {
                     s.wordsPending[item]?.events.append(e)
+                    s.wordsPartial[item] = ((s.wordsPartial[item]?.text ?? "") + delta, t)
                     forward = false
                 } else if s.rejected.contains(item) {
                     forward = false
@@ -927,13 +1039,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     let user = !s.herWords.isHerEcho(text, at: t, strict: pending.strict)
                     mark(.note, detail: "words of \(item): \(user ? "the user" : "her echo")")
                     wordsDecided(item, user: user, &s)
-                    if user, s.sessionPlaying, s.hold == nil, !Backchannel.isBackchannel(text) {
-                        // They were talking to her under her loud echo: she goes quiet now;
-                        // the brain answers them (which ends her reply where she paused).
-                        graph.player.hold()
-                        s.hold = FloorHold(itemID: item, since: graph.now)
-                        mark(.note, detail: "hold \(item) (words)")
-                    }
+                    if user { holdForWords(item, text: text, partialAt: nil, &s) }
                 }
                 if s.rejected.contains(item) {
                     forward = false
@@ -954,6 +1060,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 }
             case .echoRejected(let item):
                 s.wordsPending[item] = nil
+                s.wordsPartial[item] = nil
                 markRejected(item, &s)
                 s.core.forget(item)
                 s.heldStarts[item] = nil
@@ -1255,6 +1362,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     graph.player.hold()
                     s.hold = FloorHold(itemID: item, since: graph.now)
                     mark(.note, detail: "hold \(item ?? "-")")
+                    holdContinuation.yield(.paused(itemID: item))
                 } else {
                     cutReply(&s)
                 }
@@ -1296,6 +1404,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// An item's words decided it: the user's (the brain gets everything held
     /// back, in order) or her echo (deleted; the brain never sees it).
     private func wordsDecided(_ item: String, user: Bool, _ s: inout Inner) {
+        s.wordsPartial[item] = nil
         guard let pending = s.wordsPending.removeValue(forKey: item) else { return }
         if user {
             release(item, &s)
@@ -1325,6 +1434,27 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         graph.player.resume()
         apply(s.core.playbackResumed(at: t), &s)
         mark(.note, detail: "resumed \(h.itemID ?? "-") (\(why))")
+        if why != "echo" {
+            s.backchannelItems.append(contentsOf: h.items)
+            if s.backchannelItems.count > 32 { s.backchannelItems.removeFirst(s.backchannelItems.count - 32) }
+        }
+        holdContinuation.yield(.resumed(itemIDs: h.items, text: h.text, why: why))
+    }
+
+    /// Words she never said, over her voice (an item her echo opened): unless
+    /// they say "go on", she goes quiet now and the brain answers them (which
+    /// ends her reply where she paused).
+    private func holdForWords(_ item: String, text: String, partialAt: Double?, _ s: inout Inner) {
+        guard s.sessionPlaying, s.hold == nil, !Backchannel.isBackchannel(text) else { return }
+        graph.player.hold()
+        var h = FloorHold(itemID: item, since: graph.now)
+        if let partialAt {
+            h.partial[item] = text
+            h.lastDeltaAt = partialAt
+        }
+        s.hold = h
+        mark(.note, detail: "hold \(item) (words)")
+        holdContinuation.yield(.paused(itemID: item))
     }
 
     /// A hold ended as a real barge-in: marked when she paused (she was silent
@@ -1334,6 +1464,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         s.hold = nil
         timeline.mark(.bargeIn, at: h.since, detail: h.itemID)
         if announce { continuation.yield(.bargeIn) }
+        holdContinuation.yield(.ended(itemIDs: h.items, byVoice: announce))
     }
 
     /// Stops her reply where the listener is: flush, then tell the server exactly

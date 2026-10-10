@@ -77,9 +77,20 @@ import Testing
         try Self.check(DNASessionInstructions.v1 + "\n", file: "session-instructions.v1.txt")
         try Self.check(DNASessionInstructions.v2 + "\n", file: "session-instructions.v2.txt")
         try Self.check(DNASessionInstructions.v3 + "\n", file: "session-instructions.v3.txt")
-        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v3)
-        #expect(DeeDNA.version == "v3")
-        for banned in ["Maya", "2026", "October", "/255", "<", ">", "[", "]"] { #expect(!DNASessionInstructions.v3.contains(banned)) }
+        try Self.check(DNASessionInstructions.v4 + "\n", file: "session-instructions.v4.txt")
+        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v4)
+        #expect(DeeDNA.version == "v4")
+        for banned in ["Maya", "2026", "October", "/255", "<", ">", "[", "]"] { #expect(!DNASessionInstructions.v4.contains(banned)) }
+        // Tune 3: "Ask now, first" is asked, a reunion names the time apart lightly, no assistant talk about limits.
+        for needed in ["An \"Ask now, first\" line is not optional", "say lightly how long it has been",
+                       "\"I don't have access to real-time data\"", "\"I can't see that from here\"",
+                       "Never make anyone feel guilty for being away"] {
+            #expect(DNASessionInstructions.v4.contains(needed), "v4 lacks: \(needed)")
+        }
+        // v4 keeps everything v3 asked for.
+        let v3Lines = DNASessionInstructions.v3.components(separatedBy: "\n").filter { !$0.isEmpty }
+        let kept = v3Lines.filter { DNASessionInstructions.v4.contains($0) }.count
+        #expect(kept >= v3Lines.count - 3, "only the three tune-3 lines changed")
         // Live eval R1/R5/R6: the turn block, no helper talk, no preamble, the hard length cap.
         for needed in ["WHAT THE DNA LINES MEAN FOR THIS TURN", "React to what they just said first.", "let the \"Do now\" wait",
                        "\"Careful with them\" lines are private cautions", "let them tell it; don't tell one of your own",

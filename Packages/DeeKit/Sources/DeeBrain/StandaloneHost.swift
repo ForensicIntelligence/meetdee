@@ -81,8 +81,12 @@ public final class StandaloneHost: BrainHost {
 
     public var answersOnCommit: Bool { engaged && !asleep }
 
+    /// Replaces the Cortex's exact-mode signals (tests and the harness: force a
+    /// turn that waits for its words).
+    public var modeSignalsOverride: CueModeSignals?
+
     public func modeSignals(at now: Date) -> CueModeSignals {
-        CueModeSignals(moment: cortex.moment, identified: person != nil, at: now)
+        modeSignalsOverride ?? CueModeSignals(moment: cortex.moment, identified: person != nil, at: now)
     }
 
     public func heard(_ turn: HeardTurn) async -> HeardVerdict {
@@ -178,4 +182,8 @@ public final class StandaloneHost: BrainHost {
     }
 
     public func thinkingModeChanged(_ on: Bool) { thinkingOn = on }
+
+    /// Barge-ins the brain sensed from its own answer (`BrainHost.bargedIn`).
+    public private(set) var bargeIns = 0
+    public func bargedIn() { bargeIns += 1 }
 }

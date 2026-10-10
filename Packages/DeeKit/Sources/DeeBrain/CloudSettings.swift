@@ -59,25 +59,25 @@ public struct CloudSettings: Sendable, Equatable {
     /// an unheard fast reply is taken back) and the session cancels a reply with no
     /// audio yet when they go on (`cancelUnspokenReplyOnSpeech`).
     ///
-    /// Live only once `RealtimeSessionConfig` can carry it (ask to DeeRealtime:
-    /// `public var turnDetection: TurnDetection?`, used by `sessionPayload` instead
-    /// of `.semanticManual(eagerness:)` when set); until then the session runs
-    /// semantic_vad at `turnEagerness`.
-    public static let turnDetection = TurnDetection(type: "server_vad", createResponse: false, interruptResponse: false,
-                                                    threshold: 0.5, prefixPaddingMs: 300, silenceDurationMs: 300)
+    ///
+    /// Live from tune 3: `sessionConfig` sends it as the session's `turn_detection`
+    /// (`RealtimeSessionConfig.turnDetection`); `turnEagerness` is then unused.
+    public static let turnDetection = TurnDetection.serverVAD(threshold: 0.5, prefixPaddingMs: 300, silenceDurationMs: 300,
+                                                              createResponse: false, interruptResponse: false)
 
     /// docs/DNA.md §3/D5: stable instructions (no names, memories or state), the
-    /// tools, the voice; `semantic_vad` (eagerness `turnEagerness`) with
-    /// `create_response: false` and `interrupt_response: false` is the session's own
-    /// default (Dee keeps the floor).
+    /// tools, the voice; turn detection `turnDetection` (server_vad 300 ms) with
+    /// `create_response: false` and `interrupt_response: false` (Dee keeps the floor).
+    /// Reasoning effort: `ordinaryEffort` (each response sets its own as well).
     public func sessionConfig(tools: [RealtimeTool] = []) -> RealtimeSessionConfig {
         var c = RealtimeSessionConfig()
         c.model = model
         c.eagerness = Self.turnEagerness
+        c.turnDetection = Self.turnDetection
         c.voice = .named(voice)
         c.instructions = DNASessionInstructions.current
         c.tools = tools
-        c.reasoningEffort = ThinkingMode.chatEffort.rawValue
+        c.reasoningEffort = RealtimeBrain.ordinaryEffort.rawValue
         return c
     }
 }

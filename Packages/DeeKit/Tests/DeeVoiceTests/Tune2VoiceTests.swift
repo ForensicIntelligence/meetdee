@@ -330,22 +330,23 @@ extension LoopRig {
     /// Live tune 2: "Don't stop, keep going." paused her 4.2 s — the server held
     /// its turn 2.3 s past the words. In a hold, once the server has stopped
     /// their speech and they have been quiet for `holdCommitSilence`, the item is
-    /// committed at once. Never while they talk, never before `speech_stopped`
-    /// (a commit mid-speech split "Keep going. / I'm listening." live).
+    /// committed at once. Never while they talk. Speech longer than
+    /// `holdQuickBurst` is never committed before `speech_stopped` (a commit
+    /// mid-sentence splits it); a short burst is (tune 3: `FloorHoldQuickTests`).
     @Test func theirWordsAreAskedForAsSoonAsTheyStop() async throws {
         let rig = try LoopRig()
         try await rig.start()
         try rig.quiet(0.3)
-        try await rig.answerWith([("item_a1", 4000)])
+        try await rig.answerWith([("item_a1", 5000)])
         try rig.quiet(0.6)
         try rig.talk(0.15)
         rig.push(Srv.speechStarted("item_u2", ms: rig.uplinkMsNow - 150))
         await rig.settle()
-        try rig.talk(0.5)
+        try rig.talk(1.4)
         #expect(rig.voice.floorHold?.itemID == "item_u2")
         try rig.quiet(0.6)
         await rig.settle()
-        #expect(rig.sent("input_audio_buffer.commit").isEmpty, "committed before the server stopped their speech")
+        #expect(rig.sent("input_audio_buffer.commit").isEmpty, "committed long speech before the server stopped it")
         rig.push(Srv.speechStopped("item_u2", ms: rig.uplinkMsNow - 500))
         await rig.settle()
         try rig.quiet(0.1)

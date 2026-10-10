@@ -17,7 +17,20 @@ public struct RealtimeSessionConfig: Sendable, Equatable {
     public var tools: [RealtimeTool] = []
     public var toolChoice: ToolChoice = .auto
     /// semantic_vad eagerness: `low` (8 s max wait), `medium`/`auto` (4 s), `high` (2 s).
+    /// Used only while `turnDetection` is nil.
     public var eagerness = "auto"
+    /// `audio.input.turn_detection`. nil (default): `semantic_vad` at `eagerness`
+    /// that never answers or interrupts by itself. Set it to choose the mode, e.g.
+    /// `.serverVAD(threshold: 0.5, prefixPaddingMs: 300, silenceDurationMs: 300)`
+    /// or `.semantic(eagerness: "high")`. Sent as given, except: fields of the other
+    /// mode are left out (`eagerness` is semantic_vad only; `threshold`,
+    /// `prefix_padding_ms`, `silence_duration_ms`, `idle_timeout_ms` are server_vad
+    /// only), and `create_response` / `interrupt_response` left nil are sent as
+    /// `false` (Dee keeps the floor decisions; the API's default is `true`).
+    /// The session plays only responses it asked for: a response the server
+    /// makes by itself (`create_response: true`, or `idle_timeout_ms` running out)
+    /// is cancelled and removed from the conversation.
+    public var turnDetection: TurnDetection?
     /// `far_field` for a phone on a desk; nil turns noise reduction off.
     public var noiseReduction: NoiseReduction? = .farField
     /// Input transcription (feeds `.userTranscript`). `gpt-transcribe` is the
@@ -126,6 +139,25 @@ public struct RealtimeSessionConfig: Sendable, Equatable {
 
     public init() {}
 
+    /// The `turn_detection` object sent in `session.update` (see `turnDetection`).
+    public var wireTurnDetection: TurnDetection {
+        guard var td = turnDetection else { return .semanticManual(eagerness: eagerness) }
+        td.createResponse = td.createResponse ?? false
+        td.interruptResponse = td.interruptResponse ?? false
+        if td.type == "server_vad" {
+            td.eagerness = nil
+        } else if td.type == "semantic_vad" {
+            td.threshold = nil; td.prefixPaddingMs = nil; td.silenceDurationMs = nil; td.idleTimeoutMs = nil
+        }
+        return td
+    }
+
+    /// The server may start responses by itself (`create_response`, or an idle timeout).
+    var serverMakesResponses: Bool {
+        let td = wireTurnDetection
+        return td.createResponse == true || td.idleTimeoutMs != nil
+    }
+
     /// The full `session.update` payload. `includeVoice` is false for mid-session
     /// updates (the voice is frozen after the first audio).
     public func sessionPayload(includeVoice: Bool = true) -> SessionPayload {
@@ -133,7 +165,7 @@ public struct RealtimeSessionConfig: Sendable, Equatable {
             format: .pcm24k,
             noiseReduction: noiseReduction.map { .value($0) } ?? .null,
             transcription: transcription.map { .value(Self.sanitized($0)) } ?? .null,
-            turnDetection: .value(.semanticManual(eagerness: eagerness)))
+            turnDetection: .value(wireTurnDetection))
         let output = AudioOutputConfig(format: .pcm24k, voice: includeVoice ? voice : nil,
                                        speed: min(max(speed, 0.25), 1.5))
         return SessionPayload(

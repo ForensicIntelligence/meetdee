@@ -219,6 +219,13 @@ public enum DNAPrompt {
         guard let last = t.last else { return t }
         return ".!?".contains(last) ? t : t + "."
     }
+    /// "Ask how their exam went. …" → ("Ask now, first: ", "how their exam went. …");
+    /// "Gently ask how they've been feeling." → ("Ask now, first, gently: ", "how they've been feeling.").
+    static func askNow(_ text: String) -> (label: String, ask: String) {
+        if text.hasPrefix("Gently ask ") { return ("Ask now, first, gently: ", String(text.dropFirst("Gently ask ".count))) }
+        if text.hasPrefix("Ask ") { return ("Ask now, first: ", String(text.dropFirst("Ask ".count))) }
+        return ("Ask now, first: ", text)
+    }
     static func daysAgo(_ n: Int) -> String { n <= 0 ? "today" : n == 1 ? "yesterday" : "\(n) days ago" }
 
     static func compose(_ d: DeeDNA, _ o: Options) -> [Line] {
@@ -296,7 +303,12 @@ public enum DNAPrompt {
                 var parts: [String] = []
                 if r.encounters > 1, let m = r.firstMetMonth { parts.append("met \(r.encounters) times since \(m)") }
                 else if let m = r.firstMetMonth { parts.append("first met \(m)") }
-                if let s = r.sinceLastTalk { parts.append("last talked \(DNATables.sinceWords(s))") }
+                // The contact before this conversation (tune 3); later turns say so, so it
+                // never reads as a gap inside the conversation.
+                if let s = r.sinceLastTalk {
+                    parts.append(d.now.turnsThisConversation > 0 ? "before this chat, last talked \(DNATables.sinceWords(s))"
+                                                                 : "last talked \(DNATables.sinceWords(s))")
+                }
                 if let t = r.recentTrend { parts.append("recent days \(t)") }
                 if r.rudeCount > 0 { parts.append("they were rude \(r.rudeCount) times overall, kind \(r.kindCount) times") }
                 if r.apologiesCountLess { parts.append("apologies have counted for less lately") }
@@ -394,7 +406,12 @@ public enum DNAPrompt {
             }, separator: " and ", suffix: "; don't assume.", needsItems: true))
         }
         for note in n.notes where !o.minimal {
-            if note.role == .aim {
+            if note.role == .aim, [.followUp, .followUpGentle].contains(note.kind) {
+                // A due follow-up is the reply's first job, not an option (tune 3: live, the
+                // model passed over "only if the moment invites it" on every reunion).
+                let (label, ask) = Self.askNow(sentence(note.text))
+                out.append(Line(7, .doNow, label, items: [ask], suffix: " (priority p\(note.priority))", needsItems: true))
+            } else if note.role == .aim {
                 out.append(Line(7, .doNow, "Do now (once, only if it still fits what they just said): ", items: [sentence(note.text)],
                                 suffix: " (priority p\(note.priority))", needsItems: true))
             } else {

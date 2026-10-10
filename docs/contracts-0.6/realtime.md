@@ -15,7 +15,8 @@ WebSocket server). Tune 1 (2026-10-09) added: single-use secrets, the DNA lifecy
 
 ## The model in one paragraph
 
-Dee keeps the floor. The session runs `semantic_vad` with `create_response: false` and
+Dee keeps the floor. The session runs `semantic_vad` (or the configured `turnDetection`, e.g.
+`server_vad`) with `create_response: false` and
 `interrupt_response: false`, so the server only **reports** speech start/stop and commits the user's
 audio as an item; it never answers or interrupts by itself. The app decides when Dee answers
 (`requestResponse`), when she speaks first (`initiative`), when a user onset during her speech is a
@@ -48,7 +49,8 @@ try await session.connect()                             // throws RealtimeSessio
 | `model` | `gpt-realtime-2.1-mini` | `gpt-realtime-2.1` for the "full" setting |
 | `voice` | `.named("marin")` | or `.custom(id:)`; never resent mid-session |
 | `instructions`, `tools`, `toolChoice` | `""`, `[]`, `.auto` | `updateSession(instructions:tools:speed:)` changes them live |
-| `eagerness` | `auto` | semantic_vad; `low` waits up to 8 s, `high` 2 s |
+| `eagerness` | `auto` | semantic_vad; `low` waits up to 8 s, `high` 2 s. Used only while `turnDetection` is nil. |
+| `turnDetection` | nil | `audio.input.turn_detection` (tune 3). nil = `semantic_vad` at `eagerness`, flags false (unchanged). `.serverVAD(threshold:prefixPaddingMs:silenceDurationMs:idleTimeoutMs:createResponse:interruptResponse:)` or `.semantic(eagerness:createResponse:interruptResponse:)` (or a plain `TurnDetection`). Sent as set; fields of the other mode are dropped (`eagerness` semantic only; `threshold` / `prefix_padding_ms` / `silence_duration_ms` / `idle_timeout_ms` server_vad only); flags left nil are sent `false` (the API default is `true`). `wireTurnDetection` is the exact object sent. A response the server starts by itself (`create_response: true`, or `idle_timeout_ms` running out — any `response.created` without `metadata.dee_turn` while either is on) is cancelled at its `response.created` and its items deleted at its `response.done`: no events, never bound to Dee's request. |
 | `noiseReduction` | `.farField` | nil sends `null` (off) |
 | `transcription` | `gpt-transcribe`, `languages ["en"]`, `keywords ["Dee"]` | keywords are sanitised (`<`, `>`, line breaks); nil = off |
 | `truncationRetention` | 0.8 | `retention_ratio` truncation |
@@ -76,7 +78,8 @@ try await session.connect()                             // throws RealtimeSessio
 | `unansweredHold` | 20 s | a committed user turn nobody answered keeps the session busy (no rollover switch) for at most this long |
 
 Every `session.update` Dee sends always includes `"tracing": null`, `output_modalities ["audio"]`,
-`audio/pcm` 24 kHz both ways, and the manual semantic VAD above.
+`audio/pcm` 24 kHz both ways, and the turn detection above (`wireTurnDetection`). Mid-session
+`updateSession` payloads carry only what changed and leave the turn detection alone.
 
 ## `RealtimeSession` (actor) API
 
@@ -180,8 +183,8 @@ playing unless you barged in first; the new audio would queue behind the old.
   DNA. Once the DNA API is used, **no response runs on a connection without one**: a DNA-less response there
   (follow-up or re-request after a reconnect) is preceded by the last DNA text, under a new id.
 - **Connections:** `liveDNAItemID` and the per-connection ledger are cleared on connect, reconnect
-  (`.recovered`), takeover and rollover; seeds never contain a DNA. The rollover summary, once the DNA API is in
-  use, is made with an explicit `input` of item references to every non-DNA item (it never reads a DNA).
+  (`.recovered`), takeover and rollover; seeds never contain a DNA. The rollover summary never reads the live
+  conversation (so never a DNA): its `input` is one user message with the transcript (see Rollover).
 - **Legacy:** `requestResponse(cueItem:)` / `initiative(instructions:cueItem:)` are unchanged (DeeBrain's
   `DNAWire` still rewrites them). When DeeBrain adopts `requestResponse(dna:)`, it must stop `DNAWire` from
   rewriting DNA creates (its `isDNA` would otherwise re-id and double-delete the session's DNA items) and can drop
@@ -228,7 +231,20 @@ Realtime sessions end at 60 minutes. A rollover starts at the first idle moment 
 generating or playing, no open speech — server speech open, stopped but not committed yet, local
 speech — no unanswered turn, no pending tools) after `rolloverAfter`, or at
 `forceRolloverAfter` regardless. It asks the old connection for a summary (out-of-band
-`response.create` with `conversation: "none"`, text only, no tools, ≤6 s; once per rollover), opens
+`response.create` with `conversation: "none"`, text only, `tools: []`, `tool_choice: "none"`,
+`max_output_tokens` 400, `metadata.purpose = dee_rollover_summary`, ≤`summaryTimeout` 6 s; once per
+rollover). **Tune 3:** its `input` is explicit — one user message holding the previous summary
+(`<earlier_summary>`) and the newest `recentTurns` as `Person:` / `Dee:` lines inside `<transcript>`
+(≤12 000 characters, newest kept) — never item references, and its `instructions`
+(`RealtimeSession.summaryInstructions`) are summarisation-only: a third-person note-taker that must
+not answer, continue or react to the transcript. Live tune 2, given the conversation itself, 2 of
+4 summaries answered the user's last question instead ("I can't see a clock or your device…").
+With nothing said (no turns) no summary is asked for. The summary is invisible to the app: no
+`.responseStarted` / audio / transcript / `.responseDone` / state change, even if the server sent
+audio for it; a refusal of it (`error` for its event id) is quiet (no `.error`, no fallback advice)
+and the seed goes without it. It never holds Dee back: user speech during it is handled exactly
+as usual (`requestResponse` is sent, not refused), and `initiative` / `say` are no longer refused
+`.responseInFlight` because of it. Then it opens
 the new connection beside the old one and **parks** it. The switch — seed with **one system
 message** ("[The conversation continues…]" + summary + the last `seedMessages` messages as
 `Person:` / `Dee:` lines), swap, close the old one — happens only at a quiet moment: fully idle

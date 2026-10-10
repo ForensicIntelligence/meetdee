@@ -93,7 +93,10 @@ public enum DNAAssembler {
         let waitFirst = inputs.turn.kind != .initiative && m.enduring.lessons.contains {
             $0.situation == .interruptedThem && $0.evidence >= 1 && ($0.person == nil || $0.person == personID)
         }
-        let sinceLastTalk: TimeInterval? = (inputs.body.lastUserTurnAt ?? inputs.body.lastContact ?? inputs.person?.lastSeen)
+        // Time since the last contact *before* this conversation (`BodyInputs.lastContact`,
+        // set from `Cortex.lastContactBeforeConversation` by `dnaInputs`). Never the current
+        // turn (tune 2 F5: `lastUserTurnAt` came first and a 50 h reunion read "just now").
+        let sinceLastTalk: TimeInterval? = (inputs.body.lastContact ?? inputs.person?.lastSeen)
             .map { max(0, now.timeIntervalSince($0)) }
         let relationship = RelationshipReading(
             who: who, regard: mind.regard, regardWords: CueWriter.regardWords(mind.regard),
@@ -265,7 +268,8 @@ public enum DNAAssembler {
         if r.repair == .repairing || r.repair == .reconciled || (exact?.apology ?? 0) >= 0.4 { rules.append(.g2) }
         if g3 { rules.append(.g3) }
         if unknown && !g3 { rules.append(.g4) }   // asking their name yields to distress (live eval R8)
-        if d.now.reunion || (r.sinceLastTalk ?? 0) >= 86_400 { rules.append(.g5) }
+        // The greeting after time apart: the reunion turn, or the first turn after a day or more.
+        if d.now.reunion || ((r.sinceLastTalk ?? 0) >= 86_400 && d.now.turnsThisConversation == 0) { rules.append(.g5) }
         if busy { rules.append(.g6) }
         if (d.moodBand == .negLow || d.moodBand == .negHigh) && r.regard > 0.3 { rules.append(.g7) }
         if d.now.playGate && play >= 0.5 && !g1 { rules.append(.g8) }
@@ -283,6 +287,9 @@ public enum DNAAssembler {
             let t = DNATables.rule(rule)
             switch rule {
             case .g8: doLines.append("A little play is welcome, in your \(SelfBlock.humourPhrase(d.selfModel.humour)) style")
+            case .g5: doLines.append(DNATables.reunionDo(r.sinceLastTalk))
+            case .g12 where d.now.notes.contains(where: { $0.role == .aim && [.followUp, .followUpGentle].contains($0.kind) }):
+                doLines.append(DNATables.askNowDo)
             default: if let x = t.do { doLines.append(x) }
             }
             if let a = t.avoid { avoidLines.append(a) }

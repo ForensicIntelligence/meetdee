@@ -26,7 +26,7 @@ import Testing
             #expect((r["response"] as? [String: Any])?["instructions"] == nil)
         }
         let dna = try #require(rig.dnaText("dna_tagabc_2"))
-        #expect(dna.hasPrefix("DEE DNA v3 · reply · response 2"))
+        #expect(dna.hasPrefix("DEE DNA v4 · reply · response 2"))
         #expect(dna.contains("Their words: judge them yourself"), "fast mode DNA")
         rig.shutdown()
     }
@@ -42,7 +42,7 @@ import Testing
         #expect(await rig.until { rig.responseCreates().count == 1 })
         #expect(rig.trail() == ["dna:dna_tagabc_1", "response.create"])
         let dna = try #require(rig.dnaText("dna_tagabc_1"))
-        #expect(dna.hasPrefix("DEE DNA v3 · you speak first"))
+        #expect(dna.hasPrefix("DEE DNA v4 · you speak first"))
         #expect(dna.contains("What to open with: Ask one short question about the red ball"))
         #expect(!dna.contains("[") && !dna.contains("noticed.)"), "the directive's parentheses are gone")
         let r = try #require(rig.responseCreates().first?["response"] as? [String: Any])
@@ -83,7 +83,7 @@ import Testing
         fast.shutdown()
 
         // Exact: nobody identified, first turn (name capture).
-        let exact = try await BrainRig(identified: false)
+        let exact = try await BrainRig(identified: false, exactWords: true)
         try await exact.start()
         exact.utterance("item_u1")
         await exact.settle()
@@ -96,7 +96,7 @@ import Testing
         exact.shutdown()
 
         // Exact, but the transcript never comes in time: fast after 0.4 s.
-        let late = try await BrainRig(identified: false)
+        let late = try await BrainRig(identified: false, exactWords: true)
         try await late.start()
         late.utterance("item_u1")
         let start = ContinuousClock.now
@@ -144,7 +144,7 @@ import Testing
 
     /// A spoken command is carried out, never answered.
     @Test func aCommandIsNotAnswered() async throws {
-        let rig = try await BrainRig(identified: false)    // exact: waits for the words
+        let rig = try await BrainRig(identified: false, exactWords: true)    // exact: waits for the words
         try await rig.start()
         rig.utterance("item_u1")
         rig.push(Srv.userTranscript("item_u1", "Goodnight."))
@@ -252,16 +252,20 @@ import Testing
         rig.shutdown()
     }
 
-    /// The local prosody tap reads how the turn was said at the commit: a raised
-    /// voice waits for its words (possible hostility); a quiet one is answered fast.
-    @Test func loudSpeechWaitsForItsWords() async throws {
+    /// The local prosody tap reads how the turn was said at the commit and the fast
+    /// DNA carries it. Tune 3: a raised voice no longer waits for its words (live, the
+    /// 0.4 s wait timed out 7 of 9 times); it is answered at once, loud in the DNA.
+    @Test func loudSpeechIsAnsweredFastWithItsLoudness() async throws {
         let rig = try await BrainRig()
         try await rig.start()
         try rig.quiet(0.3)
         try rig.talk(0.8, amplitude: 0.5)           // ≈ −14 dBFS: well above the baseline
         try rig.quiet(0.2)
         rig.utterance("item_u1", startMs: 300, endMs: 1100)
-        #expect(await rig.until { rig.brain.trace.contains(.committed(plan: "waitForWords")) })
+        #expect(await rig.until { rig.brain.trace.contains(.committed(plan: "respondFast")) })
+        #expect(await rig.until { rig.responseCreates().count == 1 })
+        let loud = try #require(rig.dnaText("dna_tagabc_1"))
+        #expect(!loud.contains("How they said it: soft"), "\(loud)")
         rig.shutdown()
 
         let soft = try await BrainRig()

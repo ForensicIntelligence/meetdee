@@ -282,6 +282,17 @@ public struct Cortex: Sendable {
         return p
     }
 
+    /// When Dee last had contact with `person` (the identified speaker when nil) before
+    /// the current conversation started: the stored contact (`Carried.lastContact`) or
+    /// this launch's last sighting, whichever is later. Nil when she has none (a first
+    /// meeting). For the DNA's "last talked …" line: unlike `PersonInputs.lastSeen` or
+    /// the current turn's time, it is not refreshed by this conversation, so a reunion
+    /// after two days still reads "two days ago" on every turn of it (tune 2 F5).
+    public func lastContactBeforeConversation(_ person: PersonID? = nil) -> Date? {
+        guard let p = person ?? moment.ongoing.person else { return nil }
+        return learner.contactBeforeConversation[p]
+    }
+
     /// The reconciled tag of the current sentence: what the transcript shows.
     public var reconciledTag: Emotion? { moment.momentary.llmTag?.live(at: moment.now) }
 
