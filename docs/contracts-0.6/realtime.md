@@ -97,7 +97,7 @@ Every `session.update` Dee sends always includes `"tracing": null`, `output_moda
 | `say(instructions:input:maxOutputTokens:) -> InitiativeOutcome` | Out-of-band line (§4.2): `response.create` with `conversation:"none"`, `input` (default `[]`), these `instructions` (e.g. `Say exactly: …` + the DNA's `Voice:` words), `tools: []`, audio out, `metadata.purpose = dee_say`. Kind `.say`. Gated like `initiative`; cancelled (`.initiativeCancelled`) if the user starts first. Its audio/sentences arrive as usual; it never enters the conversation or `recentTurns`, gets no DNA, and `bargeIn` sends no truncate for it. |
 | `dropUserItem(itemID:resumePreempted:)` | Speech that was not for her (TV, people talking to each other, a failed address wait): deleted now (or at its commit), its line removed from `recentTurns` (so from every later seed), later events for it not emitted, no longer unanswered. A reply requested for it with no audio yet is cancelled (ends `.responseDone(cancelled)`). If it preempted a reply / follow-up and `resumePreempted` (default), the session re-requests that one itself (as after `rejectEcho`). |
 | `userTurnHandled(itemID:)` | A committed turn the app dealt with without a reply (a command): it no longer holds the session busy. |
-| `resetConversation(keeping:)` | "Start over": deletes every item of the live conversation (the session's ledger of `conversation.item.added` / commits) except `keeping`, the live DNA, the response in progress (and its turn) and open speech; `recentTurns` keeps only those turns; `lastSummary` = nil; a summary being made is discarded. |
+| `resetConversation(keeping:)` | "Start over": deletes every item of the live conversation (the session's ledger of `conversation.item.added` / commits) except `keeping`, the live DNA, the response in progress (and its turn) and open speech; `recentTurns` keeps only those turns; `lastSummary` = nil; a summary being made is discarded. **Tune 6:** the item ids it took out are added to `forgottenItemIDs` (public, ≤256): their turns are gone from the history on purpose, so a heard-vs-history check skips them (live tune 5 reunion-evening: the only "history mismatch" was a cut reply the reunion's new conversation had removed, historyText ""). |
 | `hasUnansweredUserTurn` | A committed user turn has had no `requestResponse` / `userTurnHandled` / `dropUserItem` / `rejectEcho` for less than `unansweredHold`. Such a turn makes the session **not idle**: no unforced rollover switch (and a forced one waits like for open speech). Speech **stopped but not committed yet** (up to `commitWait`) and local speech (`setLocalSpeech`) count the same way. |
 | `heardText(itemID:)` | What of her item counts as heard (`HeardRule`): after a cut the kept sentences, else all placed so far. |
 | `speakingRateMsPerCharacter` | The rate sentence hints use now (learned or the configured start). |
@@ -257,6 +257,23 @@ reply, and the end of her playback) now holds the switch. Never mid-sentence, ne
 its own `.responseDone` on the old session. A failed attempt retries after 30 s (10 s when
 forced). A park that waits 5 min for an idle gap is discarded and redone. If the old connection
 dies while a session is parked, the parked one takes over at once (`.recovered`, no fallback).
+
+**Tune 6 (live tune 5, rollover-speech m01).** The seed is the first event on a new connection
+(switch, takeover, reconnect), before any DNA or `response.create`; the server handles events in
+order, so no response there runs before the seed is in, and every response there brings the
+current DNA (its own, or `lastDNAText` when it has none). A turn committed during the overlap
+(parked session open, old one live) is answered on the old connection, which holds the whole
+conversation; the parked one gets nothing until the switch, whose seed carries that turn across.
+If the server **refuses the seed** (`error` for its event id), a compact seed is sent at once
+(summary ≤1 200 characters, the last ≤6 messages, each ≤300) and the response sent behind the
+refused one is given up before it starts (its late `response.created` is an orphan) and sent again
+behind the compact seed and the current DNA; a refused compact seed surfaces as `.error`. The seed
+header is "[The conversation continues from an earlier session. Do not mention this note. What it
+says, you already know.]". `summaryInstructions` now require the person's name first as a plain
+fact ("The person's name is <name>.") and forbid writing that anyone will remember / store / note /
+save something (tune 5 summaries said "Dee confirms it will remember Priya's name", and she said
+"I'll store it"). Note: the live m01 reply ran on the old, already-seeded connection with the DNA
+in and recall returning "Name: Priya" — the miss was the model's, not a missing seed.
 
 On an unexpected drop: `.responseDone(status: "failed", reason: "connection_lost")` for any open
 response, `.disconnected`, `.fallbackAdvised(.socketLost)`, then reconnect with back-off, seeded the

@@ -232,6 +232,10 @@ public enum TurnPolicy {
         guard !trimmed.isEmpty else { return nil }
         let words = Self.words(trimmed)
         guard !words.isEmpty else { return nil }
+        // Tune 6 (T5-4, echo20 l03): the server split "D." off "Dee, guess what, at school
+        // today…". A fragment of one or two letters, or nothing but her name, is not a
+        // turn: they are still starting. "Dee?" (a question) and "No." / "OK." are turns.
+        if !trimmed.hasSuffix("?"), !trimmed.hasSuffix("!"), isFragmentOrAddress(words) { return .trailing }
         // "Hold on, hold on." — the whole utterance asks her to wait.
         let core = words.filter { !holdFiller.contains($0) }
         if !core.isEmpty, core.count <= 8, Self.coveredByHoldPhrases(core) { return .holdOn }
@@ -258,6 +262,35 @@ public enum TurnPolicy {
         // with a period (tune 1 F-COLL: "I was going to call my mom Ann.").
         if words.count >= 3, misheardAnd(last: last, before: before) { return .trailing }
         return nil
+    }
+
+    /// One- and two-letter words that are a whole turn on their own ("No.", "OK.").
+    static let shortTurns: Set<String> = [
+        "no", "ok", "k", "hi", "yo", "ya", "ye", "oh", "ah", "aw", "eh", "mm", "hm", "me", "us", "go", "ha", "wo", "ow",
+    ]
+    /// Her name as the transcriber writes it, and what stands around it in a bare call.
+    static let addressWords: Set<String> = ["dee", "d", "dee's", "di", "dea"]
+    static let addressFiller: Set<String> = ["hey", "hi", "oh", "um", "uh", "so", "okay", "ok", "and", "well"]
+
+    /// A bare call of her name or a fragment waits this long for the rest, then is answered.
+    public static let fragmentWait: TimeInterval = 1.5
+
+    /// `isFragmentOrAddress` on a transcript (a question or an exclamation never is).
+    public static func isFragmentOrAddress(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty, !t.hasSuffix("?"), !t.hasSuffix("!") else { return false }
+        let w = words(t)
+        return !w.isEmpty && isFragmentOrAddress(w)
+    }
+
+    /// A one- or two-letter fragment ("D.", "I.", "A.") or a bare call of her name
+    /// ("Dee.", "Hey, Dee.", "So, Dee,"): the start of a turn, never all of it.
+    static func isFragmentOrAddress(_ words: [String]) -> Bool {
+        if words.count == 1, let w = words.first, w.count <= 2, !shortTurns.contains(w), !w.contains(where: \.isNumber) {
+            return true
+        }
+        guard words.contains(where: addressWords.contains) else { return false }
+        return words.allSatisfy { addressWords.contains($0) || addressFiller.contains($0) }
     }
 
     /// Subjects of a reduced relative clause ("the job *I* interviewed for").
@@ -488,10 +521,40 @@ public enum TurnPolicy {
         "only heard part", "only caught part", "heard only part",
     ]
 
+    /// Tune 6 (T5-4, echo20 l03 "D."): the same aim in other words — "Hmm, did you want
+    /// to say something, or just check if I was waiting?". By meaning: she asks whether
+    /// they meant to say (more), remarks that they only said her name or stopped, or
+    /// asks whether she is waiting / listening / still there. Matched on words, so the
+    /// spelling and punctuation of the transcript never matter.
+    static let unfinishedAimMeanings: [[String]] = [
+        // Did they mean to say (more)?
+        ["did", "you", "want", "to", "say"], ["do", "you", "want", "to", "say"], ["did", "you", "wanna", "say"],
+        ["did", "you", "mean", "to", "say"], ["were", "you", "going", "to", "say"], ["were", "you", "gonna", "say"],
+        ["were", "you", "about", "to", "say"], ["were", "you", "trying", "to", "say"], ["you", "were", "going", "to", "say"],
+        ["you", "were", "about", "to", "say"], ["you", "started", "to", "say"], ["you", "were", "saying"],
+        ["what", "were", "you", "saying"],
+        ["something", "you", "wanted", "to", "say"], ["something", "you", "want", "to", "say"],
+        ["something", "you", "were", "going", "to"], ["wanted", "to", "say", "something"], ["want", "to", "say", "something"],
+        ["meant", "to", "say", "more"], ["more", "you", "wanted", "to", "say"],
+        ["did", "you", "say", "something"], ["were", "you", "saying", "something"],
+        // Is she waiting / listening / there?
+        ["check", "if", "i"], ["check", "whether", "i"], ["checking", "if", "i"], ["checking", "whether", "i"],
+        ["checking", "i'm"], ["check", "i'm"], ["see", "if", "i", "was"], ["see", "if", "i'm"],
+        ["if", "i", "was", "waiting"], ["if", "i'm", "waiting"], ["if", "i", "was", "listening"], ["if", "i'm", "listening"],
+        ["if", "i", "was", "still"], ["if", "i'm", "still"], ["whether", "i", "was"], ["are", "you", "still", "there"],
+        // Only her name, or they stopped.
+        ["just", "my", "name"], ["only", "my", "name"], ["just", "said", "my", "name"], ["you", "said", "my", "name"],
+        ["called", "my", "name"], ["calling", "my", "name"], ["mid", "sentence"], ["midsentence"], ["half", "a", "sentence"],
+    ]
+    /// A meaning match followed by one of these is about someone else ("What did you want
+    /// to say *to* your brother?"), never about their own unfinished words.
+    static let aimElsewhere: Set<String> = ["to", "about", "at", "when", "if", "in", "on"]
+
     /// Whether a sentence of hers voices the unfinished-words aim.
     public static func isUnfinishedAim(_ sentence: String) -> Bool {
         let t = sentence.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
         if unfinishedAimPhrases.contains(where: { t.contains($0) }) { return true }
+        if contains(words(t), anyOf: unfinishedAimMeanings, notFollowedBy: aimElsewhere) { return true }
         // Their own words quoted back, cut ("I heard “I couldn't sleep last…”").
         for open in ["heard “", "heard \"", "heard: “", "heard: \""] where t.contains(open) { return true }
         return t.contains("…”") || t.contains("...”") || t.contains("…\"") || t.contains("...\"")
@@ -550,6 +613,68 @@ public enum TurnPolicy {
         guard let last = t.last else { return false }
         return ".!?…".contains(last)
     }
+
+    /// Whether `w` contains one of `patterns` as a run of words (not followed by one of
+    /// `notFollowedBy`, when given).
+    static func contains(_ w: [String], anyOf patterns: [[String]], notFollowedBy: Set<String> = []) -> Bool {
+        for p in patterns where w.count >= p.count {
+            for i in 0...(w.count - p.count) where Array(w[i..<(i + p.count)]) == p {
+                let next = i + p.count < w.count ? w[i + p.count] : nil
+                if let next, notFollowedBy.contains(next) { continue }
+                return true
+            }
+        }
+        return false
+    }
+
+    // MARK: Apps, clocks and forecasts (tune 6, T5-8)
+
+    /// She has no apps, clock, calendar or internet to send anyone to; live tune 5 four
+    /// replies still did ("…you can check a weather app or a forecast.", "You can check
+    /// your phone's clock…"). A sentence that does is never heard.
+    static let appReferralPatterns: [[String]] = [
+        ["weather", "app"], ["clock", "app"], ["calendar", "app"], ["an", "app"], ["apps"],
+        ["phone's", "clock"], ["your", "clock"], ["the", "clock", "on"], ["check", "the", "time"], ["check", "the", "clock"],
+        ["check", "your", "phone"], ["look", "at", "your", "phone"],
+        ["a", "forecast"], ["the", "forecast"], ["local", "forecast"], ["weather", "forecast"], ["forecast", "app"],
+        ["weather", "report"], ["weather", "site"], ["weather", "service"], ["weather", "channel"],
+        ["your", "calendar"], ["a", "calendar"], ["the", "calendar"],
+        ["look", "it", "up"], ["look", "that", "up"], ["search", "online"], ["search", "for", "it"], ["a", "quick", "search"],
+        ["google"], ["online"], ["the", "internet"], ["a", "website"], ["the", "website"],
+    ]
+    /// Offers to set something for them: never hers to make.
+    static let setOffers: [[String]] = [["set", "a", "reminder"], ["set", "an", "alarm"], ["set", "a", "timer"], ["set", "you", "a"]]
+    /// Who the sentence sends: them ("you can check…") — a limit of hers ("I can't see
+    /// the forecast from here") is how she should say it.
+    static let you: Set<String> = ["you", "you'd", "you'll", "you've", "your", "ya"]
+    /// Verbs that make it a referral ("you can check…", "try…", "open…"); a pattern with
+    /// none of these near it ("I don't have a clock app") is a limit said as Dee.
+    static let referralVerbs: Set<String> = [
+        "check", "checking", "open", "try", "use", "look", "search", "ask", "see", "glance", "peek", "set", "pull", "google",
+    ]
+
+    /// Whether a sentence of hers sends them to an app, a clock, a forecast, a calendar
+    /// or a search (or offers to set something for them).
+    public static func isAppReferral(_ sentence: String) -> Bool {
+        let w = words(sentence)
+        if contains(w, anyOf: setOffers) { return true }
+        guard contains(w, anyOf: appReferralPatterns) else { return false }
+        if w.contains("google") { return true }
+        guard w.contains(where: referralVerbs.contains) else { return false }
+        // Sent: "you can check…", or an imperative ("Or open the weather app.", "Try a forecast.").
+        let opener = w.drop { ["or", "so", "maybe", "just", "and", "oh", "well", "then", "but"].contains($0) }.first
+        return w.contains(where: you.contains) || opener.map(referralVerbs.contains) == true
+    }
+
+    /// The first sentence of `text` that is an app referral.
+    public static func appReferralSentence(in text: String) -> Int? {
+        for (i, s) in sentences(text).enumerated() where isAppReferral(s) { return i }
+        return nil
+    }
+
+    /// The note on a turn answered again after her first sentence sent them to an app.
+    public static let noAppNote =
+        "You have no apps, clock, forecast or calendar to send them to: answer as Dee in a few words, from what you know or feel"
 
     /// Whether `words` are nothing but hold phrases, possibly repeated ("hold on hold on").
     static func coveredByHoldPhrases(_ words: [String]) -> Bool {

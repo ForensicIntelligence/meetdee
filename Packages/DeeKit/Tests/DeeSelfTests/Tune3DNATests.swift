@@ -90,7 +90,8 @@ struct Tune3DNATests {
         #expect(dna.contains("Ask now, first: how their exam went. They were nervous about it. (priority p7)"), "\(dna)")
         #expect(!dna.contains("Do now (once, only if it still fits"), "\(dna)")
         // v5 (tune 4): asked first, with the greeting after 6 days in the same sentence (v6: in words).
-        #expect(dna.contains("Do: Open with a warm hello that mentions it's been about a week and ask your \"Ask now\" question in that same first sentence; after it, a few words at most"), "\(dna)")
+        // v7 (tune 6): the question is the very first sentence, the hello folded into it.
+        #expect(dna.contains("Do: Your very first sentence is your \"Ask now\" question, with a warm hello and that it's been about a week folded into it; never a hello on its own before it; after it, a few words at most"), "\(dna)")
         #expect(!dna.contains("answer their question first"), "the follow-up leads: \(dna)")
         #expect(!dna.contains("On your mind (only if the moment invites it): Ask one short question about exam"), "\(dna)")
     }

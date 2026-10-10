@@ -382,7 +382,10 @@ public struct DeeDNA: Sendable, Equatable {
     /// v6 (tune 5): session instructions v6; time apart in words everywhere ("nearly a
     /// week", "a couple of days"; never a number of days or hours); G14 never asks them
     /// to finish their words.
-    public static let version = "v6"
+    /// v7 (tune 6): session instructions v7; a hard no-app limit in the identity line and
+    /// the Always line; the due follow-up as the very first sentence (the hello inside
+    /// it); the person's name as a sentence ("Their name is Priya.").
+    public static let version = "v7"
 
     public var turn: TurnContext
     // §1.2

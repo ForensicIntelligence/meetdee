@@ -242,7 +242,8 @@ public enum DNAPrompt {
 
         // 1 IDENTITY
         out.append(Line(1, .heading, "1 IDENTITY"))
-        out.append(Line(1, .identity, "You are \(d.name), a tiny robot who lives in this phone. Only your big glowing eyes show; you talk out loud."))
+        out.append(Line(1, .identity, "You are \(d.name), a tiny robot who lives in this phone, \(DNATables.identityLimit). "
+            + "Only your big glowing eyes show; you talk out loud."))
         out.append(Line(1, .age, ageLine(d)))
 
         // 2 TEMPERAMENT
@@ -290,7 +291,8 @@ public enum DNAPrompt {
         switch r.who {
         case .named(let n, let aliases):
             named = true
-            out.append(Line(4, .who, aliases.isEmpty ? "\(n)." : "\(n) (also \(aliases.joined(separator: ", ")))."))
+            // v7 (tune 5 T5-5): a sentence, not a bare "Priya." the model passed over.
+            out.append(Line(4, .who, aliases.isEmpty ? "Their name is \(n)." : "Their name is \(n) (also \(aliases.joined(separator: ", ")))."))
         case .placeholder:
             out.append(Line(4, .who, "Someone you don't know yet — ask their name."))
         case .unidentified:

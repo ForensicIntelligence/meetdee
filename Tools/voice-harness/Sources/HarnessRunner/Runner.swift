@@ -348,8 +348,10 @@ public final class ScenarioRunner: @unchecked Sendable {
         // Let the last echoes and transcripts land.
         _ = await waitUntil(timeout: 2.0) { false }
         let history = await session?.recentTurns ?? []
+        let forgotten = await session?.forgottenItemIDs ?? []
         locked {
             record.history = history.map { .init(role: $0.role.rawValue, text: $0.text, itemID: $0.itemID) }
+            if !forgotten.isEmpty { record.forgottenItems = forgotten.sorted() }
             if var faults = record.faults {
                 let conns = record.connections ?? []
                 for i in faults.indices {

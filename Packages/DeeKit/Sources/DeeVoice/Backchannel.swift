@@ -70,6 +70,34 @@ public enum Backchannel {
         }
     }
 
+    /// Tune 6: partial words that are, or may still become, a backchannel ("I'm",
+    /// "Keep", "I'm listen"): every clause but the last is one, and the last is the
+    /// start of a continuer (its last word may be cut off). Empty: true.
+    public static func mayBecomeBackchannel(_ partial: String) -> Bool {
+        let trimmed = partial.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || isBackchannel(trimmed) { return true }
+        if trimmed.hasSuffix("?") { return false }
+        let clauses = trimmed.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
+            .replacingOccurrences(of: "-", with: " ")
+            .split(omittingEmptySubsequences: false) { ",.!;…".contains($0) }
+            .map { words(String($0)) }
+        guard let last = clauses.last(where: { !$0.isEmpty }) else { return true }
+        let earlier = clauses.prefix(through: clauses.lastIndex(where: { !$0.isEmpty })!).dropLast()
+            .filter { !$0.filter { !fillers.contains($0) }.isEmpty }
+        guard earlier.allSatisfy({ isBackchannel($0.joined(separator: " ")) }) else { return false }
+        let kept = last.filter { !fillers.contains($0) }
+        guard !kept.isEmpty else { return true }
+        if kept.allSatisfy(isHum) { return true }
+        return continuers.contains { c in
+            let cw = c.split(separator: " ").map(String.init)
+            guard kept.count <= cw.count else { return false }
+            for (i, w) in kept.enumerated() {
+                if i == kept.count - 1 { if !cw[i].hasPrefix(w) { return false } } else if cw[i] != w { return false }
+            }
+            return true
+        }
+    }
+
     static func isContinuer(_ words: [String], inHold: Bool) -> Bool {
         let w = words.joined(separator: " ")
         return continuers.contains(w) || (inHold && holdOnlyContinuers.contains(w))

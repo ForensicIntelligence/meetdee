@@ -138,7 +138,7 @@ struct Tune5DNATests {
         let t = back.addingTimeInterval(5)
         _ = C.reply(&cx, at: t, mind: mind)
         let dna = Tune4DNATests.render(cx, at: t, index: 1, heardReplies: 0)
-        #expect(dna.contains("mentions it's been about a week"), "6 days 21 h: \(dna)")
+        #expect(dna.contains("that it's been about a week"), "6 days 21 h: \(dna)")
         #expect(!dna.contains("6 days") && !dna.contains("days ago"), "\(dna)")
     }
 
@@ -146,7 +146,8 @@ struct Tune5DNATests {
 
     @Test func sessionInstructionsV6() {
         let v6 = DNASessionInstructions.v6
-        #expect(DNASessionInstructions.current == v6 && DeeDNA.version == "v6")
+        // v7 is current since tune 6 (Tune6DNATests); v6 stays pinned as it was.
+        #expect(DNASessionInstructions.current != v6 && DeeDNA.version != "v6")
         // F7 dentist: first, even before answering their own question.
         #expect(v6.contains("ask it in your first sentence, before anything else, even before answering their own question"))
         // F7 jokes: laugh first, never explain.

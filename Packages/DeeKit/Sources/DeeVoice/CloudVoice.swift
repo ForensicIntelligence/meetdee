@@ -299,6 +299,11 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// end the hold only with its full transcript, or this long after its last
     /// delta (live: "Go on." came back as "Jeron.").
     public static let holdFinalWait = 0.6
+    /// Tune 6: an onset over her this soon after she went on from a backchannel
+    /// ("Keep going." … "I'm listening.") never pauses her again on its sound: its
+    /// words decide. A backchannel is ignored; a real turn pauses her by its words
+    /// (`holdForWords`) and the brain answers it.
+    public static let resumeGrace = 2.0
 
     /// What the brain (RealtimeBrain) consumes.
     public enum BrainEvent: Sendable, Equatable {
@@ -501,6 +506,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var tailItems: [String] = []
         /// The speculation armed or held (`speculate()`).
         var spec: SpeculativeReply?
+        /// Tune 6: when she last went on from a backchannel (graph clock).
+        var lastResumeAt: Double?
+        /// Onsets inside `resumeGrace` left to their words (newest 16).
+        var graceItems: [String] = []
         /// The open response is held by `spec` (its audio is gated in the player).
         var responseGated = false
     }
@@ -1002,6 +1011,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 guard !s.herWords.isHerEcho(p.text, at: t, strict: pending.strict) else { continue }
                 mark(.note, detail: "words of \(item): the user (settled)")
                 wordsDecided(item, user: true, &s)
+                // Tune 6: right after she went on, "I'm…" may be the rest of the
+                // backchannel: its full words decide (`userTranscript`), not this.
+                if s.graceItems.contains(item), Backchannel.mayBecomeBackchannel(p.text) { continue }
                 holdForWords(item, text: p.text, partialAt: p.at, &s)
             }
             for (item, w) in s.wordsPending where t - w.since >= Self.wordsWait {
@@ -1363,6 +1375,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 noteTail(item, end: nil, at: t, &s)
                 // An onset still undecided (an early commit) is decided now.
                 if s.core.isDeciding(item) { apply(s.core.serverCommitted(itemID: item, at: t), &s) }
+                apply(s.core.serverItemCommitted(itemID: item, at: t), &s)
                 if s.hold?.itemID == item {
                     s.hold?.committed = true
                     if s.hold?.commitSent != true { s.hold?.commitAt = t }
@@ -1395,6 +1408,22 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     mark(.note, detail: "words of \(item): \(user ? "the user" : "her echo")")
                     wordsDecided(item, user: user, &s)
                     if user { holdForWords(item, text: text, partialAt: nil, &s) }
+                }
+                if let i = s.graceItems.firstIndex(of: item), s.wordsPending[item] == nil {
+                    // Tune 6: an onset she talked on through (`resumeGrace`), decided the user's.
+                    s.graceItems.remove(at: i)
+                    if !s.rejected.contains(item) {
+                        if Backchannel.isBackchannel(text) {
+                            if !s.backchannelItems.contains(item) {
+                                s.backchannelItems.append(item)
+                                if s.backchannelItems.count > 32 { s.backchannelItems.removeFirst(s.backchannelItems.count - 32) }
+                            }
+                            mark(.note, detail: "after resume: backchannel \(item)")
+                            holdContinuation.yield(.resumed(itemIDs: [item], text: text, why: "after-resume"))
+                        } else if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            holdForWords(item, text: text, partialAt: nil, &s)
+                        }
+                    }
                 }
                 if s.rejected.contains(item) {
                     forward = false
@@ -1736,12 +1765,26 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// Carries out the core's decisions (under the lock: events and commands keep
     /// their order; player calls never block).
     private func apply(_ actions: [EarCore.Action], _ s: inout Inner) {
+        var talkOn = false
         for a in actions {
             switch a {
             case .emit(let e):
-                // A held barge-in is announced when it is decided (`releaseHold`).
-                if e == .bargeIn, s.hold != nil { continue }
+                // A held barge-in is announced when it is decided (`releaseHold`);
+                // one she talks on through (`resumeGrace`) is no barge-in at all.
+                if e == .bargeIn, s.hold != nil || talkOn { continue }
                 voice(e, &s)
+            case .bargeIn(let item?) where configuration.holdOnBargeIn && s.sessionPlaying && s.lastSessionItem != nil
+                    && s.hold == nil && herVoiceQueued(s)
+                    && s.lastResumeAt.map({ graph.now - $0 <= Self.resumeGrace + 1e-9 }) == true:
+                // Tune 6: just after she went on from "Keep going.", the rest of it
+                // ("I'm listening.") starts: she talks on; its words decide.
+                talkOn = true
+                let now = graph.now
+                apply(s.core.playbackResumed(at: now), &s)      // not a cut stretch: later onsets are decided afresh
+                if s.wordsPending[item] == nil { s.wordsPending[item] = (now, [], false) }
+                s.graceItems.append(item)
+                if s.graceItems.count > 16 { s.graceItems.removeFirst(s.graceItems.count - 16) }
+                mark(.note, detail: "after resume: words decide \(item)")
             case .bargeIn(let item):
                 if configuration.holdOnBargeIn, s.sessionPlaying, s.lastSessionItem != nil, s.hold == nil, herVoiceQueued(s) {
                     // Silent at once; whether her reply ends here their words decide.
@@ -1822,6 +1865,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         apply(s.core.playbackResumed(at: t), &s)
         mark(.note, detail: "resumed \(h.itemID ?? "-") (\(why))")
         if why != "echo" {
+            s.lastResumeAt = t
             s.backchannelItems.append(contentsOf: h.items)
             if s.backchannelItems.count > 32 { s.backchannelItems.removeFirst(s.backchannelItems.count - 32) }
         }

@@ -475,7 +475,7 @@ public struct Metrics: Codable, Sendable, Equatable {
                                         playedMs: played, accurate: accurate)
             let heard = (run.heardSentences[t.itemID] ?? []).joined(separator: " ")
             let hist = run.history.filter { $0.role == "assistant" && $0.itemID == t.itemID }.map(\.text).joined(separator: " ")
-            if !run.history.isEmpty {
+            if !run.history.isEmpty, !(run.forgottenItems ?? []).contains(t.itemID) {
                 check.historyMatches = WER.normalize(heard) == WER.normalize(hist)
                 check.heardText = heard
                 check.historyText = hist

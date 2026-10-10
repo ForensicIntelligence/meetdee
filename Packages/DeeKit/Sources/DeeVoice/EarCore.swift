@@ -290,6 +290,10 @@ public struct EarCore: Sendable {
     private var pending: [Pending] = []
     /// The user's speech item the server has open (and that is not echo).
     public private(set) var serverOpen: String?
+    /// Tune 6: `serverOpen` was committed while still open (the voice's quick commit
+    /// of a hold): the server goes on in an item it never announces (no
+    /// speech_started), so the next stop or commit of *any* item closes it.
+    private var serverOpenCommitted: String?
 
     private struct ItemTimes: Sendable {
         var onset: Double
@@ -795,7 +799,9 @@ public struct EarCore: Sendable {
             items[itemID] = times
         }
         var actions = decide(at: t, final: itemID)
-        if serverOpen == itemID { serverOpen = nil }
+        // Tune 6 (interrupt-clean q02): our commit split their burst; the server's
+        // stop is for the unannounced tail item, and it ends the open speech too.
+        if serverOpen == itemID || (serverOpen != nil && serverOpenCommitted == serverOpen) { serverOpen = nil }
         if !rejected.contains(itemID) {
             // Their turn is over: learn its pauses, start the next turn clean.
             pauseLearner.observe(pauses: predictor.endTurn(text: ""))
@@ -811,6 +817,22 @@ public struct EarCore: Sendable {
     public mutating func serverCommitted(itemID: String, at t: Double) -> [Action] {
         guard pending.contains(where: { $0.itemID == itemID }) else { return [] }
         return serverSpeechStopped(itemID: itemID, end: nil, at: t)
+    }
+
+    /// Tune 6: `input_audio_buffer.committed` of any item. The open item committed
+    /// (our quick commit) stays open — they may be talking on, in an item the server
+    /// never announces — until the next stop or commit; a commit of another item
+    /// after it closes it (t2-interrupt-clean q02: `userIsSpeaking` stayed on 8 s).
+    public mutating func serverItemCommitted(itemID: String, at t: Double) -> [Action] {
+        latest = max(latest, t)
+        guard let open = serverOpen else { return [] }
+        if open == itemID {
+            serverOpenCommitted = itemID
+            return []
+        }
+        guard serverOpenCommitted == open else { return [] }
+        serverOpen = nil
+        return syncUplink(at: t)
     }
 
     /// The user's last burst of sound since `since`: its first and last sounding

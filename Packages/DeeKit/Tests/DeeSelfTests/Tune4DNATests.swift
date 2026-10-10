@@ -91,18 +91,19 @@ struct Tune4DNATests {
         let dna = Self.render(cx, at: t, index: 1, heardReplies: 0)
         #expect(dna.contains("Ask now, first: how their exam went."), "\(dna)")
         let doLine = try #require(dna.components(separatedBy: "\n").first { $0.hasPrefix("Do: ") })
-        #expect(doLine.hasPrefix("Do: Open with a warm hello that mentions it's been about a week and ask your \"Ask now\" question in that same first sentence; after it, a few words at most"), "\(doLine)")
+        #expect(doLine.hasPrefix("Do: Your very first sentence is your \"Ask now\" question, with a warm hello and that it's been about a week folded into it; never a hello on its own before it; after it, a few words at most"), "\(doLine)")
         #expect(!doLine.contains("Greet them warmly"), "the greeting is in the first line: \(doLine)")
         #expect(!doLine.contains("answer their question first"), "\(doLine)")
         #expect(dna.contains("Avoid: any guilt about the time apart"))
     }
 
     @Test func askFirstWording() {
+        // v7 (tune 6): the question is the very first sentence; a hello never stands before it.
         #expect(DNATables.askFirstDo(greeting: false, since: nil)
-                == "Ask your \"Ask now\" question in your first sentence; after it, a few words at most")
+                == "Your first sentence is your \"Ask now\" question; after it, a few words at most")
         #expect(DNATables.askFirstDo(greeting: true, since: nil)
-                == "Open with a warm hello and ask your \"Ask now\" question in that same first sentence; after it, a few words at most")
-        #expect(DNATables.askFirstDo(greeting: true, since: 3 * 86_400).contains("mentions it's been a few days"))
+                == "Your very first sentence is your \"Ask now\" question, with a warm hello folded into it; never a hello on its own before it; after it, a few words at most")
+        #expect(DNATables.askFirstDo(greeting: true, since: 3 * 86_400).contains("and that it's been a few days folded into it"))
     }
 
     /// Live tune 3 at `minimal`: 14 of 141 replies ran past three sentences, 11 of them

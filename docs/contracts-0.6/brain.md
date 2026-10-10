@@ -224,6 +224,44 @@ exact, higher effort) while nothing of the fast reply was heard.
   (`heardReplies`, reset by `newConversation`) and passes it in every `TurnContext`. DNA v5's G5 holds until one was
   heard.
 
+### Tune 6 (live run 20261010-020243, `tune5-live.md`)
+
+- **Interrupting questions: exactly one answer (T5-2).** The 4 unanswered questions all had the same cause, verified on
+  the wire: the voice's hold committed the burst early, the server ended "the rest" as a new item with no
+  `speech_started`, and `RealtimeSession.openSpeech` stayed on the committed item, so the session's "never start talking
+  over someone" gate preempted the answer and its retry at their first audio. That is DeeRealtime's to fix (patch:
+  `scratchpad/tune6-voice-realtime-openSpeech.patch`). The brain side, made impossible:
+  - A *tail* — a commit whose `speech_stopped` came with no `speech_started` of its own, within
+    `CloudVoice.holdTailWindow` of the commit before it, or in the voice's `floorHold.tails` — is no turn (trace
+    `.tailIgnored`): never answered blind, never absorbs held turns, let go silently (`userTurnHandled`). Its words, if
+    any come, are handled like any turn's.
+  - A request with another response in flight never touches her voice: `reply()` cuts a playing reply only when
+    nothing else is in flight, and `stopVoice()` clears `playing` at the cut (live, a stale `playing` would have
+    "cut" nothing again and closed the reply gate on the answer).
+  - One answer per turn (`coveringReply`, trace `.covered`): a turn is not asked for, nor retried after a refusal, when
+    a reply asked for after its commit (the model hears it) is in progress or was heard. Taken-back replies
+    (`Channel.takenBack`: `takeBack`, `speculationResumed`, a voice discard) cover nothing.
+  - The `retry` DNA for a preempted reply is re-rendered at most once a second without new speech.
+- **The release gate (T5-1, T5-4, T5-6).** Every reply is gated (`speculationWanted` never skips: a late exact reply
+  or a retry measures its caps from its request). The quiet run (`Speculation.quietSince`: no voice now, no server
+  speech of a newer item, `confirmWindow` since their last voice) is tracked from the request, so the 0.12 s re-check
+  is already met when her audio arrives (live p50 1.17 → 1.26 s came from starting it at audio-ready). The gate is
+  let go only once her first audio is in. While the server hears a newer item of theirs (`openServerSpeech`, closed by
+  any `speech_stopped` or its commit), no reply is asked for: the turn is held (`.held("speech")`) and their next
+  commit answers all of it; if that commit turns out not to be a turn for her (not for her, a backchannel), the
+  newest held turn it took over is answered after all (`restoreAbsorbed`).
+- **Interrupt answers (T5-3).** After a cut of her *playing* reply a speculative request waits only until the session
+  has taken the cut (`session.state` leaves `speaking`/`cancelling`, at most `stopGuard`), not a fixed 0.3 s; the
+  reply gate needs no guard there (`speculate()` marks the request). Asking at the commit while the hold is open needs
+  a voice path that ends the hold and keeps the speculation (open ask below).
+- **Fragments (T5-4).** "D.", "I.", "Dee.", "Hey, Dee." are `.trailing` (`TurnPolicy.isFragmentOrAddress`; "No.",
+  "OK.", "Dee?" are turns) and wait `fragmentWait` (1.5 s) for the rest. "I had pasta for dinner. And." stays
+  trailing.
+- **Never heard (T5-4, T5-8).** The unfinished-words aim is matched by meaning (`unfinishedAimMeanings`: did they mean
+  to say something, is she waiting / listening, only her name; not when it is about someone else: "say *to* her").
+  A sentence that sends them to an app, a clock, a forecast, a calendar or a search (`isAppReferral`) is taken back in
+  her first sentence (asked again once with `noAppNote`) or stopped before later (trace `.appReferral`).
+
 ## DNA delivery (DNA.md §4)
 
 `buildDNA`: `host.dnaParts(DNARequest)` (the host calls `Cortex.cue(at:)` first unless the
@@ -296,6 +334,13 @@ unless an item is still playing, 300 s absolute). Initiatives are refused while 
   takes a softer, tilted, grey-blue look while the cloud is off.
 
 ## Open asks
+
+- **DeeRealtime (tune 6, T5-2):** apply `scratchpad/tune6-voice-realtime-openSpeech.patch` (a committed open speech
+  ends at the next `speech_stopped` of any item). Until then every answer whose question the voice committed early is
+  preempted at its first audio. Then drop the `withKnownIssue` in `Tune6BrainTests.liveQ02TheEmptyTailIsNeverAnswered`.
+- **DeeVoice (tune 6, T5-3):** an "end the hold, keep the speculation" path (`stopSpeaking` / `cutReply` without
+  `specCut`, the speculative response's gate kept open, only her old items flushed). With it the brain asks for the
+  answer at the hold's commit (≈ 1.1–1.2 s instead of ≈ 1.5 s).
 
 - **Voice harness (tune 5):** `HarnessHost.bargedIn()` must sense `.bargeInAnswered` (not `.bargeIn`) for app parity;
   with `.bargeIn` the parity stop still cancels the brain's answer. Add content barge-ins (`expect: reply`) and a

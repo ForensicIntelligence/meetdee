@@ -120,8 +120,9 @@ public struct WireRecorder: Sendable {
         case "conversation.item.delete":
             guard let id = o["item_id"] as? String else { return [] }
             c.liveDNA[id] = nil
+            // Her own items (a reset's cleanup of a reply) are never echo (tune6 T5-7).
             if events, !id.hasPrefix("dna_"), (o["event_id"] as? String)?.hasPrefix(Self.sessionDeletePrefix) == true,
-               !Self.wasAnswered(id, record) {
+               record.response(forItem: id) == nil, !Self.wasAnswered(id, record) {
                 echoRejected.insert(id)
                 var list = record.echoRejected ?? []
                 if !list.contains(id) { list.append(id) }

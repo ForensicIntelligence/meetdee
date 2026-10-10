@@ -26,7 +26,7 @@ import Testing
             #expect((r["response"] as? [String: Any])?["instructions"] == nil)
         }
         let dna = try #require(rig.dnaText("dna_tagabc_2"))
-        #expect(dna.hasPrefix("DEE DNA v6 · reply · response 2"))
+        #expect(dna.hasPrefix("DEE DNA v7 · reply · response 2"))
         #expect(dna.contains("Their words: judge them yourself"), "fast mode DNA")
         rig.shutdown()
     }
@@ -42,7 +42,7 @@ import Testing
         #expect(await rig.until { rig.responseCreates().count == 1 })
         #expect(rig.trail() == ["dna:dna_tagabc_1", "response.create"])
         let dna = try #require(rig.dnaText("dna_tagabc_1"))
-        #expect(dna.hasPrefix("DEE DNA v6 · you speak first"))
+        #expect(dna.hasPrefix("DEE DNA v7 · you speak first"))
         #expect(dna.contains("What to open with: Ask one short question about the red ball"))
         #expect(!dna.contains("[") && !dna.contains("noticed.)"), "the directive's parentheses are gone")
         let r = try #require(rig.responseCreates().first?["response"] as? [String: Any])

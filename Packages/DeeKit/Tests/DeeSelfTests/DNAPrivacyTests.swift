@@ -163,7 +163,7 @@ import Testing
     /// dropped, nothing degrades, and section 9, identity, repair and boundaries all stay.
     @Test(arguments: [
         "answer their question first if they asked one",
-        "I never want to make them feel guilty for leaving early",
+        "I would never send them to an app for that",
         "why do you keep asking more than one question",
         "please don't bring up her ex again",
         "you are a tiny robot who lives in my phone",

@@ -359,6 +359,9 @@ public struct RunRecord: Codable, Sendable, Equatable {
     public var brainTrace: [Note]?
     /// User items the session deleted as her echo (never forwarded to the brain).
     public var echoRejected: [String]?
+    /// Items a `resetConversation` removed on purpose (`RealtimeSession.forgottenItemIDs`);
+    /// the truncation history check skips them.
+    public var forgottenItems: [String]?
 
     public init(scenario: String, model: String, brain: String, started: String) {
         self.scenario = scenario; self.model = model; self.brain = brain; self.started = started

@@ -139,18 +139,22 @@ import Testing
     }
 
     /// Audio that comes after the window is confirmed already: it plays as it arrives.
+    /// Tune 6: the gate is let go when her first audio is in (never before: a resume
+    /// between an early release and her audio was unguarded), at once — the quiet run
+    /// has held since long before.
     @Test func lateAudioIsNotHeld() async throws {
         let rig = try await BrainRig()
         try await rig.start()
         try rig.quiet(0.6)
         try await Self.turn(rig, "item_u1", talk: 1.0, lag: 0.2)
-        try await Self.stepUntil(rig, 1.2) { Self.released(rig) != nil }
-        let r = try #require(Self.released(rig))
-        #expect(!r.ready && !r.overdue, "\(r)")
+        try await Self.stepUntil(rig, 1.2) { false }
+        #expect(Self.released(rig) == nil, "nothing to let go of before her audio")
         let at = rig.output.count
         Self.audio(rig, "resp_1", "item_a1", ms: 600, text: "Sure.")
         await rig.settle()
         try rig.quiet(0.15)
+        let r = try #require(Self.released(rig))
+        #expect(r.ready && !r.overdue && r.heldMs <= 60, "released as it arrived: \(r)")
         #expect(Self.firstAudio(rig, from: at) != nil, "plays at once")
         rig.shutdown()
     }
