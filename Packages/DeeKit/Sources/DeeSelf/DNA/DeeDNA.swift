@@ -389,7 +389,9 @@ public struct DeeDNA: Sendable, Equatable {
     /// ("Hi Alex," and the question, all in one; the time apart only after it).
     /// v9 (tune 8): session instructions v9; the follow-up form only with an "Ask now, first"
     /// line, their words never said back, their question answered in the first sentence.
-    public static let version = "v9"
+    /// v10 (tune 9): session instructions v10; nothing primes "I heard you", no thinking
+    /// aloud anywhere in a reply, one reply per turn (never a lead-in, then a second one).
+    public static let version = "v10"
 
     public var turn: TurnContext
     // §1.2

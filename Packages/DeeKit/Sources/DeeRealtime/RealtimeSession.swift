@@ -2063,7 +2063,7 @@ public actor RealtimeSession {
         track = t
         if let rid = t.id { send(.responseCancel(responseID: rid, eventID: nextCancelID())) }
         let token = t.token
-        Task { [clock, weak self, timeout = config.cancelTimeout + (t.id == nil ? config.responseTimeout : 0)] in
+        Task { [clock, weak self, timeout = config.cancelTimeout + (t.id == nil ? config.cancelUnstartedWait : 0)] in
             do { try await clock.sleep(seconds: timeout) } catch { return }
             await self?.cancelWatchdog(token)
         }

@@ -250,15 +250,19 @@ import Testing
         var inputs = DNAKit.maxLength()
         inputs.guardCorpus = inc
         let r0 = DNAPrompt.build(inputs)
-        /// Fastest of 15 single renders (robust to parallel test load).
+        /// Fastest of 25 single renders each, the two interleaved so parallel test load
+        /// lands on both sides alike (tune 9: back-to-back blocks flaked at 2.1× under load,
+        /// 1.3× alone).
         func ms(_ i: DNAInputs) -> Double {
-            (0..<15).map { _ in
-                let t = ContinuousClock().measure { _ = DNAPrompt.build(i) }
-                return Double(t.components.seconds) * 1000 + Double(t.components.attoseconds) / 1e15
-            }.min()!
+            let t = ContinuousClock().measure { _ = DNAPrompt.build(i) }
+            return Double(t.components.seconds) * 1000 + Double(t.components.attoseconds) / 1e15
         }
-        let without = ms(DNAKit.maxLength())
-        let with = ms(inputs)
+        let bare = DNAKit.maxLength()
+        var without = Double.infinity, with = Double.infinity
+        for _ in 0..<25 {
+            without = min(without, ms(bare))
+            with = min(with, ms(inputs))
+        }
         print("DNA render, max fixture: \(without) ms without corpus, \(with) ms with 600 utterances")
         // The guard's share no longer grows with a session's length: it was 4–15× the render
         // (8–9 ms release); now well under 2× (a ratio, so parallel test load cancels out).

@@ -54,9 +54,13 @@ public enum Backchannel {
     /// `inHold`: said in a hold, in a short burst — the hold-only continuers count too,
     /// and (tune 7), in its full transcript (`final`), a misheard fragment
     /// (`isMisheardFragment`; a settled partial "I'm" may still become a turn).
-    public static func isBackchannel(_ text: String, inHold: Bool, final: Bool = true) -> Bool {
+    ///
+    /// `sound` (tune 9): what the item sounded like (`EarCore.itemSound`), when known. A
+    /// one-word fragment the words don't know ("Movie.") is a backchannel only when it
+    /// sounded like one (`isMisheardFragment(_:sound:)`).
+    public static func isBackchannel(_ text: String, inHold: Bool, final: Bool = true, sound: FragmentSound? = nil) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if inHold, final, isMisheardFragment(trimmed) { return true }
+        if inHold, final, isMisheardFragment(trimmed, sound: sound) { return true }
         guard !trimmed.isEmpty, !trimmed.hasSuffix("?") || questionContinuers.contains(trimmed.lowercased()) else { return false }
         let all = words(trimmed.replacingOccurrences(of: "-", with: " "))
         guard !all.isEmpty, all.count <= 8 else { return false }
@@ -98,6 +102,58 @@ public enum Backchannel {
     /// "K." — is the start of a turn).
     static let shortFragments: Set<String> = ["oh", "ah", "aw", "ok", "go", "ya", "ye", "yo", "eh", "hm", "mm"]
 
+    /// Tune 9 (T8-1): single words that are a whole "go on" over her voice, or what one
+    /// came back as live ("Grand." for "Go on.", "She."/"Sheep." for "Keep going", "Done."
+    /// for the tail of "Mm-hm"). Any other single word ("Movie.", "Music.", "Weather.") is
+    /// a backchannel only if it also *sounds* like one (`FragmentSound.backchannelLike`).
+    public static let fragmentWords: Set<String> = [
+        "yeah", "yea", "yeh", "yep", "yup", "yes", "yah", "right", "alright", "okay", "okey", "ok", "sure", "cool",
+        "nice", "wow", "aha", "really", "interesting", "more", "continue", "listening", "following", "going", "goin",
+        "ahead", "keep", "keeps", "cheap", "sheep", "jeron", "jerron", "geron", "gerron", "jaron", "goan", "gowan",
+        "goon", "grand", "she", "done", "fine", "good", "great", "true", "totally", "exactly", "absolutely",
+        "definitely", "indeed", "gotcha", "neat", "awesome", "perfect", "amazing", "lovely", "thanks",
+    ]
+
+    /// The `fragmentWords` a misspelling may stand for (`isKnownFragmentWord`): the long,
+    /// distinctive ones — never "right" ("eight", "night"), "fine" ("nine", "mine"), "done"
+    /// ("none"), "yeah" ("year").
+    static let fuzzyFragmentWords: Set<String> = [
+        "listening", "following", "going", "cheap", "sheep", "grand", "really", "interesting", "continue",
+        "absolutely", "definitely", "exactly", "totally", "awesome", "perfect", "amazing", "lovely", "alright",
+        "gotcha", "jeron", "jerron", "geron", "gerron", "jaron", "gowan", "ahead",
+    ]
+
+    /// `word` (lowercased) is a known one-word "go on" (`fragmentWords`, a hum, a short
+    /// "oh"/"ok"/"mm"), or — `fuzzy` — a misspelling of a distinctive one
+    /// (`fuzzyFragmentWords`): one letter off, two off one of eight letters or more
+    /// ("listenin", "absolutly"). Exact matches only when `fuzzy` is false.
+    public static func isKnownFragmentWord(_ word: String, fuzzy: Bool = true) -> Bool {
+        let w = word.lowercased()
+        if fragmentWords.contains(w) || isHum(w) || shortFragments.contains(w) { return true }
+        guard fuzzy, w.count >= 5, !w.contains(where: \.isNumber) else { return false }
+        return fuzzyFragmentWords.contains { k in
+            let limit = k.count >= 8 ? 2 : 1
+            return abs(k.count - w.count) <= limit && editDistance(w, k, limit: limit) <= limit
+        }
+    }
+
+    /// Levenshtein distance, stopping early once every path is over `limit` (then `limit + 1`).
+    static func editDistance(_ a: String, _ b: String, limit: Int) -> Int {
+        let x = Array(a), y = Array(b)
+        if abs(x.count - y.count) > limit { return limit + 1 }
+        if x.isEmpty || y.isEmpty { return max(x.count, y.count) }
+        var prev = Array(0...y.count)
+        for i in 1...x.count {
+            var cur = [i] + [Int](repeating: 0, count: y.count)
+            for j in 1...y.count {
+                cur[j] = min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (x[i - 1] == y[j - 1] ? 0 : 1))
+            }
+            if cur.min()! > limit { return limit + 1 }
+            prev = cur
+        }
+        return prev[y.count]
+    }
+
     /// Tune 7/8: the single rule (voice and brain) for a backchannel over her voice
     /// that came back from transcription as a fragment that means nothing on its own.
     /// The caller decides it was said over her voice (the voice: in a hold, a short
@@ -112,10 +168,24 @@ public enum Backchannel {
     /// bored.", "Love you."), a lone letter ("I.", "D."), "Too late." (live fan15 q08
     /// "Who made you?" — its second word ends no continuer), "Tell me.".
     ///
-    /// Shapes (fillers aside): 1 word; 2 or 3 words whose last ends a continuer
+    /// Shapes (fillers aside): 1 known word (tune 9; see above); 2 or 3 words whose last ends a continuer
     /// (going/goin/on/listening/ahead) or is a hum; a continuer cut off inside its last
     /// word ("I'm listen", "I'm still listen").
+    ///
+    /// Tune 9 (T8-1): one word is a fragment only when the words know it
+    /// (`isKnownFragmentWord`; a misspelling of one only when its sound, if known, is not
+    /// question-like); live "Movie." ("Who made you?") is not — without its sound it is a
+    /// turn (decision: a missed question is worse than a brief pause). The voice and the
+    /// brain call `isMisheardFragment(_:sound:)` with the item's sound
+    /// (`CloudVoice.isMisheardFragment(itemID:text:)`).
     public static func isMisheardFragment(_ text: String) -> Bool {
+        isMisheardFragment(text, sound: nil)
+    }
+
+    /// `isMisheardFragment`, deciding a single word the words don't know by what it
+    /// sounded like: short (≤ `FragmentSound.backchannelMaxVoiced` of voice), at most two
+    /// syllables, not rising (`FragmentSound.backchannelLike`). No sound: not a fragment.
+    public static func isMisheardFragment(_ text: String, sound: FragmentSound?) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.contains("?") else { return false }
         let kept = words(trimmed.replacingOccurrences(of: "-", with: " ")).filter { !fillers.contains($0) || $0 == "no" }
@@ -127,7 +197,14 @@ public enum Backchannel {
         if kept.contains(where: notFragments.contains) { return false }
         // One word; or two or three where only the end of a continuer survived
         // ("Put going.", "Sheupr and going."): "I'm hungry." / "Too late." are turns.
-        guard kept.count > 1 else { return true }
+        guard kept.count > 1 else {
+            let w = kept[0]
+            if isKnownFragmentWord(w, fuzzy: false) { return true }
+            // A misspelling of one: the words say "go on", unless it sounded like a question.
+            if isKnownFragmentWord(w) { return sound?.questionLike != true }
+            // Tune 9 (T8-1): a word the words don't know is "go on" only by its sound.
+            return sound?.backchannelLike == true
+        }
         return fragmentEnds.contains(kept[kept.count - 1]) || (kept.count == 2 && isHum(kept[1]))
     }
 

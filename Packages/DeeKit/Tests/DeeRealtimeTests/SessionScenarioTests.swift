@@ -456,7 +456,10 @@ import Testing
     @Test func noResponseWatchdog() async throws {
         let h = try await Harness.connected()
         try await h.session.requestResponse()
+        // Tune 9 (T8-2): the backstop is `responseTimeout` (10 s), not 2.5 s.
         await h.advance(by: 2.5)
+        #expect(!h.log.contains(.fallbackAdvised(.noResponse)))
+        await h.advance(by: 7.5)
         #expect(await h.log.wait { $0 == .fallbackAdvised(.noResponse) } != nil)
         #expect(await h.session.state == .cancelling)
         // It shows up late: cancelled at once, never heard.

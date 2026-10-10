@@ -326,7 +326,7 @@ import Testing
         let h = try await Harness.connected()
         try await h.session.requestResponse()
         let oldTag = try #require(Self.turnTag(h.socket))
-        await h.advance(by: 2.5)    // response watchdog
+        await h.advance(by: 10)     // response watchdog (tune 9: `responseTimeout` 10 s)
         await h.advance(by: 5.5)    // cancel watchdog → responseDone(no_response)
         await h.log.wait { $0.responseDone != nil }
         try await h.session.requestResponse()

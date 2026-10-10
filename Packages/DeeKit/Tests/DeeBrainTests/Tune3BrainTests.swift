@@ -197,9 +197,11 @@ import Testing
         #expect(TurnPolicy.metaSentence(in: "Nice, let me think about what I can") == 0)
         #expect(TurnPolicy.metaSentence(in: "Two whole days! Let me check what I remember about you.") == 1)
         #expect(TurnPolicy.metaSentence(in: "Got it. I'll note that for later.") == 1)
-        // Human talk after a real answer is left alone.
-        #expect(TurnPolicy.metaSentence(in: "Octopuses have three hearts, which is wild. Let me think of another one!") == nil)
-        #expect(TurnPolicy.metaSentence(in: "That's a tough one. Let me think about it with you.") == nil)
+        // Tune 9 (T8-4): thinking aloud after a real answer is narration too (the harness gate
+        // and the judge counted "Let me think about the next one." as a leak).
+        #expect(TurnPolicy.metaSentence(in: "Octopuses have three hearts, which is wild. Let me think of another one!") == 1)
+        #expect(TurnPolicy.metaSentence(in: "That's a tough one. Let me think about it with you.") == 1)
+        #expect(TurnPolicy.metaSentence(in: "Octopuses have three hearts, which is wild. Want another one?") == nil)
         #expect(TurnPolicy.metaSentence(in: "Mars is red because of rust. It's dusty up there.") == nil)
         #expect(TurnPolicy.sentences("A. B? C… d") == ["A.", "B?", "C…", "d"])
         #expect(TurnPolicy.sentences("It's 3.5 metres.") == ["It's 3.5 metres."])

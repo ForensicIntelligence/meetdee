@@ -140,6 +140,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// Tune 7: items whose burst was measured short once it was closed (the ear
         /// forgets an item at its transcript; its full words decide a fragment after).
         var shortBursts: Set<String> = []
+        /// Tune 9 (T8-1): what each item sounded like (`EarCore.itemSound`, up to its
+        /// commit): a one-word fragment the words don't know ("Movie.") is "go on" only
+        /// when it sounded like one.
+        public internal(set) var sounds: [String: FragmentSound] = [:]
         /// The brain said "go on" while more of the burst was still coming: she
         /// goes on once they are quiet and no item waits for its words.
         var goOn = false
@@ -187,7 +191,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             for item in items.dropLast() {
                 guard let w = (final[item] ?? partial[item])?.trimmingCharacters(in: .whitespacesAndNewlines),
                       !w.isEmpty else { continue }
-                if !Backchannel.isBackchannel(w, inHold: shortItems.contains(item), final: final[item] != nil) { return false }
+                if !Backchannel.isBackchannel(w, inHold: shortItems.contains(item), final: final[item] != nil,
+                                              sound: sounds[item]) { return false }
             }
             return true
         }
@@ -236,7 +241,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     continue
                 }
                 allEmpty = false
-                if !Backchannel.isBackchannel(clean, inHold: shortItems.contains(item), final: isFinal) {
+                if !Backchannel.isBackchannel(clean, inHold: shortItems.contains(item), final: isFinal, sound: sounds[item]) {
                     if isFinal || partialAnswers { return .answer }
                     pendingAnswer = true                            // its full words decide
                     continue
@@ -593,16 +598,42 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// or — the item was said in a hold (now or one she went on through) in a short
     /// burst — a hold-only continuer ("Keep going" heard as "She's not going.").
     /// The brain uses it in place of `TurnPolicy.isBackchannel` for an item over her voice.
+    ///
+    /// Tune 9 (T8-1): a one-word fragment the words don't know is one only when the item
+    /// sounded like a backchannel (`itemSound`).
     public func isHoldBackchannel(itemID: String, text: String) -> Bool {
         if Backchannel.isBackchannel(text) { return true }
-        guard Backchannel.isBackchannel(text, inHold: true) else { return false }
         let t = graph.now
         return inner.withLock { s in
+            guard Backchannel.isBackchannel(text, inHold: true, sound: sound(itemID, s, at: t)) else { return false }
             if s.hold?.shortItems.contains(itemID) == true || s.shortHoldItems.contains(itemID)
                 || s.hold?.shortBursts.contains(itemID) == true { return true }
             guard s.hold?.items.contains(itemID) == true || s.backchannelItems.contains(itemID) else { return false }
             return isShort(itemID, s, at: t)
         }
+    }
+
+    /// Tune 9 (T8-1): what server item `itemID` sounded like (`FragmentSound`: seconds of
+    /// their voice, syllables, the pitch's end), up to our commit of it if we made one.
+    /// Nil when the ear doesn't know the item (rejected as her echo, or long gone).
+    public func itemSound(itemID: String) -> FragmentSound? {
+        let t = graph.now
+        return inner.withLock { sound(itemID, $0, at: t) }
+    }
+
+    /// Tune 9 (T8-1): `text`, said in `itemID` over her voice, is a misheard "go on"
+    /// (`Backchannel.isMisheardFragment(_:sound:)` with the item's sound): one word the
+    /// words don't know ("Movie." for "Who made you?") only when it *sounded* like a
+    /// backchannel — short, at most two syllables, not rising. The brain uses it in place
+    /// of the words-only `TurnPolicy.isMisheardFragment` for an item it knows.
+    public func isMisheardFragment(itemID: String, text: String) -> Bool {
+        Backchannel.isMisheardFragment(text, sound: itemSound(itemID: itemID))
+    }
+
+    private func sound(_ item: String, _ s: Inner, at t: Double) -> FragmentSound? {
+        var until = t
+        if let c = s.hold?.closedAt[item] { until = min(until, c) }
+        return s.core.itemSound(itemID: item, until: until)
     }
 
     /// The item's burst was short (`holdOnlyBurst`): up to our commit of it, if we made one.
@@ -1061,6 +1092,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// A hold's deadlines and settled words.
     private func checkHold(_ s: inout Inner, at t: Double) {
         guard var h = s.hold, !h.probe else { return }
+        // Tune 9 (T8-1): what each item sounded like, up to its commit.
+        for item in h.items where !h.tails.contains(item) {
+            guard let snd = s.core.itemSound(itemID: item, until: h.closedAt[item] ?? t), h.sounds[item] != snd else { continue }
+            h.sounds[item] = snd
+            s.hold?.sounds[item] = snd
+        }
         for item in h.items where !h.shortBursts.contains(item) && h.closedAt[item] != nil && isShort(item, s, at: t) {
             h.shortBursts.insert(item)
             s.hold?.shortBursts.insert(item)
@@ -1068,7 +1105,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         // Words that are a continuer only in a hold: count when the burst was short.
         for item in h.items where !h.shortItems.contains(item) {
             guard let w = h.final[item] ?? h.partial[item], !Backchannel.isBackchannel(w),
-                  Backchannel.isBackchannel(w, inHold: true, final: h.final[item] != nil),
+                  Backchannel.isBackchannel(w, inHold: true, final: h.final[item] != nil, sound: h.sounds[item]),
                   h.shortBursts.contains(item) || isShort(item, s, at: t) else { continue }
             h.shortItems.insert(item)
             s.hold?.shortItems.insert(item)

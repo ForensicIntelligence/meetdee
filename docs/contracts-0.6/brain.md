@@ -323,6 +323,43 @@ exact, higher effort) while nothing of the fast reply was heard.
   (200), p90 1.40 → 1.35 / 1.30 — neither reaches the 1.1 s p50 target, whose remaining share is the model (create →
   first audio 0.62 s p50). Recommendation: an A/B live run at 250 ms before any change.
 
+### Tune 9 (live run 20261010-080526, `tune8-live.md`)
+
+- **A question taken for "go on" first gets exactly one answer (T8-1).** Live interrupt-echo20 q08 "Who made you?" came
+  back as "Movie." and the one fragment rule took any single word as "go on": `continued`, then the final words (verdict
+  "answer") were let go as "go on" too. The rule is now the voice's sound-aware one (`CloudVoice.isMisheardFragment(itemID:
+  text:)`, voice patch applied): a word the words don't know is "go on" only if it *sounded* like a backchannel. Brain
+  half: when the full words of an item she talked on through are a turn, its answer's own cut of her voice is no "cut
+  anyway after keep going" (`continuedThrough` cleared; `newerTurnPending` counts an answer to that same item) — before,
+  that asked for a carry-on for the same item, refused, then sent after the answer: two replies to one turn.
+- **Server stalls (T8-2).** The session no longer gives a request up at 2.5 s (`responseTimeout` 10 s backstop;
+  `cancelUnstartedWait` 2.5 s keeps the old close of an unstarted cancel): a late `response.created` is accepted and
+  plays (live 3.56 s and 9.59 s stalls each lost a turn). The brain: past `slowAfter` (2.5 s) with nothing started, a
+  thinking sound (`slowClip` `.oneSec`, once, nobody talking, nothing of hers playing; trace `.slowResponse`); past
+  `stallRetryAfter` (8 s, or the voice's own 8 s speculative timeout), the stalled request is cancelled and the turn
+  asked for once more (`retryItem` path, kind `retry`; trace `.stalled(retried:)`) — only if it is still current (no
+  newer commit or request of theirs, nobody talking), never twice per turn, never for a carry-on.
+- **Tails and carry-ons (T8-3).** A tail of a burst that was a backchannel whose words are a number, a lone letter,
+  nothing or one "go on" word (`TurnPolicy.isNoiseTail`: "10." after "MMHN.") is dropped from the conversation, never
+  answered (trace `.backchannel("tail")`); a tail that asks or stops her is still a turn. A held turn a carry-on took
+  over is not restored once that carry-on was asked for (live echo10 c02: the restored "…stop." cut the carry-on at
+  840 ms and a second carry-on played): one carry-on per hold. Early words over her never decide on a partial that
+  breaks off on a comma or an article/conjunction (`TurnPolicy.breaksOff`: "That's like a,"); a partial that asks
+  ("Who made", "Can you tell me,") still does.
+- **Thinking aloud, "I heard you", two messages (T8-4 / T8-5, DNA v10).** Thinking aloud is narration in any sentence
+  (`thinkingAloudPatterns`: let me think / see / take a moment / settle, give me a second…); in a later sentence of an
+  unheard reply to a question it is taken back and asked again once with `answerFirstNote` (`.thinkingAloud`), else she
+  stops before it. A sentence opening on hearing them (`TurnPolicy.opensOnHearingThem`: I heard/hear you/your, I can
+  hear you; not when they asked whether she can hear them) is taken back in the first sentence (`noHeardYouNote`,
+  `.heardYou`) or stopped before later. A second message item of one response is never played (`.secondMessage`,
+  `.secondMessageStop`).
+- **Latency.** The gate's quiet run counts from when it began (`confirmWindow` after their last voice, never before the
+  server's speech closed), not from the tick that first saw it; tick 0.05 → 0.02 s. Replayed on the tune-7/8 releases:
+  held p50 80–100 → ~30 ms (+ ≤ 20 ms tick), p90 220 → ~150 ms. The window itself is unchanged: counting it from
+  commit − 0.35 s released a resume 0.76 s after their end (Tune5 test), so `commitLag` stays 0.25 s. The server VAD
+  silence is a setting (`CloudSettings.vadSilenceMs`, default 300): the live operator A/Bs 250 ms with
+  `DEE_VAD_SILENCE_MS=250` (the harness builds its session with `CloudSettings(voice:model:)`; 200–800 accepted).
+
 ## DNA delivery (DNA.md §4)
 
 `buildDNA`: `host.dnaParts(DNARequest)` (the host calls `Cortex.cue(at:)` first unless the

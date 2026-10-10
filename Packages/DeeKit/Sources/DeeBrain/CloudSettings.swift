@@ -62,8 +62,37 @@ public struct CloudSettings: Sendable, Equatable {
     ///
     /// Live from tune 3: `sessionConfig` sends it as the session's `turn_detection`
     /// (`RealtimeSessionConfig.turnDetection`); `turnEagerness` is then unused.
-    public static let turnDetection = TurnDetection.serverVAD(threshold: 0.5, prefixPaddingMs: 300, silenceDurationMs: 300,
-                                                              createResponse: false, interruptResponse: false)
+    public static let turnDetection = turnDetection(silenceMs: defaultSilenceMs)
+
+    /// Tune 9 (latency): the server VAD's `silence_duration_ms` is a setting. The default
+    /// stays 300 (the tune-2 A/B winner); the tune-8 floor analysis projects 250 ms at
+    /// about −0.05 s p50 (floor 1.12 → ~1.07 s) with no new splits on barge-in or
+    /// backchannel lines, so 250 is the next live A/B. 200 splits the joke set-up and a
+    /// continuation: not offered below `silenceRange`.
+    public static let defaultSilenceMs = 300
+    public static let silenceRange = 200...800
+    /// The live operator's A/B knob (the voice harness builds its session with
+    /// `CloudSettings(voice:model:)`): `DEE_VAD_SILENCE_MS=250 voice-harness run …`. Never
+    /// set in the app; out of `silenceRange` or not a number: ignored.
+    public static let silenceEnvironmentKey = "DEE_VAD_SILENCE_MS"
+
+    /// server_vad with `silenceMs` of silence (clamped to `silenceRange`); everything else
+    /// as `turnDetection`.
+    public static func turnDetection(silenceMs: Int) -> TurnDetection {
+        TurnDetection.serverVAD(threshold: 0.5, prefixPaddingMs: 300,
+                                silenceDurationMs: min(max(silenceMs, silenceRange.lowerBound), silenceRange.upperBound),
+                                createResponse: false, interruptResponse: false)
+    }
+
+    /// The silence from the environment (`silenceEnvironmentKey`), if valid.
+    public static func silenceOverride(_ env: [String: String] = ProcessInfo.processInfo.environment) -> Int? {
+        guard let raw = env[silenceEnvironmentKey]?.trimmingCharacters(in: .whitespaces), let ms = Int(raw),
+              silenceRange.contains(ms) else { return nil }
+        return ms
+    }
+
+    /// `silence_duration_ms` of this session (default 300; the harness knob may set it).
+    public var vadSilenceMs = CloudSettings.silenceOverride() ?? CloudSettings.defaultSilenceMs
 
     /// docs/DNA.md §3/D5: stable instructions (no names, memories or state), the
     /// tools, the voice; turn detection `turnDetection` (server_vad 300 ms) with
@@ -73,7 +102,7 @@ public struct CloudSettings: Sendable, Equatable {
         var c = RealtimeSessionConfig()
         c.model = model
         c.eagerness = Self.turnEagerness
-        c.turnDetection = Self.turnDetection
+        c.turnDetection = Self.turnDetection(silenceMs: vadSilenceMs)
         c.voice = .named(voice)
         c.instructions = DNASessionInstructions.current
         c.tools = tools

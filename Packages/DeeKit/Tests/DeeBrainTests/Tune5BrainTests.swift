@@ -170,10 +170,13 @@ import Testing
         try await T4.turn(rig, "item_u1", talk: 1.0, lag: 0.2)
         T4.audio(rig, "resp_1", "item_a1", ms: 900, text: "Sure.")
         // To just past the window: passed once, not released yet.
-        try await T4.stepUntil(rig, 0.7) { false }
+        // Tune 9: the run counts from when it began (window after their last voice), so the
+        // release comes exactly a re-check past the window, never sooner.
+        try await T4.stepUntil(rig, 0.6) { false }
         #expect(T4.released(rig) == nil, "\(rig.brain.trace)")
-        try await T4.stepUntil(rig, 0.5) { T4.released(rig) != nil }
-        #expect(T4.released(rig) != nil)
+        try await T4.stepUntil(rig, 0.6) { T4.released(rig) != nil }
+        let r = try #require(T4.released(rig))
+        #expect(Double(r.quietMs) >= (TurnPolicy.confirmWindow + TurnPolicy.releaseRecheck) * 1000 - 1, "\(r)")
         rig.shutdown()
     }
 
@@ -297,15 +300,18 @@ import Testing
         let rig = try await BrainRig()
         try await rig.start()
         for (i, line) in ["Knock knock.", "Lettuce."].enumerated() {
-            rig.utterance("item_k\(i)")
+            try await T4.turn(rig, "item_k\(i)", talk: 0.6)
             #expect(await rig.until { rig.responseCreates().count == i + 1 })
             rig.push(Srv.userTranscript("item_k\(i)", line))
             #expect(await rig.until { rig.host.heardLog.count == i + 1 })
             rig.reply("resp_k\(i)", "item_ak\(i)", ms: 200, text: i == 0 ? "Who's there?" : "Lettuce who?")
-            try rig.quiet(0.8)
-            await rig.settle()
+            // Tune 9: her line plays out and their turns are voiced. (The rig's `quiet` steps the
+            // microphone without letting the brain run; since the gate's quiet run counts from
+            // when it began, the held line is released right after — before, it was never
+            // released here at all — and a turn with no voice of theirs after it is her echo.)
+            try await T4.stepUntil(rig, 2.0) { false }
         }
-        rig.utterance("item_k2")
+        try await T4.turn(rig, "item_k2", talk: 0.6)
         #expect(await rig.until { rig.responseCreates().count == 3 })
         let dnaID = try #require(rig.trail().last { $0.hasPrefix("dna:") }).dropFirst(4)
         #expect(rig.dnaText(String(dnaID))?.contains("laugh first") == true)

@@ -325,6 +325,10 @@ public struct EarCore: Sendable {
         var end: Double?
     }
     private var items: [String: ItemTimes] = [:]
+    /// Tune 9 (T8-1): the sound of items whose transcript came (their times are gone):
+    /// `itemSound` still answers for them (newest 32).
+    private var itemSounds: [String: FragmentSound] = [:]
+    private var itemSoundOrder: [String] = []
     private var itemOrder: [String] = []
     private var rejected: Set<String> = []
     private var rejectedOrder: [String] = []
@@ -890,6 +894,7 @@ public struct EarCore: Sendable {
     public mutating func serverTranscript(itemID: String, text: String, at t: Double) -> [Action] {
         latest = max(latest, t)
         guard !rejected.contains(itemID) else { return [] }
+        if let it = items[itemID] { keepSound(itemID, sound(from: it.onset, to: min(it.end ?? t, t))) }
         let times = items.removeValue(forKey: itemID)
         itemOrder.removeAll { $0 == itemID }
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -950,6 +955,35 @@ public struct EarCore: Sendable {
     public func voiceSeconds(itemID: String, until t: Double) -> Double? {
         guard let it = items[itemID] else { return nil }
         return nearEndVoice(from: it.onset, to: min(it.end ?? t, t)).pitched
+    }
+
+    /// Tune 9 (T8-1): what server item `itemID` sounded like (`FragmentSound`): their
+    /// near-end voice from its onset to its end (or `t`), judged with the echo path known
+    /// now — never her echo. After its transcript, what it sounded like then. Nil when
+    /// the item is unknown here (rejected, forgotten, or never announced).
+    public func itemSound(itemID: String, until t: Double) -> FragmentSound? {
+        if let it = items[itemID] { return sound(from: it.onset, to: min(it.end ?? t, t)) }
+        return itemSounds[itemID]
+    }
+
+    /// Their voice between `a` and `b` (`itemSoundPad` after it: the last syllable's decay).
+    private func sound(from a: Double, to b: Double) -> FragmentSound {
+        var out: [FragmentSound.Frame] = []
+        for f in frames where f.t - f.dt >= a - 1e-9 && f.t <= b + Self.itemSoundPad + 1e-9 {
+            let j = judge(f)
+            out.append(FragmentSound.Frame(t: f.t, dt: f.dt, db: f.db, near: j.near, pitched: j.pitched,
+                                           f0: j.pitched ? f.f0 : nil))
+        }
+        return FragmentSound.analyze(out)
+    }
+
+    /// Seconds after an item's end its sound still counts (`itemSound`).
+    static let itemSoundPad = 0.08
+
+    private mutating func keepSound(_ id: String, _ sound: FragmentSound) {
+        if itemSounds[id] == nil { itemSoundOrder.append(id) }
+        itemSounds[id] = sound
+        while itemSoundOrder.count > 32 { itemSounds[itemSoundOrder.removeFirst()] = nil }
     }
 
     /// Tune 8 (T7-3): with no echo cancellation, server item `itemID` began within
@@ -1322,6 +1356,7 @@ public struct EarCore: Sendable {
         if serverOpen == id { serverOpen = nil }
         items[id] = nil
         itemOrder.removeAll { $0 == id }
+        itemSounds[id] = nil
         guard rejected.insert(id).inserted else { return }
         rejectedOrder.append(id)
         if rejectedOrder.count > 64 { rejected.remove(rejectedOrder.removeFirst()) }

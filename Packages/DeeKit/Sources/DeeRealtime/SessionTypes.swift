@@ -59,7 +59,19 @@ public struct RealtimeSessionConfig: Sendable, Equatable {
     public var connectTimeout: Double = 10
     /// `response.create` → `response.created` deadline; past it the response is
     /// abandoned and `.fallbackAdvised(.noResponse)` is emitted.
-    public var responseTimeout: Double = 2.5
+    ///
+    /// Tune 9 (T8-2, live 20261010-080526): 2.5 s → 10 s. Live, the server stalled
+    /// 3.56 s and 9.59 s before `response.created`; at 2.5 s the request was given up and
+    /// the late answer ("My favorite color is shiny silver…") cancelled the moment it
+    /// started: the turn was lost. A late answer is never thrown away now: until this
+    /// backstop the response is still accepted when it starts (the brain may make a short
+    /// thinking sound past 2.5 s and re-requests once itself if nothing started by 8 s:
+    /// `RealtimeBrain.Options.stallRetryAfter`).
+    public var responseTimeout: Double = 10
+    /// A response cancelled before it started (no `response.created` yet) is closed after
+    /// `cancelTimeout` + this if its `response.created` never comes (the old 2.5 s the
+    /// cancel watchdog waited for a late start, kept when `responseTimeout` grew).
+    public var cancelUnstartedWait: Double = 2.5
     /// `response.created` → first audio deadline (tool-only responses exempt); past
     /// it the response is cancelled and `.fallbackAdvised(.noResponse)` is emitted.
     public var firstAudioTimeout: Double = 6

@@ -131,6 +131,11 @@ public enum TurnPolicy {
     public static let resumeWait: TimeInterval = 2.0
     /// Without a local voiced frame to go by (no microphone audio), their speech is
     /// taken to have ended this long before the commit reached the brain.
+    ///
+    /// Tune 9 (latency): kept at 0.25 s. Counting the quiet run from commit − 0.35 s (the
+    /// server commits ~0.51 s after the end of speech) released a resume 0.76 s after their
+    /// end (Tune5BrainTests `liveL05ResumeJustBeforeTheReleaseHoldsHer`): the window as the
+    /// tune-4 A/B measured it is the protection, not slack.
     public static let commitLag: TimeInterval = 0.25
     /// She stops before sentence 4 of an ordinary reply (tune 4: live tune 3 at
     /// `minimal`, 16 of 152 replies ran to 4–5 sentences, 11 of them under a
@@ -435,6 +440,20 @@ public enum TurnPolicy {
             || ((2...6).contains(last.count) && last.allSatisfy { "mhnu".contains($0) } && last.contains("m"))
     }
 
+    /// Tune 9 (T8-3, live backchannel-echo10 c02, AEC off): early words never decide on a
+    /// partial that breaks off on a comma or a word that cannot end anything ("That's like
+    /// a," for "Don't stop, keep going": it cut her at 1945 ms): its settled words decide,
+    /// a moment later. A partial that already asks ("Who made", "Are you") is not held.
+    static let breakOffWords: Set<String> = ["a", "an", "the", "and", "or", "but", "like", "so", "um", "uh"]
+
+    public static func breaksOff(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.contains("?") else { return false }
+        if t.hasSuffix(",") || t.hasSuffix("…") || t.hasSuffix("-") { return !startsQuestion(words(t)) }
+        guard let last = words(t).last else { return false }
+        return breakOffWords.contains(last) && !startsQuestion(words(t))
+    }
+
     /// A question without its question mark ("Who made", "Why not").
     static let questionStarters: Set<String> = [
         "what", "what's", "whats", "why", "how", "how's", "who", "who's", "where", "where's", "when", "which", "can", "could",
@@ -508,6 +527,22 @@ public enum TurnPolicy {
         ["i'll", "grab"], ["let", "me", "pull", "up"], ["i'll", "pull", "up"],
         // Tune 8 (T7-6, live latency-fan15 q03): quoting them back ("Oh, I heard you say yours isn't.").
         ["i", "heard", "you", "say"], ["i", "heard", "you", "said"], ["sounds", "like", "you", "said"],
+        // Tune 9 (T8-4): thinking aloud before the answer ("Let me see…", "Give me a second").
+        ["let", "me", "see"],
+    ] + thinkingAloudPatterns
+
+    /// Tune 9 (T8-4, DNA v10): thinking aloud, anywhere in a reply — live fillers-echo30 f03
+    /// "Ah, that sounds like a fun bit of stargazing. Let me think this through with you.",
+    /// joke-echo30 k05 "…that's good. Let me think about the next one.", interrupt-fan15 q05
+    /// "Let me take a moment to settle in." The harness narration gate and the judge count
+    /// every one of them as a process leak: the tune-3 exemption for "Let me think about it
+    /// with you." after a real answer is gone.
+    static let thinkingAloudPatterns: [[String]] = [
+        ["let", "me", "think"], ["let", "me", "take", "a", "moment"], ["let", "me", "take", "a", "second"],
+        ["let", "me", "take", "a", "sec"], ["give", "me", "a", "moment"], ["give", "me", "a", "second"],
+        ["give", "me", "a", "sec"], ["give", "me", "a", "minute"], ["let", "me", "settle"], ["let", "me", "mull"],
+        ["let", "me", "ponder"], ["let", "me", "work", "this", "out"], ["let", "me", "work", "it", "out"],
+        ["thinking", "this", "through"], ["let", "me", "gather", "my", "thoughts"],
     ]
 
     /// Whether the first words of a reply (`prefix`, its transcript so far) are a
@@ -550,9 +585,9 @@ public enum TurnPolicy {
     /// ("Oh no, that sounds disappointing. Let me think about how to respond." → 1),
     /// or nil. Every sentence start is checked (tune 3: the live preamble was the
     /// second sentence), each on its first `preambleWords` words only. The first
-    /// sentence uses `preamblePatterns`; later ones only `narrationPatterns` (talk
-    /// about answering, looking up or saving), so "Let me think of another one!" or
-    /// "Let me think about it with you." after a real answer is left alone.
+    /// sentence uses `preamblePatterns`; later ones `narrationPatterns` (talk about
+    /// answering, looking up or saving, and since tune 9 any thinking aloud: "Let me
+    /// think of another one!" and "Let me think about it with you." are narration too).
     public static func metaSentence(in text: String) -> Int? {
         for (i, s) in sentences(text).enumerated() where i == 0 ? isMetaPreamble(s) : isNarration(s) { return i }
         return nil
@@ -570,7 +605,7 @@ public enum TurnPolicy {
         ["i'll", "remember", "that"], ["i'll", "check", "what"], ["i", "need", "to", "think"], ["thinking", "about", "how"],
         ["memory", "check"], ["quick", "save"],
         ["i", "heard", "you", "say"], ["i", "heard", "you", "said"],
-    ]
+    ] + thinkingAloudPatterns
 
     /// Whether a later sentence of a reply opens with narration (`narrationPatterns`).
     public static func isNarration(_ sentence: String) -> Bool {
@@ -579,6 +614,53 @@ public enum TurnPolicy {
             for i in 0...(w.count - p.count) where Array(w[i..<(i + p.count)]) == p { return true }
         }
         return false
+    }
+
+    // MARK: The tail of a backchannel (tune 9, T8-3)
+
+    /// Words that are no turn as the rest of a backchannel's burst: numbers ("10.", live
+    /// fan noise after "MMHN."), lone letters ("D."), no word at all, or one word that is a
+    /// misheard "go on" (the voice's rule). A tail that asks or stops her ("Why?", "Stop.",
+    /// "Mm-hm, but why?") is still a turn.
+    public static func isNoiseTail(_ text: String) -> Bool {
+        guard !text.contains("?") else { return false }
+        let w = words(text)
+        if w.isEmpty { return true }
+        if w.allSatisfy({ $0.contains(where: \.isNumber) || $0.count == 1 }) { return true }
+        return w.count == 1 && isMisheardFragment(text)
+    }
+
+    // MARK: "I heard you…" (tune 9, T8-5)
+
+    /// Tune 9 (T8-5): a sentence of hers that opens on having heard them — live 5 openers
+    /// after DNA v9 ("I heard you thinking about a dog…", "I heard you're thinking about a
+    /// dog…", "I heard you. I think it's normal…", "Hi, Priya! I heard your name, so I'm
+    /// saying hi.", "Today was quiet but nice. I heard you better…"). Within its first
+    /// three words (an "Oh," or a name before it): "I heard you/your", "I hear you/your",
+    /// "I can hear you", "I could hear you". Not when they asked whether she can hear them
+    /// ("Can you hear me okay?" → "Yes, I can hear you clearly." is the answer).
+    static let heardYouPatterns: [[String]] = [
+        ["i", "heard", "you"], ["i", "heard", "your"], ["i", "heard", "you're"], ["i", "hear", "you"], ["i", "hear", "your"],
+        ["i", "hear", "you're"], ["i", "can", "hear", "you"], ["i", "could", "hear", "you"],
+    ]
+
+    /// The retry's note after her first sentence told them she heard them.
+    public static let noHeardYouNote =
+        "Answer them straight away; never tell them you were listening, and never repeat what they said"
+
+    public static func opensOnHearingThem(_ sentence: String, theirs: String?) -> Bool {
+        if let theirs, words(theirs).contains(where: { $0 == "hear" || $0 == "hearing" || $0 == "heard" }) { return false }
+        let w = words(sentence)
+        for p in heardYouPatterns {
+            for i in 0...2 where i + p.count <= w.count && Array(w[i..<(i + p.count)]) == p { return true }
+        }
+        return false
+    }
+
+    /// The index of the first sentence of `text` that opens on having heard them, or nil.
+    public static func heardYouSentence(in text: String, theirs: String?) -> Int? {
+        for (i, s) in sentences(text).enumerated() where opensOnHearingThem(s, theirs: theirs) { return i }
+        return nil
     }
 
     // MARK: The unfinished-words aim, spoken (tune 5 F3)
