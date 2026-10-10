@@ -62,10 +62,18 @@ import Testing
         let from = rig.output.count
         rig.reply("resp_2", "item_a2", ms: 800)
         rig.push(Srv.responseDone("resp_2"))
-        await rig.settle()
-        try rig.quiet(0.2)
-        await rig.settle()
-        #expect(deleted(rig, "item_tail"), "the empty tail was never dropped")
+        // Tune 10: waited on events, not on time. The drop goes with the answer's first
+        // audio (voice → session → socket, asynchronously); under full-suite load the
+        // event pumps lag real time, and a fixed 0.2 s + one settle (or 1 s of 20 ms
+        // steps) flaked. Everything up to `response.done` handled, then the frame.
+        let done = await rig.brain.wait(timeout: 20) {
+            if case .session(.responseDone(let r)) = $0, r.responseID == "resp_2" { true } else { false }
+        }
+        try #require(done != nil, "the answer's events never arrived")
+        let dropped = await rig.socket.waitForSent(timeout: 20) { frames in
+            frames.contains { $0.contains("conversation.item.delete") && $0.contains("item_tail") }
+        }
+        #expect(dropped, "the empty tail was never dropped")
         try rig.quiet(1.0)
         await rig.settle()
         #expect(rig.sent("response.cancel").count == cancelsBefore)

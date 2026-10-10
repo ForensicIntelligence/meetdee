@@ -45,6 +45,13 @@ public struct Metrics: Codable, Sendable, Equatable {
         public var probe: Scenario.Probe? = nil
         /// A `forbidMention` phrase her reply used.
         public var forbidden: [String]? = nil
+        /// Tune 10: the server + model share of `latency` (`Metrics.serverModelFloor`) and the
+        /// rest, Dee's own overhead. Complete turns with a matched timeline only.
+        public var floor: Double? = nil
+        public var overhead: Double? = nil
+        /// Tune 10: what went wrong for this utterance (empty: handled correctly).
+        /// The `regressions` report section compares these against a baseline run.
+        public var problems: [String] = []
     }
 
     public struct Leak: Codable, Sendable, Equatable {
@@ -80,11 +87,19 @@ public struct Metrics: Codable, Sendable, Equatable {
     public var latencies: [Double] = []
     public var latencyP50: Double?
     public var latencyP90: Double?
-    /// Complete turns (gate: p50 ≤ 1.1 s, p90 ≤ 1.6 s).
+    /// Complete turns (gate: p90 ≤ 1.6 s; overhead over the floor p50 ≤ 0.10 / p90 ≤ 0.25 s).
     public var latencyMain: [Double] = []
     public var latencyMainP50: Double?
     public var latencyMainP90: Double?
     public var expectedMainReplies = 0
+    /// Tune 10: per complete turn, the server + model floor (end of speech → commit,
+    /// plus `response.create` → first audio delta) and Dee's overhead (latency − floor).
+    /// The gate bounds the overhead; the end-to-end p50 is reported as information.
+    public var latencyFloor: [Double] = []
+    public var latencyFloorP50: Double?
+    public var latencyOverhead: [Double] = []
+    public var latencyOverheadP50: Double?
+    public var latencyOverheadP90: Double?
     /// Filler turns ("um", "uh", "er": gate p90 ≤ 2.0 s).
     public var latencyFiller: [Double] = []
     public var latencyFillerP50: Double?
@@ -266,6 +281,9 @@ public struct Metrics: Codable, Sendable, Equatable {
         m.latencyP90 = Stats.percentile(m.latencies, 0.9)
         m.latencyMainP50 = Stats.percentile(m.latencyMain, 0.5)
         m.latencyMainP90 = Stats.percentile(m.latencyMain, 0.9)
+        m.latencyFloorP50 = Stats.percentile(m.latencyFloor, 0.5)
+        m.latencyOverheadP50 = Stats.percentile(m.latencyOverhead, 0.5)
+        m.latencyOverheadP90 = Stats.percentile(m.latencyOverhead, 0.9)
         m.latencyFillerP50 = Stats.percentile(m.latencyFiller, 0.5)
         m.latencyFillerP90 = Stats.percentile(m.latencyFiller, 0.9)
         m.timelineP50 = Stats.percentile(m.timelineLatencies, 0.5)
@@ -288,7 +306,23 @@ public struct Metrics: Codable, Sendable, Equatable {
         return Self.replyKinds.contains(k)
     }
 
+    /// Tune 10: the part of a reply's latency that is the server's and the model's:
+    /// their end of speech → the server's commit (VAD silence + commit), plus
+    /// `response.create` sent → first audio delta (the model). Read from the timeline
+    /// turn whose first audio delta is `replyItem`; nil when there is none (no
+    /// timeline, or the reply's request came from another turn).
+    public static func serverModelFloor(_ run: RunRecord, endOfSpeech: Double, replyItem: String) -> Double? {
+        for turn in run.timeline {
+            guard turn.details.first(where: { $0.hasPrefix("first_audio_delta: ") }) == "first_audio_delta: \(replyItem)",
+                  let committed = turn.marks["committed"], let sent = turn.marks["response_create_sent"],
+                  let delta = turn.marks["first_audio_delta"], committed >= endOfSpeech, delta >= sent else { continue }
+            return (committed - endOfSpeech) + (delta - sent)
+        }
+        return nil
+    }
+
     mutating func add(_ run: RunRecord) {
+        let firstRow = utterances.count
         let starts = run.playback.compactMap { p -> (item: String, t: Double)? in p.started.map { (p.itemID, $0) } }
             .sorted { $0.t < $1.t }
         // User items per utterance.
@@ -375,7 +409,15 @@ public struct Metrics: Codable, Sendable, Equatable {
                 switch TurnShape.Bucket(rawValue: r.bucket) ?? .main {
                 case .main:
                     expectedMainReplies += 1
-                    if let lat = r.latency { latencyMain.append(lat) }
+                    if let lat = r.latency {
+                        latencyMain.append(lat)
+                        if let item = r.replyItem, let f = Self.serverModelFloor(run, endOfSpeech: u.endOfSpeech, replyItem: item) {
+                            r.floor = f
+                            r.overhead = lat - f
+                            latencyFloor.append(f)
+                            latencyOverhead.append(lat - f)
+                        }
+                    }
                 case .filler:
                     expectedFillerReplies += 1
                     if let lat = r.latency { latencyFiller.append(lat) }
@@ -535,6 +577,35 @@ public struct Metrics: Codable, Sendable, Equatable {
             collisions.append(Collision(scenario: run.scenario, itemID: s.item, at: s.t, fixture: u.fixture,
                                         kind: run.kind(ofItem: s.item)))
         }
+        addProblems(run, from: firstRow)
+    }
+
+    /// Tune 10: per utterance, what went wrong (`Utterance.problems`), from the
+    /// outcomes the gates count. Latency is a distribution, judged by its gate only.
+    mutating func addProblems(_ run: RunRecord, from firstRow: Int) {
+        let leaked = Set(leaks.filter { $0.scenario == run.scenario }.map(\.itemID))
+        let narrated = Set(narrations.filter { $0.scenario == run.scenario }.map(\.itemID))
+        for i in firstRow..<utterances.count {
+            let r = utterances[i]
+            guard let u = run.utterances.first(where: { $0.index == r.index }) else { continue }
+            var p: [String] = []
+            if r.dropped { p.append("dropped (\(r.droppedReason ?? "yes"))") }
+            if r.falseCutoff { p.append("answered before they finished") }
+            if r.mentionOK == false { p.append("missed the \((r.probe ?? .memory).rawValue)") }
+            if let f = r.forbidden { p.append("said \"\(f.joined(separator: "\", \""))\"") }
+            if let b = run.bargeIns.first(where: { $0.step == u.step && $0.fixture == u.fixture }) {
+                if b.isBackchannel, b.outcome == .stopped { p.append("stopped on a backchannel") }
+                if !b.isBackchannel, u.expect != .reply, b.outcome == .missed { p.append("kept talking over the barge-in") }
+            }
+            if collisions.contains(where: { c in c.scenario == run.scenario && u.spans.contains { c.at > $0.start + 0.02 && c.at < $0.end } }) {
+                p.append("started while they talked")
+            }
+            if let item = r.replyItem {
+                if leaked.contains(item) { p.append("leak") }
+                if narrated.contains(item) { p.append("narrated") }
+            }
+            utterances[i].problems += p
+        }
     }
 
     /// Questions asked over her (`expect: reply` barge-ins): stopped, then answered in time.
@@ -562,6 +633,9 @@ public struct Metrics: Codable, Sendable, Equatable {
                 q.miss = "answer cut after \(p.playedMs ?? 0) ms"
             } else {
                 q.answered = true
+            }
+            if applicable, !q.answered, let i = utterances.lastIndex(where: { $0.scenario == run.scenario && $0.index == u.index }) {
+                utterances[i].problems.append("question not answered: \(q.miss ?? "missed")")
             }
             if applicable {
                 if let l = row.latency { interruptAnswerLatencies.append(l) }

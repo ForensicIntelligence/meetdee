@@ -236,7 +236,7 @@ public enum FixtureCatalog {
 
 /// How a fixture's reply is scored (latency gate semantics).
 public enum TurnShape {
-    /// Latency buckets: `main` (p50 ≤ 1.1 / p90 ≤ 1.6 s), `filler` ("um", "uh", "er"
+    /// Latency buckets: `main` (p90 ≤ 1.6 s + overhead gate), `filler` ("um", "uh", "er"
     /// turns: p90 ≤ 2.0 s), `none` (waiting is correct: no latency of its own).
     public enum Bucket: String, Codable, Sendable { case main, filler, none }
 

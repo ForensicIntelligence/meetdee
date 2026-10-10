@@ -695,7 +695,8 @@ public final class RealtimeBrain: ReplyEngine {
         case .rolledOver, .recovered:
             // A new connection: utterances of the old one have no audio here (a
             // reply to them would answer blind); their transcripts died with it.
-            forgetPendingTurns()
+            // Tune 10 (T9-2): a reply already asked for on the new one is kept.
+            forgetPendingTurns(keepAsked: true)
         case .userSpeechStarted(let item, let ms):
             prosody.speechStarted(item: item, audioStartMs: ms)
             speechStartedAt[item] = now
@@ -1127,8 +1128,15 @@ public final class RealtimeBrain: ReplyEngine {
     }
 
     /// Utterances of a connection that is gone.
-    private func forgetPendingTurns() {
-        if spec != nil {
+    ///
+    /// Tune 10 (T9-2, solo fallback-rollover-speech q08): "I heard you ask," was taken back
+    /// as the rollover switched; its retry went out on the new session (behind its seed and
+    /// a fresh DNA), and this discarded it — cancelled 1 ms after it was created, the turn
+    /// lost. The session switches only with nothing in flight and reports every response of
+    /// the old connection done before `.rolledOver`: a reply still live here was asked for
+    /// on the new connection (`keepAsked`), and is kept.
+    private func forgetPendingTurns(keepAsked: Bool = false) {
+        if let sp = spec, !(keepAsked && channels[sp.channel].map { !$0.done && !$0.takenBack } == true) {
             spec = nil
             voice.discardSpeculative()
         }
@@ -1200,11 +1208,18 @@ public final class RealtimeBrain: ReplyEngine {
                 utterances[item] = nil
                 if retryItem == item { retryItem = nil }
                 await session.dropUserItem(itemID: item, resumePreempted: false)
+                // Tune 10 (T9-1, live backchannel-kitchen15 c02): "Don't stop." (continued, its
+                // go-on deferred while they talked) | the tail "Keep going.": dropped without a
+                // go-on, the voice waited out its deadline in the kitchen bed and cut her.
+                continueHer(item, u.tailOf)
                 return
             }
             if u.backchannel {
                 if goOnWords(item, text) {
                     // "Keep going": she went on (or was asked to carry on); not a turn.
+                    // Tune 10 (T9-1): the full words say "go on" again: a go-on the voice
+                    // deferred while they talked is renewed (never left to its deadline).
+                    continueHer(item)
                     if !u.requested { await session.userTurnHandled(itemID: item) }
                     settle(item)
                     restoreAbsorbed(from: u)
@@ -1336,7 +1351,8 @@ public final class RealtimeBrain: ReplyEngine {
         // Tune 8 (T7-2, live backchannel-echo20 c05): never on words that end the way a
         // continuer does ("Sheupr and going." was "Keep going"; "…I'm listen"): the full
         // words decide those.
-        guard w.count >= 3 || (w.count == 2 && TurnPolicy.startsQuestion(w)), !TurnPolicy.isMisheardFragment(text),
+        // Tune 10 (T9-1): the voice's sound-aware fragment rule, as everywhere else.
+        guard w.count >= 3 || (w.count == 2 && TurnPolicy.startsQuestion(w)), !voice.isMisheardFragment(itemID: item, text: text),
               !TurnPolicy.endsLikeContinuer(text), !Backchannel.mayBecomeBackchannel(text), !Self.mayBecomeHoldContinuer(w),
               !TurnPolicy.isBackchannel(text), TurnPolicy.unfinished(text) != .holdOn,
               !TurnPolicy.breaksOff(text) else { return }
@@ -1404,6 +1420,14 @@ public final class RealtimeBrain: ReplyEngine {
             return min(options.trailingWait, TurnPolicy.fragmentWait)
         }
         return options.trailingWait
+    }
+
+    /// Tune 10 (T9-1): every "go on" decision continues her. Paused for any of `items` (a
+    /// hold), she goes on now, or once they are quiet (the voice defers it while they talk).
+    /// No hold of theirs: nothing to do (she is talking on, or was asked to carry on).
+    private func continueHer(_ items: String?...) {
+        guard let hold = voice.floorHold, items.contains(where: { $0.map(hold.items.contains) ?? false }) else { return }
+        voice.continueAfterBackchannel()
     }
 
     /// A backchannel said over her voice ("keep going", "mm-hm"): never a turn of

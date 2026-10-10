@@ -68,8 +68,8 @@ public struct EarCore: Sendable {
         /// A server onset over her voice that the local evidence can't settle
         /// (a voice under her echo as loud as the user): its words decide
         /// (`HerWords`). Neither accepted nor deleted yet. `strict`: the only hint
-        /// was sound her echo model didn't explain (no other voice's pitch) — the
-        /// words must be clearly not hers.
+        /// was sound her echo model didn't explain (no other voice's pitch, no voice
+        /// after her playback and its tail) — the words must be clearly not hers.
         case deferToWords(itemID: String, strict: Bool)
         /// Tune 7 (T6-4): without echo cancellation (her echo as loud as the user),
         /// an onset over her voice is still undecided, but there is a
@@ -1265,7 +1265,13 @@ public struct EarCore: Sendable {
                     // Something of the user may be in it: their words decide.
                     if serverOpen == p.itemID || isFinal { serverOpen = nil }
                     if probeSince != nil { probeWaits.insert(p.itemID) }
-                    actions.append(.deferToWords(itemID: p.itemID, strict: hint.pitched < Self.wordsHint - 1e-9))
+                    // Strict (her garbled echo may pass for words she never said) only
+                    // with nothing but her echo model's misses to go on. Voice where hers
+                    // can't be (after her playback and its tail) is someone else's: their
+                    // words are judged as words (tune 10, T9-2: "Are you awake?" 0.47 s
+                    // after her reply was deleted as her echo).
+                    let strict = hint.pitched < Self.wordsHint - 1e-9 && afterHer < Self.voiceAfterHer - 1e-9
+                    actions.append(.deferToWords(itemID: p.itemID, strict: strict))
                     continue
                 }
                 markRejected(p.itemID)

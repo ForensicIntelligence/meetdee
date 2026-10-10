@@ -36,6 +36,18 @@ The commands below need the key in `~/.config/dee/openai-key`. The harness reads
 | `$H replay --trace Traces/<run>/<scenario>.jsonl` | Layer 2: replays the server side over a loopback WebSocket through the real socket, session and voice code. No key, no cost. |
 | `$H gates --report Reports/<run>/report.json [--write]` | Recomputes metrics and gates from stored run records, e.g. after a metric fix. |
 
+**Regressions (tune 10).** `run`, `replay`, `gates` and `judge` add a "Regressions vs `<baseline>`" section to the
+report. It compares against the tune-7 run `Reports/20261010-063215` (the best so far, 16/20) by default; use
+`--baseline Reports/<run>/report.json` to pick another or `--no-baseline` to skip it. The baseline's runs are re-scored
+with the current metrics code, so a metric fix never shows up as a regression. Utterances are matched by scenario +
+fixture + occurrence of that fixture in the scenario. An utterance counts as handled correctly when
+`Metrics.Utterance.problems` is empty: not dropped, not answered before they finished, no missed memory / follow-up probe,
+no forbidden phrase, no stop on a backchannel, no talking over a barge-in, any question asked over her answered in
+time, no collision, no leak or narration. When both runs were judged, a judge score ≤ 2 also counts against it. The
+section lists every utterance that was correct in the baseline and is not now, with both replies, and counts the
+fixes. Latency is a distribution and is left to its gate. The section is information, not a gate; the CLI prints it
+after the gates.
+
 Scenario format: see `HarnessCore/Scenario.swift`. Steps are `say` (with optional `bargeIn {say, atMs, backchannel}`, `then {say, afterMs}`
 for a held turn the user finishes later, `faultDuringReply {kind, afterMs}`, `expect`, `expectMention` with `probe`
 (`memory` default, `followup`, `reunion`), `forbidMention`, `rubric`, `instructions`), `silence`, `deeSays`, `deeInitiative`, `fault {kind: drop|reject401|reject429}` and
@@ -46,8 +58,15 @@ knownDays}` / `stranger`, and `session {rolloverAfter, forceRolloverAfter, secre
 Gate semantics (beyond §7.1):
 - **Latency** is measured from the end of a *complete* turn. Fixtures where waiting is right (`c06` "hold on", the
   trailing "and…" `t01`–`t03`) have no latency of their own: the scenario finishes them with a continuation (`then`), and
-  latency counts from the continuation's end of speech. Filler turns (`f01`–`f05`) are their own bucket (p90 ≤ 2.0 s);
-  the main bucket stays p50 ≤ 1.1 / p90 ≤ 1.6 s.
+  latency counts from the continuation's end of speech. Filler turns (`f01`–`f05`) are their own bucket (p90 ≤ 2.0 s).
+  The main bucket's gate (tune 10) is **p90 ≤ 1.6 s end to end, plus Dee's own overhead p50 ≤ 0.10 s and p90 ≤ 0.25 s**.
+  The old p50 ≤ 1.1 s target sat below the measured floor: at the 300 ms server VAD silence (a user decision), the
+  server and model alone take p50 1.12–1.17 s (tunes 7–9). Per complete turn, `Metrics.serverModelFloor` is
+  (server `committed` − their end of speech) + (first audio delta − `response.create` sent), read from the TurnTimeline
+  turn whose first audio delta is the reply that played. Overhead is end-to-end latency minus that floor: the request
+  gap plus the release gate before playback. The end-to-end p50 and the floor p50 are still reported, as information,
+  in the gate's note and under "Other measurements". Turns without a matching timeline turn are not in the overhead.
+  If none match (offline records with no timeline), the p90 decides alone, and the value says "overhead not measured".
 - **Waiting turns** (held fixtures + every utterance with a mid-sentence pause ≥ 0.5 s) answered before the user is done
   (inside a pause, in the gap before the continuation, or within 2 s of a held fixture with nothing after it): < 5%.
 - **DNA**: every in-band response had a live DEE DNA in the conversation (real brain; SKIP for minimal).

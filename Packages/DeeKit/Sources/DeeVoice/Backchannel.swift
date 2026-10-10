@@ -79,15 +79,20 @@ public enum Backchannel {
 
     /// Words that are never a misheard "go on": they stop her, call her, ask, or
     /// make a sentence about them or her.
-    static let notFragments: Set<String> = [
+    static let notFragments: Set<String> = aloneWords.union([
+        "i", "i'm", "im", "i've", "i'd", "i'll", "me", "my", "you", "you're", "youre", "your", "we", "we're", "us",
+        "let's", "lets", "it", "that", "this",
+    ])
+
+    /// The `notFragments` a person says alone — they stop her, call her or ask (a lone
+    /// "Me." or "It." over her is no sentence: it may be her echo, tune 10 T9-7).
+    static let aloneWords: Set<String> = [
         "stop", "wait", "hold", "hang", "pause", "quiet", "shush", "shh", "sh", "hush", "enough", "halt", "cancel", "never",
         "nevermind", "no", "nope", "not", "don't", "dont", "shut", "bye", "goodbye", "goodnight", "later", "move", "skip",
         "hey", "hello", "hi", "dee", "d", "excuse", "sorry", "help", "listen", "look",
         "what", "what's", "whats", "why", "how", "how's", "who", "who's", "where", "where's", "when", "which", "whose",
         "can", "could", "will", "would", "should", "may", "shall", "have", "has", "do", "does", "did", "is", "are", "am",
         "was", "were", "tell", "say", "repeat", "again", "but", "actually",
-        "i", "i'm", "im", "i've", "i'd", "i'll", "me", "my", "you", "you're", "youre", "your", "we", "we're", "us",
-        "let's", "lets", "it", "that", "this",
     ]
 
     /// Tune 8: reactions that, said over her voice, only mean "go on" (the decision:
@@ -274,9 +279,10 @@ public enum Backchannel {
     }
 
     /// A hum however it is spelled: "mm-hm", "mhm", "hmm", "mmhn" (tune 2 live:
-    /// "Mm-hm." came back as "MMHN.").
+    /// "Mm-hm." came back as "MMHN."), "nnhn" (tune 9 live, kitchen15 bc02) — only
+    /// m, n, h and u, with an m or an n ("uh", "huh" are not hums).
     static func isHum(_ w: String) -> Bool {
-        (w.count >= 2 && w.count <= 6 && w.allSatisfy { "mhnu".contains($0) } && w.contains("m")) || w == "hn"
+        w.count >= 2 && w.count <= 6 && w.allSatisfy { "mhnu".contains($0) } && w.contains { "mn".contains($0) }
     }
 
     static func words(_ text: String) -> [String] {

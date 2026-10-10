@@ -59,9 +59,10 @@ try await session.connect()                             // throws RealtimeSessio
 | `maxOutputTokens` | 1024 | per response (replies, initiatives, tool follow-ups). Counts audio at 20 tokens/s **plus** transcript and reasoning tokens, so 1024 ≈ 40 s of speech: a runaway guard only; keep replies short via instructions. A reply that hits it: `.responseDone` `incomplete / max_output_tokens` (`summary.hitTokenLimit`). |
 | `safetyIdentifier` | nil | `OpenAI-Safety-Identifier` header |
 | `connectTimeout` | 10 s | socket open + `session.update` → `session.updated` |
-| `responseTimeout` | 2.5 s | `response.create` → `response.created`, else `.fallbackAdvised(.noResponse)` |
+| `responseTimeout` | 10 s | `response.create` → `response.created`, else `.fallbackAdvised(.noResponse)` (tune 9: was 2.5 s) |
 | `firstAudioTimeout` | 6 s | `response.created` → first audio (tool-only responses exempt) |
 | `cancelTimeout` | 3 s | `response.done` assumed after a cancel that never closes |
+| `cancelUnstartedWait` | 2.5 s | added to `cancelTimeout` for a request cancelled before it started; when it closes, a `response.cancel` with no id goes out first (tune 10, T9-4: a create still in the server's queue is cancelled before the next request) |
 | `rolloverAfter` / `forceRolloverAfter` | 50 min / 59 min | see Rollover |
 | `rolloverSummary` | `.outOfBand` | `.none` = seed recent messages only |
 | `seedMessages` | 12 | "last 6 turns" = 6 user + 6 Dee messages |

@@ -2073,6 +2073,14 @@ public actor RealtimeSession {
     private func cancelWatchdog(_ token: Int) {
         guard let t = track, t.token == token, t.cancelRequested else { return }
         track = nil
+        if t.id == nil {
+            // Tune 10 (T9-4, live fillers-echo10 f04): its `response.create` may still be in
+            // the server's queue (a 9.5 s stall). The server takes events in order: a cancel
+            // of whatever is active, sent before the next request, settles it first — else
+            // the stalled one started at 73.40, the next request was refused
+            // (`conversation_already_has_active_response`) and both answers were lost.
+            send(.responseCancel(responseID: nil, eventID: nextCancelID()))
+        }
         emit(.responseDone(summaryFor(t, status: "cancelled", reason: t.id == nil ? "no_response" : "cancel_timeout",
                                       usage: nil, itemIDs: t.itemIDs)))
         sendDeferred()

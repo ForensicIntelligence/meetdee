@@ -537,6 +537,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// Tune 8: items that began early in her stretch with no echo cancellation
         /// (`echoOnsetWindow`; newest 16).
         var echoProneItems: [String] = []
+        /// Tune 10 (T9-7): items that began while her voice played with no echo
+        /// cancellation (newest 16).
+        var echoExposedItems: [String] = []
         /// The open response is held by `spec` (its audio is gated in the player).
         var responseGated = false
     }
@@ -626,8 +629,23 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// words don't know ("Movie." for "Who made you?") only when it *sounded* like a
     /// backchannel — short, at most two syllables, not rising. The brain uses it in place
     /// of the words-only `TurnPolicy.isMisheardFragment` for an item it knows.
+    ///
+    /// Tune 10 (T9-7, live backchannel-echo20: her echo came back as "Me." 2.6 s into her
+    /// stretch, no echo cancellation, and cut her): one word over her playing voice with no
+    /// echo cancellation goes on as her echo unless its words (`HerWords`: a word a person
+    /// says alone — "Stop.", "No." — or a "?") or its sound (`FragmentSound.questionLike`)
+    /// say someone spoke.
     public func isMisheardFragment(itemID: String, text: String) -> Bool {
-        Backchannel.isMisheardFragment(text, sound: itemSound(itemID: itemID))
+        let t = graph.now
+        return inner.withLock { s in
+            let snd = sound(itemID, s, at: t)
+            if Backchannel.isMisheardFragment(text, sound: snd) { return true }
+            let kept = Backchannel.words(text).filter { !Backchannel.fillers.contains($0) }
+            // A word a person says alone ("Enough.", "Pause.", "Nope.") is theirs (review).
+            guard s.echoExposedItems.contains(itemID), !text.contains("?"), snd?.questionLike != true,
+                  kept.count == 1, !Backchannel.aloneWords.contains(kept[0]) else { return false }
+            return s.herWords.isHerEcho(text, at: t)
+        }
     }
 
     private func sound(_ item: String, _ s: Inner, at t: Double) -> FragmentSound? {
@@ -679,6 +697,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             // it is in (`checkHold`: its words decide), never over them.
             if h.deferGoOn(talking: s.core.voiceActive(at: t)) {
                 s.hold?.goOn = true
+                // Tune 10 (T9-1): the brain heard "go on": no `holdAfterWords` cut
+                // for words it already judged (echo10 c05: "Be sneaking," then "going").
+                s.hold?.wordsAt = nil
                 mark(.note, detail: "go-on deferred \(h.itemID ?? "-")")
                 return true
             }
@@ -1158,8 +1179,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             return
         case .answer:
             // They meant it: the brain answers (`respond` ends her reply where she
-            // paused); if nobody does, `holdAfterWords` does.
-            if h.wordsAt == nil { s.hold?.wordsAt = t }
+            // paused); if nobody does, `holdAfterWords` does — never while the
+            // brain's go-on waits (tune 10, T9-1: the other deadlines still hold).
+            if h.wordsAt == nil, !h.goOn { s.hold?.wordsAt = t }
         case .wait:
             break
         }
@@ -1423,6 +1445,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 if s.core.onsetEarlyInStretch(itemID: item, within: Self.echoOnsetWindow) {
                     s.echoProneItems.append(item)
                     if s.echoProneItems.count > 16 { s.echoProneItems.removeFirst(s.echoProneItems.count - 16) }
+                }
+                if s.core.onsetEarlyInStretch(itemID: item, within: .infinity) {
+                    s.echoExposedItems.append(item)
+                    if s.echoExposedItems.count > 16 { s.echoExposedItems.removeFirst(s.echoExposedItems.count - 16) }
                 }
                 if s.core.isDeciding(item) {
                     s.heldStarts[item] = e

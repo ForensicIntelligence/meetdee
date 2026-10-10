@@ -15,12 +15,15 @@ public struct HarnessReport: Codable, Sendable {
     public var runs: [RunRecord]
     /// The LLM judge pass (nil: not run).
     public var judge: Judge.Summary?
+    /// Tune 10: utterances the baseline run (tune 7) handled correctly and this one did not.
+    public var regressions: Regressions?
 
     public init(runID: String, started: String, finished: String, model: String, brain: String, maxUSD: Double,
-                aborted: String?, gates: [Gate], metrics: Metrics, runs: [RunRecord], judge: Judge.Summary? = nil) {
+                aborted: String?, gates: [Gate], metrics: Metrics, runs: [RunRecord], judge: Judge.Summary? = nil,
+                regressions: Regressions? = nil) {
         self.runID = runID; self.started = started; self.finished = finished; self.model = model
         self.brain = brain; self.maxUSD = maxUSD; self.aborted = aborted; self.gates = gates
-        self.metrics = metrics; self.runs = runs; self.judge = judge
+        self.metrics = metrics; self.runs = runs; self.judge = judge; self.regressions = regressions
     }
 
     public var failed: Bool { aborted != nil || Gates.anyFailed(gates) }
@@ -38,6 +41,20 @@ public struct HarnessReport: Codable, Sendable {
         Redact.secrets(s).replacingOccurrences(of: "|", with: "\\|").replacingOccurrences(of: "\n", with: " ")
     }
 
+    /// Tune 10: correct in the baseline, not now (the priority is no regressions).
+    static func regressionsSection(_ rg: Regressions) -> String {
+        var md = "\n## Regressions vs `\(rg.baseline)`\n\n"
+        md += "- \(rg.regressions.count) regressed of \(rg.baselineCorrect) handled correctly then (\(rg.compared) compared); fixed since: \(rg.fixed)"
+        if rg.notRun > 0 { md += "; not run now: \(rg.notRun)" }
+        md += "\n"
+        if rg.regressions.isEmpty { return md + "- None.\n" }
+        md += "\n| Scenario | # | Fixture | Now | Then she said | Now she said |\n|---|---|---|---|---|---|\n"
+        for e in rg.regressions {
+            md += "| \(e.scenario) | \(e.index) | \(e.fixture)\(e.occurrence > 1 ? " (\(e.occurrence))" : "") | **\(cell(e.problems.joined(separator: "; ")))** | \(cell(e.baselineReply ?? "–")) | \(cell(e.reply ?? "–")) |\n"
+        }
+        return md
+    }
+
     public func markdown() -> String {
         var md = "# Dee voice harness — \(runID)\n\n"
         md += "- Model: `\(model)` · brain: `\(brain)` · started \(started) · finished \(finished)\n"
@@ -52,9 +69,12 @@ public struct HarnessReport: Codable, Sendable {
             md += "| \(Self.cell(g.metric)) | \(Self.cell(g.target)) | \(Self.cell(g.value)) | \(g.n) | **\(g.status.rawValue)**\(g.note.map { " — \(Self.cell($0))" } ?? "") |\n"
         }
 
+        if let rg = regressions { md += Self.regressionsSection(rg) }
+
         md += "\n## Other measurements\n\n"
         md += "- WER of server transcripts vs ground truth: \(metrics.wer.map { String(format: "%.1f%%", $0 * 100) } ?? "–") (\(metrics.werEdits) edits / \(metrics.werWords) words; \(metrics.missingTranscripts) items without a transcript)\n"
         md += "- Timeline (server speech_stopped → speaking_started): p50 \(Self.f(metrics.timelineP50)) s over \(metrics.timelineLatencies.count) turns\n"
+        md += "- Latency, complete turns: end-to-end p50 \(Self.f(metrics.latencyMainP50)) s (information), server + model floor p50 \(Self.f(metrics.latencyFloorP50)) s, Dee's overhead p50 \(Self.f(metrics.latencyOverheadP50)) / p90 \(Self.f(metrics.latencyOverheadP90)) s over \(metrics.latencyOverhead.count) of \(metrics.latencyMain.count) turns\n"
         md += "- Latencies, complete turns (s): \(metrics.latencyMain.map { Self.f($0) }.joined(separator: ", "))\n"
         md += "- Latencies, filler turns (s): \(metrics.latencyFiller.map { Self.f($0) }.joined(separator: ", "))\n"
         md += "- Waiting turns: \(metrics.waitTurns) (answered early: \(metrics.waitTurnsEarly)\(metrics.waitTurnsEarlyList.isEmpty ? "" : " — " + metrics.waitTurnsEarlyList.joined(separator: ", ")))\n"

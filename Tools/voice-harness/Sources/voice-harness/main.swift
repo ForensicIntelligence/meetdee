@@ -13,6 +13,7 @@ import HarnessRunner
 //                          [--judge] [--judge-model gpt-4.1-mini] [--judge-max-usd 0.50] [--state DIR] [--over-projection]
 //   voice-harness replay   --trace Traces/<run>/<scenario>.jsonl [--scenarios FILE]
 //   voice-harness gates    --report Reports/<run>/report.json [--write]
+//   (run / replay / gates / judge: [--baseline Reports/<run>/report.json | --no-baseline], default tune 7)
 //   voice-harness judge    --report Reports/<run>/report.json [--judge-model M] [--write]
 //
 // Exit codes: 0 all gates pass · 1 a gate failed · 2 usage / setup error · 3 aborted (spend cap, no connection).
@@ -79,6 +80,23 @@ func loadScenarios(_ args: Args, library: FixtureLibrary) throws -> [Scenario] {
     return list
 }
 
+/// Tune 10: the run every report is compared against for regressions — tune 7, the
+/// best so far (16/20). `--baseline FILE` picks another; `--no-baseline` skips it.
+let defaultBaseline = "Reports/20261010-063215/report.json"
+
+func loadBaseline() -> StoredReport? {
+    guard !args.switches.contains("no-baseline") else { return nil }
+    let url = args.url("baseline", default: defaultBaseline)
+    do {
+        let d = JSONDecoder()
+        d.nonConformingFloatDecodingStrategy = .convertFromString(positiveInfinity: "inf", negativeInfinity: "-inf", nan: "nan")
+        return try d.decode(StoredReport.self, from: Data(contentsOf: url))
+    } catch {
+        stderr("baseline \(url.lastPathComponent) not read (\(error.localizedDescription)): no regressions section")
+        return nil
+    }
+}
+
 func evaluate(_ runs: [RunRecord], model: String, brain: String, maxUSD: Double, started: String, id: String,
               aborted: String?, judge: Judge.Summary? = nil) -> HarnessReport {
     let metrics = Metrics.compute(runs, pricing: Pricing.forModel(model))
@@ -86,9 +104,17 @@ func evaluate(_ runs: [RunRecord], model: String, brain: String, maxUSD: Double,
     var judge = judge
     judge?.recheckLeaks()
     let gates = Gates.evaluate(metrics, judge: judge)
+    var regressions: Regressions?
+    if let base = loadBaseline(), base.runID != id {
+        var baseJudge = base.judge
+        baseJudge?.recheckLeaks()
+        regressions = Regressions.compare(current: metrics, judge: judge,
+                                          baseline: Metrics.compute(base.runs, pricing: Pricing.forModel(base.model)),
+                                          baselineJudge: baseJudge, baselineID: base.runID)
+    }
     return HarnessReport(runID: id, started: started, finished: ISO8601DateFormatter().string(from: Date()),
                          model: model, brain: brain, maxUSD: maxUSD, aborted: aborted, gates: gates,
-                         metrics: metrics, runs: runs, judge: judge)
+                         metrics: metrics, runs: runs, judge: judge, regressions: regressions)
 }
 
 /// The LLM judge over a run's replies (needs the key; a few cents).
@@ -112,6 +138,10 @@ func writeReport(_ report: HarnessReport, to dir: URL) throws {
 func printGates(_ report: HarnessReport) {
     for g in report.gates {
         print(String(format: "%-5@ %-14@ %@  (target %@, n=%d)", g.status.rawValue, g.id, g.value, g.target, g.n))
+    }
+    if let rg = report.regressions {
+        print("regressions vs \(rg.baseline): \(rg.regressions.count) of \(rg.baselineCorrect) (fixed \(rg.fixed))"
+              + rg.regressions.prefix(12).map { "\n  \($0.scenario):\($0.fixture) — \($0.problems.joined(separator: "; "))" }.joined())
     }
     print(String(format: "spend ≈ $%.4f · verdict %@", report.metrics.cost.total, report.failed ? "FAIL" : "PASS"))
 }
@@ -306,6 +336,7 @@ func main() async -> Int32 {
                         [--judge] [--judge-model gpt-4.1-mini] [--judge-max-usd 0.50] [--state DIR] [--over-projection]
               replay    --trace Traces/<run>/<scenario>.jsonl [--scenarios FILE] [--brain minimal]
               gates     --report Reports/<run>/report.json [--write]
+              (run, replay, gates, judge: --baseline Reports/<run>/report.json | --no-baseline; default the tune-7 run)
               judge     --report Reports/<run>/report.json [--judge-model M] [--judge-max-usd 0.50] [--write]
             """)
             return args.command == "help" ? 0 : 2

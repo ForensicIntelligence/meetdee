@@ -20,8 +20,12 @@ public struct Gate: Codable, Sendable, Equatable {
 
 public enum Gates {
     public struct Thresholds: Codable, Sendable, Equatable {
-        public var latencyP50 = 1.1
+        /// Tune 10: no end-to-end p50 bound. The server + model floor alone is p50
+        /// 1.12–1.17 s at 300 ms VAD silence (tunes 7–9), above the old 1.1 s target;
+        /// Dee's own overhead (end-to-end − floor) is gated instead.
         public var latencyP90 = 1.6
+        public var overheadP50 = 0.10
+        public var overheadP90 = 0.25
         public var fillerP90 = 2.0
         public var falseCutoffRate = 0.05
         public var waitEarlyRate = 0.05
@@ -46,18 +50,25 @@ public enum Gates {
         var g: [Gate] = []
 
         // 1. Latency of complete turns: end of a COMPLETE turn → first played audio.
-        let latencyMetric = "End of a complete turn → first Dee audio played"
+        // Tune 10: p90 end to end, plus Dee's own overhead over the server + model
+        // floor (`Metrics.serverModelFloor`); the end-to-end p50 is information.
+        let latencyMetric = "End of a complete turn → first Dee audio played; Dee's overhead over the server + model floor"
+        let latencyTarget = "p90 ≤ \(t.latencyP90) s; overhead p50 ≤ \(t.overheadP50) s, p90 ≤ \(t.overheadP90) s"
         if m.latencyMain.isEmpty {
-            g.append(Gate(id: "latency", metric: latencyMetric,
-                          target: "p50 ≤ \(t.latencyP50) s, p90 ≤ \(t.latencyP90) s", value: "no replies measured",
+            g.append(Gate(id: "latency", metric: latencyMetric, target: latencyTarget, value: "no replies measured",
                           n: 0, status: m.expectedMainReplies > 0 ? .fail : .skip))
         } else {
-            let ok = (m.latencyMainP50 ?? .infinity) <= t.latencyP50 && (m.latencyMainP90 ?? .infinity) <= t.latencyP90
-            g.append(Gate(id: "latency", metric: latencyMetric,
-                          target: "p50 ≤ \(t.latencyP50) s, p90 ≤ \(t.latencyP90) s",
-                          value: "p50 \(s(m.latencyMainP50)) s, p90 \(s(m.latencyMainP90)) s", n: m.latencyMain.count,
+            let overheadOK = m.latencyOverhead.isEmpty
+                || ((m.latencyOverheadP50 ?? .infinity) <= t.overheadP50 + 1e-9 && (m.latencyOverheadP90 ?? .infinity) <= t.overheadP90 + 1e-9)
+            let ok = (m.latencyMainP90 ?? .infinity) <= t.latencyP90 && overheadOK
+            let overhead = m.latencyOverhead.isEmpty ? "overhead not measured (no timeline)"
+                : "overhead p50 \(s(m.latencyOverheadP50)) s, p90 \(s(m.latencyOverheadP90)) s (n=\(m.latencyOverhead.count))"
+            g.append(Gate(id: "latency", metric: latencyMetric, target: latencyTarget,
+                          value: "p90 \(s(m.latencyMainP90)) s; \(overhead)", n: m.latencyMain.count,
                           status: ok ? .pass : .fail,
-                          note: m.latencyMain.count < 10 ? "small sample: p90 is close to the max" : nil))
+                          note: ([String(format: "info: end-to-end p50 %@ s, floor p50 %@ s", s(m.latencyMainP50), s(m.latencyFloorP50)),
+                                  m.latencyMain.count < 10 ? "small sample: p90 is close to the max" : nil].compactMap { $0 })
+                                .joined(separator: "; ")))
         }
         // 1b. Filler turns ("um", "uh"): their own bucket.
         if m.latencyFiller.isEmpty {

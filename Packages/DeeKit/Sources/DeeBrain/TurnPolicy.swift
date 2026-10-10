@@ -550,8 +550,19 @@ public enum TurnPolicy {
     /// answer that says "let me" later is never touched.
     public static func isMetaPreamble(_ prefix: String) -> Bool {
         let w = Array(words(prefix).prefix(preambleWords))
-        guard w.count >= 2 else { return false }
+        guard w.count >= 2 else { return thinksAloud(prefix) }
         for p in preamblePatterns where w.count >= p.count {
+            for i in 0...(w.count - p.count) where Array(w[i..<(i + p.count)]) == p { return true }
+        }
+        return thinksAloud(prefix)
+    }
+
+    /// Tune 10 (T9-6, live backchannel-kitchen15 l06): thinking aloud anywhere in a sentence,
+    /// not only in its first `preambleWords` words — "Oh wow, that's a cozy memory—let me
+    /// think about how that recipe feels now." had it at words 7–9.
+    static func thinksAloud(_ sentence: String) -> Bool {
+        let w = words(sentence)
+        for p in thinkingAloudPatterns where w.count >= p.count {
             for i in 0...(w.count - p.count) where Array(w[i..<(i + p.count)]) == p { return true }
         }
         return false
@@ -613,7 +624,7 @@ public enum TurnPolicy {
         for p in narrationPatterns where w.count >= p.count {
             for i in 0...(w.count - p.count) where Array(w[i..<(i + p.count)]) == p { return true }
         }
-        return false
+        return thinksAloud(sentence)
     }
 
     // MARK: The tail of a backchannel (tune 9, T8-3)
@@ -648,10 +659,16 @@ public enum TurnPolicy {
     public static let noHeardYouNote =
         "Answer them straight away; never tell them you were listening, and never repeat what they said"
 
-    public static func opensOnHearingThem(_ sentence: String, theirs: String?) -> Bool {
+    /// Tune 10 (T9-8): her first sentence opening on "I heard …" / "I hear …" of any kind
+    /// (live length-clean s02 "I heard that tough moment, Alex."; earlier "I heard that.",
+    /// "I heard a start of a story there.", "I hear that little hum."). Later sentences keep
+    /// `heardYouPatterns` ("I heard octopuses have three hearts" can be a fact).
+    static let heardOpenerPatterns: [[String]] = [["i", "heard"], ["i", "hear"]]
+
+    public static func opensOnHearingThem(_ sentence: String, theirs: String?, opener: Bool = false) -> Bool {
         if let theirs, words(theirs).contains(where: { $0 == "hear" || $0 == "hearing" || $0 == "heard" }) { return false }
         let w = words(sentence)
-        for p in heardYouPatterns {
+        for p in heardYouPatterns + (opener ? heardOpenerPatterns : []) {
             for i in 0...2 where i + p.count <= w.count && Array(w[i..<(i + p.count)]) == p { return true }
         }
         return false
@@ -659,7 +676,11 @@ public enum TurnPolicy {
 
     /// The index of the first sentence of `text` that opens on having heard them, or nil.
     public static func heardYouSentence(in text: String, theirs: String?) -> Int? {
-        for (i, s) in sentences(text).enumerated() where opensOnHearingThem(s, theirs: theirs) { return i }
+        let all = sentences(text)
+        // The opener rule judges a complete first sentence only: "I heard “I couldn't sleep
+        // last…” and I'm curious…" is the unfinished-words aim, checked first (tune 5).
+        let firstDone = all.count > 1 || all.first?.last.map { ".!?…".contains($0) } == true
+        for (i, s) in all.enumerated() where opensOnHearingThem(s, theirs: theirs, opener: i == 0 && firstDone) { return i }
         return nil
     }
 

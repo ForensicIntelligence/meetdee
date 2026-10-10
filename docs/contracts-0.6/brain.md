@@ -360,6 +360,34 @@ exact, higher effort) while nothing of the fast reply was heard.
   silence is a setting (`CloudSettings.vadSilenceMs`, default 300): the live operator A/Bs 250 ms with
   `DEE_VAD_SILENCE_MS=250` (the harness builds its session with `CloudSettings(voice:model:)`; 200–800 accepted).
 
+### Tune 10 (live run 20261010-102105 + solo -111224, `tune9-live.md`)
+
+- **Every "go on" continues her (T9-1).** Live kitchen15 c02: "Don't stop." went on (`continued`, the voice deferring the
+  go-on while they talked), then the server's tail "Keep going." took the tune-9 tail drop and returned without a go-on;
+  the kitchen bed kept the voice's own quiet check false and it cut her at its deadline. `continueHer(items…)` now calls
+  `continueAfterBackchannel()` on every decision that their words were "go on" while she is paused for them: the tail
+  drop (the tail or its parent in the hold) and full go-on words of an item already taken for a backchannel (a deferred
+  go-on is renewed, never left to the voice's deadline). No hold of that item: nothing (she talks on, or a carry-on was
+  asked for). The voice half (echo10 c05, `holdAfterWords` after the brain's deferred go-on) is the voice owner's
+  tune-10 change: a deferred go-on clears `wordsAt`. Early words use the voice's sound-aware fragment rule
+  (`CloudVoice.isMisheardFragment(itemID:text:)`), as `goOnWords` does.
+- **A turn survives a rollover (T9-2).** Solo rollover-speech q08: a take-back's retry went out on the new session
+  (behind its seed and a fresh DNA) and the brain's `.rolledOver` handling discarded it (cancelled 1 ms after
+  `response.created`). The session switches only with nothing in flight and reports the old connection's responses done
+  before `.rolledOver`, so a reply still live there was asked for on the new session: `forgetPendingTurns(keepAsked:)`
+  keeps it.
+- **A stall cancel settles before the next request (T9-4, DeeRealtime).** When the watchdog closes a request cancelled
+  before it started (`cancelTimeout + cancelUnstartedWait`), the session first sends `response.cancel` with no id: the
+  server takes events in order, so a create still in its queue (fillers-echo10 f04: started 9.5 s late) is cancelled
+  before the next request, which no longer fails with `conversation_already_has_active_response`. Nothing active: the
+  server's `response_cancel_not_active` is ignored.
+- **Thinking aloud and "I heard…" (T9-6 / T9-8).** Thinking aloud counts anywhere in a sentence (`TurnPolicy.thinksAloud`;
+  l06 had "let me think" at words 7–9 of her only sentence): in her first sentence it is a preamble (cut, asked again
+  once). Later sentences are unchanged (a question: taken back; otherwise she stops before it, keeping the answer she
+  gave, e.g. the k05 laugh). A complete first sentence opening on "I heard…" / "I hear…" of any kind is taken back
+  (`noHeardYouNote`), still not when they asked whether she can hear them; later sentences keep the "I heard you/your"
+  patterns. The unfinished-words aim ("I heard “I couldn't sleep last…” …") keeps its own path.
+
 ## DNA delivery (DNA.md §4)
 
 `buildDNA`: `host.dnaParts(DNARequest)` (the host calls `Cortex.cue(at:)` first unless the

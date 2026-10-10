@@ -49,17 +49,19 @@ import Testing
         sim.server = [(tvOnset + RoomSim.sample(0.62), .start("item_t", onsetSample: tvOnset))]
         sim.run()
         // Given up on the sound, or — the TV's voice after her tail is no echo of
-        // hers — left to its words, strictly (CloudVoice deletes it when no words
-        // of someone else come: the uplink gate keeps the TV's words from the
-        // server). Never taken for the user on the sound.
+        // hers — left to its words (CloudVoice deletes it when no words of someone
+        // else come: the uplink gate keeps the TV's words from the server). Never
+        // taken for the user on the sound. (Tune 10, T9-2: voice after her playback
+        // and its tail is judged as words, not strictly as her garbled echo — the
+        // same sound was "Are you awake?" live.)
         let decided = try #require(sim.firstTime {
             $0 == .rejectEcho(itemID: "item_t") || $0 == .deferToWords(itemID: "item_t", strict: true)
+                || $0 == .deferToWords(itemID: "item_t", strict: false)
         }, "never decided")
         let tailEnd = RoomSim.time(herEnd) + EarCore.echoTail
         #expect(decided >= tailEnd + EarCore.openItemAfterTail - 0.1)
         #expect(decided <= tailEnd + EarCore.openItemAfterTail + 0.3)     // + the player's idle detection
         #expect(!sim.actions.contains(.acceptOnset(itemID: "item_t")))
-        #expect(!sim.actions.contains(.deferToWords(itemID: "item_t", strict: false)))
     }
 
     /// t2-fallback-rollover-speech q02 (kitchen, 20 dB): an item opened at the very
