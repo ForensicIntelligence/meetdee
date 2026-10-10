@@ -128,6 +128,12 @@ public struct EarCore: Sendable {
     public static let wakeHold = 3.0
     /// `userIsSpeaking` stays true this long after the last voiced frame.
     public static let userSpeechHold = 0.6
+    /// Unpitched sound this soon after their voice still counts as their speech.
+    public static let speechBridge = 0.25
+    /// Their voice over a known bed is at least this far above the room's floor.
+    public static let voiceAboveFloorDB = 6.0
+    /// `voiceActive` stays true this long after the last frame of their voice.
+    public static let voiceActiveHold = 0.15
     public static let micLevelInterval = 0.05
     public static let speechLevelInterval = 1.0 / 30
     /// A player level older than this reads as 0 (an underrun or a gap between items).
@@ -300,6 +306,8 @@ public struct EarCore: Sendable {
     private var speechRunNow = VoiceRun()
     private var lastUserSounding = -Double.infinity
     private var lastVoiced = -Double.infinity
+    /// Last frame of the user's near-end voice (see `lastVoiceTime`).
+    private var lastVoiceFrame = -Double.infinity
 
     /// An initiative was sent and has no audio yet.
     public var initiativePending = false { didSet { if !initiativePending { initiativeRun = VoiceRun() } } }
@@ -587,7 +595,20 @@ public struct EarCore: Sendable {
         let speechFrame = sounding && voiceLike
         speechRunNow.update(sounding: sounding, pitched: speechFrame, dt: dt)
         // Once it is speech, the VAD's hangover carries it like any voiced frame.
-        if userVoiced, speechRunNow.reached(Self.speechRun) { lastUserSpeech = t }
+        // Their voice: pitched speech of theirs, and — over a known bed — at the
+        // uplink gate's bar (a TV's talkers, a clink, a tap stay under it).
+        // Over a known bed its bar decides (a soft "w" over a fan is 7 dB above the
+        // bed, under the VAD's 10); before, the VAD's.
+        let aboveRoom = uplinkBarDB.map { db >= max($0, roomFloorDB + Self.voiceAboveFloorDB) } ?? sounding
+        let theirs = userVoiced || (heard && (!her || bargedIn || above || postAbove))
+        if theirs, voiceLike, aboveRoom, db > vad.absoluteMinDB { lastVoiceFrame = t }
+        // Once it is speech, unpitched sound carries it only right after their voice
+        // (a consonant, a breath between words): a kitchen's clatter or a TV after
+        // they stopped never keeps "the user is speaking" on (tune 4 live F2:
+        // ready replies held 0.6–1.3 s in kitchen15 / tv15).
+        if userVoiced, speechRunNow.reached(Self.speechRun), t - lastVoiceFrame <= Self.speechBridge + 1e-9 {
+            lastUserSpeech = t
+        }
         if !userVoiced { f0 = nil }                       // her echo's pitch is not the user's
         if above {
             if t - lastAboveBar > Self.runGap + dt + 1e-9 {
@@ -857,6 +878,25 @@ public struct EarCore: Sendable {
     /// own echo) doesn't count until it is known to be them.
     public func userIsSpeaking(at t: Double) -> Bool {
         t - lastUserSpeech <= Self.userSpeechHold || serverOpen != nil
+    }
+
+    /// When the user's voice was last heard (graph clock): a frame of pitched,
+    /// voice-band sound that is theirs (not her echo) and above the room's bed.
+    /// No hangover: the release gate's "are they talking now?".
+    public var lastVoiceTime: Double { lastVoiceFrame }
+
+    /// The user's voice is in the room right now: heard within `voiceActiveHold`.
+    /// Far quicker to let go than `userIsSpeaking` (0.6 s), and never on for a
+    /// kitchen, a fan or a TV in the next room.
+    public func voiceActive(at t: Double) -> Bool {
+        t - lastVoiceFrame <= Self.voiceActiveHold + 1e-9
+    }
+
+    /// Seconds of the user's pitched voice in server item `itemID` (its onset to
+    /// its end, or `t`), nil when the item is unknown here.
+    public func voiceSeconds(itemID: String, until t: Double) -> Double? {
+        guard let it = items[itemID] else { return nil }
+        return nearEndVoice(from: it.onset, to: min(it.end ?? t, t)).pitched
     }
 
     /// Her voice may be in the microphone right now: playing, or within the echo

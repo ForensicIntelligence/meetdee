@@ -519,6 +519,179 @@
       ]
     },
     {
+      "description" : "Questions over her reply (tune 4 F1 probe: app parity cancelled the answer to all 3).",
+      "family" : "acoustic",
+      "name" : "t2-interrupt-clean",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom she likes. He sometimes cuts in with a question while she is talking; she answers it.",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "expect" : "reply",
+            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q01"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "expect" : "reply",
+            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q02"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "expect" : "reply",
+            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q06"
+          },
+          "say" : "l03"
+        }
+      ]
+    },
+    {
+      "description" : "Questions over her reply under the fan bed.",
+      "family" : "acoustic",
+      "name" : "t2-interrupt-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom she likes. He sometimes cuts in with a question while she is talking; she answers it.",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "expect" : "reply",
+            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q08"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "expect" : "reply",
+            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q04"
+          },
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1600,
+            "expect" : "reply",
+            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q05"
+          },
+          "say" : "l05"
+        }
+      ]
+    },
+    {
+      "description" : "Questions over her reply under the kitchen bed (EarCore userIsSpeaking latches here: answer latency).",
+      "family" : "acoustic",
+      "name" : "t2-interrupt-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom she likes. He sometimes cuts in with a question while she is talking; she answers it.",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "expect" : "reply",
+            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q01"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "expect" : "reply",
+            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q06"
+          },
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "expect" : "reply",
+            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q04"
+          },
+          "say" : "l06"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "Questions over her reply with her own echo at −20 dB (the question must not be taken for echo).",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "t2-interrupt-echo20",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom she likes. He sometimes cuts in with a question while she is talking; she answers it.",
+      "steps" : [
+        {
+          "deeSays" : "Here's a little thought. The kettle sings, the window hums, and somewhere far a soft rain comes."
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "expect" : "reply",
+            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q02"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "expect" : "reply",
+            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q08"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1600,
+            "expect" : "reply",
+            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q05"
+          },
+          "say" : "l05"
+        }
+      ]
+    },
+    {
       "description" : "Floor control (\"wait, stop talking\", \"Stop.\", \"be quiet\") then mood checks: no hurt, no \"brushed off\".",
       "family" : "dna",
       "name" : "t2-stop-mood-clean",

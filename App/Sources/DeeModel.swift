@@ -1471,9 +1471,13 @@ extension DeeModel: BrainHost {
 
     /// They talked over her, she paused, and the brain's answer ended the pause (the
     /// voice emits `.bargeIn` only when it ends a pause itself). Sensed only: the
-    /// reply the brain is starting is the answer, so nothing is stopped here.
+    /// reply the brain is starting is the answer, so nothing is stopped here. It is
+    /// `.bargeInAnswered`, never `.bargeIn`: the Cortex answers `.bargeIn` with
+    /// `.stopSpeaking`, and `stop()` cancelled that very answer (tune 5 F1: every
+    /// question asked over her went unanswered). A spoken "stop" still stops her
+    /// (the command path, `heard`).
     func bargedIn() {
-        sense(.bargeIn)
+        sense(.bargeInAnswered)
     }
 
     func thinkingModeChanged(_ on: Bool) {

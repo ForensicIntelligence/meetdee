@@ -65,6 +65,11 @@ public struct HarnessReport: Codable, Sendable {
             md += "- Faults: \(metrics.faultsRecovered)/\(metrics.faults) recovered (\(metrics.recoveryTimes.map { Self.f($0) }.joined(separator: ", ")) s); rollovers \(metrics.rollovers); turns after: \(metrics.turnsAfterDisruption), lost \(metrics.turnsLostAfterDisruption)\n"
         }
         md += "- Barge-in latencies (s): \(metrics.bargeInLatencies.map { Self.f($0) }.joined(separator: ", "))\n"
+        if !metrics.interruptQuestions.isEmpty {
+            md += "- Interrupting questions (asked over her): " + metrics.interruptQuestions.map { q in
+                "\(q.scenario):\(q.fixture) \(q.answered ? "answered" : (q.applicable ? "**\(q.miss ?? "missed")**" : "n/a"))\(q.latency.map { " \(Self.f($0)) s" } ?? "")"
+            }.joined(separator: "; ") + "\n"
+        }
         md += "- Reply sentence counts: \(metrics.replySentenceCounts.map(String.init).joined(separator: ", "))\n"
         md += "- Phantom user turns (noise / TV taken for speech): \(metrics.phantoms.count)"
         if !metrics.phantoms.isEmpty {

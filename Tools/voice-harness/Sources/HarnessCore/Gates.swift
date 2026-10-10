@@ -34,6 +34,8 @@ public enum Gates {
         public var backchannelStopRate = 0.05
         /// Dated follow-ups and reunions acknowledged.
         public var followups = 1.0
+        /// Tune 5: questions asked over her that she stopped for and answered in time.
+        public var interruptAnswered = 1.0
         public init() {}
     }
 
@@ -119,6 +121,29 @@ public enum Gates {
                               m.backchannelStopList.isEmpty ? nil : "stopped on: " + m.backchannelStopList.joined(separator: ", ")]
                                 .compactMap { $0 }).joined(separator: "; ").nilIfEmpty))
 
+        // 4c. Tune 5: a question asked over her (content barge-in): she stops AND
+        // answers it, starting within the latency gate (`Metrics.interruptAnswerWithin`).
+        let iqMetric = "Interrupting questions answered: she stops and answers a question asked over her"
+        let iqTarget = "\(pct(t.interruptAnswered)), each answer ≤ \(Metrics.interruptAnswerWithin) s after their end of speech"
+        let iqScripted = m.interruptQuestions.count
+        if m.interruptQuestionsApplicable == 0 {
+            g.append(Gate(id: "interrupt_questions", metric: iqMetric, target: iqTarget,
+                          value: iqScripted == 0 ? "no interrupting questions scripted" : "\(iqScripted) scripted, none applicable (her reply had ended)",
+                          n: 0, status: iqScripted == 0 ? .skip : .fail))
+        } else {
+            let rate = Double(m.interruptQuestionsAnswered) / Double(m.interruptQuestionsApplicable)
+            let misses = m.interruptQuestions.filter { $0.applicable && !$0.answered }
+                .map { "\($0.scenario):\($0.fixture) \($0.miss ?? "missed")" }
+            let na = m.interruptQuestions.filter { !$0.applicable }.count
+            g.append(Gate(id: "interrupt_questions", metric: iqMetric, target: iqTarget,
+                          value: "\(pct(rate)) (\(m.interruptQuestionsAnswered)/\(m.interruptQuestionsApplicable)); answer p50 \(s(m.interruptAnswerP50)) s, p90 \(s(m.interruptAnswerP90)) s",
+                          n: m.interruptQuestionsApplicable,
+                          status: rate >= t.interruptAnswered ? .pass : .fail,
+                          note: ([na > 0 ? "\(na) not applicable (her reply had ended)" : nil,
+                                  misses.isEmpty ? nil : "missed: " + misses.prefix(12).joined(separator: "; ")]
+                                .compactMap { $0 }).joined(separator: "; ").nilIfEmpty))
+        }
+
         // 5. Self-trigger on echo.
         g.append(Gate(id: "self_trigger", metric: "Self-trigger on own echo (echo-only segments)", target: "0",
                       value: "\(m.selfTriggers)", n: m.echoSegments,
@@ -165,7 +190,9 @@ public enum Gates {
                       value: m.followupProbes == 0 ? "no probes scripted" : "\(pct(fuRate)) (\(m.followupHits)/\(m.followupProbes))",
                       n: m.followupProbes,
                       status: m.followupProbes == 0 ? .skip : ((fuRate ?? 0) >= t.followups ? .pass : .fail),
-                      note: m.followupMisses.isEmpty ? nil : "missed: " + m.followupMisses.joined(separator: ", ")))
+                      note: ([m.followupMisses.isEmpty ? nil : "missed: " + m.followupMisses.joined(separator: ", "),
+                              m.elapsedAsNumber.isEmpty ? nil : "time apart as a number (decision: words): " + m.elapsedAsNumber.joined(separator: ", ")]
+                                .compactMap { $0 }).joined(separator: "; ").nilIfEmpty))
 
         // 9c. No hurt after floor control ("stop talking for a second", "Stop.").
         g.append(Gate(id: "forbidden", metric: "Replies free of phrases the scenario forbids (no hurt after a polite stop)",

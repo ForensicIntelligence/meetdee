@@ -145,16 +145,46 @@ public enum DNATables {
         return Array(out.prefix(2))
     }
 
-    /// "just now" / "12 minutes ago" / "earlier today" / "5 hours ago" / "9 days ago".
+    /// "just now" / "a few minutes ago" / "earlier today" / "a few hours ago" /
+    /// "nearly a week ago": in words, never a number of days or hours (tune 5 F5: "it's
+    /// been 6 days" was heard as a number; decision: time apart is said in words).
     public static func sinceWords(_ s: TimeInterval) -> String {
         switch s {
         case ..<120: return "just now"
-        case ..<3600: return "\(Int(s / 60)) minutes ago"
+        case ..<900: return "a few minutes ago"
+        case ..<3600: return "a little while ago"
         case ..<(3 * 3600): return "earlier today"
-        case ..<86_400: return "\(Int(s / 3600)) hours ago"
-        default:
-            let d = Int(s / 86_400)
-            return d == 1 ? "yesterday" : "\(d) days ago"
+        default: return (apartWords(s) ?? "a while") + " ago"
+        }
+    }
+
+    /// Time apart in words (≥ 3 h; nil under): "a few hours", "half a day", "about a day", "a couple
+    /// of days", "a few days", "nearly a week", "about a week", "a couple of weeks",
+    /// "a few weeks", "over a month", "a long while".
+    public static func apartWords(_ s: TimeInterval) -> String? {
+        let h = s / 3600, d = s / 86_400
+        switch true {
+        case h < 3: return nil
+        case h < 10: return "a few hours"
+        case h < 18: return "half a day"
+        case h < 36: return "about a day"
+        case h < 60: return "a couple of days"
+        case d < 5: return "a few days"
+        case d < 6.5: return "nearly a week"
+        case d < 10: return "about a week"
+        case d < 17: return "a couple of weeks"
+        case d < 32: return "a few weeks"
+        case d < 60: return "over a month"
+        default: return "a long while"
+        }
+    }
+
+    /// Whole days in words, for dated things ("today", "yesterday", "a few days ago").
+    public static func daysAgoWords(_ n: Int) -> String {
+        switch n {
+        case ...0: return "today"
+        case 1: return "yesterday"
+        default: return (apartWords(Double(n) * 86_400) ?? "a while") + " ago"
         }
     }
 
@@ -301,7 +331,7 @@ public enum DNATables {
         case .g11: (nil, nil)
         case .g12: ("Answer what they just said before any \"Do now\" line", nil)
         case .g13: ("Speak first, then leave room for them", nil)
-        case .g14: ("Answer what you actually heard, or ask if unsure", nil)
+        case .g14: ("Answer what you actually heard", nil)
         case .g15: ("Answer their question first if they asked one", nil)
         case .g16: (nil, "repeating yourself, reciting memories, asking more than one question")
         }
@@ -315,18 +345,9 @@ public enum DNATables {
         return "Greet them warmly and, in the same sentence, mention lightly that it's been \(gap), glad they're back"
     }
 
-    /// "2 days", "a day", "5 hours"; nil under 3 hours (not worth mentioning).
-    public static func gapWords(_ s: TimeInterval) -> String? {
-        switch s {
-        case ..<(3 * 3600): return nil
-        case ..<86_400: return "\(Int(s / 3600)) hours"
-        case ..<(2 * 86_400): return "a day"
-        case ..<(14 * 86_400): return "\(Int(s / 86_400)) days"
-        default:
-            let w = Int(s / (7 * 86_400))
-            return w >= 8 ? "a long while" : "\(w) weeks"
-        }
-    }
+    /// The time apart for the greeting, in words (`apartWords`); nil under 3 hours
+    /// (not worth mentioning). Tune 5: never "2 days" or "5 hours".
+    public static func gapWords(_ s: TimeInterval) -> String? { apartWords(s) }
 
     /// G12 when the aim is a follow-up ("Ask now, first", tune 3).
     public static let askNowDo = "Answer what they just said in a few words, then ask your \"Ask now\" question in this same reply"

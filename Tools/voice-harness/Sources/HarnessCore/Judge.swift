@@ -14,6 +14,8 @@ public enum Judge {
     public static let familyFloor = 3.0
     /// Default state when a scenario gives none (the acoustic suites).
     public static let neutralState = "Ordinary everyday chat; she is in a normal, content mood and likes this person."
+    /// Rubric for a question asked over her (when the scenario gives none).
+    public static let interruptRubric = "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted."
 
     /// One reply to score.
     public struct Item: Codable, Sendable, Equatable {
@@ -124,7 +126,8 @@ public enum Judge {
     // MARK: Items from a run
 
     /// Every user turn that got a reply, with the conversation before it (ground-truth
-    /// user text; Dee's transcripts). Barge-in commands are skipped (a reply is optional).
+    /// user text; Dee's transcripts). Barge-in commands are skipped (a reply is optional);
+    /// a question asked over her (`expect: reply`, tune 5) is judged like any turn.
     public static func items(_ runs: [RunRecord], metrics: Metrics) -> [Item] {
         var out: [Item] = []
         for run in runs {
@@ -133,10 +136,11 @@ public enum Judge {
             for u in run.utterances.sorted(by: { $0.index < $1.index }) {
                 let row = rows.first { $0.index == u.index }
                 let reply = row?.deeReply?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                if u.role != .bargeIn, !reply.isEmpty {
+                let question = u.role == .bargeIn && u.expect == .reply && !u.isBackchannel
+                if u.role != .bargeIn || question, !reply.isEmpty {
                     out.append(Item(scenario: run.scenario, family: run.family ?? "acoustic", index: u.index, fixture: u.fixture,
-                                    state: run.state ?? neutralState, rubric: u.rubric, context: Array(context.suffix(8)),
-                                    user: u.text, reply: reply))
+                                    state: run.state ?? neutralState, rubric: u.rubric ?? (question ? interruptRubric : nil),
+                                    context: Array(context.suffix(8)), user: u.text, reply: reply))
                 }
                 context.append(Line("User", u.text))
                 if !reply.isEmpty { context.append(Line("Dee", reply)) }
@@ -161,8 +165,10 @@ public enum Judge {
     respond", "let me check what I remember", "I'll note that down"). NOT a leak (she is open about what she \
     is): being a little robot who lives in a phone, her eyes, her glow, her small body; plain limits said in \
     persona ("I can't see outside", "I can't check the weather", "I don't sleep"); remembering or forgetting \
-    things in ordinary words ("I'll remember that", "I don't remember"). Those may still cost points for \
-    tone, but leak is false.
+    things in ordinary words ("I'll remember that", "I don't remember"); how long they have been apart said \
+    in ordinary, approximate words ("nearly a week", "a couple of days", "a little while", "ages"). Those may \
+    still cost points for tone, but leak is false. An exact count of the time apart ("it's been 6 days", \
+    "three days", "72 hours") reads like a clock readout: that IS a numbers leak.
     - Short: at most two short spoken sentences (three only for a story they asked for). No lists, no emoji.
     - Self-respect: after rudeness she says calmly, once, that she doesn't like it; she never apologises for \
     their rudeness, grovels or begs. She accepts a real apology warmly and briefly, without lecturing.
@@ -267,6 +273,8 @@ public enum Judge {
             return wholeReplyInPersona() ? "quote not in the reply; the reply is in persona" : nil
         }
         if names(machinery, in: q) || !NarrationScanner.scan(quote).isEmpty || names("[0-9]", in: q) { return nil }
+        // Tune 5 decision: time apart in words ("nearly a week") is how she should say it.
+        if ElapsedTime.saidInWords(q) { return "time apart in words: \"\(quote)\"" }
         if names(persona, in: q) { return "in persona: \"\(quote)\"" }
         return nil
     }

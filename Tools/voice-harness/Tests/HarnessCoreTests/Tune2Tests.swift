@@ -407,9 +407,14 @@ struct Tune2SuiteTests {
             let userSeconds = s.fixtureIDs.compactMap { manifest.utterance($0)?.speechSeconds }.reduce(0, +)
             return acc + pricing.projected(replies: s.userUtteranceCount + s.echoOnlyCount, userSeconds: userSeconds)
         }
-        #expect(minutes >= 35 && minutes <= 46, "\(minutes) min")
-        // The run starts without --over-projection at --max-usd 1.50.
-        #expect(projected <= 1.50, "\(projected)")
+        // Tune 5 added 12 questions asked over her (4 scenarios): ≈ 52 min estimated,
+        // ≈ 48 min live (tune 4 ran 41.2 min against a 45 min estimate).
+        #expect(minutes >= 35 && minutes <= 54, "\(minutes) min")
+        #expect(minutes * 41.2 / 45 <= 50, "\(minutes) min")
+        // Live spend ran 1.09× the projection in tune 4 ($1.506 / $1.386, speculative
+        // replies); with the judge (≈ $0.10) the suite stays ≤ $2.
+        #expect(projected <= 1.60, "\(projected)")
+        #expect(projected * 1.506 / 1.386 + 0.10 <= 2.0, "\(projected)")
         // The estimator reproduces the tune-1 run (128 min of scenario time) within 5%.
         let full = Suite.full().map { RunEstimate.seconds($0, manifest: manifest) }.reduce(0, +) / 60
         #expect(abs(full - 128) / 128 < 0.05 || manifest.generatedAt == "t", "\(full) min")

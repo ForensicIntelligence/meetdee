@@ -139,7 +139,7 @@ public struct FloorKeeper: SubReducer {
         case .deeTurnFinished:
             if case .deeThinking = m.momentary.floor { m.momentary.floor = .idle }
 
-        case .bargeIn:
+        case .bargeIn, .bargeInAnswered:
             if case .deeSpeaking(let since) = m.momentary.floor, now.timeIntervalSince(since) <= Self.interruptWindow {
                 m.momentary.floorEvents.append(.deeInterrupted)
             }
@@ -149,7 +149,9 @@ public struct FloorKeeper: SubReducer {
             m.ongoing.cutOff = true
             m.momentary.floorEvents.append(.cutOff)
             lingerTag(&m, now: now)
-            effects.append(.stopSpeaking)
+            // Answered (tune 5 F1): the brain's reply is the answer; stopping here
+            // cancelled it, so a question asked over her was never answered.
+            if p == .bargeIn { effects.append(.stopSpeaking) }
 
         case .conversationStarted:
             m.momentary.floor = .idle

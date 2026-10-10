@@ -379,7 +379,10 @@ public struct DeeDNA: Sendable, Equatable {
     /// stopped after the last allowed sentence, a due follow-up asked first (with the
     /// greeting after time apart in the same sentence), the greeting kept until a
     /// reply of hers was actually heard (`TurnContext.heardReplies`).
-    public static let version = "v5"
+    /// v6 (tune 5): session instructions v6; time apart in words everywhere ("nearly a
+    /// week", "a couple of days"; never a number of days or hours); G14 never asks them
+    /// to finish their words.
+    public static let version = "v6"
 
     public var turn: TurnContext
     // §1.2

@@ -319,12 +319,14 @@ final class HarnessHost: BrainHost {
 
     func thinkingModeChanged(_ on: Bool) { onNote?("thinking \(on)") }
 
-    /// App parity (DeeModel.bargedIn, tune 3): the brain's answer ended a floor hold, so
-    /// the Cortex senses the barge-in. Its effects run as the app runs them.
+    /// App parity (DeeModel.bargedIn, tune 5 F1): the brain's answer ended a floor hold, so
+    /// the Cortex senses `.bargeInAnswered` (same floor bookkeeping as `.bargeIn`, but no
+    /// `.stopSpeaking`: stopping here cancelled the very answer to a question asked over her).
+    /// Its effects run as the app runs them.
     func bargedIn() {
         bargeInsSensed += 1
         onNote?("brain bargedIn")
-        sense(.bargeIn)
+        sense(.bargeInAnswered)
     }
 }
 

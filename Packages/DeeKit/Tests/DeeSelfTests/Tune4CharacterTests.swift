@@ -102,7 +102,7 @@ struct Tune4CharacterTests {
         _ = cx.step(.presence(arrived: false), mind: mind, at: left)
         let back = left.addingTimeInterval(50 * 3600)
         C.comeBack(&cx, at: back, mind: mind)
-        let greet = "mention lightly that it's been 2 days"
+        let greet = "mention lightly that it's been a couple of days"
 
         // Reply 1 at the commit of "Good morning." (23.28 live).
         let t1 = back.addingTimeInterval(21)

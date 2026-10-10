@@ -174,3 +174,37 @@ public enum NarrationScanner {
         return rules.compactMap { t.range(of: $0.pattern, options: [.regularExpression, .caseInsensitive]) != nil ? $0.name : nil }
     }
 }
+
+/// Time apart at a follow-up or a reunion (tune 5 decision): said in words and
+/// approximately ("nearly a week", "a couple of days", "ages"), never as a number of
+/// days or hours ("it's been 6 days", "three days", "72 hours").
+public enum ElapsedTime {
+    static let unit = #"(minutes?|hours?|days?|nights?|weeks?|months?|years?)"#
+    static let cardinal = #"(\d+|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)"#
+    /// Approximate time-apart phrases, in words.
+    static let approximate: [String] = [
+        #"\b(a|an)\s+(few|couple(\s+of)?)\s+(hours|days|nights|weeks|months)\b"#,
+        #"\b(a|one)\s+(day|night|week|month)\s+or\s+(two|so)\b"#,
+        #"\b(nearly|almost|about|around|roughly|over|more than|just over|just under|under|less than|close to|the better part of)\s+(a|an)\s+(day|week|month|fortnight)\b"#,
+        #"\b(a|an)\s+(whole\s+|full\s+|long\s+)?(day|week|month|fortnight)\b"#,
+        #"\b(a|a little|a good|quite a|a long|a short)\s+while\b"#,
+        #"\b(ages|forever|so long|such a long time|a long time|some time|a bit)\b"#,
+        #"\b(since\s+(yesterday|last\s+\w+|the other day|this morning)|the other day)\b"#,
+    ]
+
+    /// The first exact count of time ("6 days", "three days", "72 hours"), or nil.
+    /// "a day or two", "a couple of days" and "one day" (as in "one day I'll…") are not counts.
+    public static func exactCount(in text: String) -> String? {
+        let t = text.lowercased().replacingOccurrences(of: "’", with: "'").replacingOccurrences(of: "-", with: " ")
+        let pattern = #"\b"# + cardinal + #"(\s+(whole|full|long))?\s+"# + unit + #"\b"#
+        guard let r = t.range(of: pattern, options: .regularExpression) else { return nil }
+        return String(t[r])
+    }
+
+    /// `quote` gives the time apart in approximate words, with no exact count.
+    public static func saidInWords(_ quote: String) -> Bool {
+        let t = quote.lowercased().replacingOccurrences(of: "’", with: "'")
+        guard exactCount(in: t) == nil, t.range(of: "[0-9]", options: .regularExpression) == nil else { return false }
+        return approximate.contains { t.range(of: $0, options: .regularExpression) != nil }
+    }
+}

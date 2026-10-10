@@ -174,7 +174,8 @@ import Testing
     }
 
     /// A TV or a clattering kitchen (t2-drops-tv15): local sound the server never calls
-    /// speech holds her at most `confirmMax` after the commit.
+    /// speech holds her at most `confirmMax` (+ `voiceHoldExtra` while EarCore calls it
+    /// a voice, tune 5) after the commit.
     @Test func localSoundAloneHoldsHerAtMostConfirmMax() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -182,12 +183,14 @@ import Testing
         try await Self.turn(rig, "item_u1", talk: 1.0, lag: 0.2)
         Self.audio(rig, "resp_1", "item_a1", ms: 900, text: "Sure thing.")
         try rig.quiet(0.2)
+        var waited = 0.2
         for _ in 0..<12 where Self.released(rig) == nil {
             try rig.talk(0.2, amplitude: 0.1)                         // the room keeps talking
+            waited += 0.2
             await rig.settle()
         }
         let r = try #require(Self.released(rig), "\(rig.brain.trace)")
-        #expect(r.overdue, "\(r)")
+        #expect(waited <= TurnPolicy.confirmMax + TurnPolicy.voiceHoldExtra + 0.25, "\(waited) s, \(r)")
         rig.shutdown()
     }
 

@@ -121,7 +121,11 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var commitSent = false
         /// When the latest item's audio was closed: our commit sent, or the
         /// server's commit seen. Their sound after it is in no item yet.
-        public var commitAt: Double?
+        public var commitAt: Double? {
+            didSet { if let c = commitAt, let item = itemID, closedAt[item] == nil { closedAt[item] = c } }
+        }
+        /// When each item's audio was closed (its commit: ours or the server's).
+        var closedAt: [String: Double] = [:]
         /// The latest commit was ours on a short burst (`holdQuickBurst`): its
         /// delta burst is short, so its words settle sooner (`holdSettleQuick`).
         var quickCommit = false
@@ -130,6 +134,23 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// no words): part of that burst, never a turn of their own. Without words
         /// they decide nothing.
         public private(set) var tails: Set<String> = []
+        /// Tune 5: items said in a short burst — the hold-only continuers count
+        /// for them ("Keep going" heard as "She's not going.").
+        public var shortItems: Set<String> = []
+        /// The brain said "go on" while more of the burst was still coming: she
+        /// goes on once they are quiet and no item waits for its words.
+        var goOn = false
+
+        /// Items still without any words (tails aside).
+        var wordless: [String] { items.filter { final[$0] == nil && partial[$0] == nil && !tails.contains($0) } }
+
+        /// The brain's go-on waits: they are still talking, or some item has
+        /// "go on" words and a later one has none yet (a split burst).
+        func deferGoOn(talking: Bool) -> Bool {
+            if talking { return true }
+            let pending = wordless
+            return !pending.isEmpty && pending.count < items.count
+        }
         /// Items whose full transcript came back empty: nothing was said in them.
         var emptyWords: Set<String> = []
 
@@ -158,7 +179,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             for item in items.dropLast() {
                 guard let w = (final[item] ?? partial[item])?.trimmingCharacters(in: .whitespacesAndNewlines),
                       !w.isEmpty else { continue }
-                if !Backchannel.isBackchannel(w) { return false }
+                if !Backchannel.isBackchannel(w, inHold: shortItems.contains(item)) { return false }
             }
             return true
         }
@@ -207,7 +228,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     continue
                 }
                 allEmpty = false
-                if !Backchannel.isBackchannel(clean) {
+                if !Backchannel.isBackchannel(clean, inHold: shortItems.contains(item)) {
                     if isFinal || partialAnswers { return .answer }
                     pendingAnswer = true                            // its full words decide
                     continue
@@ -221,6 +242,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 ? .resume : .wait
         }
     }
+
+    /// Tune 5: a hold-only continuer ("She's not going.") counts in an item with
+    /// at most this much of their pitched voice ("Keep going" is ~0.6 s).
+    public static let holdOnlyBurst = 1.0
 
     /// Settled transcription deltas this old decide a hold (the brain's `partialSettle`).
     public static let holdSettle = 0.15
@@ -467,6 +492,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var wordsPartial: [String: (text: String, at: Double)] = [:]
         /// User items she went on through (a backchannel in a hold), newest last.
         var backchannelItems: [String] = []
+        /// Items of past holds whose short burst let a hold-only continuer count.
+        var shortHoldItems: [String] = []
         /// Our latest commit of a hold's burst (graph clock) and whether that hold
         /// already ended: a server tail arriving after the resume is still the burst's.
         var burstCommit: (at: Double, resumed: Bool)?
@@ -514,6 +541,46 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         return inner.withLock { $0.core.userIsSpeaking(at: t) }
     }
 
+    /// Tune 5: when the user's voice was last heard (graph clock; `EarCore.lastVoiceTime`):
+    /// pitched, theirs, above the room's bed. -inf before any.
+    public var lastUserVoiceAt: Double { inner.withLock { $0.core.lastVoiceTime } }
+
+    /// Their voice is in the room right now (`EarCore.voiceActive`: 0.15 s hangover,
+    /// never on for a kitchen / TV / fan bed). For the speculative release gate.
+    public var userVoiceActive: Bool {
+        let t = graph.now
+        return inner.withLock { $0.core.voiceActive(at: t) }
+    }
+
+    /// Seconds since their voice was last heard (+inf if never).
+    public var userQuietFor: Double {
+        let t = graph.now
+        return inner.withLock { t - $0.core.lastVoiceTime }
+    }
+
+    /// Tune 5: `text`, said in `itemID`, is a backchannel: `Backchannel.isBackchannel`,
+    /// or — the item was said in a hold (now or one she went on through) in a short
+    /// burst — a hold-only continuer ("Keep going" heard as "She's not going.").
+    /// The brain uses it in place of `TurnPolicy.isBackchannel` for an item over her voice.
+    public func isHoldBackchannel(itemID: String, text: String) -> Bool {
+        if Backchannel.isBackchannel(text) { return true }
+        guard Backchannel.isBackchannel(text, inHold: true) else { return false }
+        let t = graph.now
+        return inner.withLock { s in
+            if s.hold?.shortItems.contains(itemID) == true || s.shortHoldItems.contains(itemID) { return true }
+            guard s.hold?.items.contains(itemID) == true || s.backchannelItems.contains(itemID) else { return false }
+            return isShort(itemID, s, at: t)
+        }
+    }
+
+    /// The item's burst was short (`holdOnlyBurst`): up to our commit of it, if we made one.
+    private func isShort(_ item: String, _ s: Inner, at t: Double) -> Bool {
+        var until = t
+        if let c = s.hold?.closedAt[item] { until = min(until, c) }
+        guard let v = s.core.voiceSeconds(itemID: item, until: until) else { return false }
+        return v <= Self.holdOnlyBurst + 1e-9
+    }
+
     public var listeningEnabled: Bool {
         get { inner.withLock { $0.core.listeningEnabled } }
         set {
@@ -537,7 +604,16 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     public func continueAfterBackchannel() -> Bool {
         let t = graph.now
         return inner.withLock { s in
-            guard s.hold != nil else { return false }
+            guard let h = s.hold else { return false }
+            // Tune 5 (live kitchen15 / echo20 c05): the server split one burst —
+            // "Keep going" | "I'm listening." — and the brain's go-on for the first
+            // came while the second was still being said. She goes on once all of
+            // it is in (`checkHold`: its words decide), never over them.
+            if h.deferGoOn(talking: s.core.voiceActive(at: t)) {
+                s.hold?.goOn = true
+                mark(.note, detail: "go-on deferred \(h.itemID ?? "-")")
+                return true
+            }
             resumeHold(&s, at: t, why: "brain")
             return true
         }
@@ -937,7 +1013,17 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
 
     /// A hold's deadlines and settled words.
     private func checkHold(_ s: inout Inner, at t: Double) {
-        guard let h = s.hold else { return }
+        guard var h = s.hold else { return }
+        // Words that are a continuer only in a hold: count when the burst was short.
+        for item in h.items where !h.shortItems.contains(item) {
+            guard let w = h.final[item] ?? h.partial[item], !Backchannel.isBackchannel(w),
+                  Backchannel.isBackchannel(w, inHold: true), isShort(item, s, at: t) else { continue }
+            h.shortItems.insert(item)
+            s.hold?.shortItems.insert(item)
+            s.shortHoldItems.append(item)
+            if s.shortHoldItems.count > 16 { s.shortHoldItems.removeFirst(s.shortHoldItems.count - 16) }
+            mark(.note, detail: "hold-only continuer \(item) (short)")
+        }
         let lastSound = s.core.lastUserSoundTime
         let quiet = t - lastSound >= Self.holdCommitSilence
         if let item = h.itemID, !h.committed, !h.commitSent, h.wordsAt == nil, quiet {
@@ -971,7 +1057,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         // commit long past): the user may have said more than "go on" in it.
         let wordsLate = quiet && h.committed && (h.commitAt.map { t - $0 >= Self.holdWordsLate - 1e-9 } ?? false)
         let partialAnswers = !h.quickCommit || (h.lastDeltaAt.map { t - $0 >= Self.holdFinalWait - 1e-9 } ?? true)
-        switch h.verdict(settled: settled, quiet: wordsLate, partialAnswers: partialAnswers) {
+        let verdict = h.verdict(settled: settled, quiet: wordsLate, partialAnswers: partialAnswers)
+        if h.goOn, verdict != .answer, quietNow, !uncovered, !h.deferGoOn(talking: s.core.voiceActive(at: t)) {
+            resumeHold(&s, at: t, why: "brain")
+            return
+        }
+        switch verdict {
         case .resume:
             guard quietNow, !uncovered else { break }
             resumeHold(&s, at: t, why: "words")

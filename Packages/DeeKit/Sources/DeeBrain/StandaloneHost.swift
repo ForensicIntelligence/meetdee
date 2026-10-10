@@ -95,7 +95,8 @@ public final class StandaloneHost: BrainHost {
             let talking = now < speakingUntil || turn.replyRequested
             if let c = SpokenCommand.match(turn.text, deeIsTalking: talking) {
                 commands.append(c)
-                if c == .stop || c == .sleep { await brain?.cancel() }
+                // DeeModel: `stop(hush: true)` — her voice and the brain, hushed.
+                if c == .stop || c == .sleep { stopSpeaking(hush: true) }
                 if c == .sleep { asleep = true }
                 heardLog.append((turn.text, .handled))
                 return .handled
@@ -185,5 +186,24 @@ public final class StandaloneHost: BrainHost {
 
     /// Barge-ins the brain sensed from its own answer (`BrainHost.bargedIn`).
     public private(set) var bargeIns = 0
-    public func bargedIn() { bargeIns += 1 }
+    /// Stops run (a stop command, or a Cortex `.stopSpeaking`), as DeeModel's `stop()`.
+    public private(set) var stops = 0
+
+    /// As DeeModel: the Cortex senses `.bargeInAnswered` and its effects run — a
+    /// `.stopSpeaking` would stop her as the app's `stop()` does (tune 5 F1: with
+    /// `.bargeIn` it did, and cancelled the very answer to the barge-in).
+    public func bargedIn() {
+        bargeIns += 1
+        for e in sense(.bargeInAnswered) {
+            if case .stopSpeaking = e { stopSpeaking(hush: false) }
+        }
+    }
+
+    /// DeeModel's `stop(hush:)` on the brain: her voice stops and the brain cancels.
+    public func stopSpeaking(hush: Bool) {
+        stops += 1
+        guard let brain else { return }
+        brain.stopVoice()
+        Task { await brain.cancel(hush: hush) }
+    }
 }

@@ -55,9 +55,9 @@ import Testing
         // 2: orange eyes, ruptured, short.
         #expect(k["insulted-ruptured"]!.relationship.eyeColour == .orange)
         #expect(k["insulted-ruptured"]!.guidance.length == "one short sentence")
-        // 5: loneliness not in the blend on the reunion turn; last talked 9 days ago.
+        // 5: loneliness not in the blend on the reunion turn; last talked about a week ago (v6: words).
         #expect(!k["reunion-9-days"]!.blend.contains("lonely"))
-        #expect(DNATables.sinceWords(k["reunion-9-days"]!.relationship.sinceLastTalk ?? 0) == "9 days ago")
+        #expect(DNATables.sinceWords(k["reunion-9-days"]!.relationship.sinceLastTalk ?? 0) == "about a week ago")
         #expect(k["reunion-9-days"]!.guidance.rules.contains(.g5))
         // 6: late night, sleepy voice, one sentence.
         #expect(k["exhausted-late-night"]!.partOfDay == .lateNight)
@@ -79,9 +79,10 @@ import Testing
         try Self.check(DNASessionInstructions.v3 + "\n", file: "session-instructions.v3.txt")
         try Self.check(DNASessionInstructions.v4 + "\n", file: "session-instructions.v4.txt")
         try Self.check(DNASessionInstructions.v5 + "\n", file: "session-instructions.v5.txt")
-        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v5)
-        #expect(DeeDNA.version == "v5")
-        for banned in ["Maya", "2026", "October", "/255", "<", ">", "[", "]"] { #expect(!DNASessionInstructions.v5.contains(banned)) }
+        try Self.check(DNASessionInstructions.v6 + "\n", file: "session-instructions.v6.txt")
+        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v6)
+        #expect(DeeDNA.version == "v6")
+        for banned in ["Maya", "2026", "October", "/255", "<", ">", "[", "]"] { #expect(!DNASessionInstructions.v6.contains(banned)) }
         // Tune 4: the follow-up is asked first; every sentence counts. Nothing else changed.
         #expect(DNASessionInstructions.v5.contains("An \"Ask now, first\" line is not optional: ask it in your first sentence"))
         #expect(DNASessionInstructions.v5.contains("count every sentence, even a one-word one"))

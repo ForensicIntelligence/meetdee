@@ -143,6 +143,35 @@ answered instead. Thinking: the brain owns `ThinkingMode` per conversation; fast
 use `effortBeforeWords`, exact ones `turn(for:)`; a late "think hard" re-asks (stop +
 exact, higher effort) while nothing of the fast reply was heard.
 
+**Tune 5 (live run 20261010-003257; probes 20261010-011423 / -011624; `tune4-live.md` F1–F7).**
+- *A question asked over her is answered (F1, HIGH).* When the brain's answer ends the voice's floor hold, `host.bargedIn()`
+  is called, and the host now senses **`Percept.bargeInAnswered`**: FloorKeeper's barge-in bookkeeping (cut off,
+  yielding, Dee-interrupted, the cut-off note) without `.stopSpeaking`. Live, `.bargeIn` → `.stopSpeaking` → the app's
+  `stop()` cancelled that very answer (0 of 3 interrupting questions answered; 3 of 3 with the stop skipped).
+  `DeeModel.bargedIn()` and `StandaloneHost.bargedIn()` sense it; `.bargeIn` (the voice's own barge-in) still stops her,
+  and a spoken "stop" still stops her through the command path (`StandaloneHost` now stops as the app does:
+  `stopVoice` + `cancel(hush: true)`).
+- *Release gate (F2/F3).* The speculative reply plays once all hold: `confirmWindow` (0.8 s) of quiet measured from the
+  later of the server's end of speech and EarCore's last voice frame (`voice.lastUserVoiceAt`); their voice not active
+  now (`voice.userVoiceActive`: EarCore's 0.15 s, bed-proof voice flag — no longer the 0.6 s latched `userIsSpeaking`,
+  which kitchen and TV beds kept on); and words not still settling — unless the final transcript has come and is
+  complete (`wordsFinal`: the commit and the final words agree). The gate must pass twice, `releaseRecheck` (0.12 s)
+  apart, before she plays (l05: released 0.15 s after they resumed). Unsettled words hold her at most `confirmMax`
+  (**1.0 s**, was 1.6) after the commit; their own voice at most `confirmMax + voiceHoldExtra` (1.6 s).
+- *Stranded prepositions (F4).* "I didn't get the job I interviewed for." is complete: a determiner's noun phrase, a
+  subject pronoun, 1–3 words, the preposition, and the transcript's closing period (`TurnPolicy.strandedInRelative`).
+  "We talked about", "Yesterday I went to." and anything without the period still trail.
+- *Continuers over her (F6).* Over her voice (in a hold, started over her, or one she went on through) words are
+  classified by `voice.isHoldBackchannel(itemID:text:)` (in `provisional`, the backchannel re-check, and a new check
+  before an unrequested item over her is answered): "Sheep going.", "I'm listening." are never answered.
+- *The unfinished-words aim is never heard.* Her reply transcript is checked as it streams
+  (`TurnPolicy.isUnfinishedAim`: "finish the sentence", "you trailed off", their words quoted back with "…"): in her
+  first sentence the unheard reply is taken back and their turn held as trailing (their next commit answers both;
+  nothing within `trailingWait` → answered with `unfinishedAnswerNote`; the aim a second time → she stays quiet); in a
+  later sentence she stops before it. Trace `.unfinishedAim(takenBack:)`.
+- *Punchlines (F7).* A reply to the turn after a riddle's set-up, or two after "Knock knock", carries
+  `TurnPolicy.punchlineNote` ("laugh first … never explain it").
+
 **Tune 4 (live run 20261009-224148; A/B 20261009-235320/-235323/-235326, confirmation 20261010-001323).**
 - *Speculative reply with gated playback (`Options.speculative`, default on).* The reply to a fresh voice turn is still
   requested at the commit, so it costs no latency. Right before `requestResponse` the brain calls
@@ -267,6 +296,12 @@ unless an item is still playing, 300 s absolute). Initiatives are refused while 
   takes a softer, tilted, grey-blue look while the cloud is off.
 
 ## Open asks
+
+- **Voice harness (tune 5):** `HarnessHost.bargedIn()` must sense `.bargeInAnswered` (not `.bargeIn`) for app parity;
+  with `.bargeIn` the parity stop still cancels the brain's answer. Add content barge-ins (`expect: reply`) and a
+  "Stop." over her (`expect: silent`) to the regression suite.
+- **Live (tune 5):** watch `.speculationReleased` held time in kitchen15 / tv15 (cap now 1.0 s), `.unfinishedAim`,
+  answered barge-ins, and the follow-up position in followup-dentist.
 
 - **DeeVoice (tune 4):** expose EarCore's last near-end voiced time (`lastUserSpeech`). The gate reads
   `userIsSpeaking`, which holds for 0.6 s, so the window cannot go below ~0.65 s, and the end of speech is taken from

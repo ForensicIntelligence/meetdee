@@ -72,9 +72,23 @@ Gate semantics (beyond §7.1):
   in-persona facts ("I'm a little phone robot", "I can't see your location") are dismissed (`Judge.dismissLeak`) and
   counted as `dismissed`. Stored verdicts are re-checked by `gates` / `judge`.
 
-Tune-2 regression suite: `Scenarios/tune2.json` (24 scenarios, 179 utterances, ≈ 45 min, projected $1.39 ≈ $1.15 live
-+ ≈ $0.09 judge) re-tests every gate the tune-1 live run failed on the fixtures and conditions that failed it, plus
-samples of the passing ones. Run it with `$H run --scenarios Scenarios/tune2.json --judge --max-usd 1.50`.
+Tune-2 regression suite: `Scenarios/tune2.json` (28 scenarios, 203 utterances, ≈ 52 min estimated ≈ 48 min live,
+projected $1.57 ≈ $1.71 live at the tune-4 ratio + ≈ $0.07–0.10 judge) re-tests every gate the tune-1 live run failed
+on the fixtures and conditions that failed it, plus samples of the passing ones. Run it with
+`$H run --scenarios Scenarios/tune2.json --judge --max-usd 1.90 --judge-max-usd 0.10` (≤ $2 all in).
+
+Questions asked over her (tune 5): a barge-in with `"expect": "reply"` is a content barge-in. The four `t2-interrupt-*`
+scenarios (clean, fan15, kitchen15, echo20; 3 questions each, clean = the tune-4 F1 probe) feed the
+`interrupt_questions` gate (target 100%): she must stop (pause or flush, as `barge_in` scores it) AND start an answer
+— a response made after the question, not the rest of the interrupted reply — within `Metrics.interruptAnswerWithin`
+(1.6 s, the latency gate's p90) of their end of speech, not cut before 600 ms. Such a question is also `dropped` when
+never answered and is judged with `Judge.interruptRubric`. Older barge-ins stay `any`; a backchannel never expects a
+reply (`validate` flags it).
+
+Time apart (tune 5 decision): said in words ("nearly a week", "a couple of days"), never as a number of days or hours.
+The judge prompt says so, `Judge.dismissLeak` dismisses a flagged quote that is time apart in approximate words
+(`ElapsedTime.saidInWords`), and exact counts ("6 days", "three days") stay leaks. The `followups` gate note lists
+follow-up / reunion replies that gave a count (`ElapsedTime.exactCount`).
 
 Echo with "AEC off": the manual AudioGraph always reports `aecActive: true` to CloudVoice (no public seam), so the
 `echo*` conditions model an uncancelled echo path acoustically only; see the tune-1 report.

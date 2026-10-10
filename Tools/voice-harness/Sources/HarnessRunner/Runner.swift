@@ -512,8 +512,8 @@ public final class ScenarioRunner: @unchecked Sendable {
         _ = await waitUntil(timeout: timeout) { self.replyStarted(after: base.onset) != nil }
         guard let reply = replyStarted(after: base.onset) else {
             log("barge-in: no reply to interrupt; speaking \(barge.say) as a plain turn")
-            let u = try speak(step: i, id: barge.say, role: .bargeIn, expect: .any, mention: nil,
-                              backchannel: barge.isBackchannel)
+            let u = try speak(step: i, id: barge.say, role: .bargeIn, expect: barge.expected, mention: nil,
+                              rubric: barge.rubric, backchannel: barge.isBackchannel)
             locked {
                 record.bargeIns.append(.init(step: i, baseFixture: base.fixture, fixture: barge.say, targetAtMs: barge.atMs,
                                              replyItem: nil, replyStarted: nil, onset: u.onset, stoppedAt: nil,
@@ -525,8 +525,8 @@ public final class ScenarioRunner: @unchecked Sendable {
         }
         let target = reply.t + barge.atMs / 1000
         let backchannel = barge.isBackchannel
-        let u = try speak(step: i, id: barge.say, role: .bargeIn, expect: .any, mention: nil, onsetAt: target,
-                          backchannel: backchannel)
+        let u = try speak(step: i, id: barge.say, role: .bargeIn, expect: barge.expected, mention: nil, onsetAt: target,
+                          rubric: barge.rubric, backchannel: backchannel)
         log("\(backchannel ? "backchannel" : "barge-in") \(barge.say) onset \(f(u.onset)) (reply \(reply.item) started \(f(reply.t)))")
         // A barge-in: watch her audio until it stops or the miss window passes. A
         // backchannel: watch through its end (a late stop on "keep going" is a stop).

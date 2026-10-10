@@ -30,10 +30,19 @@ public struct Scenario: Codable, Sendable, Equatable {
         /// A listener's backchannel: she should keep talking (default: by fixture,
         /// `TurnShape.isBackchannel`).
         public var backchannel: Bool?
-        public init(say: String, atMs: Double, backchannel: Bool? = nil) {
-            self.say = say; self.atMs = atMs; self.backchannel = backchannel
+        /// Tune 5: what she owes the interruption. `reply` makes it a content barge-in
+        /// (a question asked over her): she must stop AND answer it within the latency
+        /// gate (`interrupt_questions`). Default `any` (a stop command may or may not
+        /// get a reply); a backchannel is always `any`.
+        public var expect: Expect?
+        /// What a good answer to the interruption does (judge rubric line).
+        public var rubric: String?
+        public init(say: String, atMs: Double, backchannel: Bool? = nil, expect: Expect? = nil, rubric: String? = nil) {
+            self.say = say; self.atMs = atMs; self.backchannel = backchannel; self.expect = expect; self.rubric = rubric
         }
         public var isBackchannel: Bool { backchannel ?? TurnShape.isBackchannel(say) }
+        /// What the runner records for the interrupting utterance.
+        public var expected: Expect { isBackchannel ? .any : (expect ?? .any) }
     }
 
     /// What an `expectMention` probes; each has its own gate.
@@ -249,6 +258,9 @@ public struct Scenario: Codable, Sendable, Equatable {
             if s.then != nil && s.say == nil { issues.append("\(name) step \(i): then needs a say") }
             if s.then != nil && s.bargeIn != nil { issues.append("\(name) step \(i): then and bargeIn don't mix") }
             if s.faultDuringReply != nil && s.say == nil { issues.append("\(name) step \(i): faultDuringReply needs a say") }
+            if let b = s.bargeIn, b.isBackchannel, let e = b.expect, e != .any {
+                issues.append("\(name) step \(i): a backchannel (\(b.say)) is never answered; drop its expect")
+            }
         }
         return issues
     }

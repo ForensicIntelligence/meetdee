@@ -30,7 +30,13 @@ public enum Percept: Sendable, Equatable {
     case deeTurnFinished(text: String)
     case speakingStarted
     case speakingFinished
+    /// The user talked over her: stop her (`.stopSpeaking`) and listen.
     case bargeIn
+    /// The user talked over her and the brain is already answering them (its reply
+    /// ended the voice's floor hold, `BrainHost.bargedIn`): the same floor bookkeeping
+    /// as `.bargeIn` (cut off, yielding, Dee-interrupted), but nothing is stopped —
+    /// the reply being started is the answer (tune 5 F1: a stop here cancelled it).
+    case bargeInAnswered
     case conversationStarted(Date)
     case asleep(Bool)
     /// 2 Hz.
@@ -56,6 +62,7 @@ public enum Percept: Sendable, Equatable {
         case .speakingStarted: "speakingStarted"
         case .speakingFinished: "speakingFinished"
         case .bargeIn: "bargeIn"
+        case .bargeInAnswered: "bargeInAnswered"
         case .conversationStarted: "conversationStarted"
         case .asleep: "asleep"
         case .tick: "tick"

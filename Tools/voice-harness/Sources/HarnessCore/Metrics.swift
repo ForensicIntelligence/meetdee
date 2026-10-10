@@ -117,6 +117,33 @@ public struct Metrics: Codable, Sendable, Equatable {
     public var bargeInP90: Double?
     public var bargeInMissRate: Double?
 
+    /// Tune 5: a question asked over her (a content barge-in, `expect: reply`). She
+    /// must stop AND answer it, the answer starting within `interruptAnswerWithin` of
+    /// their end of speech and not cut short (tune 4 F1: the app's stop cancelled the
+    /// brain's answer to every one of them).
+    public struct InterruptQuestion: Codable, Sendable, Equatable {
+        public var scenario: String
+        public var fixture: String
+        public var baseFixture: String
+        /// Her reply was still playing when they asked (else not applicable).
+        public var applicable: Bool
+        /// Her interrupted reply went silent (pause or flush).
+        public var stopped: Bool
+        /// Their end of speech → first audio of the answer (s).
+        public var latency: Double?
+        public var answerItem: String?
+        public var answer: String?
+        public var answered: Bool
+        /// Why it does not count as answered (nil when answered).
+        public var miss: String?
+    }
+    public var interruptQuestions: [InterruptQuestion] = []
+    public var interruptQuestionsApplicable = 0
+    public var interruptQuestionsAnswered = 0
+    public var interruptAnswerLatencies: [Double] = []
+    public var interruptAnswerP50: Double?
+    public var interruptAnswerP90: Double?
+
     public var echoSegments = 0
     /// Echo-only steps where her line never played (initiative refused): not a test.
     public var echoSegmentsNotSpoken = 0
@@ -146,6 +173,10 @@ public struct Metrics: Codable, Sendable, Equatable {
     public var followupProbes = 0
     public var followupHits = 0
     public var followupMisses: [String] = []
+    /// Follow-up / reunion replies that gave the time apart as a number of days or
+    /// hours ("it's been 6 days", "three days"): the decision is words ("nearly a
+    /// week", "a couple of days"). Informational, in the `followups` note.
+    public var elapsedAsNumber: [String] = []
     public var memoryMisses: [String] = []
 
     /// Backchannels said over her ("keep going", "go on", "mm-hm"): she must keep
@@ -221,6 +252,11 @@ public struct Metrics: Codable, Sendable, Equatable {
     /// A backchannel is watched until this long after its end of speech: a stop
     /// that late is still a stop on "keep going".
     public static let backchannelWatch = 2.0
+    /// An interrupting question must be answered within this of its end of speech:
+    /// the latency gate's p90 bound (`Gates.Thresholds.latencyP90`), per question.
+    public static let interruptAnswerWithin = 1.6
+    /// An answer cut (flushed) before this much played was not really heard.
+    public static let interruptAnswerMinPlayedMs = 600
 
     public static func compute(_ runs: [RunRecord], pricing: Pricing) -> Metrics {
         var m = Metrics()
@@ -237,6 +273,8 @@ public struct Metrics: Codable, Sendable, Equatable {
         m.bargeInP50 = Stats.percentile(m.bargeInLatencies, 0.5)
         m.bargeInP90 = Stats.percentile(m.bargeInLatencies, 0.9)
         m.bargeInMissRate = m.bargeInsApplicable > 0 ? Double(m.bargeInsMissed) / Double(m.bargeInsApplicable) : nil
+        m.interruptAnswerP50 = Stats.percentile(m.interruptAnswerLatencies, 0.5)
+        m.interruptAnswerP90 = Stats.percentile(m.interruptAnswerLatencies, 0.9)
         m.replyLengthRate = m.replies > 0 ? Double(m.repliesWithinThree) / Double(m.replies) : nil
         m.wer = m.werWords > 0 ? Double(m.werEdits) / Double(m.werWords) : nil
         m.cost = CostSummary.of(runs, pricing: pricing)
@@ -266,9 +304,11 @@ public struct Metrics: Codable, Sendable, Equatable {
             let next = run.utterances.dropFirst(k + 1).first?.onset ?? .infinity
             let windowEnd = min(next, u.endOfSpeech + 20)
             // Over a backchannel she goes on with the reply she was giving: its later
-            // items are not a reply to it (nor a cut-off).
+            // items are not a reply to it (nor a cut-off). Nor are they an answer to a
+            // question asked over her (tune 5): only a response made after it is.
+            let question = u.role == .bargeIn && u.expect == .reply && !backchannel
             let replyStarts = starts.filter { $0.t > u.onset && $0.t < windowEnd && isReply(run, $0.item)
-                && !(backchannel && continuesEarlierReply(run, $0.item, before: u.onset)) }
+                && !((backchannel || question) && continuesEarlierReply(run, $0.item, before: u.onset)) }
             let holds = TurnShape.holdsFloor(u.fixture) && u.role != .bargeIn
             // Held: the user is not done until what finishes it (or a grace period).
             let doneAt = holds ? min(u.turnEnd ?? u.endOfSpeech + Self.holdGrace, next) : u.endOfSpeech
@@ -358,6 +398,7 @@ public struct Metrics: Codable, Sendable, Equatable {
                 } else {
                     followupProbes += 1
                     if ok { followupHits += 1 } else { followupMisses.append("\(tag) (\(kind.rawValue))") }
+                    if let n = ElapsedTime.exactCount(in: replyText) { elapsedAsNumber.append("\(tag) \"\(n)\"") }
                 }
             }
             if let forbid = u.forbidMention, !forbid.isEmpty, !replyText.isEmpty {
@@ -410,6 +451,8 @@ public struct Metrics: Codable, Sendable, Equatable {
                 if let l = b.latency { bargeInLatencies.append(l) }
             }
         }
+
+        addInterruptQuestions(run)
 
         for seg in run.echoSegments {
             guard seg.audioStarted != nil else { echoSegmentsNotSpoken += 1; continue }
@@ -491,6 +534,41 @@ public struct Metrics: Codable, Sendable, Equatable {
             if u.isBackchannel && continuesEarlierReply(run, s.item, before: u.onset) { continue }
             collisions.append(Collision(scenario: run.scenario, itemID: s.item, at: s.t, fixture: u.fixture,
                                         kind: run.kind(ofItem: s.item)))
+        }
+    }
+
+    /// Questions asked over her (`expect: reply` barge-ins): stopped, then answered in time.
+    mutating func addInterruptQuestions(_ run: RunRecord) {
+        for b in run.bargeIns where !b.isBackchannel {
+            guard let u = run.utterances.first(where: { $0.role == .bargeIn && $0.step == b.step && $0.fixture == b.fixture }),
+                  u.expect == .reply,
+                  let row = utterances.last(where: { $0.scenario == run.scenario && $0.index == u.index }) else { continue }
+            let applicable = b.outcome != .notApplicable
+            let stopped = b.outcome == .stopped
+            var q = InterruptQuestion(scenario: run.scenario, fixture: u.fixture, baseFixture: b.baseFixture,
+                                      applicable: applicable, stopped: stopped, latency: row.latency,
+                                      answerItem: row.replyItem, answer: row.deeReply, answered: false)
+            let played = row.replyItem.flatMap { item in run.playback.first { $0.itemID == item } }
+            let limitMs = Int((Self.interruptAnswerWithin * 1000).rounded())
+            if applicable && !stopped {
+                q.miss = "kept talking over the question"
+            } else if row.answeredEarly {
+                q.miss = "answered before they finished"
+            } else if row.replyItem == nil || row.latency == nil {
+                q.miss = "never answered"
+            } else if let l = row.latency, Int((l * 1000).rounded()) > limitMs {
+                q.miss = String(format: "answered late (%.2f s)", l)
+            } else if let p = played, p.flushed == true, (p.playedMs ?? 0) < Self.interruptAnswerMinPlayedMs {
+                q.miss = "answer cut after \(p.playedMs ?? 0) ms"
+            } else {
+                q.answered = true
+            }
+            if applicable {
+                if let l = row.latency { interruptAnswerLatencies.append(l) }
+                interruptQuestionsApplicable += 1
+                if q.answered { interruptQuestionsAnswered += 1 }
+            }
+            interruptQuestions.append(q)
         }
     }
 

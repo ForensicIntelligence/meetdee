@@ -225,7 +225,8 @@ public enum Suite {
     /// The tune-2 focused regression suite (`Scenarios/tune2.json`): every gate that
     /// failed in the tune-1 live run (Reports/20261009-143612), each on the fixtures and
     /// conditions that failed it, plus a sample of the gates that passed. Sized for
-    /// ≈ 40 min of real time and ≤ $1.50 (`validate` prints the estimate).
+    /// ≈ 40 min of real time and ≤ $1.50 (`validate` prints the estimate). Tune 5 adds
+    /// four `interrupt` scenarios (12 questions asked over her): ≈ 50 min, ≤ $2.
     public static func tune2() -> [Scenario] {
         let alex = Scenario.PersonSetup(name: "Alex", knownDays: 20)
         // Latency (main bucket, p90 needs n ≥ 30): short questions, two-part turns, two long ones.
@@ -272,6 +273,21 @@ public enum Suite {
             Step(say: "c06", then: .init(say: "k04", afterMs: 1200)),
             Step(say: "two01"), Step(say: "two02"),
         ]
+        // Tune 5: questions asked over her (content barge-ins). She must stop AND answer
+        // within the latency gate (tune 4 F1: 0/3 answered live with app parity).
+        // Each base / question pair runs in two of the four conditions; clean is the
+        // tune-4 probe (l01→q01, l04→q02, l03→q06) verbatim.
+        let ask = Judge.interruptRubric
+        let questions: [Step] = [
+            Step(say: "l01", bargeIn: .init(say: "q01", atMs: 2000, expect: .reply, rubric: ask)),
+            Step(say: "l04", bargeIn: .init(say: "q02", atMs: 1800, expect: .reply, rubric: ask)),
+            Step(say: "l03", bargeIn: .init(say: "q06", atMs: 2000, expect: .reply, rubric: ask)),
+            Step(say: "l02", bargeIn: .init(say: "q08", atMs: 1500, expect: .reply, rubric: ask)),
+            Step(say: "l06", bargeIn: .init(say: "q04", atMs: 1800, expect: .reply, rubric: ask)),
+            Step(say: "l05", bargeIn: .init(say: "q05", atMs: 1600, expect: .reply, rubric: ask)),
+        ]
+        func pick(_ i: [Int]) -> [Step] { i.map { questions[$0] } }
+        let interruptState = "Ordinary chat with Alex, whom she likes. He sometimes cuts in with a question while she is talking; she answers it."
         let joke: [Step] = [
             Step(say: "j01", rubric: "Laughs or groans at the punchline; does not tell her own joke; never answers before the punchline."),
             Step(say: "j02", rubric: "Plays along: \"Who's there?\""),
@@ -299,6 +315,15 @@ public enum Suite {
                why: "Backchannels at −20 dB echo (c05: her queued second item started over the user in tune 1) + barge-ins c03 / c01."),
             t2("backchannel", "echo10", bargeMix, echoLine: 1,
                why: "Backchannels and barge-ins at −10 dB echo (c02 / c05 deleted as echo, stop latency 1.0 s in tune 1)."),
+            // Tune 5: questions asked over her: she stops and answers (gate interrupt_questions).
+            t2("interrupt", "clean", pick([0, 1, 2]), state: interruptState, person: alex,
+               why: "Questions over her reply (tune 4 F1 probe: app parity cancelled the answer to all 3)."),
+            t2("interrupt", "fan15", pick([3, 4, 5]), state: interruptState, person: alex,
+               why: "Questions over her reply under the fan bed."),
+            t2("interrupt", "kitchen15", pick([0, 2, 4]), state: interruptState, person: alex,
+               why: "Questions over her reply under the kitchen bed (EarCore userIsSpeaking latches here: answer latency)."),
+            t2("interrupt", "echo20", pick([1, 3, 5]), echoLine: 1, state: interruptState, person: alex,
+               why: "Questions over her reply with her own echo at −20 dB (the question must not be taken for echo)."),
             // Stop commands in a normal conversation, then her mood.
             t2("stop-mood", "clean", stopMood, family: "dna", state: stopState, person: alex,
                why: "Floor control (\"wait, stop talking\", \"Stop.\", \"be quiet\") then mood checks: no hurt, no \"brushed off\"."),
@@ -387,6 +412,7 @@ public enum Suite {
         "drops": ["dropped", "latency", "latency_filler", "wait_turns"],
         "backchannel": ["backchannel", "barge_in", "truncation", "collisions", "dropped", "self_trigger"],
         "stop-mood": ["forbidden", "barge_in", "truncation", "judge"],
+        "interrupt": ["interrupt_questions", "barge_in", "dropped", "collisions", "judge"],
         "tools": ["narration", "memory", "leaks", "judge"],
         "length": ["reply_length", "judge"],
         "joke": ["collisions", "wait_turns", "judge"],
@@ -423,6 +449,7 @@ public enum RunEstimate {
                 if let c = st.then { t += c.afterMs / 1000 + dur(c.say) }
                 if let b = st.bargeIn {
                     t += dur(b.say) + b.atMs / 1000 + (b.isBackchannel ? 0 : perBargeIn)
+                    if b.expected == .reply { t += perTurn }     // then she answers it
                 }
                 if st.faultDuringReply != nil { t += perFault }
             } else if let x = st.silence {

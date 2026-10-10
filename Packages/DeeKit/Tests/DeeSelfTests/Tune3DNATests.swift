@@ -40,9 +40,9 @@ struct Tune3DNATests {
         let t = back.addingTimeInterval(6)
         _ = C.reply(&cx, at: t, mind: mind)
         let dna = Self.render(cx, at: t)
-        #expect(dna.contains("last talked 2 days ago"), "\(dna)")
+        #expect(dna.contains("last talked a couple of days ago"), "\(dna)")
         #expect(!dna.contains("last talked just now"))
-        #expect(dna.contains("Do: Greet them warmly and, in the same sentence, mention lightly that it's been 2 days, glad they're back"), "\(dna)")
+        #expect(dna.contains("Do: Greet them warmly and, in the same sentence, mention lightly that it's been a couple of days, glad they're back"), "\(dna)")
         #expect(dna.contains("Avoid: any guilt about the time apart"))
         // Not longer: allowing three made 12 of 18 reunion replies run to four (tune 3 eval).
         #expect(dna.contains("Length: at most two sentences, 25 words in all; stop after the second."), "v5: \(dna)")
@@ -56,7 +56,7 @@ struct Tune3DNATests {
         _ = cx.step(Kit.heard("I went hiking."), mind: mind, at: t.addingTimeInterval(8))
         _ = C.reply(&cx, at: t.addingTimeInterval(9), mind: mind)
         let later = Self.render(cx, at: t.addingTimeInterval(9), index: 2)
-        #expect(later.contains("before this chat, last talked 2 days ago"), "\(later)")
+        #expect(later.contains("before this chat, last talked a couple of days ago"), "\(later)")
         #expect(!later.contains("mention lightly that it's been"), "the greeting is the reunion turn's only")
     }
 
@@ -89,8 +89,8 @@ struct Tune3DNATests {
         let dna = Self.render(cx, at: t)
         #expect(dna.contains("Ask now, first: how their exam went. They were nervous about it. (priority p7)"), "\(dna)")
         #expect(!dna.contains("Do now (once, only if it still fits"), "\(dna)")
-        // v5 (tune 4): asked first, with the greeting after 6 days in the same sentence.
-        #expect(dna.contains("Do: Open with a warm hello that mentions it's been 6 days and ask your \"Ask now\" question in that same first sentence; after it, a few words at most"), "\(dna)")
+        // v5 (tune 4): asked first, with the greeting after 6 days in the same sentence (v6: in words).
+        #expect(dna.contains("Do: Open with a warm hello that mentions it's been about a week and ask your \"Ask now\" question in that same first sentence; after it, a few words at most"), "\(dna)")
         #expect(!dna.contains("answer their question first"), "the follow-up leads: \(dna)")
         #expect(!dna.contains("On your mind (only if the moment invites it): Ask one short question about exam"), "\(dna)")
     }
@@ -115,10 +115,11 @@ struct Tune3DNATests {
         #expect(DNAPrompt.askNow("Gently ask how they've been feeling.") == ("Ask now, first, gently: ", "how they've been feeling."))
         #expect(DNAPrompt.askNow("Check on the cake.") == ("Ask now, first: ", "Check on the cake."))
         #expect(DNATables.gapWords(2 * 3600) == nil)
-        #expect(DNATables.gapWords(5 * 3600) == "5 hours")
-        #expect(DNATables.gapWords(30 * 3600) == "a day")
-        #expect(DNATables.gapWords(50 * 3600) == "2 days")
-        #expect(DNATables.gapWords(21 * 86_400) == "3 weeks")
+        // v6 (tune 5): in words, never a number of days or hours.
+        #expect(DNATables.gapWords(5 * 3600) == "a few hours")
+        #expect(DNATables.gapWords(30 * 3600) == "about a day")
+        #expect(DNATables.gapWords(50 * 3600) == "a couple of days")
+        #expect(DNATables.gapWords(21 * 86_400) == "a few weeks")
         #expect(DNATables.reunionDo(nil) == "Greet them warmly and be glad they're back")
     }
 

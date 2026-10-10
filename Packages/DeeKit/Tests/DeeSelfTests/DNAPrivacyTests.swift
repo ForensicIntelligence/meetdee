@@ -369,7 +369,7 @@ import Testing
         // Tune 3: the time apart is named lightly (glad, no guilt) instead of avoided.
         let g = DNAAssembler.assemble(a.inputs).guidance
         #expect(g.avoidLines.contains("any guilt about the time apart"))
-        #expect(g.doLines.contains { $0.contains("in the same sentence, mention lightly that it's been 9 days, glad they're back") }, "\(g.doLines)")
+        #expect(g.doLines.contains { $0.contains("in the same sentence, mention lightly that it's been about a week, glad they're back") }, "\(g.doLines)")
     }
 }
 

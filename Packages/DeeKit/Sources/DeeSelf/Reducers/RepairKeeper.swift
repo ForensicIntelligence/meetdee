@@ -403,7 +403,7 @@ public struct RepairKeeper: SubReducer {
 
     mutating func noteContact(_ p: Percept, now: Date) {
         switch p {
-        case .heard, .partial, .touch, .gesture, .head, .pause, .bargeIn, .presence(arrived: true):
+        case .heard, .partial, .touch, .gesture, .head, .pause, .bargeIn, .bargeInAnswered, .presence(arrived: true):
             lastContact = now
         case .identified(let id, _) where id != nil:
             lastContact = now

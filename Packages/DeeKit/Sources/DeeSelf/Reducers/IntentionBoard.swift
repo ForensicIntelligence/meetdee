@@ -198,6 +198,9 @@ public struct IntentionBoard: SubReducer {
     /// What each aim issued since the last `.deeTurnFinished` changed, so an undelivered
     /// reply (cancelled before a sentence was heard) gives it back.
     var issueUndo: [UUID: (status: Intention.Status, issuedAt: Int?, newFollowUp: Bool)] = [:]
+    /// Replies closed early at a newer `.promptSubmitted` whose own `.deeTurnFinished`
+    /// is still to come (it must not give back the newer reply's aims).
+    var staleFinishes = 0
 
     public init() {}
 
@@ -235,11 +238,24 @@ public struct IntentionBoard: SubReducer {
             fx += outcome(text: text, appraisal: appraisal, &m)
             raiseAim(&m, &rng)
         case .promptSubmitted:
+            // The reply before this one is superseded with nothing of it heard and its
+            // turn not finished yet (tune 5 F7, followup-dentist: "Hi Alex! It's been three
+            // days—how" was taken back unheard, and its finish came after this prompt, so
+            // the due follow-up sank to "On your mind" and was asked fourth). Its aims go
+            // back now; its late finish is let go.
+            if !issueUndo.isEmpty, saidThisTurn.isEmpty {
+                fx += undeliveredReply(&m)
+                staleFinishes += 1
+            }
             raiseDueFollowUp(&m)
         case .deeTurnFinished(let text):
             let said = saidThisTurn
             saidThisTurn = []
             let reply = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? said.joined(separator: " ") : text
+            if staleFinishes > 0 {
+                staleFinishes -= 1
+                if reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { break }
+            }
             if reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 fx += undeliveredReply(&m)
             } else {
@@ -269,6 +285,7 @@ public struct IntentionBoard: SubReducer {
         awaitingOutcome = nil
         saidThisTurn = []
         issueUndo = [:]
+        staleFinishes = 0
         // Repair aims belong to the conversation they were born in (never "make things
         // right" days later).
         var fx: [Effect] = []

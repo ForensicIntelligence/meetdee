@@ -113,7 +113,19 @@ public enum TurnPolicy {
     public static let confirmWindow: TimeInterval = 0.8
     /// Local sound alone never holds a speculative reply longer than this after the
     /// commit (the server, not the room, decides it was speech: a TV, a kitchen).
-    public static let confirmMax: TimeInterval = 1.6
+    ///
+    /// Tune 5 F2 (live tune 4 p90 1.63 s): kitchen and TV beds kept the latched
+    /// `userIsSpeaking` on after they were done, so ready audio waited to the 1.6 s cap
+    /// (5 turns at 2.1–2.2 s). The gate now reads EarCore's bed-proof `voiceActive`, and
+    /// anything else (unsettled words) holds her at most 1.0 s after the commit.
+    public static let confirmMax: TimeInterval = 1.0
+    /// Their own voice (EarCore `voiceActive`) may hold her this much past `confirmMax`
+    /// (1.6 s after the commit in all, the tune-4 cap).
+    public static let voiceHoldExtra: TimeInterval = 0.6
+    /// Tune 5 F3 (fan15 l05: released 0.15 s after they resumed, 665 ms over them):
+    /// the gate passes twice, this far apart, before her held audio plays. Free on most
+    /// turns: the gate passes from 0.8 s while her audio arrives ≥ ~1.0 s after the end.
+    public static let releaseRecheck: TimeInterval = 0.12
     /// A turn whose held reply was dropped because they went on waits this long for
     /// their next commit (which answers both parts), then is answered anyway.
     public static let resumeWait: TimeInterval = 2.0
@@ -239,12 +251,47 @@ public enum TurnPolicy {
             let stranded = words.dropLast().contains { whWords.contains($0) }
             let fixed = last == "of" && ["kind", "sort"].contains(before)
             let elliptical = last == "to" && toFinishers.contains(before)
-            if !stranded && !fixed && !elliptical { return .trailing }
+            let relative = trimmed.hasSuffix(".") && strandedInRelative(words)
+            if !stranded && !fixed && !elliptical && !relative { return .trailing }
         }
         // gpt-transcribe hears a trailing "and" as "Ann", "an" or "end" and closes it
         // with a period (tune 1 F-COLL: "I was going to call my mom Ann.").
         if words.count >= 3, misheardAnd(last: last, before: before) { return .trailing }
         return nil
+    }
+
+    /// Subjects of a reduced relative clause ("the job *I* interviewed for").
+    static let relativeSubjects: Set<String> = [
+        "i", "you", "we", "they", "he", "she", "i'm", "you're", "we're", "they're", "he's", "she's",
+        "i've", "you've", "we've", "they've", "i'd", "you'd", "we'd", "they'd",
+    ]
+    static let determiners: Set<String> = [
+        "the", "a", "an", "this", "that", "these", "those", "my", "your", "his", "her", "our", "their", "one", "some",
+        "every", "any", "each", "no",
+    ]
+
+    /// Tune 5 F4 (length-clean s02, held 4.67 s): "I didn't get the job I interviewed
+    /// for." A preposition stranded by a reduced relative clause ends the sentence: a
+    /// determiner's noun phrase, then a subject pronoun and one to three words before
+    /// the preposition ("the guy I talked to", "the person you were talking about",
+    /// "the place I used to work at"). Only with the transcript's closing period (the
+    /// caller checks): "We talked about", "Yesterday I went to." still trail.
+    static func strandedInRelative(_ words: [String]) -> Bool {
+        let n = words.count
+        guard n >= 5 else { return false }
+        for gap in 1...3 {
+            let s = n - 2 - gap                                  // the subject's index
+            guard s >= 2, relativeSubjects.contains(words[s]) else { continue }
+            // Its head noun phrase: a determiner one to three words before the subject,
+            // with no pronoun or verb-ish link word between ("the job", "that big red car").
+            for d in max(0, s - 3)..<(s - 1) where determiners.contains(words[d]) {
+                let head = words[(d + 1)..<s]
+                if !head.contains(where: { relativeSubjects.contains($0) || linking.contains($0) || trailingWords.contains($0) }) {
+                    return true
+                }
+            }
+        }
+        return false
     }
 
     /// A last word that is a mis-heard trailing "and": "an" never ends a sentence;
@@ -292,6 +339,23 @@ public enum TurnPolicy {
         // "Why do you like jokes?": a question about her or them.
         let personal: Set<String> = ["you", "your", "you're", "i", "i'm", "me", "my", "we", "us", "our"]
         return !w.dropFirst().prefix(3).contains { personal.contains($0) }
+    }
+
+    /// The note on a reply to a likely punchline (tune 5 F7).
+    public static let punchlineNote =
+        "If they just gave the punchline of their joke, laugh first, a real little laugh as your first word, then one short line; never explain it"
+
+    /// Whether the turn after `previous` (and `beforeThat`) is a joke's punchline: the
+    /// previous turn was a riddle's set-up ("Why did the scarecrow win an award?"), or a
+    /// knock-knock is at its third turn ("Knock knock." → "Lettuce." → "Lettuce in…").
+    public static func isPunchlineTurn(previous: String, beforeThat: String?) -> Bool {
+        if isRiddleSetUp(previous, after: beforeThat) { return true }
+        func knock(_ t: String) -> Bool {
+            let w = words(t)
+            return zip(w, w.dropFirst()).contains { $0 == "knock" && $1 == "knock" }
+        }
+        guard let b = beforeThat, knock(b), !knock(previous) else { return false }
+        return true
     }
 
     /// `unfinished(text)`, plus a riddle's set-up (only once the words are settled).
@@ -409,6 +473,40 @@ public enum TurnPolicy {
         }
         return false
     }
+
+    // MARK: The unfinished-words aim, spoken (tune 5 F3)
+
+    /// Her reply pointing at their unfinished words instead of waiting for the rest:
+    /// "I heard “I couldn’t sleep last…” and I’m curious what happened next. Want to
+    /// finish the sentence?" (live tune 4, fan15 l05). Never heard: an unfinished turn
+    /// is waited out in silence (decision, tune 5).
+    static let unfinishedAimPhrases: [String] = [
+        "finish the sentence", "finish your sentence", "finish that sentence", "finish the thought",
+        "finish your thought", "finish that thought", "want to finish", "wanna finish", "like to finish",
+        "you trailed off", "you got cut off", "you were cut off", "cut yourself off", "didn't catch the end",
+        "didn't hear the end", "the rest of your sentence", "the rest of that sentence", "rest of the sentence",
+        "only heard part", "only caught part", "heard only part",
+    ]
+
+    /// Whether a sentence of hers voices the unfinished-words aim.
+    public static func isUnfinishedAim(_ sentence: String) -> Bool {
+        let t = sentence.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
+        if unfinishedAimPhrases.contains(where: { t.contains($0) }) { return true }
+        // Their own words quoted back, cut ("I heard “I couldn't sleep last…”").
+        for open in ["heard “", "heard \"", "heard: “", "heard: \""] where t.contains(open) { return true }
+        return t.contains("…”") || t.contains("...”") || t.contains("…\"") || t.contains("...\"")
+    }
+
+    /// The first sentence of `text` that voices the unfinished-words aim.
+    public static func unfinishedAimSentence(in text: String) -> Int? {
+        for (i, s) in sentences(text).enumerated() where isUnfinishedAim(s) { return i }
+        return nil
+    }
+
+    /// The note on the answer to a turn whose first reply voiced that aim and was
+    /// taken back (nothing followed for `trailingWait`).
+    public static let unfinishedAnswerNote =
+        "If their words seemed to stop mid-sentence, just answer what you heard; never quote their words back or ask them to finish"
 
     // MARK: Reply length (tune 2: ≥ 95 % of replies ≤ 3 sentences)
 

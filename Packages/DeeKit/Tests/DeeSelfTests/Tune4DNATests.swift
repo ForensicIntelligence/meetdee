@@ -42,7 +42,7 @@ struct Tune4DNATests {
         _ = cx.step(Kit.heard("Good morning."), mind: mind, at: t1)
         _ = C.reply(&cx, at: t1, mind: mind)
         let first = Self.render(cx, at: t1, index: 1, heardReplies: 0)
-        #expect(first.contains("mention lightly that it's been 2 days"), "\(first)")
+        #expect(first.contains("mention lightly that it's been a couple of days"), "\(first)")
         // Cancelled before any audio (they went on): nothing of it was said.
         _ = cx.step(.deeTurnFinished(text: ""), mind: mind, at: t1.addingTimeInterval(0.4))
         // Reply 2, to "Did you sleep well?" (live 24.86): still the greeting.
@@ -50,7 +50,7 @@ struct Tune4DNATests {
         _ = cx.step(Kit.heard("Did you sleep well?"), mind: mind, at: t2)
         _ = C.reply(&cx, at: t2, mind: mind)
         let second = Self.render(cx, at: t2, index: 2, heardReplies: 0)
-        #expect(second.contains("Greet them warmly and, in the same sentence, mention lightly that it's been 2 days"), "\(second)")
+        #expect(second.contains("Greet them warmly and, in the same sentence, mention lightly that it's been a couple of days"), "\(second)")
         #expect(second.contains("Avoid: any guilt about the time apart"))
     }
 
@@ -91,7 +91,7 @@ struct Tune4DNATests {
         let dna = Self.render(cx, at: t, index: 1, heardReplies: 0)
         #expect(dna.contains("Ask now, first: how their exam went."), "\(dna)")
         let doLine = try #require(dna.components(separatedBy: "\n").first { $0.hasPrefix("Do: ") })
-        #expect(doLine.hasPrefix("Do: Open with a warm hello that mentions it's been 6 days and ask your \"Ask now\" question in that same first sentence; after it, a few words at most"), "\(doLine)")
+        #expect(doLine.hasPrefix("Do: Open with a warm hello that mentions it's been about a week and ask your \"Ask now\" question in that same first sentence; after it, a few words at most"), "\(doLine)")
         #expect(!doLine.contains("Greet them warmly"), "the greeting is in the first line: \(doLine)")
         #expect(!doLine.contains("answer their question first"), "\(doLine)")
         #expect(dna.contains("Avoid: any guilt about the time apart"))
@@ -102,7 +102,7 @@ struct Tune4DNATests {
                 == "Ask your \"Ask now\" question in your first sentence; after it, a few words at most")
         #expect(DNATables.askFirstDo(greeting: true, since: nil)
                 == "Open with a warm hello and ask your \"Ask now\" question in that same first sentence; after it, a few words at most")
-        #expect(DNATables.askFirstDo(greeting: true, since: 3 * 86_400).contains("mentions it's been 3 days"))
+        #expect(DNATables.askFirstDo(greeting: true, since: 3 * 86_400).contains("mentions it's been a few days"))
     }
 
     /// Live tune 3 at `minimal`: 14 of 141 replies ran past three sentences, 11 of them

@@ -226,7 +226,7 @@ public enum DNAPrompt {
         if text.hasPrefix("Ask ") { return ("Ask now, first: ", String(text.dropFirst("Ask ".count))) }
         return ("Ask now, first: ", text)
     }
-    static func daysAgo(_ n: Int) -> String { n <= 0 ? "today" : n == 1 ? "yesterday" : "\(n) days ago" }
+    static func daysAgo(_ n: Int) -> String { DNATables.daysAgoWords(n) }
 
     static func compose(_ d: DeeDNA, _ o: Options) -> [Line] {
         var out: [Line] = []
@@ -340,7 +340,7 @@ public enum DNAPrompt {
                 out.append(Line(5, .memories, "Shared memories: ",
                                 items: k.episodes.prefix(o.episodes).map { "\($0.gist) (\(daysAgo($0.daysAgo)))" }, suffix: ".", needsItems: true))
                 out.append(Line(5, .followUps, "Waiting to hear: ", items: k.followUps.prefix(o.followUps).map { f in
-                    let when = f.days <= 0 ? "due today" : f.days == 1 ? "due yesterday" : "\(f.days) days ago"
+                    let when = f.days <= 0 ? "due today" : f.days == 1 ? "due yesterday" : "due \(DNATables.daysAgoWords(f.days))"
                     let subject = DNAAssembler.slot(f.subject.text)
                     return f.framing == .neutral ? "how their \(subject) went (\(when))"
                         : "how their \(subject) went (they were \(f.framing.rawValue), \(when))"

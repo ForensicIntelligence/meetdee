@@ -27,6 +27,16 @@ public enum Backchannel {
         "cheap going", "cheap", "going", "keep go",
         // How a soft "go on" comes back (tune 3 live, echo20 bc01: "Jeron.").
         "jeron", "jerron", "geron", "gerron", "jaron", "goan", "gowan", "go one", "goon",
+        // How "keep going" comes back over a kitchen / her echo (tune 4 live, kitchen15 c05: "Sheep going.").
+        "sheep going", "she's going", "shes going", "she going", "keeps going", "keep goin", "key going",
+        "keep it up", "keeping going",
+    ]
+
+    /// Continuers only inside a hold, in a short burst (`CloudVoice.isHoldBackchannel`):
+    /// "Keep going" misheard as a sentence that would be a turn of its own
+    /// anywhere else (tune 4 live, echo20 c05: "She's not going.").
+    public static let holdOnlyContinuers: Set<String> = [
+        "she's not going", "shes not going", "she is not going", "she's not", "sheep not going",
     ]
 
     /// Words that don't change what a clause means here.
@@ -38,6 +48,11 @@ public enum Backchannel {
     /// "Don't stop, keep going."). "Stop", "wait", "no", a question or anything
     /// else make it a real turn.
     public static func isBackchannel(_ text: String) -> Bool {
+        isBackchannel(text, inHold: false)
+    }
+
+    /// `inHold`: said in a hold, in a short burst — the hold-only continuers count too.
+    public static func isBackchannel(_ text: String, inHold: Bool) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !trimmed.hasSuffix("?") || questionContinuers.contains(trimmed.lowercased()) else { return false }
         let all = words(trimmed.replacingOccurrences(of: "-", with: " "))
@@ -50,9 +65,29 @@ public enum Backchannel {
         guard !clauses.isEmpty else { return false }
         return clauses.allSatisfy { raw in
             let kept = raw.filter { !fillers.contains($0) }
-            return continuers.contains(raw.joined(separator: " ")) || continuers.contains(kept.joined(separator: " "))
-                || kept.allSatisfy(isHum)
+            return isContinuer(raw, inHold: inHold) || isContinuer(kept, inHold: inHold) || kept.allSatisfy(isHum)
+                || segments(kept, inHold: inHold)
         }
+    }
+
+    static func isContinuer(_ words: [String], inHold: Bool) -> Bool {
+        let w = words.joined(separator: " ")
+        return continuers.contains(w) || (inHold && holdOnlyContinuers.contains(w))
+    }
+
+    /// The clause is continuers run together without a comma ("keep going I'm
+    /// listening", "go on go on", "mm-hm yeah").
+    static func segments(_ words: [String], inHold: Bool) -> Bool {
+        guard words.count >= 2 else { return false }
+        var ok = [Bool](repeating: false, count: words.count + 1)
+        ok[0] = true
+        for end in 1...words.count {
+            for start in max(0, end - 4)..<end where ok[start] {
+                let part = Array(words[start..<end])
+                if isContinuer(part, inHold: inHold) || part.allSatisfy(isHum) { ok[end] = true; break }
+            }
+        }
+        return ok[words.count]
     }
 
     /// A hum however it is spelled: "mm-hm", "mhm", "hmm", "mmhn" (tune 2 live:
