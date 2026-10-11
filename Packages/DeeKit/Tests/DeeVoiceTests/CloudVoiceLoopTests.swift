@@ -239,7 +239,9 @@ final class LoopRig: @unchecked Sendable {
         try rig.quiet(0.2)
         try rig.talk(0.6)
         try rig.quiet(0.3)
-        let connected = await rig.brain.wait { if case .session(.connected) = $0 { true } else { false } }
+        // Tune 11 review: waited on the event, not on 3 s of wall clock (the reconnect lags
+        // under full-suite load: flaked at 89d0c0f too).
+        let connected = await rig.brain.wait(timeout: 20) { if case .session(.connected) = $0 { true } else { false } }
         try #require(connected != nil)
         #expect(rig.voiceEvents.prefix(2) == [.permission(microphone: true, speech: true), .ready])
         #expect(await rig.events.wait { $0 == .listening(true) } != nil)
@@ -313,6 +315,8 @@ final class LoopRig: @unchecked Sendable {
         rig.reply("resp_1", "item_a1", ms: 2000, done: false)     // still generating
         await rig.settle()
         try rig.quiet(0.6)
+        // Tune 11 review: the event pump lags real time under full-suite load (trail was []).
+        _ = await rig.events.wait(timeout: 20) { $0 == .speakingStarted }
         #expect(rig.speakingTrail == [.speakingStarted])
 
         // The user starts talking over her; the server notices a moment later.

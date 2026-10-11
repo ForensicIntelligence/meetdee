@@ -382,6 +382,7 @@ import Testing
         try await rig.start()
         try rig.quiet(0.6)
         try await T4.turn(rig, "item_u1", talk: 1.0, lag: 0.51)
+        rig.push(Srv.userTranscript("item_u1", "What's your favourite colour?"))   // tune 11: words in, as live
         try rig.quiet(0.7)                                                   // 1.21 s after their end
         T4.audio(rig, "resp_1", "item_a1", ms: 1200, text: "Blue, like a little sky.")
         try await T4.stepUntil(rig, 0.3) { T4.released(rig) != nil }

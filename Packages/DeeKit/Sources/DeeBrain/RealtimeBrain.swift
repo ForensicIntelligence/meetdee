@@ -126,6 +126,9 @@ public final class RealtimeBrain: ReplyEngine {
         /// brain (the speculative gate's quiet run starts from it, or from a later voiced
         /// frame of theirs): `TurnPolicy.commitLag`.
         public var commitLag: TimeInterval = TurnPolicy.commitLag
+        /// Tune 11 (T10-1): a held reply whose turn has no words yet (no delta, no
+        /// transcript) waits for them at most this much past when it would have played.
+        public var wordsWait: TimeInterval = TurnPolicy.wordsWait
         public init() {}
     }
 
@@ -268,6 +271,8 @@ public final class RealtimeBrain: ReplyEngine {
         /// re-check needs `releaseRecheck` of it, so a resume caught a frame late still
         /// holds her, and audio arriving later costs nothing).
         var quietSince: Double?
+        /// Tune 11 (T10-1): when it would have played but its turn had no words yet.
+        var wordsWaitG: Double?
         /// When it was asked for (graph clock). A request long after the commit (exact
         /// words, a retry) measures its caps from here (tune 6 T5-4: every reply is gated).
         var armG: Double
@@ -937,7 +942,9 @@ public final class RealtimeBrain: ReplyEngine {
         } else {
             spec?.quietSince = nil
         }
-        let pass = hardOverdue || (theirSideQuiet && (!settling || overdue))
+        // Tune 11 (T10-1): the words wait is over (`wordsWait` past when it would have played).
+        let wordsWaited = sp.wordsWaitG.map { g - $0 >= options.wordsWait - 1e-9 } ?? false
+        let pass = hardOverdue || (theirSideQuiet && (!settling || overdue || wordsWaited))
         guard pass else {
             if !theirSideQuiet, quiet >= options.confirmWindow || overdue { spec?.heldForVoice = true }
             return
@@ -948,6 +955,14 @@ public final class RealtimeBrain: ReplyEngine {
         // caught a frame late still holds her).
         if !hardOverdue, options.releaseRecheck > 0 {
             guard let since = spec?.quietSince, g - since >= options.releaseRecheck - 1e-9 else { return }
+        }
+        // Tune 11 (T10-1, live fillers-echo10 t03): no words of theirs yet — her audio was
+        // released at quiet 930 ms and the deltas "…call my mom Ann." came 8 ms later
+        // (transcription lag 0.70 s): answered early. The words decide whether the turn
+        // is over; they are waited for, at most `wordsWait` (then `settling` decides).
+        if !overdue, !hardOverdue, !sp.wordsFinal, partials[sp.item] == nil, !partialsChecked.contains(sp.item) {
+            if sp.wordsWaitG == nil { spec?.wordsWaitG = g }
+            if g - (sp.wordsWaitG ?? g) < options.wordsWait - 1e-9 { return }
         }
         spec = nil
         voice.releaseSpeculative()
@@ -1341,8 +1356,11 @@ public final class RealtimeBrain: ReplyEngine {
     /// your"): the settled and full words still take the reply back if they are (and a
     /// command or words not for her), unheard — it is speculative.
     private func earlyWords(_ item: String) async {
+        // Tune 11 (T10-4): also a turn begun just after her voice ended (`commandWindow`)
+        // while she is silent now: its reply is gated like any (live, 6 such turns waited
+        // for settled words: overhead 0.30–0.48 s).
         guard let u = utterances[item], u.plan == .waitForPartial, !u.requested, !u.partialDecided, !u.heard, !u.tail,
-              overHerVoice(item), let p = partials[item] else { return }
+              overHerVoice(item) || !duringHerSpeech(item), let p = partials[item] else { return }
         let text = p.text.trimmingCharacters(in: .whitespacesAndNewlines)
         let w = TurnPolicy.words(text)
         // Tune 7 (T6-3): never on one or two words ("Put going" was "Keep going"): those wait
@@ -1356,7 +1374,10 @@ public final class RealtimeBrain: ReplyEngine {
               !TurnPolicy.endsLikeContinuer(text), !Backchannel.mayBecomeBackchannel(text), !Self.mayBecomeHoldContinuer(w),
               !TurnPolicy.isBackchannel(text), TurnPolicy.unfinished(text) != .holdOn,
               !TurnPolicy.breaksOff(text) else { return }
-        partialsChecked.insert(item)
+        // Tune 11 review: just after her voice (not over it) the settled words still decide
+        // whether the turn is over — the gate waits for them and they take the reply back
+        // (89d0c0f held "…call my mom, and." there; Tune11ReviewBrainTests).
+        if overHerVoice(item) { partialsChecked.insert(item) }
         utterances[item]?.partialDecided = true
         record(.earlyWords)
         await requestReply(item: item, mode: .fast, text: nil)
@@ -2141,11 +2162,13 @@ public final class RealtimeBrain: ReplyEngine {
 
     private func housekeeping() async {
         let now = clock()
-        await gateCheck()
-        // Settled transcription deltas: the turn's provisional words.
+        // Settled transcription deltas: the turn's provisional words. Tune 11 (T10-1):
+        // before the gate — in the tick its words settle, an unfinished turn's held reply
+        // is taken back, never released first (it would be heard, and kept).
         for (item, p) in partials where !partialsChecked.contains(item) && now.timeIntervalSince(p.at) >= options.partialSettle {
             await provisional(p.text, item: item)
         }
+        await gateCheck()
         // Over her voice, and no words in time: answer what was heard (fast).
         for (item, u) in utterances where u.plan == .waitForPartial && !u.requested && !u.partialDecided && !u.heard {
             if let d = u.deadline, now >= d {

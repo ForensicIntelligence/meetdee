@@ -388,6 +388,26 @@ exact, higher effort) while nothing of the fast reply was heard.
   (`noHeardYouNote`), still not when they asked whether she can hear them; later sentences keep the "I heard you/your"
   patterns. The unfinished-words aim ("I heard “I couldn't sleep last…” …") keeps its own path.
 
+### Tune 11 (live run 20261010-130349 + solo -134832, `tune10-live.md`)
+
+- **The ASR variants of a trailing "and" (T10-1).** Tunes 7–10 wrote "…call my mom and" as "Ann", "Anne", "and",
+  ", and", ", then", ", man", or dropped it. `misheardAnd` takes "anne" like "ann"; `misheardAndAfterPossessive` takes a
+  last "then"/"man" right after a possessive's noun ("call my mom, then.") unless a linking verb names it ("That was my
+  plan then.") or the turn wraps up (okay, fine, guess, well, so, bye, see, later). A dropped "and" ("…call my mom.") is
+  not caught: the fixtures' trailing "and" ends on the same falling pitch and energy as a finished sentence (t03 163→103
+  Hz, s03 158→103 Hz), so no sound rule separates them without holding finished turns.
+- **The release waits for the words (T10-1, echo10 t03).** A held reply whose turn has no words yet (no delta, no
+  transcript) waits for them at most `wordsWait` (0.25 s) past the moment it would have played, then `settling` decides
+  within the same bound. Settled deltas are checked before the gate in each housekeeping tick, so an unfinished turn is
+  taken back in the tick its words settle instead of released first. Live: 6 of 177 releases had no words yet.
+- **Early words just after her voice (T10-4, latency).** A turn begun inside `commandWindow` after her voice ended
+  (`waitForPartial`) while she is silent now decides on its early words, as over her voice (same guards; the reply is
+  gated) — but its settled words are still checked and the gate still waits for them (review: they take back
+  "…call my mom, and."; only over her voice do the early words mark them checked). Live: 6 such turns waited for
+  settled words (overhead 0.30–0.48 s). The release-gate median (0.02 → 0.08 s) is
+  not a tune-10 change: a gate-bound turn's overhead is ≈ 0.68 s − model time (commit − `commitLag` + window + re-check),
+  and the model was faster (p50 0.58 vs 0.66 s).
+
 ## DNA delivery (DNA.md §4)
 
 `buildDNA`: `host.dnaParts(DNARequest)` (the host calls `Cortex.cue(at:)` first unless the

@@ -301,7 +301,8 @@ import Testing
         #expect(await rig.until { rig.brain.trace.contains(.preamble(cut: true)) }, "\(rig.brain.trace)")
         rig.push(Srv.responseDone("resp_1", status: "cancelled"))
         #expect(await rig.until { rig.responseCreates().count == 2 }, "\(rig.trail())")
-        #expect(T9.dnaKinds(rig).last == "retry", "\(rig.brain.trace)")
+        // Tune 11 review: its trace mark may land a beat after the create under load.
+        #expect(await rig.until { T9.dnaKinds(rig).last == "retry" }, "\(rig.brain.trace)")
         rig.shutdown()
     }
 }

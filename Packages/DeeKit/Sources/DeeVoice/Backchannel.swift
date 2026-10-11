@@ -280,9 +280,11 @@ public enum Backchannel {
 
     /// A hum however it is spelled: "mm-hm", "mhm", "hmm", "mmhn" (tune 2 live:
     /// "Mm-hm." came back as "MMHN."), "nnhn" (tune 9 live, kitchen15 bc02) — only
-    /// m, n, h and u, with an m or an n ("uh", "huh" are not hums).
+    /// m, n, h and u, with an m or an n ("uh", "huh" are not hums). Tune 11 (review
+    /// risk 7): one without an m has no u either — "Unh.", "Uhn.", "Un." mean "no".
     static func isHum(_ w: String) -> Bool {
         w.count >= 2 && w.count <= 6 && w.allSatisfy { "mhnu".contains($0) } && w.contains { "mn".contains($0) }
+            && (w.contains("m") || !w.contains("u"))
     }
 
     static func words(_ text: String) -> [String] {

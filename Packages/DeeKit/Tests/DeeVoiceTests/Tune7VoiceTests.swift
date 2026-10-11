@@ -70,8 +70,14 @@ import Testing
             if case .session(.responseDone(let r)) = $0, r.responseID == "resp_2" { true } else { false }
         }
         try #require(done != nil, "the answer's events never arrived")
-        let dropped = await rig.socket.waitForSent(timeout: 20) { frames in
-            frames.contains { $0.contains("conversation.item.delete") && $0.contains("item_tail") }
+        // Tune 11 review: the drop may wait out `doneGuard` for a later tick (twice in 26 full
+        // runs it never came: nothing stepped the graph while waiting). The graph runs on.
+        var dropped = false
+        for _ in 0..<100 where !dropped {
+            dropped = await rig.socket.waitForSent(timeout: 0.2) { frames in
+                frames.contains { $0.contains("conversation.item.delete") && $0.contains("item_tail") }
+            }
+            if !dropped { try rig.quiet(0.02) }
         }
         #expect(dropped, "the empty tail was never dropped")
         try rig.quiet(1.0)

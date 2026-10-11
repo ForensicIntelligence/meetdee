@@ -400,6 +400,8 @@ public struct EarCore: Sendable {
         var spectralNear = false
         /// …and the frame's pitch is not hers (another voice is in it).
         var spectralPitched = false
+        /// Tune 11: the share of the frame's energy her echo model doesn't explain (nil: no model yet).
+        var spectralShare: Double?
     }
 
     /// The user's bar for a logged frame under the echo path known now (before
@@ -592,6 +594,7 @@ public struct EarCore: Sendable {
                              herOnset: speaking && t - stretchStart < EchoReference.maxLag + outputLatency + Self.onsetGuard,
                              fallbackAbove: rawVoiced && db >= fallbackBar)
         stat.spectralNear = spec.map { $0.isVoice && $0.nearDB >= stat.minBar } ?? false
+        stat.spectralShare = spec?.fraction
         if stat.spectralNear, let f = f0 ?? looseF0 {
             // Under her echo the frame is pitched anyway: only a pitch that isn't
             // hers says the sound she doesn't explain is a voice.
@@ -993,6 +996,47 @@ public struct EarCore: Sendable {
     public func onsetEarlyInStretch(itemID: String, within: Double) -> Bool {
         guard !aecActive, speaking, let it = items[itemID] else { return false }
         return it.onset - stretchStart <= within + 1e-9
+    }
+
+    /// Tune 11 (T10-2b / T10-3): less near-end sound than this in an item's window, and
+    /// less than `unexplainedShare` of its energy unexplained over her voice: her echo.
+    public static let explainedVoice = 0.12
+    /// This much near-end sound with `voiceShare`, or `unexplainedShare` of its energy
+    /// unexplained over her voice: a voice her echo can't be.
+    public static let unexplainedVoice = 0.16
+    public static let voiceShare = 0.20
+    public static let unexplainedShare = 0.25
+
+    /// Tune 11 (T10-2b / T10-3): does her echo model (`EchoReference` + `SpectralEcho`: her
+    /// rendered output through the echo path learned from it) explain the sound of server
+    /// item `itemID`, from its onset to its end? True: it is all hers (under
+    /// `explainedVoice` of near-end sound, under `unexplainedShare` unexplained). False:
+    /// there is a voice in it her echo can't be (`unexplainedVoice` with `voiceShare`, or
+    /// `unexplainedShare`). Nil in between (the sound can't tell), or when the item is
+    /// unknown here.
+    ///
+    /// Offline, −10 dB echo without echo cancellation through the room IR (harness fixtures,
+    /// five of her voices), items the ear left to their words: her echo alone 0.04–0.08 s
+    /// (most) or 0.12 s, one 0.16 s at a share of 0.19; "Stop." and "Go on." 0.12–0.40 s,
+    /// mostly 0.16 s or more at a share over 0.20.
+    public func echoExplains(itemID: String, at t: Double) -> Bool? {
+        guard let it = items[itemID] else { return nil }
+        let b = min(it.end ?? t, t)
+        var near = 0.0, share = 0.0, herSeconds = 0.0, seen = false
+        for f in frames where f.t - f.dt >= it.onset - 1e-9 && f.t <= b + 1e-9 {
+            seen = true
+            if judge(f).near { near += f.dt }
+            if f.her, !f.herOnset, let x = f.spectralShare {
+                share += x * f.dt
+                herSeconds += f.dt
+            }
+        }
+        guard seen else { return nil }
+        let meanShare = herSeconds > 0 ? share / herSeconds : 0
+        if meanShare >= Self.unexplainedShare - 1e-9
+            || (near >= Self.unexplainedVoice - 1e-9 && meanShare >= Self.voiceShare - 1e-9) { return false }
+        if near < Self.explainedVoice - 1e-9 { return true }
+        return nil
     }
 
     /// Her voice may be in the microphone right now: playing, or within the echo

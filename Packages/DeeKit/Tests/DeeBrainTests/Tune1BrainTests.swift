@@ -205,7 +205,9 @@ import Testing
         let again = ContinuousClock.now
         rig.utterance("item_u2", startMs: 3000, endMs: 3600)
         #expect(await rig.until { rig.responseCreates().count == 2 })
-        #expect(ContinuousClock.now - again < .milliseconds(250))
+        // Tune 11 review: the stop was ≥ 0.65 s ago, so no guard can apply; isolated this is
+        // ~10 ms, under full-suite load the main actor alone took 0.25–0.27 s (3 of 26 runs).
+        #expect(ContinuousClock.now - again < .milliseconds(1000))
         rig.shutdown()
     }
 

@@ -129,6 +129,9 @@ import Testing
         try rig.quiet(0.6)
         try await Self.turn(rig, "item_u1", talk: 1.0, lag: 0.2)
         let end = rig.output.count - Int(0.2 * BrainRig.rate)
+        // Tune 11: their words are in before the window ends, as live (a turn with no words
+        // yet waits for them, `wordsWait`).
+        rig.push(Srv.userTranscript("item_u1", "What's your favourite colour?"))
         Self.audio(rig, "resp_1", "item_a1", ms: 1500, text: "Blue, like a little sky.")
         try await Self.stepUntil(rig, 1.5) { Self.released(rig) != nil }
         try rig.quiet(0.3)
@@ -334,6 +337,7 @@ import Testing
         try room(0.2)
         rig.push(Srv.speechStopped("item_u1", ms: 4200), Srv.committed("item_u1"))
         #expect(await rig.until { rig.brain.trace.contains(.speculated) })
+        rig.push(Srv.userTranscript("item_u1", "I'm making soup tonight."))   // tune 11: words in, as live
         Tune4BrainTests.audio(rig, "resp_1", "item_a1", ms: 900, text: "Smells good in here.")
         for _ in 0..<100 where Tune4BrainTests.released(rig) == nil {
             try room(0.02)

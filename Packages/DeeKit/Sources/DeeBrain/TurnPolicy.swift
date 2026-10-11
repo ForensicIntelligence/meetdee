@@ -137,6 +137,10 @@ public enum TurnPolicy {
     /// end (Tune5BrainTests `liveL05ResumeJustBeforeTheReleaseHoldsHer`): the window as the
     /// tune-4 A/B measured it is the protection, not slack.
     public static let commitLag: TimeInterval = 0.25
+    /// Tune 11 (T10-1, live fillers-echo10 t03): a held reply whose turn has no words yet
+    /// waits for them at most this much past when it would have played (live, the words
+    /// came after that point on 6 of 177 replies; the latest needed 0.19 s to settle).
+    public static let wordsWait: TimeInterval = 0.25
     /// She stops before sentence 4 of an ordinary reply (tune 4: live tune 3 at
     /// `minimal`, 16 of 152 replies ran to 4–5 sentences, 11 of them under a
     /// "two sentences" Length line).
@@ -266,6 +270,7 @@ public enum TurnPolicy {
         // gpt-transcribe hears a trailing "and" as "Ann", "an" or "end" and closes it
         // with a period (tune 1 F-COLL: "I was going to call my mom Ann.").
         if words.count >= 3, misheardAnd(last: last, before: before) { return .trailing }
+        if misheardAndAfterPossessive(words) { return .trailing }
         return nil
     }
 
@@ -338,11 +343,26 @@ public enum TurnPolicy {
     static func misheardAnd(last: String, before: String) -> Bool {
         switch last {
         case "an": return true
-        case "ann": return !["is", "called", "named", "it's", "i'm", "and", "aunt", "auntie", "with", "to", "for"].contains(before)
+        case "ann", "anne": return !["is", "called", "named", "it's", "i'm", "and", "aunt", "auntie", "with", "to", "for"].contains(before)
         case "end": return !["the", "an", "a", "this", "that", "no", "dead", "deep", "my", "your", "our", "their", "weekend",
                              "back", "low", "high", "front", "tail", "west", "east", "rear", "far", "other"].contains(before)
         default: return false
         }
+    }
+
+    /// Tune 11 (T10-1): the trailing "and" of "…call my mom and" came back, tunes 7–10, as
+    /// "Ann"/"Anne", "and", "an", ", then", ", man" — or not at all. "Then"/"man" right
+    /// after a possessive's noun ("call my mom, then.") is the "and"; a wrap-up ("Okay,
+    /// I'll ask my mom then.", "Fine then") is a finished sentence.
+    static let possessives: Set<String> = ["my", "your", "his", "her", "our", "their"]
+    static let wrapUps: Set<String> = ["okay", "ok", "alright", "fine", "guess", "well", "so", "bye", "see", "later"]
+
+    static func misheardAndAfterPossessive(_ words: [String]) -> Bool {
+        let n = words.count
+        guard n >= 5, ["then", "man"].contains(words[n - 1]), possessives.contains(words[n - 3]) else { return false }
+        // "That was my plan then.": a linking verb before it names, it does not go on.
+        guard !linking.contains(words[n - 4]), !["it's", "that's", "he's", "she's"].contains(words[n - 4]) else { return false }
+        return !words.contains(where: wrapUps.contains)
     }
 
     /// Whether the last sentence of `text` is a joke's set-up question that the

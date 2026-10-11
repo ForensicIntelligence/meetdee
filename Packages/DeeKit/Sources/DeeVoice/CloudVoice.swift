@@ -540,6 +540,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// Tune 10 (T9-7): items that began while her voice played with no echo
         /// cancellation (newest 16).
         var echoExposedItems: [String] = []
+        /// Tune 11 (T10-3): one-word items over her voice that her echo model says are the
+        /// user's (`oneWordIsHerEcho`; newest 16): their masked sound and the her-echo word
+        /// test no longer make them a "go on".
+        var voiceOverEchoItems: [String] = []
         /// The open response is held by `spec` (its audio is gated in the player).
         var responseGated = false
     }
@@ -640,6 +644,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         return inner.withLock { s in
             let snd = sound(itemID, s, at: t)
             if Backchannel.isMisheardFragment(text, sound: snd) { return true }
+            // Tune 11 (T10-3): a voice her echo can't explain said it — the user's, by its words.
+            if s.voiceOverEchoItems.contains(itemID) { return false }
             let kept = Backchannel.words(text).filter { !Backchannel.fillers.contains($0) }
             // A word a person says alone ("Enough.", "Pause.", "Nope.") is theirs (review).
             guard s.echoExposedItems.contains(itemID), !text.contains("?"), snd?.questionLike != true,
@@ -649,6 +655,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     }
 
     private func sound(_ item: String, _ s: Inner, at t: Double) -> FragmentSound? {
+        // Tune 11 (T10-3): their voice under her un-cancelled echo is masked; what is left
+        // of it ("Stop." as a short, flat burst) says nothing about what kind of word it was.
+        if s.voiceOverEchoItems.contains(item) { return nil }
         var until = t
         if let c = s.hold?.closedAt[item] { until = min(until, c) }
         return s.core.itemSound(itemID: item, until: until)
@@ -1095,7 +1104,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 // Settled words she never said: the user (her own words wait for
                 // the full transcript — more of them may yet come).
                 guard let pending = s.wordsPending[item] else { s.wordsPartial[item] = nil; continue }
-                guard !s.herWords.isHerEcho(p.text, at: t, strict: pending.strict) else { continue }
+                guard !isHerEcho(item, p.text, strict: pending.strict, &s, at: t) else { continue }
                 mark(.note, detail: "words of \(item): the user (settled)")
                 wordsDecided(item, user: true, &s)
                 // Tune 6: right after she went on, "I'm…" may be the rest of the
@@ -1515,7 +1524,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             case .userTranscript(let item, let text):
                 s.partials[item] = nil
                 if let pending = s.wordsPending[item] {
-                    let user = !s.herWords.isHerEcho(text, at: t, strict: pending.strict)
+                    let user = !isHerEcho(item, text, strict: pending.strict, &s, at: t)
                     mark(.note, detail: "words of \(item): \(user ? "the user" : "her echo")")
                     wordsDecided(item, user: user, &s)
                     if user { holdForWords(item, text: text, partialAt: nil, &s) }
@@ -1966,6 +1975,35 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         // it is the user, she would begin a new sentence over them.
         let boundary = s.sessionPlaying && s.core.deciding && s.core.pendingMayBeUser(at: graph.now)
         if graph.player.holdAtBoundary != boundary { graph.player.holdAtBoundary = boundary }
+    }
+
+    /// The words of `item`, an item left to its words (`deferToWords`), are only her echo.
+    ///
+    /// Tune 11 (T10-2b / T10-3): one word over her voice with no echo cancellation is
+    /// judged by her echo model, not by which word came back (one word can never reach the
+    /// two- or three-new-word bar, and any word can be a mishearing either way): the item's
+    /// sound her playback explains is her echo, whatever its word (live echo10 bc01: her
+    /// echo came back as "Sorry." and stopped her); a voice in it her echo can't be is the
+    /// user's, whatever its word (live echo10 c01: "Stop." came back as "Doc." and was
+    /// deleted as her echo while she talked on).
+    /// One word a person says alone to stop, call or ask her (not "sorry": T10-2b's echo).
+    static let stopsHerAlone: Set<String> = ["stop", "wait", "no", "hey", "hello", "what"]
+
+    private func isHerEcho(_ item: String, _ text: String, strict: Bool, _ s: inout Inner, at t: Double) -> Bool {
+        // Tune 11 review: never deleted on sound alone when the word stops her ("Stop.",
+        // offline l01 1.5 s in measured "explained"): the words decide it, as at 89d0c0f.
+        let one = HerWords.words(text)
+        if one.count == 1, s.echoExposedItems.contains(item),
+           let explained = s.core.echoExplains(itemID: item, at: t),
+           !(explained && Self.stopsHerAlone.contains(one[0])) {
+            if !explained, !s.voiceOverEchoItems.contains(item) {
+                s.voiceOverEchoItems.append(item)
+                if s.voiceOverEchoItems.count > 16 { s.voiceOverEchoItems.removeFirst(s.voiceOverEchoItems.count - 16) }
+                mark(.note, detail: "one word of \(item): a voice her echo can't be")
+            }
+            return explained
+        }
+        return s.herWords.isHerEcho(text, at: t, strict: strict)
     }
 
     /// An item's words decided it: the user's (the brain gets everything held
