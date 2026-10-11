@@ -408,6 +408,19 @@ exact, higher effort) while nothing of the fast reply was heard.
   not a tune-10 change: a gate-bound turn's overhead is ≈ 0.68 s − model time (commit − `commitLag` + window + re-check),
   and the model was faster (p50 0.58 vs 0.66 s).
 
+### Tune 12 (live run 20261010-180956, `tune11-live.md`)
+
+- **The split-off rest of a continuer (T11-1, fan15 c05; user decision).** "Keep going, I'm listening." came back as two
+  items, "Keep going." | "I'm with some."; the second decided on its early words and she stopped to answer it. One
+  rule for the voice's hold verdict and the brain (`goOnWords` / `earlyWords` via `CloudVoice.isHoldBackchannel`): an
+  item of the same hold that began at most `Backchannel.continuerTailGap` (0.8 s) after the end of the item before it,
+  whose words are a recognised continuer (`FloorHold.followsContinuer`), is "go on" when its own words and sound are
+  short (`Backchannel.isContinuerTail`: ≤ 1.2 s of voice, ≤ 3 words, no "?", no stop / call / question word, no
+  number, a pitch that does not rise; no sound: not a tail). Everything else stays "unsure → stop and answer": "Keep
+  going. | Wait, who made you?" and a long statement after "Keep going." are answered. The voice remembers such items
+  after the hold (`continuerTailItems`) so their full words agree.
+- **DNA v11 (T11-2).** Asked about her day, small concrete things she did or noticed; never her process (DNA.md).
+
 ## DNA delivery (DNA.md §4)
 
 `buildDNA`: `host.dnaParts(DNARequest)` (the host calls `Cortex.cue(at:)` first unless the

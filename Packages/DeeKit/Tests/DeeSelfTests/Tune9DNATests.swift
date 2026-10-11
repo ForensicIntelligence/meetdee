@@ -13,8 +13,8 @@ struct Tune9DNATests {
     /// the next one.", "Let me take a moment to settle in.") and two-message replies.
     @Test func sessionInstructionsV10() {
         let v10 = DNASessionInstructions.v10
-        #expect(DNASessionInstructions.current == v10 && DeeDNA.version == "v10")
-        #expect(DNAPrompt.sessionInstructions() == v10)
+        #expect(DNASessionInstructions.current != v10 && DeeDNA.version == "v11")
+        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v11)
         // T8-5: nothing in the stable instructions names hearing them.
         #expect(!v10.lowercased().contains("heard"), "the word that primed \"I heard you…\"")
         #expect(!v10.contains("to show you"))
@@ -38,12 +38,12 @@ struct Tune9DNATests {
         for banned in ["Maya", "Alex", "2026", "/255", "<", ">", "[", "]"] { #expect(!v10.contains(banned), "\(banned)") }
     }
 
-    /// The budget: every archetype stays within the target, header v10.
+    /// The budget: every archetype stays within the target, header v11.
     @Test func everyArchetypeStaysWithinTheBudget() {
         for a in DNAKit.all {
             let r = DNAPrompt.render(DNAAssembler.assemble(a.inputs))
             #expect(r.estimatedTokens <= DNABudget.standard.target, "\(a.name): \(r.estimatedTokens)")
-            #expect(r.text.hasPrefix("DEE DNA v10 "))
+            #expect(r.text.hasPrefix("DEE DNA v11 "))
         }
     }
 }

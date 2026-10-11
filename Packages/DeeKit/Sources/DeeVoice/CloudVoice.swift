@@ -147,6 +147,29 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// The brain said "go on" while more of the burst was still coming: she
         /// goes on once they are quiet and no item waits for its words.
         var goOn = false
+        /// Tune 12: when each item's speech began and ended (graph clock: the server's
+        /// times mapped to ours, or when it said so).
+        var starts: [String: Double] = [:]
+        var ends: [String: Double] = [:]
+
+        /// Tune 12 (live fan15 c05): `item` began at most `Backchannel.continuerTailGap`
+        /// after the end of the hold's item before it, whose words are a recognised
+        /// continuer ("Keep going." | "I'm with some."). Its own words and sound decide the
+        /// rest (`continuerTail`).
+        public func followsContinuer(_ item: String) -> Bool {
+            guard let i = items.firstIndex(of: item), !tails.contains(item), let start = starts[item],
+                  let prev = items[..<i].last(where: { !tails.contains($0) }),
+                  let end = ends[prev] ?? closedAt[prev],
+                  let w = (final[prev] ?? partial[prev])?.trimmingCharacters(in: .whitespacesAndNewlines), !w.isEmpty,
+                  Backchannel.isBackchannel(w, inHold: shortItems.contains(prev), final: false) else { return false }
+            return start - end <= Backchannel.continuerTailGap + 1e-9
+        }
+
+        /// Tune 12: `words`, said in `item`, are the split-off rest of the continuer before
+        /// it (`followsContinuer` + `Backchannel.isContinuerTail`).
+        func continuerTail(_ item: String, _ words: String, sound: FragmentSound?) -> Bool {
+            followsContinuer(item) && Backchannel.isContinuerTail(words, sound: sound)
+        }
 
         /// Items still without any words (tails aside).
         var wordless: [String] { items.filter { final[$0] == nil && partial[$0] == nil && !tails.contains($0) } }
@@ -241,7 +264,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     continue
                 }
                 allEmpty = false
-                if !Backchannel.isBackchannel(clean, inHold: shortItems.contains(item), final: isFinal, sound: sounds[item]) {
+                if !Backchannel.isBackchannel(clean, inHold: shortItems.contains(item), final: isFinal, sound: sounds[item]),
+                   !continuerTail(item, clean, sound: sounds[item]) {
                     if isFinal || partialAnswers { return .answer }
                     pendingAnswer = true                            // its full words decide
                     continue
@@ -518,6 +542,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var backchannelItems: [String] = []
         /// Items of past holds whose short burst let a hold-only continuer count.
         var shortHoldItems: [String] = []
+        /// Tune 12: items of past holds that followed a continuer (`FloorHold.followsContinuer`).
+        var continuerTailItems: [String] = []
         /// Our latest commit of a hold's burst (graph clock) and whether that hold
         /// already ended: a server tail arriving after the resume is still the burst's.
         var burstCommit: (at: Double, resumed: Bool)?
@@ -608,10 +634,16 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     ///
     /// Tune 9 (T8-1): a one-word fragment the words don't know is one only when the item
     /// sounded like a backchannel (`itemSound`).
+    ///
+    /// Tune 12 (live fan15 c05): also the split-off rest of a continuer in the same hold
+    /// (`FloorHold.followsContinuer` + `Backchannel.isContinuerTail`), as the hold decides.
     public func isHoldBackchannel(itemID: String, text: String) -> Bool {
         if Backchannel.isBackchannel(text) { return true }
         let t = graph.now
         return inner.withLock { s in
+            // Tune 12: the split-off rest of a continuer — the hold's own rule.
+            if s.hold?.followsContinuer(itemID) == true || s.continuerTailItems.contains(itemID),
+               Backchannel.isContinuerTail(text, sound: s.hold?.sounds[itemID] ?? sound(itemID, s, at: t)) { return true }
             guard Backchannel.isBackchannel(text, inHold: true, sound: sound(itemID, s, at: t)) else { return false }
             if s.hold?.shortItems.contains(itemID) == true || s.shortHoldItems.contains(itemID)
                 || s.hold?.shortBursts.contains(itemID) == true { return true }
@@ -1132,6 +1164,11 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             h.shortBursts.insert(item)
             s.hold?.shortBursts.insert(item)
         }
+        // Tune 12: items that followed a continuer stay known after the hold (their full words).
+        for item in h.items where !s.continuerTailItems.contains(item) && h.followsContinuer(item) {
+            s.continuerTailItems.append(item)
+            if s.continuerTailItems.count > 16 { s.continuerTailItems.removeFirst(s.continuerTailItems.count - 16) }
+        }
         // Words that are a continuer only in a hold: count when the burst was short.
         for item in h.items where !h.shortItems.contains(item) {
             guard let w = h.final[item] ?? h.partial[item], !Backchannel.isBackchannel(w),
@@ -1471,6 +1508,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 if s.hold != nil, s.hold?.probe != true, !s.rejected.contains(item), s.heldStarts[item] == nil {
                     // More of what they say over her: it decides the hold too.
                     s.hold?.add(item)
+                    s.hold?.starts[item] = onset ?? t
                 }
                 if s.heldStarts[item] == nil, !s.rejected.contains(item) {
                     // Not held: it is the user (for instance just after a clip she
@@ -1483,6 +1521,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 noteTail(item, end: end, at: t, &s)
                 apply(s.core.serverSpeechStopped(itemID: item, end: end, at: t), &s)
                 if s.hold?.itemID == item { s.hold?.speechStoppedAt = t }
+                if s.hold?.items.contains(item) == true { s.hold?.ends[item] = end ?? t }
                 if s.wordsPending[item] != nil {
                     s.wordsPending[item]?.events.append(e)
                     forward = false

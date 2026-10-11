@@ -213,6 +213,30 @@ public enum Backchannel {
         return fragmentEnds.contains(kept[kept.count - 1]) || (kept.count == 2 && isHum(kept[1]))
     }
 
+    /// Tune 12 (live fan15 c05: "Keep going, I'm listening." came back as "Keep going." |
+    /// "I'm with some."): the second half of a backchannel the server split off. Decision:
+    /// a short item — at most `continuerTailMaxVoiced` of their voice, at most
+    /// `continuerTailMaxWords` words (fillers aside), no "?", no stop, call or question word
+    /// (`aloneWords`), a pitch that does not rise — said right after a recognised continuer in
+    /// the same hold (`CloudVoice.FloorHold.followsContinuer`) is the rest of it. The
+    /// syllable count is not used: "I'm listening" itself has four. No sound: not a tail.
+    /// The voice's hold verdict and the brain (`CloudVoice.isHoldBackchannel`) share it.
+    public static func isContinuerTail(_ text: String, sound: FragmentSound?) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !trimmed.contains("?"), let sound,
+              sound.voiced <= continuerTailMaxVoiced + 1e-9, sound.pitchEnd != .rising else { return false }
+        let all = words(trimmed.replacingOccurrences(of: "-", with: " "))
+        guard !all.contains(where: { aloneWords.contains($0) || $0.contains(where: \.isNumber) }) else { return false }
+        return (1...continuerTailMaxWords).contains(all.filter { !fillers.contains($0) }.count)
+    }
+
+    /// Tune 12: the most voice a continuer's split-off tail has ("I'm listening" ~0.8 s).
+    public static let continuerTailMaxVoiced = 1.2
+    /// Tune 12: the most words (fillers aside) a continuer's split-off tail has.
+    public static let continuerTailMaxWords = 3
+    /// Tune 12: the tail begins at most this long after the continuer's speech ended.
+    public static let continuerTailGap = 0.8
+
     /// The last word a misheard continuer keeps.
     static let fragmentEnds: Set<String> = ["going", "goin", "on", "listening", "ahead"]
 

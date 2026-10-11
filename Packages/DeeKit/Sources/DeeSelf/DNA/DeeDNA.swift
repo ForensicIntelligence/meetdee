@@ -391,7 +391,8 @@ public struct DeeDNA: Sendable, Equatable {
     /// line, their words never said back, their question answered in the first sentence.
     /// v10 (tune 9): session instructions v10; nothing primes "I heard you", no thinking
     /// aloud anywhere in a reply, one reply per turn (never a lead-in, then a second one).
-    public static let version = "v10"
+    /// v11 (tune 12): session instructions v11; her day is small concrete things, never her process.
+    public static let version = "v11"
 
     public var turn: TurnContext
     // §1.2

@@ -1373,6 +1373,9 @@ public final class RealtimeBrain: ReplyEngine {
         guard w.count >= 3 || (w.count == 2 && TurnPolicy.startsQuestion(w)), !voice.isMisheardFragment(itemID: item, text: text),
               !TurnPolicy.endsLikeContinuer(text), !Backchannel.mayBecomeBackchannel(text), !Self.mayBecomeHoldContinuer(w),
               !TurnPolicy.isBackchannel(text), TurnPolicy.unfinished(text) != .holdOn,
+              // Tune 12 (live fan15 c05): over her voice, the voice's hold rule too — "I'm with
+              // some." right after "Keep going." is the rest of it (`isContinuerTail`).
+              !(overHerVoice(item) && isBackchannel(item, text)),
               !TurnPolicy.breaksOff(text) else { return }
         // Tune 11 review: just after her voice (not over it) the settled words still decide
         // whether the turn is over — the gate waits for them and they take the reply back

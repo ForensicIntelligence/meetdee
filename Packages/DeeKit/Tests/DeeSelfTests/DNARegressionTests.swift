@@ -200,7 +200,7 @@ import Testing
         #expect(insulted.contains("If they apologise, joke or are kind, let it soften you."))
         for a in DNAKit.all {
             let t = DNAPrompt.build(a.inputs).text
-            #expect(t.hasPrefix("DEE DNA \(DeeDNA.version) ") && DeeDNA.version == "v10")
+            #expect(t.hasPrefix("DEE DNA \(DeeDNA.version) ") && DeeDNA.version == "v11")
             #expect(Self.line(t, "Always: ")?.contains("offers to help; no preamble, your first words are the answer") == true, "\(a.name)")
         }
     }

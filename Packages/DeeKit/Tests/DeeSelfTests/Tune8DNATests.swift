@@ -13,8 +13,8 @@ struct Tune8DNATests {
     /// greeting openers 11 → 21. T7-6: interrupt answers that did not answer first.
     @Test func sessionInstructionsV9() {
         let v9 = DNASessionInstructions.v9
-        #expect(DNASessionInstructions.current != v9 && DeeDNA.version == "v10")
-        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v10)
+        #expect(DNASessionInstructions.current != v9 && DeeDNA.version == "v11")
+        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v11)
         // T7-6: their question is answered in her first sentence.
         #expect(v9.contains("When they ask you something, your first sentence answers it, plainly and directly."))
         // T7-4: never their words said back, as a hello or otherwise.
@@ -38,7 +38,7 @@ struct Tune8DNATests {
         for a in DNAKit.all {
             let r = DNAPrompt.render(DNAAssembler.assemble(a.inputs))
             #expect(r.estimatedTokens <= DNABudget.standard.target, "\(a.name): \(r.estimatedTokens)")
-            #expect(r.text.hasPrefix("DEE DNA v10 "))
+            #expect(r.text.hasPrefix("DEE DNA v11 "))
         }
     }
 }

@@ -84,14 +84,16 @@ import Testing
         try Self.check(DNASessionInstructions.v8 + "\n", file: "session-instructions.v8.txt")
         try Self.check(DNASessionInstructions.v9 + "\n", file: "session-instructions.v9.txt")
         try Self.check(DNASessionInstructions.v10 + "\n", file: "session-instructions.v10.txt")
-        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v10)
-        #expect(DeeDNA.version == "v10")
+        try Self.check(DNASessionInstructions.v11 + "\n", file: "session-instructions.v11.txt")
+        #expect(DNAPrompt.sessionInstructions() == DNASessionInstructions.v11)
+        #expect(DeeDNA.version == "v11")
         for banned in ["Maya", "2026", "October", "/255", "<", ">", "[", "]"] {
             #expect(!DNASessionInstructions.v6.contains(banned))
             #expect(!DNASessionInstructions.v7.contains(banned))
             #expect(!DNASessionInstructions.v8.contains(banned))
             #expect(!DNASessionInstructions.v9.contains(banned))
             #expect(!DNASessionInstructions.v10.contains(banned))
+            #expect(!DNASessionInstructions.v11.contains(banned))
         }
         // Tune 4: the follow-up is asked first; every sentence counts. Nothing else changed.
         #expect(DNASessionInstructions.v5.contains("An \"Ask now, first\" line is not optional: ask it in your first sentence"))
