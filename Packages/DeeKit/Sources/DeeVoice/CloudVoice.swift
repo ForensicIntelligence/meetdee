@@ -2042,7 +2042,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             }
             return explained
         }
-        return s.herWords.isHerEcho(text, at: t, strict: strict)
+        return s.herWords.isHerEcho(text, at: t, strict: strict, asks: sound(item, s, at: t)?.questionLike == true)
     }
 
     /// An item's words decided it: the user's (the brain gets everything held

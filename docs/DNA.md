@@ -50,7 +50,12 @@ now, first" line, never open with their name and a question." Every other v8 lin
 the header and trace say v9 (goldens re-recorded: those two lines only). The brain backs it up: a first sentence that only
 says their words back (`TurnPolicy.echoesTheirWords`) is taken back unheard and asked again once with `answerFirstNote`
 (trace `.echoedQuestion`); "I heard you say" is a preamble / narration; a question asked over her voice carries
-`answerFirstNote` ("your very first sentence answers it plainly").
+`answerFirstNote` ("your very first sentence answers it plainly"). Tune 13 (live interrupt-echo20 q08 "Who made you?" in tune 11 and
+all three tune-12 runs: the transcript had it right, but the model heard it only as audio with her own echo in it and
+answered her own subject): a whole, short question asked over her voice (ending in "?", at most
+`TurnPolicy.askedWordsMax` = 4 words, so never five of their words in a row in the DNA) is named in that note: "They
+asked you something, in words like “Who made you?”: your very first sentence answers it plainly; …". Longer
+questions and partials that broke off keep the plain note.
 
 **v8 (2026-10-10, tune 7)** follows the tune-6 live run (`tune6-live.md` §T6-6/T6-7/T6-8; report
 `Tools/voice-harness/Reports/20261010-035320`). Same decisions as v7. Session instructions **v8** (§3) change three

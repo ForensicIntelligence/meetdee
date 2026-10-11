@@ -515,6 +515,22 @@ public enum TurnPolicy {
     public static let answerFirstNote =
         "They asked you something: your very first sentence answers it plainly; never repeat their question back or say what you heard"
 
+    /// Tune 13 (live interrupt-echo20 q08 "Who made you?", A, B, solo and tune 11): asked over
+    /// her voice, the question reaches the model as audio with her own echo in it, and it
+    /// answered her own subject ("Ready for what, Alex? … that filing system"; "Yikes, that's a
+    /// classic … moment") although the transcript had the question right. The note names a
+    /// short, whole question in its words (ending in "?": never a partial that broke off; at most
+    /// `askedWordsMax`, under the DNA's 5-gram guard).
+    public static let askedWordsMax = 4
+
+    public static func answerFirstNote(asked text: String) -> String {
+        let shown = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let n = words(shown).count
+        guard n >= 1, n <= askedWordsMax, shown.hasSuffix("?") else { return answerFirstNote }
+        return "They asked you something, in words like \u{201C}\(shown)\u{201D}: your very first sentence answers it plainly; "
+            + "never repeat their question back or say what you heard"
+    }
+
     /// Words that ask: a "?" or a question word first ("Who made you", "Are you awake").
     public static func asks(_ text: String) -> Bool {
         text.contains("?") || startsQuestion(words(text))

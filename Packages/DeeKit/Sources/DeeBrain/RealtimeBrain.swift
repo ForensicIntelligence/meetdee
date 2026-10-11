@@ -630,12 +630,12 @@ public final class RealtimeBrain: ReplyEngine {
                 // again): she has said her reply; she stops before it.
                 secondMessages.remove(item)
                 record(.secondMessageStop)
-                stopVoice()
+                stopHerself()
             } else if tokenLimited.contains(item), !TurnPolicy.isCompleteSentence(text) {
                 // The token limit cut this sentence short: she stops before it.
                 record(.tokenLimitStop)
                 tokenLimited.remove(item)
-                stopVoice()
+                stopHerself()
             } else if narrationItems.contains(item),
                       TurnPolicy.isNarration(text) || TurnPolicy.isUnfinishedAim(text) || TurnPolicy.isAppReferral(text)
                         || TurnPolicy.isSelfReport(text)
@@ -645,7 +645,7 @@ public final class RealtimeBrain: ReplyEngine {
             } else if let id, let c = channels[id], overSentenceCap(c) {
                 // A 4th sentence of an ordinary reply: she stops before it (tune 4).
                 record(.sentenceCapStop)
-                stopVoice()
+                stopHerself()
             }
             guard let id else { return }
             if speakFirst == id { speakFirst = nil }
@@ -1680,6 +1680,15 @@ public final class RealtimeBrain: ReplyEngine {
     private func narrationReached(_ item: String) {
         narrationItems.remove(item)
         record(.preamble(cut: true))
+        stopHerself()
+    }
+
+    /// Tune 13 (T12-2): her own stop (sentence cap, second message, token limit, a
+    /// narrated sentence) is no barge-in: the cut it brings is never "cut anyway after
+    /// keep going" (live backchannel-echo20 c05: the cap 2.58 s after "Keep going." asked
+    /// for a carry-on, "Oh, okay, let's keep going…", and she never stopped talking).
+    private func stopHerself() {
+        continuedThrough = nil
         stopVoice()
     }
 
@@ -1803,9 +1812,11 @@ public final class RealtimeBrain: ReplyEngine {
         // Tune 8 (T7-6): a question asked over her voice is answered in her first sentence
         // (live: "What did you do today?" → "Ooh, I want to hear what happened with your
         // volcanoes today! As for me, …"; "Who made you?" → "Me? Nah, …").
+        // Tune 13 (q08): with the words it was asked in, when they are few.
+        let asked = text ?? utterances[item]?.text ?? partials[item]?.text ?? ""
         if kind == .reply || kind == .retry, !notes.contains(TurnPolicy.carryOnNote), !notes.contains(TurnPolicy.answerFirstNote),
-           overHerVoice(item), TurnPolicy.asks(text ?? utterances[item]?.text ?? partials[item]?.text ?? "") {
-            notes.append(TurnPolicy.answerFirstNote)
+           overHerVoice(item), TurnPolicy.asks(asked) {
+            notes.append(TurnPolicy.answerFirstNote(asked: asked))
         }
         responseIndex += 1
         let turn = TurnContext(kind: kind, index: responseIndex, mode: mode, heardReplies: heardReplies)
@@ -2107,7 +2118,7 @@ public final class RealtimeBrain: ReplyEngine {
             for item in s.itemIDs {
                 if let current = currentSentence[item], playing.contains(item), !TurnPolicy.isCompleteSentence(current) {
                     record(.tokenLimitStop)
-                    stopVoice()
+                    stopHerself()
                 } else {
                     tokenLimited.insert(item)
                 }

@@ -421,6 +421,20 @@ exact, higher effort) while nothing of the fast reply was heard.
   after the hold (`continuerTailItems`) so their full words agree.
 - **DNA v11 (T11-2).** Asked about her day, small concrete things she did or noticed; never her process (DNA.md).
 
+### Tune 13 (live runs 20261010-201149 / -205810 / -214811, `tune12-live.md`)
+
+- **Her own stop is no barge-in (T12-2, echo20 c05).** Her sentence cap, a second message, the token limit and a
+  narrated sentence stop her through `stopHerself`, which also clears `continuedThrough`: the cut they bring is never
+  "cut anyway after keep going", so no carry-on follows (live: the cap 2.58 s after "Keep going." asked for "Oh, okay,
+  let's keep going…"). A barge-in's cut still carries on as in tune 8.
+- **A question asked over her is named (q08).** The answer-first note names a whole question of at most
+  `TurnPolicy.askedWordsMax` (4) words ending in "?": "They asked you something, in words like “Who made you?”: …"
+  (the model heard it only as audio with her echo in it and answered her own subject; DNA.md, v9 notes).
+- **Her echo is a phrase of hers (T12-6, voice).** `HerWords.isHerEcho`: an item that asks ("?" or a rising sound) is
+  her echo only when all its words are hers, in her order, side by side; a short item (2–4 words) only when its words
+  match a run of hers in order (a word she never said stands for one of hers). Live: "Are you awake?" inside the
+  resume grace was deleted because "are" and "you" were somewhere in her reply.
+
 ## DNA delivery (DNA.md §4)
 
 `buildDNA`: `host.dnaParts(DNARequest)` (the host calls `Cortex.cue(at:)` first unless the
