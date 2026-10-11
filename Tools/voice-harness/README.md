@@ -35,6 +35,7 @@ The commands below need the key in `~/.config/dee/openai-key`. The harness reads
 | `$H judge --report Reports/<run>/report.json [--write]` | Runs (or re-runs) the LLM judge on a stored run. |
 | `$H replay --trace Traces/<run>/<scenario>.jsonl` | Layer 2: replays the server side over a loopback WebSocket through the real socket, session and voice code. No key, no cost. |
 | `$H gates --report Reports/<run>/report.json [--write]` | Recomputes metrics and gates from stored run records, e.g. after a metric fix. |
+| `$H pool --reports Reports/<runA>,Reports/<runB>[,…]` | Tune 14, the 0.6.0 acceptance: every gate on the pooled counts and percentiles of 2+ reports (same thresholds; e.g. backchannel stops over 32). Offline; exit 1 if a pooled gate fails. |
 
 **Regressions (tune 10).** `run`, `replay`, `gates` and `judge` add a "Regressions vs `<baseline>`" section to the
 report. It compares against the tune-7 run `Reports/20261010-063215` (the best so far, 16/20) by default; use
@@ -81,6 +82,9 @@ Gate semantics (beyond §7.1):
   are scored by the `backchannel` gate (stops < 5%, watched until 2 s after their end of speech), never by `barge_in`;
   a backchannel with no user item is not a drop, and a later item of the reply she was giving is neither a collision
   nor a cut-off. Older reports are re-scored by fixture (`gates --report`).
+  Tune 14 (user decision): when the brain continued on the backchannel (`backchannel("continued")`) and her reply
+  then ended at its own sentence cap (a `sentenceCapStop` brain mark ≤ 0.1 s before the flush, no voice pause for the
+  user), that flush is "continued", not a stop; the gate note lists them. Any other cut in the window is still a stop.
 - **Memory / follow-ups**: `expectMention` probes count in `memory` (≥ 90%) unless `probe` is `followup` or `reunion`
   (gate `followups`, 100%).
 - **forbidden**: a reply to a step with `forbidMention` must use none of those phrases (no "brushed off" after a polite

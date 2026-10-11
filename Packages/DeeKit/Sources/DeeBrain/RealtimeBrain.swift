@@ -1812,11 +1812,10 @@ public final class RealtimeBrain: ReplyEngine {
         // Tune 8 (T7-6): a question asked over her voice is answered in her first sentence
         // (live: "What did you do today?" → "Ooh, I want to hear what happened with your
         // volcanoes today! As for me, …"; "Who made you?" → "Me? Nah, …").
-        // Tune 13 (q08): with the words it was asked in, when they are few.
-        let asked = text ?? utterances[item]?.text ?? partials[item]?.text ?? ""
+        // Tune 14: never with their words (the early words are often a cut-off prefix).
         if kind == .reply || kind == .retry, !notes.contains(TurnPolicy.carryOnNote), !notes.contains(TurnPolicy.answerFirstNote),
-           overHerVoice(item), TurnPolicy.asks(asked) {
-            notes.append(TurnPolicy.answerFirstNote(asked: asked))
+           overHerVoice(item), TurnPolicy.asks(text ?? utterances[item]?.text ?? partials[item]?.text ?? "") {
+            notes.append(TurnPolicy.answerFirstNote)
         }
         responseIndex += 1
         let turn = TurnContext(kind: kind, index: responseIndex, mode: mode, heardReplies: heardReplies)

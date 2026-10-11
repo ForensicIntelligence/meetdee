@@ -38,28 +38,5 @@ import Testing
         #expect(rig.responseCreates().count == 1, "no carry-on after her own stop: \(rig.trail()) \(rig.brain.trace)")
         rig.shutdown()
     }
-
-    /// interrupt-echo20 q08 "Who made you?" over her (A 50.92, solo 54.07; Traces/20261010-201149 and
-    /// -214811): asked from its words ("Who", " made", " you", "?" just before the request) with the
-    /// answer-first note, but the model only had the audio, her echo in it, and answered her own
-    /// subject ("Ready for what, Alex? … that filing system"). A short question is named in the note.
-    @Test func liveEcho20Q08AShortQuestionOverHerIsNamedInTheNote() async throws {
-        let rig = try await BrainRig()
-        try await rig.start()
-        await T7.overHer(rig, "item_q")
-        T2.delta(rig, "item_q", "Who made you?")                             // live: 4 deltas in 14 ms
-        #expect(await rig.until { rig.responseCreates().count == 2 }, "\(rig.trail())")
-        let dnaID = try #require(rig.trail().last { $0.hasPrefix("dna:") }).dropFirst(4)
-        let dna = try #require(rig.dnaText(String(dnaID)))
-        #expect(dna.contains("Keep in mind: They asked you something, in words like \u{201C}Who made you?\u{201D}: your very first sentence answers it plainly"), "\(dna)")
-        rig.shutdown()
-    }
-
-    /// Only a few words are ever named (the DNA never holds five of theirs in a row).
-    @Test func theAnswerFirstNoteNamesOnlyAShortQuestion() {
-        #expect(TurnPolicy.answerFirstNote(asked: "Are you awake?").contains("\u{201C}Are you awake?\u{201D}"))
-        #expect(TurnPolicy.answerFirstNote(asked: "What did you do today?") == TurnPolicy.answerFirstNote)
-        #expect(TurnPolicy.answerFirstNote(asked: "") == TurnPolicy.answerFirstNote)
-        #expect(TurnPolicy.answerFirstNote(asked: "Who made") == TurnPolicy.answerFirstNote, "a partial that broke off")
-    }
+    // The tune-13 named answer-first note (q08) was removed in tune 14: Tune14BrainTests.
 }

@@ -15,6 +15,7 @@ import HarnessRunner
 //   voice-harness gates    --report Reports/<run>/report.json [--write]
 //   (run / replay / gates / judge: [--baseline Reports/<run>/report.json | --no-baseline], default tune 7)
 //   voice-harness judge    --report Reports/<run>/report.json [--judge-model M] [--write]
+//   voice-harness pool     --reports Reports/<runA>,Reports/<runB>[,…]   (gates on pooled counts; offline)
 //
 // Exit codes: 0 all gates pass · 1 a gate failed · 2 usage / setup error · 3 aborted (spend cap, no connection).
 
@@ -325,9 +326,37 @@ func main() async -> Int32 {
             }
             return report.failed ? 1 : 0
 
+        case "pool":
+            // Tune 14: 0.6.0 acceptance — every gate on the pooled counts / percentiles of
+            // 2+ consecutive full runs (same thresholds). Offline: reads the reports only.
+            let paths = (args.flags["reports"] ?? "").split(separator: ",").map(String.init).filter { !$0.isEmpty }
+            guard paths.count >= 2 else { throw HarnessError("pool needs --reports A,B[,…] (2+ report dirs or report.json files)") }
+            let d = JSONDecoder()
+            d.nonConformingFloatDecodingStrategy = .convertFromString(positiveInfinity: "inf", negativeInfinity: "-inf", nan: "nan")
+            var sources: [Pool.Source] = []
+            for p in paths {
+                var url = p.hasPrefix("/") ? URL(fileURLWithPath: p) : toolRoot.appendingPathComponent(p)
+                if url.pathExtension != "json" { url = url.appendingPathComponent("report.json") }
+                let r = try d.decode(StoredReport.self, from: Data(contentsOf: url))
+                sources.append(Pool.Source(id: r.runID, model: r.model, aborted: r.aborted, runs: r.runs, judge: r.judge))
+            }
+            let pooled = Pool.evaluate(sources)
+            print("pooled \(sources.count) reports: " + sources.map { "\($0.id) (\($0.runs.count) runs)" }.joined(separator: ", "))
+            for s in sources where s.aborted != nil { print("WARN  \(s.id) aborted: \(s.aborted!)") }
+            if pooled.judged < sources.count { print("WARN  judge: \(pooled.judged) of \(sources.count) reports judged") }
+            for g in pooled.gates {
+                print(String(format: "%-5@ %-20@ %@  (target %@, n=%d)", g.status.rawValue, g.id, g.value, g.target, g.n)
+                      + (g.note.map { "\n      \($0)" } ?? ""))
+            }
+            let aborted = sources.contains { $0.aborted != nil }
+            let failed = pooled.failed || aborted
+            print("pooled verdict \(failed ? "FAIL" : "PASS"): \(pooled.gates.filter { $0.status == .pass }.count) pass, "
+                  + "\(pooled.gates.filter { $0.status == .fail }.count) fail, \(pooled.gates.filter { $0.status == .skip }.count) skip")
+            return failed ? 1 : 0
+
         default:
             print("""
-            usage: voice-harness fixtures|suite|validate|run|replay|gates|judge [options]
+            usage: voice-harness fixtures|suite|validate|run|replay|gates|judge|pool [options]
               fixtures  [--force] [--only id,id] [--max-usd 0.50]
               suite     [--write]
               validate  --scenarios FILE
@@ -338,6 +367,7 @@ func main() async -> Int32 {
               gates     --report Reports/<run>/report.json [--write]
               (run, replay, gates, judge: --baseline Reports/<run>/report.json | --no-baseline; default the tune-7 run)
               judge     --report Reports/<run>/report.json [--judge-model M] [--judge-max-usd 0.50] [--write]
+              pool      --reports Reports/<runA>,Reports/<runB>[,…]   (every gate on the pooled counts; offline)
             """)
             return args.command == "help" ? 0 : 2
         }

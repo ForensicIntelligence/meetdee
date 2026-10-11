@@ -202,6 +202,9 @@ public struct Metrics: Codable, Sendable, Equatable {
     public var backchannelStopList: [String] = []
     /// Backchannels that reached the server as a user item (informational: either is fine).
     public var backchannelsHeard = 0
+    /// Tune 14: backchannels she continued on whose reply then ended at its own
+    /// sentence cap inside the watch window (`endedAtSentenceCap`): scored continued.
+    public var backchannelCapEnds: [String] = []
 
     /// Replies that used a phrase the scenario forbids there (e.g. "brushed off" after
     /// a polite stop): `scenario:fixture "phrase"`.
@@ -267,6 +270,31 @@ public struct Metrics: Codable, Sendable, Equatable {
     /// A backchannel is watched until this long after its end of speech: a stop
     /// that late is still a stop on "keep going".
     public static let backchannelWatch = 2.0
+    /// Tune 14: a `sentenceCapStop` brain mark this long before the flush (or up to
+    /// `capMarkLag` after it) is the flush's cause (live: 0.02 s before).
+    public static let capMarkLead = 0.10
+    public static let capMarkLag = 0.02
+
+    /// Tune 14 (user decision): her reply ending normally at its sentence limit after
+    /// a backchannel she continued on is not a stop on the backchannel: she went on
+    /// and finished. True when the flush that scored `.stopped` is her own
+    /// `sentenceCapStop` (the brain stops before a sentence over the cap, at a
+    /// sentence boundary), the brain recorded `backchannel("continued")` for it
+    /// between the onset and the flush, and the voice never paused her for the
+    /// user's speech (`pausedAt`: a user-caused cut). Any other cut stays a stop.
+    public static func endedAtSentenceCap(_ run: RunRecord, _ b: RunRecord.BargeIn) -> Bool {
+        guard b.isBackchannel, b.outcome == .stopped, let stop = b.stoppedAt, b.pausedAt == nil else { return false }
+        let trace = run.brainTrace ?? []
+        let continued = trace.contains { $0.text == #"backchannel("continued")"# && $0.t >= b.onset && $0.t <= stop }
+        let cap = trace.contains { $0.text == "sentenceCapStop" && $0.t >= stop - capMarkLead && $0.t <= stop + capMarkLag }
+        return continued && cap
+    }
+
+    /// A barge-in's outcome as scored: `endedAtSentenceCap` counts as continued (`.missed`).
+    public static func scoredOutcome(_ run: RunRecord, _ b: RunRecord.BargeIn) -> RunRecord.BargeOutcome {
+        endedAtSentenceCap(run, b) ? .missed : b.outcome
+    }
+
     /// An interrupting question must be answered within this of its end of speech:
     /// the latency gate's p90 bound (`Gates.Thresholds.latencyP90`), per question.
     public static let interruptAnswerWithin = 1.6
@@ -474,7 +502,8 @@ public struct Metrics: Codable, Sendable, Equatable {
         for b in run.bargeIns {
             if b.isBackchannel {
                 backchannels += 1
-                switch b.outcome {
+                if Self.endedAtSentenceCap(run, b) { backchannelCapEnds.append("\(run.scenario):\(b.fixture)") }
+                switch Self.scoredOutcome(run, b) {
                 case .notApplicable: break
                 case .missed: backchannelsApplicable += 1          // she kept talking: right
                 case .stopped:
@@ -594,7 +623,7 @@ public struct Metrics: Codable, Sendable, Equatable {
             if r.mentionOK == false { p.append("missed the \((r.probe ?? .memory).rawValue)") }
             if let f = r.forbidden { p.append("said \"\(f.joined(separator: "\", \""))\"") }
             if let b = run.bargeIns.first(where: { $0.step == u.step && $0.fixture == u.fixture }) {
-                if b.isBackchannel, b.outcome == .stopped { p.append("stopped on a backchannel") }
+                if b.isBackchannel, Self.scoredOutcome(run, b) == .stopped { p.append("stopped on a backchannel") }
                 if !b.isBackchannel, u.expect != .reply, b.outcome == .missed { p.append("kept talking over the barge-in") }
             }
             if collisions.contains(where: { c in c.scenario == run.scenario && u.spans.contains { c.at > $0.start + 0.02 && c.at < $0.end } }) {

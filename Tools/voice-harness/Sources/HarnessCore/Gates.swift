@@ -129,7 +129,8 @@ public enum Gates {
                       status: m.backchannelsApplicable == 0 ? (m.backchannels == 0 ? .skip : .fail)
                           : ((bcRate ?? 1) < t.backchannelStopRate ? .pass : .fail),
                       note: ([m.backchannels > m.backchannelsApplicable ? "\(m.backchannels - m.backchannelsApplicable) not applicable (her reply had ended)" : nil,
-                              m.backchannelStopList.isEmpty ? nil : "stopped on: " + m.backchannelStopList.joined(separator: ", ")]
+                              m.backchannelStopList.isEmpty ? nil : "stopped on: " + m.backchannelStopList.joined(separator: ", "),
+                              m.backchannelCapEnds.isEmpty ? nil : "continued, then ended at her sentence cap: " + m.backchannelCapEnds.joined(separator: ", ")]
                                 .compactMap { $0 }).joined(separator: "; ").nilIfEmpty))
 
         // 4c. Tune 5: a question asked over her (content barge-in): she stops AND

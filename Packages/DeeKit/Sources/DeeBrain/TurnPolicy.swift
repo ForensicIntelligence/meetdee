@@ -515,21 +515,11 @@ public enum TurnPolicy {
     public static let answerFirstNote =
         "They asked you something: your very first sentence answers it plainly; never repeat their question back or say what you heard"
 
-    /// Tune 13 (live interrupt-echo20 q08 "Who made you?", A, B, solo and tune 11): asked over
-    /// her voice, the question reaches the model as audio with her own echo in it, and it
-    /// answered her own subject ("Ready for what, Alex? … that filing system"; "Yikes, that's a
-    /// classic … moment") although the transcript had the question right. The note names a
-    /// short, whole question in its words (ending in "?": never a partial that broke off; at most
-    /// `askedWordsMax`, under the DNA's 5-gram guard).
-    public static let askedWordsMax = 4
-
-    public static func answerFirstNote(asked text: String) -> String {
-        let shown = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let n = words(shown).count
-        guard n >= 1, n <= askedWordsMax, shown.hasSuffix("?") else { return answerFirstNote }
-        return "They asked you something, in words like \u{201C}\(shown)\u{201D}: your very first sentence answers it plainly; "
-            + "never repeat their question back or say what you heard"
-    }
+    /// Tune 14: the tune-13 named form of this note ("…, in words like “Who made you?”: …") is
+    /// gone. Its "?" never arrives before the early-words request (0 of 39 live notes named a
+    /// question), and the words at that moment are a cut-off prefix in 18 of 44 eligible
+    /// requests ("Do you like", "Who made", "Can you hear", "What did you") or misheard ("Who
+    /// hate you"): naming those over her voice would hand the model the wrong question.
 
     /// Words that ask: a "?" or a question word first ("Who made you", "Are you awake").
     public static func asks(_ text: String) -> Bool {
@@ -579,6 +569,13 @@ public enum TurnPolicy {
         ["give", "me", "a", "sec"], ["give", "me", "a", "minute"], ["let", "me", "settle"], ["let", "me", "mull"],
         ["let", "me", "ponder"], ["let", "me", "work", "this", "out"], ["let", "me", "work", "it", "out"],
         ["thinking", "this", "through"], ["let", "me", "gather", "my", "thoughts"],
+        // Tune 14 (T13-5, live fillers-echo10 k08 "Okay, let's think this through."): the
+        // "let's" form, thinking aloud about the thinking only ("Ooh, let's go!" and "Let's
+        // think of a name together" stay answers; "…pause and think this through." is advice).
+        ["let's", "think", "this"], ["let's", "think", "it"], ["let's", "think", "through"], ["let's", "think", "how"],
+        ["let's", "think", "what"], ["let's", "think", "about", "how"], ["let's", "think", "about", "what"],
+        ["let's", "think", "about", "this"], ["let's", "think", "about", "that"], ["let's", "think", "about", "it"],
+        ["let", "us", "think"],
     ]
 
     /// Whether the first words of a reply (`prefix`, its transcript so far) are a

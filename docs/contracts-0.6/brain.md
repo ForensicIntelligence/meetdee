@@ -427,13 +427,20 @@ exact, higher effort) while nothing of the fast reply was heard.
   narrated sentence stop her through `stopHerself`, which also clears `continuedThrough`: the cut they bring is never
   "cut anyway after keep going", so no carry-on follows (live: the cap 2.58 s after "Keep going." asked for "Oh, okay,
   let's keep going…"). A barge-in's cut still carries on as in tune 8.
-- **A question asked over her is named (q08).** The answer-first note names a whole question of at most
-  `TurnPolicy.askedWordsMax` (4) words ending in "?": "They asked you something, in words like “Who made you?”: …"
-  (the model heard it only as audio with her echo in it and answered her own subject; DNA.md, v9 notes).
+- **A question asked over her is named (q08).** Removed in tune 14 (below).
 - **Her echo is a phrase of hers (T12-6, voice).** `HerWords.isHerEcho`: an item that asks ("?" or a rising sound) is
   her echo only when all its words are hers, in her order, side by side; a short item (2–4 words) only when its words
   match a run of hers in order (a word she never said stands for one of hers). Live: "Are you awake?" inside the
   resume grace was deleted because "are" and "you" were somewhere in her reply.
+
+### Tune 14 (live run 20261010-224809, `tune13-live.md`)
+
+- **The answer-first note is plain again.** The tune-13 named form never fired live (the early-words request is made
+  before the "?" delta), and the words at request time were a cut-off prefix in 18 of 44 eligible requests, or misheard:
+  `TurnPolicy.answerFirstNote(asked:)` and `askedWordsMax` are gone; the note never carries their words.
+- **"Let's think this through." is thinking aloud.** `thinkingAloudPatterns` gains the "let's"/"let us" forms about the
+  thinking itself, so they are taken back in the first sentence (unheard) and stopped before in a later one, like
+  "let me think" (tune 9). Invitations ("Ooh, let's go!", "Let's think of a name together!") are not.
 
 ## DNA delivery (DNA.md §4)
 
