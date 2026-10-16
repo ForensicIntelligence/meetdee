@@ -1,6 +1,7 @@
 import AVFAudio
 import DeeRealtime
 import DeeVoice
+import DeeWake
 import Foundation
 import HarnessCore
 import Synchronization
@@ -38,6 +39,42 @@ public enum HarnessConnection: Sendable {
     case local(endpoint: URL)
     /// Anything else (tests: a `FakeSocketFactory`).
     case custom(credentials: RealtimeCredentialProvider, socketFactory: RealtimeSocketFactory)
+    /// 0.6 mode 1 with every call taped (W2/W3): the key, the real network.
+    case openAI(key: String, ttlSeconds: Int)
+    /// 0.6 provider modes (`--provider lan-brain|lan`, or a mock / failing network in
+    /// tests): built by the runner on a taped transport (`TransportTape`).
+    case provider(HarnessProviderBuilder)
+}
+
+/// Builds a provider's session parts on the transport the runner hands it (taped).
+public struct HarnessProviderBuilder: Sendable {
+    /// `ProviderMode.rawValue` (`openAI`, `lanBrainOpenAIVoice`, `lanEverything`).
+    public var mode: String
+    /// - Parameters: the tape to build every Transport on; the brain's session config
+    ///   (`base`, after `HarnessBrain.configure`); the wake phrase (a hearing keyword).
+    public var build: @Sendable (_ tape: TransportTape, _ base: RealtimeSessionConfig, _ phrase: String) throws -> HarnessProvider
+    public init(mode: String, build: @escaping @Sendable (TransportTape, RealtimeSessionConfig, String) throws -> HarnessProvider) {
+        self.mode = mode; self.build = build
+    }
+}
+
+/// What a provider gives the runner's session (from `DeeLocal.ProviderRuntime`).
+public struct HarnessProvider: Sendable {
+    public var sessionConfig: RealtimeSessionConfig
+    public var credentials: RealtimeCredentialProvider
+    public var socketFactory: RealtimeSocketFactory
+    /// EarCore's per-frame voice evidence, shared with CloudVoice (mode 3 turn detection).
+    public var uplink: UplinkActivity?
+    /// Local-mode measurements (chat requests, TTFT, gaps…) read at teardown.
+    public var stats: (@Sendable () async -> [String: Double])?
+    /// Provider problems (hearing, chat, voice), noted in the run record.
+    public var problems: AsyncStream<String>?
+    public init(sessionConfig: RealtimeSessionConfig, credentials: @escaping RealtimeCredentialProvider,
+                socketFactory: @escaping RealtimeSocketFactory, uplink: UplinkActivity? = nil,
+                stats: (@Sendable () async -> [String: Double])? = nil, problems: AsyncStream<String>? = nil) {
+        self.sessionConfig = sessionConfig; self.credentials = credentials; self.socketFactory = socketFactory
+        self.uplink = uplink; self.stats = stats; self.problems = problems
+    }
 }
 
 public struct RunnerOptions: Sendable {
@@ -57,6 +94,14 @@ public struct RunnerOptions: Sendable {
     /// Longest wait for the room to go quiet after a step.
     public var quietTimeout = 30.0
     public var log: (@Sendable (String) -> Void)?
+    /// 0.6 `--wake`: `.alwaysOpen` (default, the tune2 baseline: never DORMANT, asserted)
+    /// or `.phrase` (DORMANT until the on-device ear hears `wakePhrase`).
+    public var wake: WakeMode = .alwaysOpen
+    public var wakePhrase = WakeSuite.defaultPhrase
+    /// The ear for `.phrase` (default: the real on-device `OnDeviceWakeEar`).
+    public var makeEar: (@Sendable () -> any WakeEar)?
+    /// Phrase mode: longest wait for the ear to be listening before the run starts.
+    public var earTimeout = 15.0
 
     public init() {}
 }
@@ -183,6 +228,11 @@ public final class ScenarioRunner: @unchecked Sendable {
     private var tearingDown = false
     private var timeline = TurnTimeline()
     private let loop = AudioLoop()
+    /// Every outbound call, on the harness clock.
+    public let tape = TransportTape()
+    private var ear: (any WakeEar)?
+    private var providerStats: (@Sendable () async -> [String: Double])?
+    private var uplinkActivity: UplinkActivity?
 
     public init(scenario: Scenario, library: FixtureLibrary, connection: HarnessConnection, brain: any HarnessBrain,
                 spend: SpendGuard, options: RunnerOptions) {
@@ -253,10 +303,36 @@ public final class ScenarioRunner: @unchecked Sendable {
             trace = try TraceRecorder(fileURL: url)
             record.traceFile = url.path
         }
+        tape.setClock { [weak self] in self?.now ?? 0 }
+        record.wakeMode = options.wake.rawValue
+        record.dormantTransitions = 0
         switch connection {
         case .live(let auth):
             session = RealtimeSession(config: config, auth: auth, socketFactory: wrap(URLSessionRealtimeSocket.factory()),
                                       trace: trace)
+        case .openAI(let key, let ttl):
+            let transport = tape.wrap(Transport.live(redirects: .sameHost))
+            let auth = KeyFile.auth(key: key, ttlSeconds: ttl, transport: transport.fetch)
+            record.provider = "openAI"
+            session = RealtimeSession(config: config, auth: auth, socketFactory: wrap(transport.socketFactory), trace: trace)
+        case .provider(let builder):
+            if let r = scenario.session?.rolloverAfter { config.rolloverAfter = r }
+            let p = try builder.build(tape, config, scenario.wake?.text ?? options.wakePhrase)
+            config = p.sessionConfig
+            record.provider = builder.mode
+            providerStats = p.stats
+            uplinkActivity = p.uplink
+            if let problems = p.problems {
+                Task { [weak self] in
+                    for await m in problems {
+                        guard let self else { return }
+                        let t = self.now
+                        self.locked { self.record.errors.append(.init(t: t, text: "provider: \(Redact.secrets(m))")) }
+                        self.log("provider problem: \(m)")
+                    }
+                }
+            }
+            session = RealtimeSession(config: config, credentials: p.credentials, socketFactory: wrap(p.socketFactory), trace: trace)
         case .local(let endpoint):
             config.endpoint = endpoint
             session = RealtimeSession(config: config, credentials: { _ in .direct("sk-local-replay-no-key") },
@@ -267,8 +343,26 @@ public final class ScenarioRunner: @unchecked Sendable {
         var vc = CloudVoice.Configuration()
         vc.autoTick = false
         vc.classifySounds = options.classifySounds
+        vc.startsDormant = options.wake == .phrase
+        if let u = uplinkActivity { vc.uplinkActivity = u }
         timeline = TurnTimeline()
         voice = CloudVoice(session: session, graph: graph, clips: nil, timeline: timeline, configuration: vc)
+        if options.wake == .phrase {
+            guard brain.supportsWake else { throw HarnessError("--wake phrase needs the realtime brain (\(brain.name) has no window)") }
+            let ear = options.makeEar?() ?? OnDeviceWakeEar(requireAuthorization: false)
+            self.ear = ear
+            voice.addMicSink { pcm, frame in ear.consume(pcm, captureFrame24k: frame) }
+        }
+        // The single consumer of `awakeStates`: counts DORMANT transitions (always-open
+        // asserts 0) and hands them to the brain's window (phrase mode).
+        let awake = voice.awakeStates
+        let brainForStates = brain
+        Task { [weak self] in
+            for await st in awake {
+                self?.awakeState(st)
+                await brainForStates.voiceState(st)
+            }
+        }
 
         graph.player.addObserver { [weak self] e in self?.playerEvent(e) }
         let voiceEvents = voice.events
@@ -331,17 +425,54 @@ public final class ScenarioRunner: @unchecked Sendable {
                 list.append(.init(t: t, text: entry))
                 self.record.brainTrace = list
             }
-        })
+        }, wake: { [weak self] e in self?.wakeEvent(e) })
         await brain.attach(voice: voice, log: brainLog)
         await brain.setTurnInstructions(scenario.instructions)
         await brain.start()
         await voice.start()
+        if options.wake == .phrase, let ear {
+            // DORMANT: nothing connects; only the on-device ear listens (W1/W2).
+            let phrase = try WakePhrase(validating: scenario.wake?.text ?? options.wakePhrase)
+            let graph = self.graph!, voice = self.voice!
+            let busy: @Sendable () -> Busy = { [weak self] in
+                guard let self else { return .idle }
+                let reply = self.locked { self.openResponses > 0 } || graph.player.isBusy
+                return Busy(replyOutstanding: reply, someoneTalking: voice.userIsSpeaking)
+            }
+            await brain.startWake(HarnessWakeConfig(phrase: phrase, ear: ear, clock: { graph.now }, busy: busy))
+            let listening = await waitUntil(timeout: options.earTimeout) { (ear as? OnDeviceWakeEar)?.isListening ?? true }
+            guard listening else { throw HarnessError("wake ear never listened (on-device speech unavailable)") }
+            log("dormant; listening for “\(phrase.text)” on the device")
+            return
+        }
         let ok = await waitUntil(timeout: options.connectTimeout) { self.locked { self.connected } }
         guard ok else {
             let err = locked { record.errors.last?.text } ?? "timed out"
             throw HarnessError("never connected: \(err)")
         }
         log("connected")
+    }
+
+    /// `CloudVoice.awakeStates`, in order.
+    private func awakeState(_ st: CloudVoice.AwakeState) {
+        let t = now
+        locked {
+            if st == .dormant { record.dormantTransitions = (record.dormantTransitions ?? 0) + 1 }
+            var list = record.wakeEvents ?? []
+            list.append(.init(t: t, text: "voice \(st)"))
+            record.wakeEvents = list
+        }
+        if options.wake == .alwaysOpen, st == .dormant { log("ASSERT: always-open run went DORMANT") }
+    }
+
+    private func wakeEvent(_ e: String) {
+        let t = now
+        locked {
+            var list = record.wakeEvents ?? []
+            list.append(.init(t: t, text: e))
+            record.wakeEvents = list
+        }
+        log("wake: \(e)")
     }
 
     private func tearDown() async {
@@ -360,7 +491,14 @@ public final class ScenarioRunner: @unchecked Sendable {
                 record.faults = faults
             }
         }
-        locked { tearingDown = true }
+        if let stats = providerStats {
+            let st = await stats()
+            locked { record.providerStats = st }
+        }
+        locked {
+            tearingDown = true
+            record.transport = tape.records
+        }
         loop.stop()
         voice?.shutdown()
         await brain.detach()
@@ -752,6 +890,11 @@ public final class ScenarioRunner: @unchecked Sendable {
                 wireRecorder.refused(connection: c, reason: Redact.secrets(reason), at: t, record: &record)
                 lines.append("connection \(c) refused: \(reason)")
             case .frame(let c, let outgoing, let text):
+                // W2: mic audio sent before the first local wake (must be 0 in phrase mode).
+                if outgoing, options.wake == .phrase, text.contains("input_audio_buffer.append"),
+                   !(record.wakeEvents ?? []).contains(where: { $0.text == "eyesWake" }) {
+                    record.audioBytesBeforeWake = (record.audioBytesBeforeWake ?? 0) + text.utf8.count
+                }
                 signals = wireRecorder.frame(connection: c, outgoing: outgoing, text: text, at: t, events: events, record: &record)
             case .closed(let c, let code, let reason, let dropped):
                 signals = wireRecorder.closed(connection: c, code: code, reason: reason, dropped: dropped, at: t, record: &record)

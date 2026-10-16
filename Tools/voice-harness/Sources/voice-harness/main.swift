@@ -1,4 +1,5 @@
 import DeeRealtime
+import DeeWake
 import Foundation
 import HarnessCore
 import HarnessRunner
@@ -103,14 +104,15 @@ func evaluate(_ runs: [RunRecord], model: String, brain: String, maxUSD: Double,
     let metrics = Metrics.compute(runs, pricing: Pricing.forModel(model))
     // Stored verdicts get the tune-2 leak check too (judge false positives).
     var judge = judge
-    judge?.recheckLeaks()
+    judge?.rescore(runs, metrics: metrics)
     let gates = Gates.evaluate(metrics, judge: judge)
     var regressions: Regressions?
     if let base = loadBaseline(), base.runID != id {
         var baseJudge = base.judge
-        baseJudge?.recheckLeaks()
+        let baseMetrics = Metrics.compute(base.runs, pricing: Pricing.forModel(base.model))
+        baseJudge?.rescore(base.runs, metrics: baseMetrics)
         regressions = Regressions.compare(current: metrics, judge: judge,
-                                          baseline: Metrics.compute(base.runs, pricing: Pricing.forModel(base.model)),
+                                          baseline: baseMetrics,
                                           baselineJudge: baseJudge, baselineID: base.runID)
     }
     return HarnessReport(runID: id, started: started, finished: ISO8601DateFormatter().string(from: Date()),
@@ -161,7 +163,7 @@ func main() async -> Int32 {
         case "suite":
             let files: [(String, [Scenario])] = [("full.json", Suite.full()), ("dna.json", Suite.dna()),
                                                  ("fallback.json", Suite.fallback()), ("smoke-brain.json", Suite.smokeBrain()),
-                                                 ("tune2.json", Suite.tune2())]
+                                                 ("tune2.json", Suite.tune2()), ("wake.json", WakeSuite.liveScenarios())]
             let core = Set(FixtureCatalog.core.map(\.id))
             for c in Suite.conditions {
                 let used = Set(Suite.acoustic().filter { $0.name.hasSuffix("-\(c.id)") }.flatMap(\.fixtureIDs))
@@ -224,6 +226,17 @@ func main() async -> Int32 {
             let id = (args.command == "replay" ? "replay-" : "") + runID()
             let started = ISO8601DateFormatter().string(from: Date())
 
+            // 0.6: the wake mode is explicit on `run` (the tune2 baseline is `always-open`).
+            let wakeMode: WakeMode
+            if let w = args.flags["wake"] {
+                guard let m = WakeMode(rawValue: w) else { throw HarnessError("--wake must be always-open or phrase") }
+                wakeMode = m
+            } else if args.command == "replay" {
+                wakeMode = .alwaysOpen
+            } else {
+                throw HarnessError("run needs --wake always-open (the tune2 baseline) or --wake phrase (Scenarios/wake.json)")
+            }
+            let providerName = args.flags["provider"] ?? "openai"
             var scenarios: [Scenario]
             var connection: HarnessConnection
             var replayServer: TraceReplayServer?
@@ -245,6 +258,8 @@ func main() async -> Int32 {
                 logger("replaying \(entries.count) frames of \(traceURL.lastPathComponent) on port \(port)")
             } else {
                 scenarios = try loadScenarios(args, library: library)
+                let wrongMode = wakeMode.issues(scenarios)
+                if !wrongMode.isEmpty { throw HarnessError(wrongMode.joined(separator: "\n")) }
                 let projected = scenarios.reduce(0.0) { acc, s in
                     let userSeconds = s.fixtureIDs.compactMap { library.manifest.utterance($0)?.speechSeconds }.reduce(0, +)
                     return acc + pricing.projected(replies: s.userUtteranceCount + s.echoOnlyCount, userSeconds: userSeconds)
@@ -258,8 +273,15 @@ func main() async -> Int32 {
                 }
                 // Checked once up front; each scenario gets its own RealtimeAuth below
                 // (a cached ek_ secret is single-use: "ephemeral_token_already_used").
-                _ = try KeyFile.load()
-                connection = .live(KeyFile.auth(key: try KeyFile.load()))
+                switch providerName {
+                case "openai":
+                    _ = try KeyFile.load()
+                    connection = .openAI(key: try KeyFile.load(), ttlSeconds: 600)
+                case "lan-brain", "lan":
+                    connection = .provider(try await LocalProviders.prepare(providerName, flags: args.flags, log: logger))
+                default:
+                    throw HarnessError("--provider must be openai, lan-brain or lan")
+                }
                 if args.switches.contains("judge") {
                     _ = try JudgeClient(model: args.flags["judge-model"] ?? Judge.defaultModel, key: KeyFile.load())
                 }
@@ -270,7 +292,10 @@ func main() async -> Int32 {
                 try e.encode(ScenarioFile(scenarios: scenarios)).write(to: traceDir!.appendingPathComponent("scenarios.json"))
             }
 
+            var wakeFailed = false
             var options = RunnerOptions()
+            options.wake = wakeMode
+            options.wakePhrase = args.flags["wake-phrase"] ?? WakeSuite.defaultPhrase
             options.model = model
             options.traceDirectory = traceDir
             options.audioDirectory = args.flags["audio"].map { URL(fileURLWithPath: $0).appendingPathComponent(id) }
@@ -286,6 +311,9 @@ func main() async -> Int32 {
                 logger("— scenario \(s.name) (\(s.userUtteranceCount) utterances, \(s.bargeInCount) barge-ins, \(s.echoOnlyCount) echo-only, \(s.faultCount) faults)")
                 if case .live = connection {
                     connection = .live(KeyFile.auth(key: try KeyFile.load(), ttlSeconds: s.session?.secretTTL ?? 600))
+                }
+                if case .openAI = connection {
+                    connection = .openAI(key: try KeyFile.load(), ttlSeconds: s.session?.secretTTL ?? 600)
                 }
                 let runner = ScenarioRunner(scenario: s, library: library, connection: connection, brain: brain,
                                             spend: spend, options: options)
@@ -304,11 +332,26 @@ func main() async -> Int32 {
             let out = args.url("reports", default: "Reports").appendingPathComponent(id)
             try writeReport(report, to: out)
             printGates(report)
+            if wakeMode == .phrase {
+                // The live half of the wake suite: windows, latencies, W1/W2/W3 for this mode.
+                var w = WakeReport(runID: id, started: started, finished: report.finished,
+                                   engine: "live: on-device OnDeviceWakeEar + \(providerName)", pace: "realtime")
+                let mode = LocalProviders.modeName(providerName)
+                w.live = runs.map { WakeLive.result($0, metrics: report.metrics, mode: mode) }
+                w.invariants = runs.map { WakeLive.invariant($0, mode: mode, allowedHosts: LocalProviders.allowedHosts(providerName, flags: args.flags)) }
+                w.gates = WakeGates.evaluate(w)
+                try w.json().write(to: out.appendingPathComponent("wake.json"), options: .atomic)
+                try Data(WakeGates.markdown(w).utf8).write(to: out.appendingPathComponent("wake.md"), options: .atomic)
+                for g in w.gates where g.status != .skip {
+                    print(String(format: "%-5@ %-20@ %@", g.status.rawValue, g.id, g.value) + (g.note.map { "\n      \($0)" } ?? ""))
+                }
+                wakeFailed = w.failed
+            }
             print("report: \(out.path)/report.md")
             if let traceDir { print("traces: \(traceDir.path)") }
             if aborted != nil { return 3 }
             if args.command == "replay" { return 0 }      // replay checks plumbing, not the gates
-            return report.failed ? 1 : 0
+            return report.failed || wakeFailed ? 1 : 0
 
         case "gates":
             guard args.flags["report"] != nil else { throw HarnessError("gates needs --report FILE") }
@@ -324,6 +367,56 @@ func main() async -> Int32 {
                 try writeReport(report, to: args.url("report", default: "").deletingLastPathComponent())
                 print("rewrote report.md / report.json")
             }
+            return report.failed ? 1 : 0
+
+        case "wake":
+            // 0.6 wake suite. On the device only (W1): no key, no network for the on-device part.
+            let library = try FixtureLibrary(directory: args.url("fixtures", default: "Fixtures"))
+            let id = "wake-" + runID()
+            let started = ISO8601DateFormatter().string(from: Date())
+            var options = WakeBench.Options()
+            options.pace = WakeBench.Pace(rawValue: args.flags["pace"] ?? "fast") ?? .fast
+            options.log = logger
+            var availability = await WakeBench.availability()
+            if availability == .assetsMissing, !args.switches.contains("no-install") {
+                // The one-time on-device model download the app does at onboarding (never audio).
+                logger("on-device speech assets missing: installing (one-time model download, no audio)")
+                do { try await OnDeviceSpeech.installAssets(progress: { _ in }) } catch { logger("asset install failed: \(error)") }
+                availability = await WakeBench.availability()
+            }
+            let phrases = args.flags["phrases"].map { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } }
+                ?? WakeSuite.phrases
+            let conditions = args.list("conditions")
+            let only = args.list("only")
+            var report = WakeReport(runID: id, started: started, finished: "", engine: "on-device SpeechAnalyzer DictationTranscriber en-US (DeeWake.OnDeviceWakeEar, matcher thresholds .tuned)",
+                                    pace: options.pace.rawValue)
+            report.thresholds = "\(WakeMatcher.Thresholds.tuned)"
+            report.notes.append("ear availability before the run: \(availability)")
+            if availability == .ready, !args.switches.contains("no-device") {
+                let bench = WakeBench(library: library, options: options)
+                let exposureSeconds = args.double("exposure-seconds", default: WakeSuite.exposureSeconds)
+                for p in phrases {
+                    let trials = WakeSuite.trials().filter { $0.phrase == p && (conditions?.contains($0.condition) ?? true)
+                        && (only?.contains($0.fixture) ?? true) }
+                    logger("— phrase “\(p)”: \(trials.count) trials, \(WakeSuite.exposureBeds.count) beds × \(Int(exposureSeconds)) s")
+                    let r = try await bench.run(phrase: p, trials: trials, exposures: WakeSuite.exposureBeds, exposureSeconds: exposureSeconds)
+                    report.trials += r.trials
+                    report.exposures += r.exposures
+                }
+            } else {
+                report.notes.append("on-device part skipped: the ear is \(availability)")
+            }
+            report.finished = ISO8601DateFormatter().string(from: Date())
+            report.gates = WakeGates.evaluate(report)
+            let out = args.url("reports", default: "Reports").appendingPathComponent(id)
+            try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
+            try report.json().write(to: out.appendingPathComponent("wake.json"), options: .atomic)
+            try Data(WakeGates.markdown(report).utf8).write(to: out.appendingPathComponent("wake.md"), options: .atomic)
+            for g in report.gates {
+                print(String(format: "%-5@ %-20@ %@  (target %@, n=%d)", g.status.rawValue, g.id, g.value, g.target, g.n)
+                      + (g.note.map { "\n      \($0)" } ?? ""))
+            }
+            print("report: \(out.path)/wake.md")
             return report.failed ? 1 : 0
 
         case "pool":

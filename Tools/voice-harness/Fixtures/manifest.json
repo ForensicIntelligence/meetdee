@@ -1,5 +1,5 @@
 {
-  "generatedAt" : "2026-10-10T00:10:47Z",
+  "generatedAt" : "2026-10-16T19:48:06Z",
   "impulseResponses" : [
     {
       "file" : "ir/room.wav",
@@ -25,11 +25,25 @@
       "seconds" : 19.95
     },
     {
+      "file" : "noise/radio.wav",
+      "id" : "radio",
+      "levelDB" : -30.837473997125873,
+      "provenance" : "Talk radio: macOS `say` (voices Daniel, Samantha, Karen, Moira, Fred, Kathy, Reed, Flo; 16 original lines written for the harness) one voice at a time, 0.3–0.8 s gaps, 120 Hz–7 kHz, 180 s (HarnessCore Beds.radio, seed 0x4AD10). Wake-suite false-wake bed.",
+      "seconds" : 179.95
+    },
+    {
       "file" : "noise/tv.wav",
       "id" : "tv",
       "levelDB" : -29.99991919888892,
       "provenance" : "Rendered with macOS `say` (voices Daniel, Samantha, Fred, Kathy; original text written for the harness), staggered and summed, band-limited 180 Hz–5 kHz like a small TV speaker, plus a soft synthesized chord drone (HarnessCore Beds.tv, seed 0x7E1E).",
       "seconds" : 19.95
+    },
+    {
+      "file" : "noise/tvlong.wav",
+      "id" : "tvlong",
+      "levelDB" : -29.998605488468716,
+      "provenance" : "Rendered with macOS `say` (voices Daniel, Samantha, Fred, Kathy, Moira, Karen; 12 original lines written for the harness), staggered and summed like Beds.tv, 120 s (HarnessCore Beds.tv, seed 0x7E1E). Wake-suite false-wake bed.",
+      "seconds" : 119.95
     }
   ],
   "notes" : "24 kHz mono PCM16. User voices are gpt-4o-mini-tts (alloy, ash, ballad, coral, echo, sage, shimmer, verse; never Dee's marin/cedar) and macOS say. Each spoken segment is trimmed to its voiced extent (±30 ms), normalized to its style's active level, and joined with exact digital-silence pauses; 0.15 s lead, 0.4 s tail. onsetSample / endOfSpeechSample / spans come from a 10 ms energy detector on the final file (threshold max(−55 dBFS, loudest − 38 dB), gaps < 200 ms bridged).",
@@ -2063,6 +2077,1362 @@
       "style" : "soft",
       "text" : "Mm-hm.",
       "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -23.999999798807437,
+      "category" : "wake",
+      "endOfSpeechSample" : 15840,
+      "engine" : "say",
+      "file" : "utterances/wd01.wav",
+      "id" : "wd01",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 26160,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 15840,
+          "start" : 4080
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee.",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -24.000000059173093,
+      "category" : "wake",
+      "endOfSpeechSample" : 17760,
+      "engine" : "say",
+      "file" : "utterances/wd02.wav",
+      "id" : "wd02",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 28080,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17760,
+          "start" : 4080
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee.",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -23.921805403878107,
+      "category" : "wake",
+      "endOfSpeechSample" : 17520,
+      "engine" : "say",
+      "file" : "utterances/wd03.wav",
+      "id" : "wd03",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 27840,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17520,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee.",
+      "voice" : "Karen"
+    },
+    {
+      "activeLevelDB" : -23.928244784520807,
+      "category" : "wake",
+      "endOfSpeechSample" : 18000,
+      "engine" : "say",
+      "file" : "utterances/wd04.wav",
+      "id" : "wd04",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 28560,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 18000,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee!",
+      "voice" : "Flo (English (US))"
+    },
+    {
+      "activeLevelDB" : -23.99999999147611,
+      "category" : "wake",
+      "endOfSpeechSample" : 18240,
+      "engine" : "say",
+      "file" : "utterances/wd05.wav",
+      "id" : "wd05",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 28560,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 18240,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee.",
+      "voice" : "Reed (English (US))"
+    },
+    {
+      "activeLevelDB" : -23.91885346722694,
+      "category" : "wake",
+      "endOfSpeechSample" : 16800,
+      "engine" : "say",
+      "file" : "utterances/wd06.wav",
+      "id" : "wd06",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 27120,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 16800,
+          "start" : 4080
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee.",
+      "voice" : "Moira"
+    },
+    {
+      "activeLevelDB" : -23.672256050561195,
+      "category" : "wake",
+      "endOfSpeechSample" : 17040,
+      "engine" : "openai",
+      "file" : "utterances/wd07.wav",
+      "id" : "wd07",
+      "onsetSample" : 4800,
+      "sampleRate" : 24000,
+      "samples" : 27840,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17040,
+          "start" : 4800
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -31.952672153273376,
+      "category" : "wake",
+      "endOfSpeechSample" : 26400,
+      "engine" : "openai",
+      "file" : "utterances/wd08.wav",
+      "id" : "wd08",
+      "onsetSample" : 4560,
+      "sampleRate" : 24000,
+      "samples" : 36720,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 26400,
+          "start" : 4560
+        }
+      ],
+      "style" : "soft",
+      "text" : "Hey Dee.",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -17.000000017605654,
+      "category" : "wake",
+      "endOfSpeechSample" : 27120,
+      "engine" : "openai",
+      "file" : "utterances/wd09.wav",
+      "id" : "wd09",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 37440,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 27120,
+          "start" : 4320
+        }
+      ],
+      "style" : "loud",
+      "text" : "Hey Dee!",
+      "voice" : "ash"
+    },
+    {
+      "activeLevelDB" : -24.000000052476622,
+      "category" : "wake",
+      "endOfSpeechSample" : 31440,
+      "engine" : "openai",
+      "file" : "utterances/wd10.wav",
+      "id" : "wd10",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 41760,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 31440,
+          "start" : 4080
+        }
+      ],
+      "style" : "child",
+      "text" : "Hey Dee!",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -24.114381145207027,
+      "category" : "wake",
+      "endOfSpeechSample" : 31200,
+      "engine" : "openai",
+      "file" : "utterances/wd11.wav",
+      "id" : "wd11",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 41280,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 31200,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee.",
+      "voice" : "sage"
+    },
+    {
+      "activeLevelDB" : -24.000000329282216,
+      "category" : "wake",
+      "endOfSpeechSample" : 20640,
+      "engine" : "openai",
+      "file" : "utterances/wd12.wav",
+      "id" : "wd12",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 30960,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 20640,
+          "start" : 3840
+        }
+      ],
+      "style" : "fast",
+      "text" : "Hey Dee.",
+      "voice" : "verse"
+    },
+    {
+      "activeLevelDB" : -30.842015569415807,
+      "category" : "wake",
+      "endOfSpeechSample" : 27600,
+      "engine" : "openai",
+      "file" : "utterances/wd13.wav",
+      "id" : "wd13",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 45120,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 27600,
+          "start" : 4080
+        }
+      ],
+      "style" : "soft",
+      "text" : "Hey Dee.",
+      "voice" : "ballad"
+    },
+    {
+      "activeLevelDB" : -23.999999647479477,
+      "category" : "wake",
+      "endOfSpeechSample" : 24240,
+      "engine" : "openai",
+      "file" : "utterances/wd14.wav",
+      "id" : "wd14",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 34560,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 24240,
+          "start" : 4080
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee.",
+      "voice" : "echo"
+    },
+    {
+      "activeLevelDB" : -23.99999991811026,
+      "category" : "wake",
+      "endOfSpeechSample" : 49680,
+      "engine" : "openai",
+      "file" : "utterances/wq01.wav",
+      "id" : "wq01",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 60000,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 24000,
+          "start" : 4080
+        },
+        {
+          "end" : 49680,
+          "start" : 31920
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee, what time is it?",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -24.000000061592324,
+      "category" : "wake",
+      "endOfSpeechSample" : 54960,
+      "engine" : "say",
+      "file" : "utterances/wq02.wav",
+      "id" : "wq02",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 65280,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17760,
+          "start" : 4080
+        },
+        {
+          "end" : 54960,
+          "start" : 22560
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee, what's your favorite color?",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -23.93569852756312,
+      "category" : "wake",
+      "endOfSpeechSample" : 45840,
+      "engine" : "openai",
+      "file" : "utterances/wq03.wav",
+      "id" : "wq03",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 56400,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 19200,
+          "start" : 4320
+        },
+        {
+          "end" : 45840,
+          "start" : 28560
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee, are you awake?",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -23.97581824359838,
+      "category" : "wake",
+      "endOfSpeechSample" : 53760,
+      "engine" : "openai",
+      "file" : "utterances/wq04.wav",
+      "id" : "wq04",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 64320,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 23280,
+          "start" : 4320
+        },
+        {
+          "end" : 53760,
+          "start" : 29760
+        }
+      ],
+      "style" : "child",
+      "text" : "Hey Dee, do you like music?",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -24.16700452336956,
+      "category" : "wake",
+      "endOfSpeechSample" : 85440,
+      "engine" : "openai",
+      "file" : "utterances/wp01.wav",
+      "id" : "wp01",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 95040,
+      "scriptedPauses" : [
+        1
+      ],
+      "spans" : [
+        {
+          "end" : 26640,
+          "start" : 3840
+        },
+        {
+          "end" : 85440,
+          "start" : 51120
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee. Can you hear me okay?",
+      "voice" : "sage"
+    },
+    {
+      "activeLevelDB" : -24.000000027077903,
+      "category" : "wake",
+      "endOfSpeechSample" : 63840,
+      "engine" : "say",
+      "file" : "utterances/wp02.wav",
+      "id" : "wp02",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 74160,
+      "scriptedPauses" : [
+        0.8
+      ],
+      "spans" : [
+        {
+          "end" : 15840,
+          "start" : 4080
+        },
+        {
+          "end" : 63840,
+          "start" : 35760
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee. What did you do today?",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -24.000000242121963,
+      "category" : "command",
+      "endOfSpeechSample" : 44640,
+      "engine" : "openai",
+      "file" : "utterances/wc01.wav",
+      "id" : "wc01",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 54960,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 12720,
+          "start" : 4320
+        },
+        {
+          "end" : 44640,
+          "start" : 29520
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Okay, go to sleep.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -24.00000030671655,
+      "category" : "command",
+      "endOfSpeechSample" : 30720,
+      "engine" : "say",
+      "file" : "utterances/wc02.wav",
+      "id" : "wc02",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 41040,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 30720,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "That's all for now.",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -24.276816853171557,
+      "category" : "command",
+      "endOfSpeechSample" : 54000,
+      "engine" : "openai",
+      "file" : "utterances/wc03.wav",
+      "id" : "wc03",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 64320,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 22800,
+          "start" : 3840
+        },
+        {
+          "end" : 54000,
+          "start" : 30240
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Dee, stop listening.",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -23.999999985716826,
+      "category" : "wake",
+      "endOfSpeechSample" : 16800,
+      "engine" : "say",
+      "file" : "utterances/cc01.wav",
+      "id" : "cc01",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 27120,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 16800,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Computer.",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -24.00000022327719,
+      "category" : "wake",
+      "endOfSpeechSample" : 18720,
+      "engine" : "say",
+      "file" : "utterances/cc02.wav",
+      "id" : "cc02",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 29040,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 18720,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Computer.",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -23.927056863279084,
+      "category" : "wake",
+      "endOfSpeechSample" : 18480,
+      "engine" : "openai",
+      "file" : "utterances/cc03.wav",
+      "id" : "cc03",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 29040,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 18480,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Computer.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -31.999999908288828,
+      "category" : "wake",
+      "endOfSpeechSample" : 18000,
+      "engine" : "openai",
+      "file" : "utterances/cc04.wav",
+      "id" : "cc04",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 28320,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 18000,
+          "start" : 4320
+        }
+      ],
+      "style" : "soft",
+      "text" : "Computer.",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -24.00000008048297,
+      "category" : "wake",
+      "endOfSpeechSample" : 21840,
+      "engine" : "openai",
+      "file" : "utterances/cc05.wav",
+      "id" : "cc05",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 32160,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 21840,
+          "start" : 4320
+        }
+      ],
+      "style" : "fast",
+      "text" : "Computer!",
+      "voice" : "ash"
+    },
+    {
+      "activeLevelDB" : -23.99999963395656,
+      "category" : "wake",
+      "endOfSpeechSample" : 18960,
+      "engine" : "openai",
+      "file" : "utterances/cc06.wav",
+      "id" : "cc06",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 29280,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 18960,
+          "start" : 4320
+        }
+      ],
+      "style" : "child",
+      "text" : "Computer!",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -25.241246144313298,
+      "category" : "wake",
+      "endOfSpeechSample" : 55440,
+      "engine" : "openai",
+      "file" : "utterances/cq01.wav",
+      "id" : "cq01",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 65040,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 55440,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Computer, what time is it?",
+      "voice" : "sage"
+    },
+    {
+      "activeLevelDB" : -24.000000038617713,
+      "category" : "wake",
+      "endOfSpeechSample" : 17760,
+      "engine" : "say",
+      "file" : "utterances/hr01.wav",
+      "id" : "hr01",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 28080,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17760,
+          "start" : 4080
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Robo.",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -23.9375536317556,
+      "category" : "wake",
+      "endOfSpeechSample" : 20880,
+      "engine" : "say",
+      "file" : "utterances/hr02.wav",
+      "id" : "hr02",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 31200,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 20880,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Robo.",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -23.95203676690743,
+      "category" : "wake",
+      "endOfSpeechSample" : 25920,
+      "engine" : "openai",
+      "file" : "utterances/hr03.wav",
+      "id" : "hr03",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 36480,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 25920,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Robo.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -32.03676401577837,
+      "category" : "wake",
+      "endOfSpeechSample" : 32640,
+      "engine" : "openai",
+      "file" : "utterances/hr04.wav",
+      "id" : "hr04",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 42720,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 32640,
+          "start" : 4320
+        }
+      ],
+      "style" : "soft",
+      "text" : "Hey Robo.",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -23.946752585644965,
+      "category" : "wake",
+      "endOfSpeechSample" : 23520,
+      "engine" : "openai",
+      "file" : "utterances/hr05.wav",
+      "id" : "hr05",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 34080,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 23520,
+          "start" : 4080
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Robo!",
+      "voice" : "echo"
+    },
+    {
+      "activeLevelDB" : -23.84022398024203,
+      "category" : "wake",
+      "endOfSpeechSample" : 36720,
+      "engine" : "openai",
+      "file" : "utterances/hr06.wav",
+      "id" : "hr06",
+      "onsetSample" : 4560,
+      "sampleRate" : 24000,
+      "samples" : 47280,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 12960,
+          "start" : 4560
+        },
+        {
+          "end" : 36720,
+          "start" : 25920
+        }
+      ],
+      "style" : "child",
+      "text" : "Hey Robo!",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -23.999999737050125,
+      "category" : "wake",
+      "endOfSpeechSample" : 57120,
+      "engine" : "openai",
+      "file" : "utterances/hrq01.wav",
+      "id" : "hrq01",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 67440,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 23760,
+          "start" : 3840
+        },
+        {
+          "end" : 57120,
+          "start" : 35280
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Robo, tell me a joke.",
+      "voice" : "verse"
+    },
+    {
+      "activeLevelDB" : -23.99999996338575,
+      "category" : "wake",
+      "endOfSpeechSample" : 24000,
+      "engine" : "say",
+      "file" : "utterances/op01.wav",
+      "id" : "op01",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 34320,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 24000,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Okay Pixel.",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -24.000000385598717,
+      "category" : "wake",
+      "endOfSpeechSample" : 25200,
+      "engine" : "say",
+      "file" : "utterances/op02.wav",
+      "id" : "op02",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 35520,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 25200,
+          "start" : 3840
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Okay Pixel.",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -24.000000143172265,
+      "category" : "wake",
+      "endOfSpeechSample" : 25440,
+      "engine" : "openai",
+      "file" : "utterances/op03.wav",
+      "id" : "op03",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 35760,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 25440,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Okay Pixel.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -31.955661293711856,
+      "category" : "wake",
+      "endOfSpeechSample" : 42000,
+      "engine" : "openai",
+      "file" : "utterances/op04.wav",
+      "id" : "op04",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 52560,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 16800,
+          "start" : 4320
+        },
+        {
+          "end" : 42000,
+          "start" : 31200
+        }
+      ],
+      "style" : "soft",
+      "text" : "Okay Pixel.",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -24.154996001867683,
+      "category" : "wake",
+      "endOfSpeechSample" : 31440,
+      "engine" : "openai",
+      "file" : "utterances/op05.wav",
+      "id" : "op05",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 41040,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 31440,
+          "start" : 4080
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Okay Pixel.",
+      "voice" : "sage"
+    },
+    {
+      "activeLevelDB" : -24.00000002209056,
+      "category" : "wake",
+      "endOfSpeechSample" : 22320,
+      "engine" : "openai",
+      "file" : "utterances/op06.wav",
+      "id" : "op06",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 32640,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 22320,
+          "start" : 4320
+        }
+      ],
+      "style" : "child",
+      "text" : "Okay Pixel!",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -24.00000001568204,
+      "category" : "wake",
+      "endOfSpeechSample" : 52800,
+      "engine" : "openai",
+      "file" : "utterances/opq01.wav",
+      "id" : "opq01",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 63120,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 24720,
+          "start" : 4320
+        },
+        {
+          "end" : 52800,
+          "start" : 35760
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Okay Pixel, are you awake?",
+      "voice" : "ash"
+    },
+    {
+      "activeLevelDB" : -23.999999782712674,
+      "category" : "unaddressed",
+      "endOfSpeechSample" : 90960,
+      "engine" : "openai",
+      "file" : "utterances/un01.wav",
+      "id" : "un01",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 101280,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 90960,
+          "start" : 3840
+        }
+      ],
+      "style" : "neutral",
+      "text" : "My friend says that Dee is a robot who lives on my shelf.",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -24.00000035293068,
+      "category" : "unaddressed",
+      "endOfSpeechSample" : 55440,
+      "engine" : "say",
+      "file" : "utterances/un02.wav",
+      "id" : "un02",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 65760,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 55440,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "I told her the deadline was on Thursday.",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -24.000000210545736,
+      "category" : "unaddressed",
+      "endOfSpeechSample" : 70800,
+      "engine" : "openai",
+      "file" : "utterances/un03.wav",
+      "id" : "un03",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 81120,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 14400,
+          "start" : 4320
+        },
+        {
+          "end" : 70800,
+          "start" : 24720
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey, the delivery guy is at the door.",
+      "voice" : "ash"
+    },
+    {
+      "activeLevelDB" : -23.981489294191093,
+      "category" : "unaddressed",
+      "endOfSpeechSample" : 59760,
+      "engine" : "say",
+      "file" : "utterances/un04.wav",
+      "id" : "un04",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 70320,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 59760,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "The lady at the bakery gave us extra bread.",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -24.06800562854606,
+      "category" : "unaddressed",
+      "endOfSpeechSample" : 95760,
+      "engine" : "openai",
+      "file" : "utterances/un05.wav",
+      "id" : "un05",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 105360,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 95760,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "He is driving to the D C office next week.",
+      "voice" : "sage"
+    },
+    {
+      "activeLevelDB" : -23.9778016965006,
+      "category" : "unaddressed",
+      "endOfSpeechSample" : 51120,
+      "engine" : "say",
+      "file" : "utterances/un06.wav",
+      "id" : "un06",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 61440,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 51120,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey there, how have you been lately?",
+      "voice" : "Karen"
+    },
+    {
+      "activeLevelDB" : -24.00000019600136,
+      "category" : "unaddressed",
+      "endOfSpeechSample" : 96240,
+      "engine" : "openai",
+      "file" : "utterances/un07.wav",
+      "id" : "un07",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 106560,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 38640,
+          "start" : 4080
+        },
+        {
+          "end" : 96240,
+          "start" : 44160
+        }
+      ],
+      "style" : "neutral",
+      "text" : "We watched a show about an old computer museum.",
+      "voice" : "verse"
+    },
+    {
+      "activeLevelDB" : -23.999999813340143,
+      "category" : "unaddressed",
+      "endOfSpeechSample" : 81840,
+      "engine" : "openai",
+      "file" : "utterances/un08.wav",
+      "id" : "un08",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 92160,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 81840,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Okay, picture this: a tiny robot on a beach.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -23.976473913311395,
+      "category" : "unaddressed",
+      "endOfSpeechSample" : 54960,
+      "engine" : "say",
+      "file" : "utterances/un09.wav",
+      "id" : "un09",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 65280,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17520,
+          "start" : 4080
+        },
+        {
+          "end" : 54960,
+          "start" : 24240
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hey Rob, can you pass the salt?",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -24.000000215843727,
+      "category" : "unaddressed",
+      "endOfSpeechSample" : 65760,
+      "engine" : "openai",
+      "file" : "utterances/un10.wav",
+      "id" : "un10",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 76080,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 65760,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "I need to compute the total before dinner.",
+      "voice" : "echo"
+    },
+    {
+      "activeLevelDB" : -31.612098685651432,
+      "category" : "unaddressed",
+      "endOfSpeechSample" : 92640,
+      "engine" : "openai",
+      "file" : "utterances/un11.wav",
+      "id" : "un11",
+      "onsetSample" : 4560,
+      "sampleRate" : 24000,
+      "samples" : 103200,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 44160,
+          "start" : 4560
+        },
+        {
+          "end" : 92640,
+          "start" : 60480
+        }
+      ],
+      "style" : "soft",
+      "text" : "Had a hot head about it, then I hid the heater.",
+      "voice" : "ballad"
+    },
+    {
+      "activeLevelDB" : -23.982465374048772,
+      "category" : "unaddressed",
+      "endOfSpeechSample" : 70320,
+      "engine" : "say",
+      "file" : "utterances/un12.wav",
+      "id" : "un12",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 80640,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 30960,
+          "start" : 4320
+        },
+        {
+          "end" : 70320,
+          "start" : 37680
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Did you see her robe? It was the color of the sea.",
+      "voice" : "Moira"
     }
   ],
   "version" : 1

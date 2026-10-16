@@ -1,5 +1,6 @@
 import DeeRealtime
 import DeeVoice
+import DeeWake
 import Foundation
 import HarnessCore
 
@@ -37,6 +38,30 @@ public protocol HarnessBrain: AnyObject, Sendable {
     func speak(_ line: String, initiative: Bool) async -> SpeakResult?
     /// A host step (body, clock, conversation). Returns what was done.
     func perform(_ action: Scenario.HostAction) async -> String
+    /// 0.6 `--wake phrase`: drive the conversation window from the on-device `ear`
+    /// (the app's `WakeController`). Brains that can't do this leave it a no-op and the
+    /// runner refuses phrase mode for them (`supportsWake`).
+    func startWake(_ config: HarnessWakeConfig) async
+    var supportsWake: Bool { get }
+    /// The voice's `awakeStates` (the runner is their single consumer).
+    func voiceState(_ state: CloudVoice.AwakeState) async
+    func tapToTalk() async
+    /// Phrase mode: whether the window is open now (nil: always open / not supported).
+    func windowOpen() async -> Bool?
+}
+
+/// What the runner hands a brain for `--wake phrase`.
+public struct HarnessWakeConfig: Sendable {
+    public var phrase: WakePhrase
+    public var ear: any WakeEar
+    /// Harness clock (seconds rendered by the graph).
+    public var clock: @Sendable () -> TimeInterval
+    /// What keeps a window open right now (reply outstanding, someone talking, …).
+    public var busy: @Sendable () -> Busy
+    public init(phrase: WakePhrase, ear: any WakeEar, clock: @escaping @Sendable () -> TimeInterval,
+                busy: @escaping @Sendable () -> Busy) {
+        self.phrase = phrase; self.ear = ear; self.clock = clock; self.busy = busy
+    }
 }
 
 /// The outcome of `HarnessBrain.speak`.
@@ -52,6 +77,11 @@ public extension HarnessBrain {
     func start() async {}
     func speak(_ line: String, initiative: Bool) async -> SpeakResult? { nil }
     func perform(_ action: Scenario.HostAction) async -> String { "ignored (\(name) brain has no body or clock)" }
+    func startWake(_ config: HarnessWakeConfig) async {}
+    var supportsWake: Bool { false }
+    func voiceState(_ state: CloudVoice.AwakeState) async {}
+    func tapToTalk() async {}
+    func windowOpen() async -> Bool? { nil }
 }
 
 /// Lets a brain put requests and notes into the run record.
@@ -62,13 +92,17 @@ public struct HarnessLog: Sendable {
     public let sentence: (@Sendable (_ text: String, _ heard: Bool) -> Void)?
     /// A brain decision (`BrainTrace`, no text).
     public let trace: (@Sendable (_ entry: String) -> Void)?
+    /// 0.6: a wake-window event ("eyesWake", "connect resume=true", "disconnect", …).
+    public let wake: (@Sendable (_ event: String) -> Void)?
 
     public init(request: @escaping @Sendable (String, String) -> Void, note: @escaping @Sendable (String) -> Void,
-                sentence: (@Sendable (String, Bool) -> Void)? = nil, trace: (@Sendable (String) -> Void)? = nil) {
+                sentence: (@Sendable (String, Bool) -> Void)? = nil, trace: (@Sendable (String) -> Void)? = nil,
+                wake: (@Sendable (String) -> Void)? = nil) {
         self.request = request
         self.note = note
         self.sentence = sentence
         self.trace = trace
+        self.wake = wake
     }
 }
 

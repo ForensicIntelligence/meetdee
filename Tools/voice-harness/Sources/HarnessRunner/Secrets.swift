@@ -28,9 +28,9 @@ public enum KeyFile {
     }
 
     /// `RealtimeAuth` over an in-memory key store (mints `ek_` secrets like the app).
-    public static func auth(key: String, ttlSeconds: Int = 600) -> RealtimeAuth {
+    public static func auth(key: String, ttlSeconds: Int = 600, transport: HTTPFetch? = nil) -> RealtimeAuth {
         let storage = MemorySecretStorage([KeyStore.defaultAccount: key])
-        return RealtimeAuth(keyStore: KeyStore(storage: storage), ttlSeconds: ttlSeconds)
+        return RealtimeAuth(keyStore: KeyStore(storage: storage), ttlSeconds: ttlSeconds, transport: transport)
     }
 
     /// `"\(error)"` with anything secret-shaped removed.

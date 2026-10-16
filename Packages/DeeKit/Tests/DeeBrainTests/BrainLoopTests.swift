@@ -120,8 +120,8 @@ import Testing
         rig.shutdown()
     }
 
-    /// Asleep (or nobody engaged): the TV is never answered; her name is, with the
-    /// words in the DNA.
+    /// Asleep (or nobody engaged): the TV is never answered — and since v0.6 (W1) not
+    /// her name in a server transcript either: only the on-device wake ear wakes her.
     @Test func speechNotForHerIsNotAnswered() async throws {
         let rig = try await BrainRig(engaged: false)
         try await rig.start()
@@ -136,9 +136,11 @@ import Testing
 
         rig.utterance("item_u2", startMs: 4000, endMs: 5000)
         rig.push(Srv.userTranscript("item_u2", "Dee, are you awake?"))
-        #expect(await rig.until { rig.responseCreates().count == 1 })
-        #expect(rig.dnaText("dna_tagabc_1")?.contains("What it meant:") == true)
-        #expect(!rig.host.asleep, "her name woke her")
+        #expect(await rig.until { rig.host.heardLog.count == 2 })
+        await rig.settle()
+        #expect(rig.responseCreates().isEmpty, "a server transcript with her name never wakes her (W1)")
+        #expect(rig.host.heardLog.last?.verdict == .ignored)
+        #expect(rig.host.asleep && !rig.host.engaged, "nothing in a server transcript changes engagement")
         rig.shutdown()
     }
 

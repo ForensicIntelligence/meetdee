@@ -129,7 +129,32 @@ public final class RealtimeBrain: ReplyEngine {
         /// Tune 11 (T10-1): a held reply whose turn has no words yet (no delta, no
         /// transcript) waits for them at most this much past when it would have played.
         public var wordsWait: TimeInterval = TurnPolicy.wordsWait
+        /// The provider's timing profile (v0.6, set by `ProviderFactory`). `.realtime`
+        /// (mode 1) leaves every value above exactly as tuned; `init(timing:)` applies
+        /// another profile's brain-side values.
+        public private(set) var timing: TimingProfile = .realtime
         public init() {}
+
+        /// Options for a provider: today's tuned values with `timing`'s brain-side
+        /// changes — no stall re-request (a LAN model may load for 35 s and a second
+        /// request would only queue behind it), word waits scaled for a slower hearing,
+        /// and the "one sec" clip at most once per conversation window.
+        public init(timing: TimingProfile) {
+            self.init()
+            apply(timing)
+        }
+
+        public mutating func apply(_ t: TimingProfile) {
+            timing = t
+            if !t.stallRetry { stallRetryAfter = .infinity }
+            let s = t.wordWaitScale
+            guard s.isFinite, s > 0, s != 1 else { return }
+            wordsWait *= s
+            partialSettle *= s
+            exactWait *= s
+            addressWait *= s
+            overlapWait *= s
+        }
     }
 
     /// Reasoning effort for ordinary turns (thinking mode off): tune 3. Live tune 2,
@@ -171,6 +196,13 @@ public final class RealtimeBrain: ReplyEngine {
     /// first takes it back.
     private var speakFirst: Int?
     public private(set) var connected = false
+    /// The "one sec" clip played in this conversation window (`TimingProfile.slowClipOncePerWindow`).
+    private var slowClipPlayedThisWindow = false
+
+    /// A conversation window opened (v0.6 wake): per-window allowances start over.
+    public func windowOpened() {
+        slowClipPlayedThisWindow = false
+    }
 
     // Utterances the brain still has to decide about
     private struct Utterance {
@@ -2315,8 +2347,9 @@ public final class RealtimeBrain: ReplyEngine {
                 channels[id]?.slowNoted = true
                 var clip = false
                 if let sound = options.slowClip, !c.carryOn, let item = c.item, stillCurrent(item, since: c.requestedAt ?? at, channel: id),
-                   playing.isEmpty, !voice.graph.player.isBusy {
+                   playing.isEmpty, !voice.graph.player.isBusy, !(options.timing.slowClipOncePerWindow && slowClipPlayedThisWindow) {
                     clip = voice.play(sound, deferWhileUserSpeaks: true)
+                    if clip { slowClipPlayedThisWindow = true }
                 }
                 record(.slowResponse(clip: clip))
             }

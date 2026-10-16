@@ -3,7 +3,7 @@ import Foundation
 import Synchronization
 
 /// The microphone as 24 kHz mono PCM16 — what the realtime API's
-/// `input_audio_buffer.append` takes — with the last 2 s always kept, so the first
+/// `input_audio_buffer.append` takes — with the last 12 s always kept, so the first
 /// words reach the server even when they were spoken before the socket was up.
 ///
 /// Fed from the `AudioGraph` mic tap (in order, one thread at a time). While
@@ -23,8 +23,16 @@ import Synchronization
 public final class PCM16Capture: @unchecked Sendable {
     public static let sampleRate = 24_000.0
     public static let format = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: sampleRate, channels: 1, interleaved: true)!
-    /// Seconds of audio always kept for `open(preroll:)`.
+    /// The default pre-roll of `open(preroll:)` / `preroll(seconds:)` (seconds).
     public static let prerollCapacity = 2.0
+    /// Seconds of audio always kept (v0.6: 12 s, so a wake phrase recognised ~2 s
+    /// late plus a slow connect still has its onset − 0.3 s in the ring). The ring
+    /// is on the phone only: nothing of it is sent while DORMANT.
+    public static let ringSeconds = 12.0
+
+    /// Called on the tap thread with every converted chunk (24 kHz PCM16, its
+    /// capture-timeline position), in order, whether or not a stream is open.
+    public typealias ChunkSink = @Sendable (Chunk) -> Void
 
     public struct Chunk: Sendable, Equatable {
         /// Int16 LE mono samples at 24 kHz.
@@ -48,16 +56,22 @@ public final class PCM16Capture: @unchecked Sendable {
         var lastHost = 0.0
         var lastFrame: Int64 = 0
         var continuation: AsyncStream<Chunk>.Continuation?
+        var sinks: [ChunkSink] = []
     }
 
     private let state: Mutex<State>
     /// Tap-thread only (serialized by the graph's funnel); rebuilds itself when a
     /// route change changes the input format.
     private let converter = BufferConverter(target: PCM16Capture.format)
-    private let ringCapacity = Int(PCM16Capture.sampleRate * PCM16Capture.prerollCapacity)
+    private let ringCapacity = Int(PCM16Capture.sampleRate * PCM16Capture.ringSeconds)
 
     public init() {
-        state = Mutex(State(ring: [Int16](repeating: 0, count: Int(PCM16Capture.sampleRate * PCM16Capture.prerollCapacity))))
+        state = Mutex(State(ring: [Int16](repeating: 0, count: Int(PCM16Capture.sampleRate * PCM16Capture.ringSeconds))))
+    }
+
+    /// Adds a consumer of every chunk (the wake ear's feed). Never removed.
+    public func addSink(_ sink: @escaping ChunkSink) {
+        state.withLock { $0.sinks.append(sink) }
     }
 
     /// Convert and keep microphone audio. Turning it off clears the pre-roll and
@@ -88,7 +102,7 @@ public final class PCM16Capture: @unchecked Sendable {
         state.withLock { s in s.lastHost + Double(frame - s.lastFrame) / Self.sampleRate }
     }
 
-    /// The most recent `seconds` of audio (≤ 2 s) without opening a stream.
+    /// The most recent `seconds` of audio (≤ `ringSeconds`) without opening a stream.
     public func preroll(seconds: Double = PCM16Capture.prerollCapacity) -> Chunk {
         state.withLock { s in prerollChunk(&s, seconds: seconds) }
     }
@@ -145,7 +159,7 @@ public final class PCM16Capture: @unchecked Sendable {
         let data = PCM16.data(from: converted)
         let samples = PCM16.samples(data)
         let inputDuration = Double(buffer.frameLength) / max(buffer.format.sampleRate, 1)
-        let c = state.withLock { s -> (AsyncStream<Chunk>.Continuation, Chunk)? in
+        let c = state.withLock { s -> (AsyncStream<Chunk>.Continuation?, Chunk, [ChunkSink])? in
             guard s.enabled else { return nil }
             let chunk = Chunk(data: data, startFrame: s.captured, hostTime: t - inputDuration)
             for v in samples {
@@ -156,10 +170,11 @@ public final class PCM16Capture: @unchecked Sendable {
             s.captured += Int64(samples.count)
             s.lastHost = t
             s.lastFrame = s.captured
-            guard let cont = s.continuation else { return nil }
-            return (cont, chunk)
+            return (s.continuation, chunk, s.sinks)
         }
-        if let (cont, chunk) = c { cont.yield(chunk) }
+        guard let (cont, chunk, sinks) = c else { return }
+        cont?.yield(chunk)
+        for sink in sinks { sink(chunk) }
     }
 
     private func prerollChunk(_ s: inout State, seconds: Double) -> Chunk {

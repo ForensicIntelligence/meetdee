@@ -33,7 +33,7 @@ public enum VoiceProblem: Sendable, Equatable {
         case .speechUnsupported: "I can't understand words on this device."
         case .audioUnavailable: "My microphone or speaker isn't working. Trying again…"
         case .cloudVoiceUnavailable: "I can't reach my voice service. Trying again…"
-        case .cloudVoiceNeedsSetup: "My voice service needs a valid key in Settings › Dee."
+        case .cloudVoiceNeedsSetup: "My voice service needs a valid key — open my settings."
         }
     }
 

@@ -7,26 +7,35 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		12BB122548C7495354038EAE /* DeeWake in Frameworks */ = {isa = PBXBuildFile; productRef = EE0A2AA85CC5F3BB6DAFD6E5 /* DeeWake */; };
+		2AF73E602A67CFFF5B442C12 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2DF0CE7C10303CCE5D198FE /* OnboardingView.swift */; };
+		369C4E1F2E2276FF7C20C98C /* ProviderSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E4B61FB1A2F301AC556BB56 /* ProviderSetupView.swift */; };
 		3821DCF96F7A386E94238C18 /* DeeRealtime in Frameworks */ = {isa = PBXBuildFile; productRef = 35FCEA8B1BECD5682BEE4B6F /* DeeRealtime */; };
 		3BBF928D98A42263D0C1C5F2 /* DeeFace in Frameworks */ = {isa = PBXBuildFile; productRef = 5752E31FCD1D59AEF8D57DB4 /* DeeFace */; };
+		3C0A32887FD3DD0A46D22097 /* DeeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFC81261C45C667B3B1A40AA /* DeeSettingsView.swift */; };
 		3DC1EC206CB81591B54AC017 /* DeeMind in Frameworks */ = {isa = PBXBuildFile; productRef = 5581B8B759883D61DF0FE17A /* DeeMind */; };
 		42AE015202E71923D0CE0616 /* DeeMemory in Frameworks */ = {isa = PBXBuildFile; productRef = B156030922FC6F8FF7022499 /* DeeMemory */; };
 		5D40746F1073F9B889BEFD68 /* DeeSelf in Frameworks */ = {isa = PBXBuildFile; productRef = 963B183318FCA001FB84EE12 /* DeeSelf */; };
+		662A02C1AE969AC30AF0EBA4 /* DeeLocal in Frameworks */ = {isa = PBXBuildFile; productRef = B03CCE84EBC0F0BE4DDCC436 /* DeeLocal */; };
 		7569556BE796EEEF994FF20E /* People.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82EC0AB257D309D92D308629 /* People.swift */; };
 		7893D340B35D7EDC4F39E953 /* DeeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7D20323B5787F0B6D8801587 /* DeeCore */; };
+		79738F64D18738419DC0DDDA /* ConnectionTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = C36D20784B714F90FCCCEC4B /* ConnectionTest.swift */; };
 		7F139EF874840FEAD7EBB3A2 /* DeeVoice in Frameworks */ = {isa = PBXBuildFile; productRef = 30F2A8F02CA5F026FDF488F2 /* DeeVoice */; };
 		A19AB6AAE6BD1E24B5F8084C /* TouchCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE262B0632CDD3BF180DD888 /* TouchCaptureView.swift */; };
 		A329143E9DADE0DFE7350D8C /* DeeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863D83D1BDC0BF76A99DA86A /* DeeUITests.swift */; };
+		B3DF65EF06F5392CF96F2C2C /* ProviderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA49FD262B211F323A24FFEA /* ProviderStore.swift */; };
 		BB7843CACFFA0362E84BA8A2 /* DeeBrain in Frameworks */ = {isa = PBXBuildFile; productRef = 9F5E47BC94268FE26EEBBB4C /* DeeBrain */; };
 		BE35F88C1088EDC61457210E /* DeeTools in Frameworks */ = {isa = PBXBuildFile; productRef = 2702E187EA5B78DB754C799C /* DeeTools */; };
+		C104F3DE4055127280797240 /* SetupPieces.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F839102B6E693D08E66E2EF /* SetupPieces.swift */; };
 		CA543A27450A3210D2F7BB98 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD622141C5A2B09CA6A5440D /* RootView.swift */; };
 		CEF86BF9BEB9BEF882F29660 /* Fi Block Bounce Reveal.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 1CFC8FFAB45AB5AAE8551108 /* Fi Block Bounce Reveal.mp4 */; };
 		D99100C5DF53433207027D8A /* SelfDriver.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C13F486626CF27D30FA280 /* SelfDriver.swift */; };
 		DA662881A7EE9B0628E60549 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BF4A980850E9DB332F9DA317 /* Assets.xcassets */; };
 		DB91946DF1DE53AD56E8FBE8 /* DeeSense in Frameworks */ = {isa = PBXBuildFile; productRef = DA75964CE89195589F085176 /* DeeSense */; };
 		E40CFE4608B4C33908E6A695 /* Projector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B605C970042873EB5E5C0A05 /* Projector.swift */; };
-		E7141C12AF2D5858225E40D4 /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 57A0DEF1957D46F5D1B5CCC3 /* Settings.bundle */; };
 		EA9D0EE6049200AC5F18814B /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEAE5D0F6EF0544C7A12244A /* SplashView.swift */; };
+		EBBA3491946136901E374B4D /* Permissions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 407ECE2137BB7EDBD606C829 /* Permissions.swift */; };
+		FB214218FE4945BFE25C3257 /* VoiceStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FBB47104B11C803FA359C5F /* VoiceStack.swift */; };
 		FCA2F50003E9016BE45ABFD4 /* DeeModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 310EA1982BFD19DBB8E49F42 /* DeeModel.swift */; };
 		FF0FDF55F06D344F2B1C4A3F /* DeeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41F8D442E8DE0C002A99F618 /* DeeApp.swift */; };
 /* End PBXBuildFile section */
@@ -45,17 +54,24 @@
 		084B59C8EBCE197D0E83DAE2 /* DeeKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = DeeKit; path = Packages/DeeKit; sourceTree = SOURCE_ROOT; };
 		1CFC8FFAB45AB5AAE8551108 /* Fi Block Bounce Reveal.mp4 */ = {isa = PBXFileReference; path = "Fi Block Bounce Reveal.mp4"; sourceTree = "<group>"; };
 		310EA1982BFD19DBB8E49F42 /* DeeModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeModel.swift; sourceTree = "<group>"; };
+		407ECE2137BB7EDBD606C829 /* Permissions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Permissions.swift; sourceTree = "<group>"; };
 		41F8D442E8DE0C002A99F618 /* DeeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeApp.swift; sourceTree = "<group>"; };
 		56B575153F6003FC3CBF2D88 /* Dee.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Dee.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		57A0DEF1957D46F5D1B5CCC3 /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = wrapper.cfbundle; path = Settings.bundle; sourceTree = "<group>"; };
 		5F4F399DAEE1329ED89288AA /* DeeUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DeeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7FBB47104B11C803FA359C5F /* VoiceStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceStack.swift; sourceTree = "<group>"; };
 		82EC0AB257D309D92D308629 /* People.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People.swift; sourceTree = "<group>"; };
 		863D83D1BDC0BF76A99DA86A /* DeeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeUITests.swift; sourceTree = "<group>"; };
+		8E4B61FB1A2F301AC556BB56 /* ProviderSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSetupView.swift; sourceTree = "<group>"; };
+		9F839102B6E693D08E66E2EF /* SetupPieces.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupPieces.swift; sourceTree = "<group>"; };
 		AD622141C5A2B09CA6A5440D /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		AEAE5D0F6EF0544C7A12244A /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		B605C970042873EB5E5C0A05 /* Projector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Projector.swift; sourceTree = "<group>"; };
 		BE262B0632CDD3BF180DD888 /* TouchCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchCaptureView.swift; sourceTree = "<group>"; };
 		BF4A980850E9DB332F9DA317 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C36D20784B714F90FCCCEC4B /* ConnectionTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionTest.swift; sourceTree = "<group>"; };
+		CFC81261C45C667B3B1A40AA /* DeeSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeSettingsView.swift; sourceTree = "<group>"; };
+		D2DF0CE7C10303CCE5D198FE /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		DA49FD262B211F323A24FFEA /* ProviderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderStore.swift; sourceTree = "<group>"; };
 		E5C13F486626CF27D30FA280 /* SelfDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfDriver.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -74,6 +90,8 @@
 				5D40746F1073F9B889BEFD68 /* DeeSelf in Frameworks */,
 				3821DCF96F7A386E94238C18 /* DeeRealtime in Frameworks */,
 				BB7843CACFFA0362E84BA8A2 /* DeeBrain in Frameworks */,
+				12BB122548C7495354038EAE /* DeeWake in Frameworks */,
+				662A02C1AE969AC30AF0EBA4 /* DeeLocal in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -86,6 +104,18 @@
 				BF4A980850E9DB332F9DA317 /* Assets.xcassets */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		10838E4461EA452DEA11C558 /* Setup */ = {
+			isa = PBXGroup;
+			children = (
+				C36D20784B714F90FCCCEC4B /* ConnectionTest.swift */,
+				CFC81261C45C667B3B1A40AA /* DeeSettingsView.swift */,
+				D2DF0CE7C10303CCE5D198FE /* OnboardingView.swift */,
+				8E4B61FB1A2F301AC556BB56 /* ProviderSetupView.swift */,
+				9F839102B6E693D08E66E2EF /* SetupPieces.swift */,
+			);
+			path = Setup;
 			sourceTree = "<group>";
 		};
 		73478D6392559C77925A68CA /* Products */ = {
@@ -111,7 +141,6 @@
 		A17A92CB381F415805EC20AC /* App */ = {
 			isa = PBXGroup;
 			children = (
-				57A0DEF1957D46F5D1B5CCC3 /* Settings.bundle */,
 				0577EEDD01DDEA5B6B6CC154 /* Resources */,
 				DD8093ECCF8590ADA0BBC24E /* Sources */,
 			);
@@ -140,11 +169,15 @@
 				41F8D442E8DE0C002A99F618 /* DeeApp.swift */,
 				310EA1982BFD19DBB8E49F42 /* DeeModel.swift */,
 				82EC0AB257D309D92D308629 /* People.swift */,
+				407ECE2137BB7EDBD606C829 /* Permissions.swift */,
 				B605C970042873EB5E5C0A05 /* Projector.swift */,
+				DA49FD262B211F323A24FFEA /* ProviderStore.swift */,
 				AD622141C5A2B09CA6A5440D /* RootView.swift */,
 				E5C13F486626CF27D30FA280 /* SelfDriver.swift */,
 				AEAE5D0F6EF0544C7A12244A /* SplashView.swift */,
 				BE262B0632CDD3BF180DD888 /* TouchCaptureView.swift */,
+				7FBB47104B11C803FA359C5F /* VoiceStack.swift */,
+				10838E4461EA452DEA11C558 /* Setup */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -176,6 +209,8 @@
 				963B183318FCA001FB84EE12 /* DeeSelf */,
 				35FCEA8B1BECD5682BEE4B6F /* DeeRealtime */,
 				9F5E47BC94268FE26EEBBB4C /* DeeBrain */,
+				EE0A2AA85CC5F3BB6DAFD6E5 /* DeeWake */,
+				B03CCE84EBC0F0BE4DDCC436 /* DeeLocal */,
 			);
 			productName = Dee;
 			productReference = 56B575153F6003FC3CBF2D88 /* Dee.app */;
@@ -249,7 +284,6 @@
 			files = (
 				DA662881A7EE9B0628E60549 /* Assets.xcassets in Resources */,
 				CEF86BF9BEB9BEF882F29660 /* Fi Block Bounce Reveal.mp4 in Resources */,
-				E7141C12AF2D5858225E40D4 /* Settings.bundle in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -268,14 +302,22 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				79738F64D18738419DC0DDDA /* ConnectionTest.swift in Sources */,
 				FF0FDF55F06D344F2B1C4A3F /* DeeApp.swift in Sources */,
 				FCA2F50003E9016BE45ABFD4 /* DeeModel.swift in Sources */,
+				3C0A32887FD3DD0A46D22097 /* DeeSettingsView.swift in Sources */,
+				2AF73E602A67CFFF5B442C12 /* OnboardingView.swift in Sources */,
 				7569556BE796EEEF994FF20E /* People.swift in Sources */,
+				EBBA3491946136901E374B4D /* Permissions.swift in Sources */,
 				E40CFE4608B4C33908E6A695 /* Projector.swift in Sources */,
+				369C4E1F2E2276FF7C20C98C /* ProviderSetupView.swift in Sources */,
+				B3DF65EF06F5392CF96F2C2C /* ProviderStore.swift in Sources */,
 				CA543A27450A3210D2F7BB98 /* RootView.swift in Sources */,
 				D99100C5DF53433207027D8A /* SelfDriver.swift in Sources */,
+				C104F3DE4055127280797240 /* SetupPieces.swift in Sources */,
 				EA9D0EE6049200AC5F18814B /* SplashView.swift in Sources */,
 				A19AB6AAE6BD1E24B5F8084C /* TouchCaptureView.swift in Sources */,
+				FB214218FE4945BFE25C3257 /* VoiceStack.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -301,12 +343,14 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Dee;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Dee can read and add calendar events when you talk about your plans. To answer, she looks at up to two weeks of your calendar, and the titles and times of up to 8 events she finds go to her cloud voice (OpenAI) so she can tell you.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Dee uses the cameras to see you and the things around you: her eyes follow your face, she recognises friends she has met, and she gets curious about what she sees. Video is processed on this device and is never recorded or sent anywhere; only a few words about what she notices (\"a cup you are showing her\") go to her cloud voice so she can talk about it.";
-				INFOPLIST_KEY_NSContactsUsageDescription = "Dee can look up a contact's phone, email or birthday when you ask her to. The contact you ask about goes to her cloud voice (OpenAI) so she can tell you.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Dee can tell you roughly where you are (town and area) when you ask. That place name goes to her cloud voice (OpenAI) so she can say it.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dee listens so she can talk with you. While she is open and online, everything her microphone picks up (you, anyone else nearby, the TV) is streamed to OpenAI, which understands it and answers in her voice; OpenAI may keep it for up to 30 days to check for abuse. Sounds such as laughter or a doorbell are also recognised on this device.";
-				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dee can read and add reminders when you talk about your to-dos. To answer, the titles of up to 10 of your open reminders go to her cloud voice (OpenAI) so she can tell you.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Dee can read and add calendar events when you talk about your plans. To answer, she looks at up to two weeks of your calendar, and the titles and times of up to 8 events she finds go to her AI service (OpenAI or your own server, whichever you chose) so she can tell you.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Dee uses the cameras to see you and the things around you: her eyes follow your face, she recognises friends she has met, and she gets curious about what she sees. Video is processed on this device and is never recorded or sent anywhere; only a few words about what she notices (\"a cup you are showing her\") go to her AI service during a conversation so she can talk about it.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Dee can look up a contact's phone, email or birthday when you ask her to. The contact you ask about goes to her AI service (OpenAI or your own server, whichever you chose) so she can tell you.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Dee connects to the AI server you set up on your home network (for example Ollama or LM Studio on your Mac), if you choose one. She talks only to the address you enter.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Dee can tell you roughly where you are (town and area) when you ask. That place name goes to her AI service (OpenAI or your own server, whichever you chose) so she can say it.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dee listens on this iPhone for her wake phrase (“Hey Dee”, or the one you chose). Listening for it happens only on the device and never leaves the phone. Once she wakes, what her microphone hears during that conversation goes to the AI service you chose in her setup (OpenAI, or your own server on your network) until the conversation ends. Sounds such as laughter or a doorbell are also recognised on this device.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dee can read and add reminders when you talk about your to-dos. To answer, the titles of up to 10 of your open reminders go to her AI service (OpenAI or your own server, whichever you chose) so she can tell you.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Dee hears her wake phrase with Apple's speech recognition on this iPhone only — nothing is sent anywhere to listen for it. If you choose “on this iPhone” for her hearing, your words in a conversation are transcribed on the device too.";
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -314,7 +358,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.5.0;
+				MARKETING_VERSION = 0.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.forensicintelligence.dee;
 				PRODUCT_NAME = Dee;
 				SDKROOT = iphoneos;
@@ -333,12 +377,14 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Dee;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Dee can read and add calendar events when you talk about your plans. To answer, she looks at up to two weeks of your calendar, and the titles and times of up to 8 events she finds go to her cloud voice (OpenAI) so she can tell you.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Dee uses the cameras to see you and the things around you: her eyes follow your face, she recognises friends she has met, and she gets curious about what she sees. Video is processed on this device and is never recorded or sent anywhere; only a few words about what she notices (\"a cup you are showing her\") go to her cloud voice so she can talk about it.";
-				INFOPLIST_KEY_NSContactsUsageDescription = "Dee can look up a contact's phone, email or birthday when you ask her to. The contact you ask about goes to her cloud voice (OpenAI) so she can tell you.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Dee can tell you roughly where you are (town and area) when you ask. That place name goes to her cloud voice (OpenAI) so she can say it.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dee listens so she can talk with you. While she is open and online, everything her microphone picks up (you, anyone else nearby, the TV) is streamed to OpenAI, which understands it and answers in her voice; OpenAI may keep it for up to 30 days to check for abuse. Sounds such as laughter or a doorbell are also recognised on this device.";
-				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dee can read and add reminders when you talk about your to-dos. To answer, the titles of up to 10 of your open reminders go to her cloud voice (OpenAI) so she can tell you.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Dee can read and add calendar events when you talk about your plans. To answer, she looks at up to two weeks of your calendar, and the titles and times of up to 8 events she finds go to her AI service (OpenAI or your own server, whichever you chose) so she can tell you.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Dee uses the cameras to see you and the things around you: her eyes follow your face, she recognises friends she has met, and she gets curious about what she sees. Video is processed on this device and is never recorded or sent anywhere; only a few words about what she notices (\"a cup you are showing her\") go to her AI service during a conversation so she can talk about it.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Dee can look up a contact's phone, email or birthday when you ask her to. The contact you ask about goes to her AI service (OpenAI or your own server, whichever you chose) so she can tell you.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Dee connects to the AI server you set up on your home network (for example Ollama or LM Studio on your Mac), if you choose one. She talks only to the address you enter.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Dee can tell you roughly where you are (town and area) when you ask. That place name goes to her AI service (OpenAI or your own server, whichever you chose) so she can say it.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dee listens on this iPhone for her wake phrase (“Hey Dee”, or the one you chose). Listening for it happens only on the device and never leaves the phone. Once she wakes, what her microphone hears during that conversation goes to the AI service you chose in her setup (OpenAI, or your own server on your network) until the conversation ends. Sounds such as laughter or a doorbell are also recognised on this device.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dee can read and add reminders when you talk about your to-dos. To answer, the titles of up to 10 of your open reminders go to her AI service (OpenAI or your own server, whichever you chose) so she can tell you.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Dee hears her wake phrase with Apple's speech recognition on this iPhone only — nothing is sent anywhere to listen for it. If you choose “on this iPhone” for her hearing, your words in a conversation are transcribed on the device too.";
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -346,7 +392,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.5.0;
+				MARKETING_VERSION = 0.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = ca.forensicintelligence.dee;
 				PRODUCT_NAME = Dee;
 				SDKROOT = iphoneos;
@@ -587,6 +633,10 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = DeeBrain;
 		};
+		B03CCE84EBC0F0BE4DDCC436 /* DeeLocal */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DeeLocal;
+		};
 		B156030922FC6F8FF7022499 /* DeeMemory */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DeeMemory;
@@ -594,6 +644,10 @@
 		DA75964CE89195589F085176 /* DeeSense */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = DeeSense;
+		};
+		EE0A2AA85CC5F3BB6DAFD6E5 /* DeeWake */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DeeWake;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

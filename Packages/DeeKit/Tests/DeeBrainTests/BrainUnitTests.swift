@@ -90,7 +90,8 @@ import Testing
         let mic = CloudStatus(.microphoneOff)
         #expect(mic == .other(message: VoiceProblem.microphoneOff.message, symbol: VoiceProblem.microphoneOff.symbol))
         #expect(mic?.cloudOff == false)
-        #expect(CloudStatus.noKey.message == "Add your OpenAI key in Settings › Dee")
+        #expect(CloudStatus.noKey.message == "I need an OpenAI key — open my settings")
+        #expect(!CloudStatus.badKey.message.contains("Settings ›"), "v0.6: keys are entered in Dee's own settings")
         #expect(CloudStatus.noKey.needsUser && CloudStatus.badKey.needsUser && !CloudStatus.offline.needsUser)
         #expect(CloudStatus.offline.cloudOff)
     }
@@ -146,30 +147,43 @@ enum CloudVoiceProblemText {
         }
     }
 
-    @Test func aGoodKeyIsValidatedStoredAndClearedFromSettings() async throws {
+    @Test func aGoodKeyIsValidatedAndStored() async throws {
         let seen = Seen()
         let intake = Self.intake(status: 200, seen: seen)
-        let d = Self.defaults()
-        d.set("  sk-proj-abc123def456ghi789  \n", forKey: CloudSettings.Key.apiKey)
-        let outcome = await intake.absorb(from: d)
+        let outcome = await intake.absorb("  sk-proj-abc123def456ghi789  \n")
         #expect(outcome == .stored(validated: true))
         #expect(try intake.keyStore.load() == "sk-proj-abc123def456ghi789")
-        #expect(d.string(forKey: CloudSettings.Key.apiKey) == nil, "the plaintext copy is gone")
         let r = try #require(seen.all.first)
         #expect(r.httpMethod == "GET")
         #expect(r.url?.absoluteString == "https://api.openai.com/v1/models")
         #expect(r.value(forHTTPHeaderField: "Authorization") == "Bearer sk-proj-abc123def456ghi789")
+        #expect(r.value(forHTTPHeaderField: Transport.purposeHeader) == "models")
     }
 
-    @Test func aRefusedKeyIsNotStoredButStillCleared() async throws {
+    @Test func aRefusedKeyIsNotStored() async throws {
         let seen = Seen()
         let intake = Self.intake(status: 401, seen: seen)
-        let d = Self.defaults()
-        d.set("sk-wrong-key-000000000000", forKey: CloudSettings.Key.apiKey)
-        let outcome = await intake.absorb(from: d)
+        let outcome = await intake.absorb("sk-wrong-key-000000000000")
         #expect(outcome == .rejected("OpenAI refused that key."))
         #expect(try intake.keyStore.load() == nil)
-        #expect(d.string(forKey: CloudSettings.Key.apiKey) == nil)
+    }
+
+    /// v0.6 K1: the old Settings.bundle key moves to the Keychain before onboarding,
+    /// with no network call, and the plaintext copy is always removed.
+    @Test func legacyKeyMigratesWithoutNetworkAndIsAlwaysCleared() async throws {
+        let seen = Seen()
+        let intake = Self.intake(status: 200, seen: seen)
+        let d = Self.defaults()
+        d.set("  sk-proj-abc123def456ghi789  \n", forKey: CloudSettings.Key.apiKey)
+        #expect(intake.migrateLegacyKey(from: d) == .moved)
+        #expect(try intake.keyStore.load() == "sk-proj-abc123def456ghi789")
+        #expect(d.object(forKey: CloudSettings.Key.apiKey) == nil, "the plaintext copy is gone")
+        #expect(seen.all.isEmpty, "migration makes 0 requests")
+        d.set("not a key", forKey: CloudSettings.Key.apiKey)
+        #expect(intake.migrateLegacyKey(from: d) == .discarded)
+        #expect(d.object(forKey: CloudSettings.Key.apiKey) == nil)
+        #expect(intake.migrateLegacyKey(from: d) == .nothing)
+        #expect(seen.all.isEmpty)
     }
 
     @Test func offlineKeepsTheKeyUnvalidated() async throws {
@@ -184,7 +198,7 @@ enum CloudVoiceProblemText {
         let seen = Seen()
         let intake = Self.intake(status: 200, seen: seen)
         #expect(await intake.absorb("hello") == .rejected("That doesn't look like an OpenAI key."))
-        #expect(await intake.absorb(from: Self.defaults()) == .nothing)
+        #expect(await intake.absorb("   ") == .nothing)
         #expect(seen.all.isEmpty)
     }
 
@@ -243,7 +257,8 @@ enum CloudVoiceProblemText {
     }
 }
 
-/// F10: the pasted key is not lost when the Keychain refuses it.
+/// F10 (v0.6): a Keychain failure during migration still removes the plaintext copy
+/// (K1) and says so; a checked key the Keychain refuses is reported, not lost silently.
 @Suite struct KeyIntakeKeychainTests {
     final class Refusing: SecretStorage, @unchecked Sendable {
         func read(account: String) throws -> String? { nil }
@@ -251,13 +266,14 @@ enum CloudVoiceProblemText {
         func remove(account: String) throws {}
     }
 
-    @Test func aKeychainFailureKeepsTheField() async {
+    @Test func aKeychainFailureStillClearsTheField() async {
         let intake = KeyIntake(keyStore: KeyStore(storage: Refusing())) { r in
             (Data(), HTTPURLResponse(url: r.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
         }
         let d = UserDefaults(suiteName: "dee.keychain.\(UUID().uuidString)")!
         d.set("sk-proj-abc123def456ghi789", forKey: CloudSettings.Key.apiKey)
-        #expect(await intake.absorb(from: d) == .rejected(KeyIntake.keychainFailure))
-        #expect(d.string(forKey: CloudSettings.Key.apiKey) == "sk-proj-abc123def456ghi789")
+        #expect(intake.migrateLegacyKey(from: d) == .keychainFailed)
+        #expect(d.object(forKey: CloudSettings.Key.apiKey) == nil)
+        #expect(await intake.absorb("sk-proj-abc123def456ghi789") == .rejected(KeyIntake.keychainFailure))
     }
 }

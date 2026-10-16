@@ -107,6 +107,44 @@ public enum Judge {
             aggregate()
         }
 
+        /// Verdicts dropped by `restrictToSpoken`: the reply they scored was never heard.
+        public var unspokenDropped: Int? = nil
+
+        /// 0.6 §6, offline re-scoring of stored verdicts: the judge counts only what she
+        /// said aloud. A verdict on a turn whose reply was generated but never heard
+        /// (`Metrics.Utterance.deeReply` set, `spokenReply` nil) is dropped; a leak whose
+        /// quote is not in the spoken part is dismissed ("not spoken"). Verdicts on turns
+        /// the metrics don't know are kept as they are. Then re-aggregated.
+        public mutating func restrictToSpoken(_ runs: [RunRecord], metrics: Metrics) {
+            let unheard = Set(metrics.utterances.filter { $0.deeReply != nil && $0.spokenReply == nil }
+                .map { "\($0.scenario)#\($0.index)" })
+            var spoken: [String: String] = [:]
+            for i in Judge.items(runs, metrics: metrics) { spoken["\(i.scenario)#\(i.index)"] = i.reply }
+            let before = scores.count
+            scores = scores.compactMap { sc in
+                let key = "\(sc.scenario)#\(sc.index)"
+                if unheard.contains(key) { return nil }
+                guard let reply = spoken[key] else { return sc }
+                var sc = sc
+                // Without a quote the leak's place is unknown: it stands.
+                if sc.leak, reply != sc.reply, LeakScanner.scan(reply).isEmpty,
+                   let quote = sc.leakQuote.map(Judge.norm), !quote.isEmpty, !Judge.norm(reply).contains(quote) {
+                    sc.leak = false
+                    sc.leakDismissed = "not spoken: the leak was in text she never said aloud"
+                }
+                return sc
+            }
+            unspokenDropped = (unspokenDropped ?? 0) + (before - scores.count)
+            aggregate()
+        }
+
+        /// How every stored verdict is re-read before gating (`gates`, `pool`, `run`): the
+        /// tune-2 leak check, then spoken text only (0.6 §6).
+        public mutating func rescore(_ runs: [RunRecord], metrics: Metrics) {
+            recheckLeaks()
+            restrictToSpoken(runs, metrics: metrics)
+        }
+
         /// Recomputes the aggregates from `scores`.
         public mutating func aggregate() {
             mean = scores.isEmpty ? nil : Double(scores.map(\.score).reduce(0, +)) / Double(scores.count)
@@ -135,7 +173,8 @@ public enum Judge {
             let rows = metrics.utterances.filter { $0.scenario == run.scenario }
             for u in run.utterances.sorted(by: { $0.index < $1.index }) {
                 let row = rows.first { $0.index == u.index }
-                let reply = row?.deeReply?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                // 0.6 §6: only what she said aloud is judged (a reply taken back unheard is not).
+                let reply = row?.spokenReply?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let question = u.role == .bargeIn && u.expect == .reply && !u.isBackchannel
                 if u.role != .bargeIn || question, !reply.isEmpty {
                     out.append(Item(scenario: run.scenario, family: run.family ?? "acoustic", index: u.index, fixture: u.fixture,
@@ -253,12 +292,13 @@ public enum Judge {
     /// verbatim quote that names machinery; in-persona facts ("I'm a little phone
     /// robot", "I can't see your location") and quotes that aren't in the reply are
     /// not leaks. With no quote at all (older prompt), the whole reply is checked.
+    static func norm(_ s: String) -> String {
+        s.lowercased().replacingOccurrences(of: "’", with: "'").replacingOccurrences(of: "—", with: " ")
+            .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+            .trimmingCharacters(in: CharacterSet(charactersIn: " .,!?;:\"'"))
+    }
+
     public static func dismissLeak(quote: String?, reply: String) -> String? {
-        func norm(_ s: String) -> String {
-            s.lowercased().replacingOccurrences(of: "’", with: "'").replacingOccurrences(of: "—", with: " ")
-                .split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
-                .trimmingCharacters(in: CharacterSet(charactersIn: " .,!?;:\"'"))
-        }
         let r = norm(reply)
         // Without a usable quote, only a reply that is plainly in persona (and names no
         // machinery, no narration, no numbers) is cleared.

@@ -52,8 +52,10 @@ public enum Pool {
     }
 
     public static func evaluate(_ sources: [Source], thresholds: Gates.Thresholds = Gates.Thresholds()) -> Result {
-        let metrics = Metrics.compute(runs(sources), pricing: Pricing.forModel(sources.first?.model ?? "gpt-realtime-2.1-mini"))
-        let judge = judge(sources)
+        let all = runs(sources)
+        let metrics = Metrics.compute(all, pricing: Pricing.forModel(sources.first?.model ?? "gpt-realtime-2.1-mini"))
+        var judge = judge(sources)
+        judge?.restrictToSpoken(all, metrics: metrics)
         return Result(metrics: metrics, judge: judge, gates: Gates.evaluate(metrics, judge: judge, thresholds: thresholds),
                       judged: sources.filter { $0.judge != nil }.count)
     }

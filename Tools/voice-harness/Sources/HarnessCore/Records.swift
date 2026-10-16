@@ -363,6 +363,35 @@ public struct RunRecord: Codable, Sendable, Equatable {
     /// the truncation history check skips them.
     public var forgottenItems: [String]?
 
+    // 0.6 (optional so older reports still decode).
+    /// `--wake` mode of this run (`always-open` / `phrase`); nil: before 0.6 (always open).
+    public var wakeMode: String?
+    /// Times the voice went DORMANT (`CloudVoice.awakeStates`). Always-open asserts 0.
+    public var dormantTransitions: Int?
+    /// Provider mode (`openAI`, `lanBrainOpenAIVoice`, `lanEverything`); nil: openAI.
+    public var provider: String?
+    /// Every outbound call the run's Transport recorded (host, kind, purpose; never
+    /// headers, bodies or queries), harness clock.
+    public var transport: [TransportCall]?
+    /// Wake-window events and voice states ("eyesWake", "connect resume=true",
+    /// "voice awake", "disconnect", "perkUp", …), harness clock.
+    public var wakeEvents: [Note]?
+    /// Outgoing `input_audio_buffer.append` bytes sent before the first wake (W2: 0).
+    public var audioBytesBeforeWake: Int?
+    /// Local provider measurements (chat requests, TTFT, sentence gaps, …).
+    public var providerStats: [String: Double]?
+
+    public struct TransportCall: Codable, Sendable, Equatable {
+        public var t: Double
+        public var kind: String
+        public var host: String
+        public var path: String
+        public var purpose: String?
+        public init(t: Double, kind: String, host: String, path: String, purpose: String? = nil) {
+            self.t = t; self.kind = kind; self.host = host; self.path = path; self.purpose = purpose
+        }
+    }
+
     public init(scenario: String, model: String, brain: String, started: String) {
         self.scenario = scenario; self.model = model; self.brain = brain; self.started = started
     }

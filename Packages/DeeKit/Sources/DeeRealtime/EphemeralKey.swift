@@ -23,10 +23,13 @@ public enum RealtimeAuthError: Error, Sendable, Equatable {
     case unauthorized(status: Int, message: String?)
     /// 429: rate limit or the project's hard spend cap (`code` tells which when given).
     case rateLimited(retryAfter: Double?, code: String?)
+    /// A transcription session can't be minted for this key (400 / 404 / 405 / 501):
+    /// "OpenAI hearing isn't available for this key". Never falls back to the key itself.
+    case transcriptionUnavailable(status: Int)
 }
 
-/// HTTP transport (URLSession in the app, a closure in tests).
-public typealias HTTPTransport = @Sendable (URLRequest) async throws -> (Data, URLResponse)
+/// Kept for existing callers: `RealtimeAuth` is `OpenAIAuth`.
+public typealias RealtimeAuth = OpenAIAuth
 
 /// Produces credentials for Realtime sockets.
 ///
@@ -43,11 +46,22 @@ public typealias HTTPTransport = @Sendable (URLRequest) async throws -> (Data, U
 /// Falls back to the project key itself when minting is unavailable (404/405/400,
 /// 5xx, network trouble on the minting call). Never falls back on 401/403/429:
 /// the direct key would fail the same way, so those surface as errors.
-public actor RealtimeAuth {
+///
+/// **v0.6.** The mint endpoint is fixed to `api.openai.com` by type (no endpoint
+/// parameter): an OpenAI key can only ever be sent to OpenAI, and LAN keys never
+/// come through here (their credentials are `{ .direct(lanKey) }`). A
+/// `.transcription` auth mints transcription sessions (mode 2's hearing,
+/// `OpenAITranscription`) and never falls back to the key itself: a refused mint
+/// there is `transcriptionUnavailable`, a hard problem.
+public actor OpenAIAuth {
     public static let clientSecretsURL = URL(string: "https://api.openai.com/v1/realtime/client_secrets")!
 
+    public enum SessionType: String, Sendable, Equatable { case realtime, transcription }
+
+    public let sessionType: SessionType
+    private let transcription: OpenAITranscription.Session
     private let keyStore: KeyStore
-    private let endpoint: URL
+    private let endpoint = OpenAIAuth.clientSecretsURL
     private let ttlSeconds: Int
     private let mint: Bool
     private let safetyIdentifier: String?
@@ -62,16 +76,20 @@ public actor RealtimeAuth {
     ///   - mint: false always uses the project key directly.
     ///   - ttlSeconds: 10…7200 (server default 600).
     ///   - safetyIdentifier: a stable, hashed user id sent as `OpenAI-Safety-Identifier`.
-    public init(keyStore: KeyStore, mint: Bool = true, ttlSeconds: Int = 600, safetyIdentifier: String? = nil,
-                endpoint: URL = RealtimeAuth.clientSecretsURL,
-                transport: @escaping HTTPTransport = { try await URLSession.shared.data(for: $0) },
+    ///   - sessionType: `.transcription` mints `OpenAITranscription` sessions (always mints).
+    ///   - transport: the HTTP call; default the shared OpenAI `Transport` (recorded,
+    ///     same-host redirects only).
+    public init(keyStore: KeyStore, sessionType: SessionType = .realtime, mint: Bool = true, ttlSeconds: Int = 600,
+                safetyIdentifier: String? = nil, transcription: OpenAITranscription.Session = .default,
+                transport: HTTPTransport? = nil,
                 now: @escaping @Sendable () -> Date = { Date() }) {
         self.keyStore = keyStore
-        self.mint = mint
+        self.sessionType = sessionType
+        self.transcription = transcription
+        self.mint = mint || sessionType == .transcription
         self.ttlSeconds = min(max(ttlSeconds, 10), 7200)
         self.safetyIdentifier = safetyIdentifier
-        self.endpoint = endpoint
-        self.transport = transport
+        self.transport = transport ?? Transport.openAIDefault.fetch
         self.now = now
     }
 
@@ -86,10 +104,13 @@ public actor RealtimeAuth {
             return credential
         } catch let e as RealtimeAuthError {
             throw e
-        } catch MintFallback.unsupported {
+        } catch MintFallback.unsupported(let status) {
+            if sessionType == .transcription { throw RealtimeAuthError.transcriptionUnavailable(status: status) }
             mintingUnavailable = true
             return .direct(key)
         } catch {
+            // A transcription session is never opened with the key itself.
+            if sessionType == .transcription { throw error }
             // Transient trouble on the minting call only; the socket may still work.
             return .direct(key)
         }
@@ -99,7 +120,7 @@ public actor RealtimeAuth {
     /// `credential(model:)` mints a fresh secret), so there is nothing to drop.
     public func invalidate() {}
 
-    private enum MintFallback: Error { case unsupported, transient }
+    private enum MintFallback: Error { case unsupported(Int), transient }
 
     private func mintSecret(key: String, model: String) async throws -> RealtimeCredential {
         var request = URLRequest(url: endpoint)
@@ -107,10 +128,14 @@ public actor RealtimeAuth {
         request.timeoutInterval = 8
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("mint", forHTTPHeaderField: Transport.purposeHeader)
         if let safetyIdentifier { request.setValue(safetyIdentifier, forHTTPHeaderField: "OpenAI-Safety-Identifier") }
+        let session: RealtimeJSON = sessionType == .transcription
+            ? transcription.mintSession()
+            : ["type": "realtime", "model": .string(model)]
         let body: RealtimeJSON = [
             "expires_after": ["anchor": "created_at", "seconds": .number(Double(ttlSeconds))],
-            "session": ["type": "realtime", "model": .string(model)],
+            "session": session,
         ]
         request.httpBody = try JSONEncoder().encode(body)
 
@@ -129,7 +154,7 @@ public actor RealtimeAuth {
             let retry = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Retry-After").flatMap(Double.init)
             throw RealtimeAuthError.rateLimited(retryAfter: retry, code: json?["error"]?["code"]?.stringValue)
         case 400, 404, 405, 501:
-            throw MintFallback.unsupported
+            throw MintFallback.unsupported(status)
         default:
             throw MintFallback.transient
         }

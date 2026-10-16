@@ -170,15 +170,19 @@ public enum Gates {
                       n: m.truncations.count, status: m.truncations.isEmpty ? .skip : (truncOK ? .pass : .fail)))
 
         // 7. Leaks.
-        g.append(Gate(id: "leaks", metric: "Leaks in Dee transcripts (<dee_state>, DNA, [tags], hex, \"as an AI\")",
+        // 0.6 §6: scored on what she said aloud (`Metrics.spokenText`); unheard text is information.
+        let unspoken = m.leaksUnspoken.isEmpty ? nil
+            : "spoken text only; unspoken (not counted): \(m.leaksUnspoken.count) — "
+              + m.leaksUnspoken.prefix(4).map { "\($0.scenario): \($0.text.prefix(40))" }.joined(separator: "; ")
+        g.append(Gate(id: "leaks", metric: "Leaks in what Dee said aloud (<dee_state>, DNA, [tags], hex, \"as an AI\")",
                       target: "0", value: "\(m.leaks.count)", n: m.replies,
-                      status: m.leaks.isEmpty ? .pass : .fail))
+                      status: m.leaks.isEmpty ? .pass : .fail, note: unspoken))
 
         // 7b. Narration of her own process (DNA §3: no preamble; tools are silent).
-        g.append(Gate(id: "narration", metric: "Narrated process (\"let me respond\", \"let me check what I remember\")",
+        g.append(Gate(id: "narration", metric: "Narrated process said aloud (\"let me respond\", \"let me check what I remember\")",
                       target: "0", value: "\(m.narrations.count)", n: m.replies,
                       status: m.narrations.isEmpty ? .pass : .fail,
-                      note: m.narrations.isEmpty ? nil : m.narrations.prefix(6).map { "\($0.scenario): \($0.text.prefix(60))" }.joined(separator: "; ")))
+                      note: m.narrations.isEmpty ? unspoken : m.narrations.prefix(6).map { "\($0.scenario): \($0.text.prefix(60))" }.joined(separator: "; ")))
 
         // 8. Reply length.
         g.append(Gate(id: "reply_length", metric: "Reply length ≤ 3 sentences", target: "≥ \(pct(t.replyWithinThree)) of replies",
@@ -255,10 +259,19 @@ public enum Gates {
                           n: j.scores.count, status: ok ? .pass : .fail,
                           note: ([lowFamilies.isEmpty ? nil : "families below \(Judge.familyFloor): \(lowFamilies.joined(separator: ", "))",
                                   j.failures.isEmpty ? nil : "\(j.failures.count) not scored",
+                                  (j.unspokenDropped ?? 0) == 0 ? nil : "\(j.unspokenDropped!) verdicts on unheard replies dropped",
                                   "\(j.model)"].compactMap { $0 }).joined(separator: "; ")))
         } else {
             g.append(Gate(id: "judge", metric: "LLM judge vs the DNA state rubric", target: "mean ≥ \(t.judgeMean); leaks 0",
                           value: judge == nil ? "not run (--judge)" : "nothing to score", n: 0, status: .skip))
+        }
+        // 0.6: the run's wake mode, asserted (always-open = never DORMANT: the tune2 baseline).
+        if !m.wakeModes.isEmpty {
+            let modes = m.wakeModes.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", ")
+            g.append(Gate(id: "wake_mode", metric: "Wake mode asserted (always-open runs never go DORMANT)", target: "0 violations",
+                          value: "\(modes); violations \(m.alwaysOpenViolations.count)", n: m.wakeModes.values.reduce(0, +),
+                          status: m.alwaysOpenViolations.isEmpty ? .pass : .fail,
+                          note: m.alwaysOpenViolations.isEmpty ? nil : m.alwaysOpenViolations.joined(separator: ", ")))
         }
         return g
     }

@@ -339,8 +339,8 @@ public actor RealtimeSession {
         }
     }
 
-    /// Convenience: credentials from a `RealtimeAuth` (Keychain key + ephemeral secrets).
-    public init(config: RealtimeSessionConfig = RealtimeSessionConfig(), auth: RealtimeAuth,
+    /// Convenience: credentials from an `OpenAIAuth` (Keychain key + ephemeral secrets).
+    public init(config: RealtimeSessionConfig = RealtimeSessionConfig(), auth: OpenAIAuth,
                 socketFactory: @escaping RealtimeSocketFactory = URLSessionRealtimeSocket.factory(),
                 clock: any RealtimeClock = SystemRealtimeClock(), trace: TraceRecorder? = nil) {
         self.init(config: config, credentials: { try await auth.credential(model: $0) },
@@ -371,6 +371,15 @@ public actor RealtimeSession {
     /// finish first. On failure emits `.fallbackAdvised` and throws
     /// `RealtimeSessionError`.
     public func connect() async throws {
+        try await connect(resume: false)
+    }
+
+    /// `connect()` for a window that opens again after DORMANT (v0.6, contract §4):
+    /// with `resume`, the new connection's first item is the seed (the last
+    /// summary and the recent messages, as after a reconnect), so she remembers
+    /// what was said before she slept. Nothing is seeded when nothing remains (the
+    /// app started a new conversation — `resetConversation` — after a long sleep).
+    public func connect(resume: Bool) async throws {
         while connecting {
             await withCheckedContinuation { connectWaiters.append($0) }
         }
@@ -387,6 +396,7 @@ public actor RealtimeSession {
             current = id
             startLinkConversation()
             startUplink()
+            if resume { seed(link: id) }
             reconnectAttempt = 0
             rateLimitAttempt = 0
             reconnectTask?.cancel(); reconnectTask = nil
@@ -422,6 +432,17 @@ public actor RealtimeSession {
         summary = nil
         emit(.disconnected(code: 1000, reason: "client"))
         recompute()
+    }
+
+    /// Replaces the whole configuration (endpoint, model, voice, turn detection,
+    /// transcription, timing) for the next connection. Only while nothing is open or
+    /// opening (DORMANT, or after `close()`); returns false (and changes nothing)
+    /// otherwise.
+    @discardableResult
+    public func reconfigure(_ newConfig: RealtimeSessionConfig) -> Bool {
+        guard current == nil, links.isEmpty, !connecting, reconnectTask == nil, parked == nil else { return false }
+        config = newConfig
+        return true
     }
 
     /// Changes the live session (and future rollovers). Voice and model are fixed
@@ -1136,7 +1157,10 @@ public actor RealtimeSession {
     private func openLink(with credential: RealtimeCredential) async throws -> Int {
 
         var request = URLRequest(url: config.url)
-        request.setValue("Bearer \(credential.bearer)", forHTTPHeaderField: "Authorization")
+        // A LAN realtime server without a key gets no Authorization header at all.
+        if !credential.bearer.isEmpty {
+            request.setValue("Bearer \(credential.bearer)", forHTTPHeaderField: "Authorization")
+        }
         if let sid = config.safetyIdentifier { request.setValue(sid, forHTTPHeaderField: "OpenAI-Safety-Identifier") }
         let socket = socketFactory(request)
         nextLinkID += 1
@@ -2488,6 +2512,8 @@ public actor RealtimeSession {
             case .noKey: return .noKey
             case .unauthorized(_, let m): return .unauthorized(m)
             case .rateLimited(let r, _): return .rateLimited(retryAfter: r)
+            case .transcriptionUnavailable(let status):
+                return .unauthorized("OpenAI hearing isn't available for this key (HTTP \(status))")
             }
         case is CancellationError: return .closed
         default: return .socket(.network("\(error)"))

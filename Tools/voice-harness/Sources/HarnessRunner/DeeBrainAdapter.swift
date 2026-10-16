@@ -5,6 +5,7 @@ import DeeMind
 import DeeRealtime
 import DeeSelf
 import DeeVoice
+import DeeWake
 import Foundation
 import HarnessCore
 import Synchronization
@@ -61,6 +62,22 @@ final class HarnessHost: BrainHost {
     var asleep = false
     var someoneHere = true
     var shareMemories = true
+
+    // 0.6 wake (providers-wake-onboarding §4). `.alwaysOpen` (the tune2 baseline): the
+    // window never closes and close commands don't close it. `.phrase`: the app's own
+    // `WakeController` drives the window from the on-device ear only; nothing is
+    // answered outside a window and no server transcript (her name included) opens it.
+    var wakeMode: WakeMode = .alwaysOpen
+    private(set) var wake: WakeController?
+    weak var voice: CloudVoice?
+    var wakePhrase = WakePhrase.default
+    private var phraseChange = WakePhraseChange()
+    /// Wake events for the run record ("eyesWake", "connect resume=true", …).
+    var onWake: ((String) -> Void)?
+    private var tickTask: Task<Void, Never>?
+
+    /// The one engagement rule (`Engagement.answers`); always true in `.alwaysOpen`.
+    var windowAnswers: Bool { wakeMode == .alwaysOpen || (wake?.answers ?? false) }
 
     private(set) var heardLog: [(text: String, verdict: HeardVerdict)] = []
     private(set) var commands: [SpokenCommand] = []
@@ -195,7 +212,7 @@ final class HarnessHost: BrainHost {
 
     // MARK: BrainHost
 
-    var answersOnCommit: Bool { engaged && !asleep }
+    var answersOnCommit: Bool { windowAnswers && engaged && !asleep }
 
     func modeSignals(at now: Date) -> CueModeSignals {
         CueModeSignals(moment: cortex.moment, identified: person != nil, at: now)
@@ -204,23 +221,39 @@ final class HarnessHost: BrainHost {
     func heard(_ turn: HeardTurn) async -> HeardVerdict {
         let now = clock.now()
         if case .voice = turn.source {
+            // Outside a window nothing is for her, her name included (W1).
+            guard windowAnswers else {
+                heardLog.append((turn.text, .ignored))
+                return .ignored
+            }
             let talking = now < speakingUntil || turn.replyRequested
-            if let c = SpokenCommand.match(turn.text, deeIsTalking: talking) {
-                commands.append(c)
-                onNote?("command \(c)")
-                if c == .stop || c == .sleep { await brain?.cancel(hush: true) }
-                if c == .sleep { asleep = true }
+            if wakeMode == .phrase, let outcome = phraseChange.answer(turn.text, current: wakePhrase, at: now) {
+                if case .saved(let p, _) = outcome { wakePhrase = p; Task { await wake?.setPhrase(p) } }
+                onNote?("wake phrase answer \(outcome)")
+                wake?.acceptedTurn()
                 heardLog.append((turn.text, .handled))
                 return .handled
             }
-            if !answersOnCommit {
-                guard SpokenCommand.addressesDee(turn.text) else {
-                    heardLog.append((turn.text, .ignored))
-                    return .ignored
+            let matcher = WakeMatcher(wakePhrase)
+            if let c = SpokenCommand.match(turn.text, deeIsTalking: talking, stripLeading: { matcher.stripLeading($0) }) {
+                commands.append(c)
+                onNote?("command \(c)")
+                if c == .stop || c.closesWindow { await brain?.cancel(hush: true) }
+                if wakeMode == .phrase {
+                    if case .changeWakePhrase(let raw) = c {
+                        onNote?("wake phrase prompt \(phraseChange.propose(raw, current: wakePhrase, at: now))")
+                        wake?.acceptedTurn()
+                    }
+                    if c.closesWindow { wake?.closeCommand() }
                 }
-                asleep = false
-                engaged = true
+                heardLog.append((turn.text, .handled))
+                return .handled
             }
+            guard answersOnCommit else {
+                heardLog.append((turn.text, .ignored))
+                return .ignored
+            }
+            if wakeMode == .phrase { wake?.acceptedTurn() }
         }
         await people(turn.text, at: now)
         let before = snapshot.code
@@ -309,6 +342,7 @@ final class HarnessHost: BrainHost {
                         }
                     case .turnCompleted:
                         self.sense(.deeTurnFinished(text: ""))
+                        if self.wakeMode == .phrase { self.wake?.replyEnded(toAccepted: true) }
                     default:
                         break
                     }
@@ -318,6 +352,46 @@ final class HarnessHost: BrainHost {
     }
 
     func thinkingModeChanged(_ on: Bool) { onNote?("thinking \(on)") }
+
+    // MARK: Wake (phrase mode)
+
+    /// Phrase mode: the app's `WakeController` on the on-device `ear`, ticking every
+    /// 0.25 s with `busy` (what keeps a window open), on the harness `clock`.
+    func startWake(phrase: WakePhrase, ear: any WakeEar, clock: @escaping @Sendable () -> TimeInterval,
+                   busy: @escaping @Sendable () -> Busy) async {
+        wakeMode = .phrase
+        wakePhrase = phrase
+        let c = WakeController(phrase: phrase, ear: ear, mode: "harness", monotonic: clock)
+        c.host = self
+        wake = c
+        await c.start()
+        tickTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard let self, let w = self.wake else { return }
+                w.tick(busy: busy())
+            }
+        }
+    }
+
+    func stopWake() async {
+        tickTask?.cancel()
+        tickTask = nil
+        await wake?.stop()
+    }
+
+    /// The voice's connection state (the runner is the single consumer of `awakeStates`).
+    func voiceState(_ s: CloudVoice.AwakeState) {
+        guard wakeMode == .phrase, let w = wake else { return }
+        switch s {
+        case .awake: w.connected()
+        case .failed(let p): w.connectFailed(p.message)
+        case .waking, .dormant: break
+        }
+    }
+
+    /// A tap outside the eyes ("tap to talk").
+    func tapToTalk() { wake?.tapToTalk(captureFrame: voice?.captureFrame) }
 
     /// App parity (DeeModel.bargedIn, tune 5 F1): the brain's answer ended a floor hold, so
     /// the Cortex senses `.bargeInAnswered` (same floor bookkeeping as `.bargeIn`, but no
@@ -330,6 +404,34 @@ final class HarnessHost: BrainHost {
     }
 }
 
+/// What DeeModel does for the window, in the harness: the voice connects / sleeps,
+/// everything else is recorded (no clips, no UI).
+extension HarnessHost: WakeControllerHost {
+    func wakeEyes() { onWake?("eyesWake") }
+    func listeningOffEyes() { onWake?("eyesListeningOff") }
+    func perkUp() { onWake?("perkUp") }
+    func woken(by source: WakeSource) {
+        asleep = false
+        engaged = true
+        onWake?("woken \(source.rawValue)")
+    }
+    func startNewConversation() {
+        onWake?("newConversation")
+        Task { await newConversation() }
+    }
+    func connect(resume: Bool, uplinkFrom: Int64?) {
+        onWake?("connect resume=\(resume)")
+        voice?.wake(uplinkFromFrame: uplinkFrom, resume: resume)
+    }
+    func disconnect() {
+        onWake?("disconnect")
+        voice?.sleep()
+    }
+    func sayGoodbye() { onWake?("goodbye") }
+    func show(problem: String) { onWake?("problem \(problem)") }
+    func clearProblem() { onWake?("problem cleared") }
+}
+
 /// `--brain realtime`: DeeBrain's real `RealtimeBrain` on a `HarnessHost` with real
 /// DeeMind / DeeSelf / DeeMemory state in a temp directory, so every reply and initiative carries the current Dee DNA.
 ///
@@ -339,6 +441,7 @@ final class HarnessHost: BrainHost {
 public final class RealtimeBrainAdapter: HarnessBrain, @unchecked Sendable {
     public let name = "realtime"
     public var ownsBrainEvents: Bool { true }
+    public var supportsWake: Bool { true }
     public let clock = HarnessClock()
     public let stateDirectory: URL
     let scenario: Scenario
@@ -398,6 +501,8 @@ public final class RealtimeBrainAdapter: HarnessBrain, @unchecked Sendable {
         let brain = RealtimeBrain(voice: voice, host: host, toolbox: toolbox, options: .init(),
                                   clock: { clock.now() })
         host.brain = brain
+        host.voice = voice
+        host.onWake = { log.wake?($0) }
         host.onSentence = { text, heard in log.sentence?(text, heard) }
         let box = personBox
         host.onPerson = { id in box.withLock { $0 = id } }
@@ -472,7 +577,29 @@ public final class RealtimeBrainAdapter: HarnessBrain, @unchecked Sendable {
         return done.joined(separator: ", ")
     }
 
+    public func startWake(_ config: HarnessWakeConfig) async {
+        guard let host = await MainActor.run(body: { self.host }) else { return }
+        await host.startWake(phrase: config.phrase, ear: config.ear, clock: config.clock, busy: config.busy)
+    }
+
+    public func voiceState(_ state: CloudVoice.AwakeState) async {
+        await MainActor.run { self.host?.voiceState(state) }
+    }
+
+    public func tapToTalk() async {
+        await MainActor.run { self.host?.tapToTalk() }
+    }
+
+    /// Phrase mode: the window state the host answers by (nil: always open).
+    public func windowOpen() async -> Bool? {
+        await MainActor.run { () -> Bool? in
+            guard let h = self.host, h.wakeMode == .phrase else { return nil }
+            return h.windowAnswers
+        }
+    }
+
     public func detach() async {
+        if let host = await MainActor.run(body: { self.host }) { await host.stopWake() }
         await MainActor.run {
             self.brain?.stop()
         }

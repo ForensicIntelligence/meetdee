@@ -21,14 +21,29 @@ public enum KeyStoreError: Error, Sendable, Equatable {
 /// to iCloud and never compiled into the binary or Info.plist. Entered once in the
 /// key sheet. A dedicated, restricted project key with a hard spend limit is
 /// strongly recommended (a sideloaded app's key can be extracted from the device).
+/// What kind of secret an account holds.
+public enum KeyKind: Sendable, Equatable {
+    /// An OpenAI project key (`sk-…`, see `KeyStore.normalize`).
+    case openAI
+    /// Any other bearer token (a LAN server's optional key): trimmed, no inner
+    /// whitespace, 1…4096 characters.
+    case opaque
+}
+
 public struct KeyStore: Sendable {
     public static let defaultAccount = "openai.api-key"
 
+    /// The account of a LAN part's optional key: "lan.<part>.key" (part: brain / stt / tts).
+    public static func lanAccount(_ part: String) -> String { "lan.\(part).key" }
+
     public let account: String
+    public let kind: KeyKind
     private let storage: any SecretStorage
 
-    public init(account: String = KeyStore.defaultAccount, storage: any SecretStorage = KeychainStorage()) {
+    public init(account: String = KeyStore.defaultAccount, kind: KeyKind = .openAI,
+                storage: any SecretStorage = KeychainStorage()) {
         self.account = account
+        self.kind = kind
         self.storage = storage
     }
 
@@ -38,7 +53,8 @@ public struct KeyStore: Sendable {
     /// Validates (see `normalize`) and stores the key, replacing any previous one.
     @discardableResult
     public func save(_ key: String) throws -> String {
-        guard let clean = Self.normalize(key) else { throw KeyStoreError.invalidKey }
+        let normalized = kind == .openAI ? Self.normalize(key) : Self.normalizeOpaque(key)
+        guard let clean = normalized else { throw KeyStoreError.invalidKey }
         try storage.write(clean, account: account)
         return clean
     }
@@ -53,6 +69,14 @@ public struct KeyStore: Sendable {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\"'`")))
         guard trimmed.hasPrefix("sk-"), (20...400).contains(trimmed.count),
               trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else { return nil }
+        return trimmed
+    }
+
+    /// A non-OpenAI token as pasted: trimmed of whitespace and quotes; nil if
+    /// empty, with inner whitespace or longer than 4096.
+    public static func normalizeOpaque(_ key: String) -> String? {
+        let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\"'`")))
+        guard (1...4096).contains(trimmed.count), trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil else { return nil }
         return trimmed
     }
 

@@ -908,6 +908,13 @@ cached up to the previous DNA]` `[previous Dee reply + this user turn, re-read]`
 
 ---
 
+### 4.x Cascaded providers (v0.6): `DNASplit`
+Modes 2 and 3 run a LAN chat model behind `CascadeSocket`, and Ollama moves every system message to the top of the prompt. Re-sending the whole DNA as a per-response system item would therefore break the server's prompt cache on every reply. `DeeCore.DNASplit(text)` splits a rendered DNA by its numbered section headings:
+- `stable` holds sections 1, 2, 4, 5, 6 and 9. It is sent as one system message, and again only when its bytes change.
+- `volatile` holds the header (section 0) and sections 3, 7 (including the "Keep in mind" notes) and 8. It goes with the user message.
+
+Every line is kept exactly once. Mode 1 (gpt-realtime) never uses the split and keeps the single DNA item of §4.1. Tests: `DNASplitTests` (DeeCore) and `DNASplitSelfTests` (real archetype renders).
+
 ## 5. Tests
 
 All Layer-1 tests run under `swift test` on macOS, no network, in `Tests/DeeSelfTests/DNA*.swift` (sources in

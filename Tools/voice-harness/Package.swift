@@ -39,8 +39,10 @@ let package = Package(
             .product(name: "DeeMind", package: "DeeKit"),
             .product(name: "DeeMemory", package: "DeeKit"),
             .product(name: "DeeSelf", package: "DeeKit"),
+            .product(name: "DeeWake", package: "DeeKit"),
+            .product(name: "DeeLocal", package: "DeeKit"),
         ]),
-        .executableTarget(name: "voice-harness", dependencies: ["HarnessCore", "HarnessRunner"]),
+        .executableTarget(name: "voice-harness", dependencies: ["HarnessCore", "HarnessRunner", .product(name: "DeeWake", package: "DeeKit")]),
         .testTarget(name: "HarnessCoreTests", dependencies: ["HarnessCore"]),
         .testTarget(name: "HarnessRunnerTests", dependencies: [
             "HarnessRunner", "HarnessCore",
@@ -50,6 +52,9 @@ let package = Package(
             .product(name: "DeeMemory", package: "DeeKit"),
             .product(name: "DeeMind", package: "DeeKit"),
             .product(name: "DeeSelf", package: "DeeKit"),
+            .product(name: "DeeWake", package: "DeeKit"),
+            .product(name: "DeeLocal", package: "DeeKit"),
+            .product(name: "DeeMockServer", package: "DeeKit"),
         ]),
     ]
 )

@@ -31,6 +31,9 @@ public struct Metrics: Codable, Sendable, Equatable {
         public var droppedReason: String?
         public var mentionOK: Bool?
         public var deeReply: String?
+        /// 0.6 §6: the part of `deeReply` she actually said aloud (`Metrics.spokenText`);
+        /// what the judge scores. nil: nothing of it was heard.
+        public var spokenReply: String? = nil
         /// Latency bucket (`main`, `filler`, `none`).
         public var bucket: String = TurnShape.Bucket.main.rawValue
         /// Waiting was the right answer at some point of this utterance (a held
@@ -214,6 +217,13 @@ public struct Metrics: Codable, Sendable, Equatable {
     /// Replies that narrate her own process before answering or calling a tool
     /// ("let me respond", "let me check what I remember"): DNA §3.
     public var narrations: [Leak] = []
+    /// 0.6 §6: leak / narration hits in text she generated but never said aloud (a
+    /// reply taken back before it played, the unplayed tail of a cut one). Information only.
+    public var leaksUnspoken: [Leak] = []
+
+    /// 0.6: runs per `--wake` mode, and always-open runs that went DORMANT (must be none).
+    public var wakeModes: [String: Int] = [:]
+    public var alwaysOpenViolations: [String] = []
 
     public var collisions: [Collision] = []
 
@@ -300,6 +310,24 @@ public struct Metrics: Codable, Sendable, Equatable {
     public static let interruptAnswerWithin = 1.6
     /// An answer cut (flushed) before this much played was not really heard.
     public static let interruptAnswerMinPlayedMs = 600
+
+    /// 0.6 §6: what she actually said aloud of `item`, the text leaks, narration and
+    /// the judge are scored on.
+    /// - Played to its end (started, never flushed or truncated): the whole transcript.
+    /// - Cut or taken back: only the sentences the player passed (`heardSentences`);
+    ///   a reply taken back with 0 ms played is "".
+    /// - Never played: "", unless the run has no playback data at all (an offline
+    ///   record), when the transcript stands.
+    public static func spokenText(_ run: RunRecord, item: String, generated: String? = nil) -> String {
+        let text = generated ?? run.deeTranscripts[item] ?? run.response(forItem: item)?.transcript ?? ""
+        let heard = (run.heardSentences[item] ?? []).joined(separator: " ")
+        guard let p = run.playback.first(where: { $0.itemID == item }) else {
+            return run.playback.isEmpty ? text : heard
+        }
+        guard p.started != nil else { return heard }
+        let cut = p.flushed == true || run.truncations.contains { $0.itemID == item }
+        return cut ? heard : (text.isEmpty ? heard : text)
+    }
 
     public static func compute(_ runs: [RunRecord], pricing: Pricing) -> Metrics {
         var m = Metrics()
@@ -456,6 +484,8 @@ public struct Metrics: Codable, Sendable, Equatable {
             let replyText = replyStarts.map { run.deeTranscripts[$0.item] ?? run.response(forItem: $0.item)?.transcript ?? "" }
                 .joined(separator: " ")
             r.deeReply = replyText.isEmpty ? nil : replyText
+            let spoken = replyStarts.map { Self.spokenText(run, item: $0.item) }.filter { !$0.isEmpty }.joined(separator: " ")
+            r.spokenReply = spoken.isEmpty ? nil : spoken
             if let mention = u.expectMention, !mention.isEmpty {
                 let ok = mention.contains { replyText.range(of: $0, options: .caseInsensitive) != nil }
                 let kind = u.probe ?? .memory
@@ -557,20 +587,27 @@ public struct Metrics: Codable, Sendable, Equatable {
             if accurate { truncationsAccurate += 1 }
         }
 
+        // 0.6 §6: leaks and narration are scored on what she actually said aloud
+        // (`spokenText`); generated-but-unheard text is information only (`leaksUnspoken`).
         var scanned = Set<String>()
+        func score(_ item: String, generated: String) {
+            let spoken = Self.spokenText(run, item: item, generated: generated)
+            let rules = LeakScanner.scan(spoken)
+            if !rules.isEmpty { leaks.append(Leak(scenario: run.scenario, itemID: item, rules: rules, text: spoken)) }
+            let said = NarrationScanner.scan(spoken)
+            if !said.isEmpty { narrations.append(Leak(scenario: run.scenario, itemID: item, rules: said, text: spoken)) }
+            if rules.isEmpty && said.isEmpty {
+                let unheard = LeakScanner.scan(generated) + NarrationScanner.scan(generated)
+                if !unheard.isEmpty { leaksUnspoken.append(Leak(scenario: run.scenario, itemID: item, rules: unheard, text: generated)) }
+            }
+        }
         for (item, text) in run.deeTranscripts.sorted(by: { $0.key < $1.key }) {
             scanned.insert(item)
-            let rules = LeakScanner.scan(text)
-            if !rules.isEmpty { leaks.append(Leak(scenario: run.scenario, itemID: item, rules: rules, text: text)) }
-            let said = NarrationScanner.scan(text)
-            if !said.isEmpty { narrations.append(Leak(scenario: run.scenario, itemID: item, rules: said, text: text)) }
+            score(item, generated: text)
         }
         for r in run.responses {
             guard let text = r.transcript, !r.itemIDs.contains(where: scanned.contains) else { continue }
-            let rules = LeakScanner.scan(text)
-            if !rules.isEmpty {
-                leaks.append(Leak(scenario: run.scenario, itemID: r.itemIDs.first ?? r.responseID ?? "?", rules: rules, text: text))
-            }
+            score(r.itemIDs.first ?? r.responseID ?? "?", generated: text)
         }
 
         for r in run.responses where r.kind == "reply" && r.status == "completed" {
@@ -595,6 +632,12 @@ public struct Metrics: Codable, Sendable, Equatable {
 
         addDNA(run)
         addDisruptions(run)
+        if let mode = run.wakeMode {
+            wakeModes[mode, default: 0] += 1
+            if mode == WakeMode.alwaysOpen.rawValue, (run.dormantTransitions ?? 0) > 0 {
+                alwaysOpenViolations.append("\(run.scenario) (dormant \(run.dormantTransitions!)×)")
+            }
+        }
 
         for s in starts {
             guard let u = run.utterances.first(where: { u in

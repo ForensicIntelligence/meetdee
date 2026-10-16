@@ -461,6 +461,12 @@ public struct ResponseStatusDetails: Codable, Sendable, Equatable {
     public struct ErrorBrief: Codable, Sendable, Equatable {
         public var type: String?
         public var code: String?
+        public init(type: String? = nil, code: String? = nil) { self.type = type; self.code = code }
+    }
+
+    /// For in-process servers (`CascadeSocket`) that emit `response.done` themselves.
+    public init(type: String? = nil, reason: String? = nil, error: ErrorBrief? = nil) {
+        self.type = type; self.reason = reason; self.error = error
     }
 }
 
@@ -477,6 +483,12 @@ public struct Usage: Codable, Sendable, Equatable {
         public var imageTokens: Int?
         public var cachedTokens: Int?
         public var cachedTokensDetails: Cached?
+
+        public init(textTokens: Int? = nil, audioTokens: Int? = nil, imageTokens: Int? = nil, cachedTokens: Int? = nil,
+                    cachedTokensDetails: Cached? = nil) {
+            self.textTokens = textTokens; self.audioTokens = audioTokens; self.imageTokens = imageTokens
+            self.cachedTokens = cachedTokens; self.cachedTokensDetails = cachedTokensDetails
+        }
 
         public struct Cached: Codable, Sendable, Equatable {
             public var textTokens: Int?
@@ -496,6 +508,7 @@ public struct Usage: Codable, Sendable, Equatable {
     public struct OutputDetails: Codable, Sendable, Equatable {
         public var textTokens: Int?
         public var audioTokens: Int?
+        public init(textTokens: Int? = nil, audioTokens: Int? = nil) { self.textTokens = textTokens; self.audioTokens = audioTokens }
         enum CodingKeys: String, CodingKey { case textTokens = "text_tokens", audioTokens = "audio_tokens" }
     }
 

@@ -94,6 +94,28 @@ public enum Beds {
         return loopable(DSP.normalized(mix, sampleRate: sampleRate, targetDB: bedLevelDB), sampleRate: sampleRate)
     }
 
+    /// 0.6 wake suite: talk radio / a podcast, one voice at a time, intelligible (the
+    /// hardest bed for a wake phrase): `segments` played in order with 0.3–0.8 s gaps,
+    /// band-limited 120 Hz–7 kHz, looped to `seconds`.
+    public static func radio(segments: [[Float]], seconds: Double, sampleRate: Int, seed: UInt64 = 0x4AD10) -> [Float] {
+        var rng = SeededRandom(seed: seed)
+        let n = Int(seconds * Double(sampleRate))
+        var mix = [Float](repeating: 0, count: n)
+        var pos = Int(0.2 * Double(sampleRate))
+        var k = 0
+        while pos < n, !segments.isEmpty {
+            let seg = segments[k % segments.count]
+            k += 1
+            if seg.isEmpty { continue }
+            for (i, v) in seg.enumerated() where pos + i < n { mix[pos + i] += v }
+            pos += seg.count + Int(Double(sampleRate) * (0.3 + 0.5 * rng.unit()))
+        }
+        var hp = Biquad.highpass(cutoff: 120, sampleRate: sampleRate)
+        var lp = OnePole(cutoff: 7000, sampleRate: sampleRate)
+        for i in 0..<n { mix[i] = lp.lowpass(hp.process(mix[i])) }
+        return loopable(DSP.normalized(mix, sampleRate: sampleRate, targetDB: bedLevelDB), sampleRate: sampleRate)
+    }
+
     /// A small living room: direct sound, a few early reflections, then an
     /// exponentially decaying diffuse tail (RT60 ≈ `rt60`). Peak-normalized to 1;
     /// the echo path applies its own gain.

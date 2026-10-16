@@ -192,7 +192,7 @@ struct SignalTests {
             }
         }
         #expect(total < 40_000_000)
-        #expect(manifest.noise.map(\.id).sorted() == ["fan", "kitchen", "tv"])
+        #expect(manifest.noise.map(\.id).sorted() == ["fan", "kitchen", "radio", "tv", "tvlong"])     // 0.6: + the wake-suite speech beds
         #expect(!manifest.impulseResponses.isEmpty)
     }
 }

@@ -2,6 +2,7 @@ import DeeCore
 import DeeMemory
 import DeeMind
 import DeeSelf
+import DeeWake
 import Foundation
 
 /// A complete `BrainHost` without the app: a real `Mind`, a real `Cortex` and,
@@ -24,10 +25,46 @@ public final class StandaloneHost: BrainHost {
     public var shareMemories = true
     public var extraNotes: [String] = []
 
+    // The conversation window (v0.6, providers-wake-onboarding §4). The one rule every
+    // host shares: an open window means she is engaged and addressed; outside one,
+    // nothing is answered — and no server transcript (her name included) ever opens it.
+    /// `.alwaysOpen`: the window never closes (the harness's 28-scenario baseline, the
+    /// brain tests). `.phrase`: it opens only through `window(_:)` inputs (the local
+    /// wake ear, a tap, a greeting) and closes on its own rules.
+    public enum WakeMode: String, Sendable, Equatable { case alwaysOpen, phrase }
+    public var wakeMode: WakeMode = .alwaysOpen
+    public private(set) var window = ConversationWindow()
+    /// Every action the window asked for, in order (the harness executes them).
+    public private(set) var windowActions: [ConversationWindow.Action] = []
+    /// Called with each input's actions (the harness connects / sleeps its voice).
+    public var onWindowActions: ((@MainActor ([ConversationWindow.Action]) -> Void))?
+    /// Monotonic seconds for the window (tests set a fake clock).
+    public var monotonic: @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+    /// The current wake phrase: commands may follow it ("Computer, go to sleep").
+    public var wakePhrase = WakePhrase.default
+    /// "Change your wake phrase to X" waiting for a yes.
+    public private(set) var phraseChange = WakePhraseChange()
+
+    /// Feeds the window and returns (and publishes) its actions.
+    @discardableResult
+    public func window(_ input: ConversationWindow.Input, now: TimeInterval? = nil) -> [ConversationWindow.Action] {
+        guard wakeMode == .phrase else { return [] }
+        let actions = window.handle(input, now: now ?? monotonic())
+        windowActions += actions
+        if !actions.isEmpty { onWindowActions?(actions) }
+        return actions
+    }
+
+    /// Whether the window lets her answer at all (always, in `.alwaysOpen`).
+    public var windowAnswers: Bool { wakeMode == .alwaysOpen || Engagement.answers(window: window.state) }
+
     // What happened (for the harness and tests)
     public private(set) var heardLog: [(text: String, verdict: HeardVerdict)] = []
     public private(set) var wordsFailedCount = 0
     public private(set) var commands: [SpokenCommand] = []
+    /// Her answers to "change your wake phrase" (what she would say), and the outcomes.
+    public private(set) var phrasePrompts: [WakePhraseChange.Prompt] = []
+    public private(set) var phraseOutcomes: [WakePhraseChange.Outcome] = []
     public private(set) var replies: [[ReplyEvent]] = []
     public private(set) var said: [String] = []
     public private(set) var thinkingOn = false
@@ -79,7 +116,7 @@ public final class StandaloneHost: BrainHost {
 
     // MARK: BrainHost
 
-    public var answersOnCommit: Bool { engaged && !asleep }
+    public var answersOnCommit: Bool { windowAnswers && engaged && !asleep }
 
     /// Replaces the Cortex's exact-mode signals (tests and the harness: force a
     /// turn that waits for its words).
@@ -92,23 +129,39 @@ public final class StandaloneHost: BrainHost {
     public func heard(_ turn: HeardTurn) async -> HeardVerdict {
         let now = Date()
         if case .voice = turn.source {
+            // Outside a window nothing is for her — not even her name in a server
+            // transcript (W1: only the on-device ear wakes her).
+            guard windowAnswers else {
+                heardLog.append((turn.text, .ignored))
+                return .ignored
+            }
             let talking = now < speakingUntil || turn.replyRequested
-            if let c = SpokenCommand.match(turn.text, deeIsTalking: talking) {
+            if let outcome = phraseChange.answer(turn.text, current: wakePhrase, at: now) {
+                if case .saved(let p, _) = outcome { wakePhrase = p }
+                phraseOutcomes.append(outcome)
+                heardLog.append((turn.text, .handled))
+                window(.acceptedTurn)
+                return .handled
+            }
+            let matcher = WakeMatcher(wakePhrase)
+            if let c = SpokenCommand.match(turn.text, deeIsTalking: talking, stripLeading: { matcher.stripLeading($0) }) {
                 commands.append(c)
                 // DeeModel: `stop(hush: true)` — her voice and the brain, hushed.
-                if c == .stop || c == .sleep { stopSpeaking(hush: true) }
+                if c == .stop || c.closesWindow { stopSpeaking(hush: true) }
                 if c == .sleep { asleep = true }
+                if case .changeWakePhrase(let raw) = c {
+                    phrasePrompts.append(phraseChange.propose(raw, current: wakePhrase, at: now))
+                    window(.acceptedTurn)
+                }
+                if c.closesWindow { window(.closeCommand) }
                 heardLog.append((turn.text, .handled))
                 return .handled
             }
-            if !answersOnCommit {
-                guard SpokenCommand.addressesDee(turn.text) else {
-                    heardLog.append((turn.text, .ignored))
-                    return .ignored
-                }
-                asleep = false
-                engaged = true
+            guard answersOnCommit else {
+                heardLog.append((turn.text, .ignored))
+                return .ignored
             }
+            window(.acceptedTurn)
         }
         let before = snapshot.code
         let cortex = self.cortex

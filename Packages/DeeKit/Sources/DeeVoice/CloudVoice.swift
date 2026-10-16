@@ -1,6 +1,7 @@
 import AVFAudio
 import DeeCore
 import DeeRealtime
+import DeeWake
 import Foundation
 import Synchronization
 
@@ -94,9 +95,46 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// there; anything else ends the reply where she paused. Off: every
         /// barge-in cuts her at once (the words never matter).
         public var holdOnBargeIn = true
+        /// v0.6 (contract §4): start DORMANT — no socket, no uplink, no key mint,
+        /// no clip rendering — until `wake(onsetFrame:)`. The app: true. Off (the
+        /// harness's "conversation always open"): connects at `start()` exactly as v0.5.
+        public var startsDormant = false
+        /// A wake's uplink starts this long before the phrase's onset.
+        public var wakePrerollSeconds = 0.3
+        /// Who problems name (OpenAI, or a LAN server by host).
+        public var provider: ProviderLabel = .openAI
+        /// Where each uplinked frame's local voice verdict goes (mode 3's turn detector).
+        public var uplinkActivity: UplinkActivity?
+        /// Render missing clips once per window, after it connected (the app: true).
+        /// Never while DORMANT (`ClipCache.renderAllowed`).
+        public var prepareClipsOnWake = false
 
         public init() {}
     }
+
+    /// DORMANT ⇄ awake (contract §4), for the window and the eyes.
+    public enum AwakeState: Sendable, Equatable {
+        /// No socket, nothing sent. Only the phone's own wake ear listens.
+        case dormant
+        /// Woken: connecting. Yielded before any network call is made.
+        case waking
+        /// Connected; the uplink is open (from the wake onset − 0.3 s).
+        case awake
+        /// The connection failed while waking or awake (the window decides what's next).
+        case failed(VoiceProblem)
+    }
+
+    /// A short local sound for the listening window (no network, never rendered).
+    public enum ListeningCue: String, Sendable, CaseIterable {
+        /// She heard her wake phrase (rising two notes).
+        case wake
+        /// She stopped listening (falling two notes).
+        case listeningOff
+    }
+
+    /// 16 kHz mono Int16 microphone audio (the wake ear's format) and the 24 kHz
+    /// capture-timeline frame of its first sample.
+    public typealias MicSink = @Sendable (_ pcm16k: [Int16], _ captureFrame24k: Int64) -> Void
 
     /// Her reply paused for the user (a barge-in whose words aren't known yet).
     /// What they said may arrive as several items (the server splits "Don't
@@ -450,6 +488,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// consumer; the newest 64 are kept if nobody reads).
     public let speculativeEvents: AsyncStream<SpeculativeEvent>
     private let speculativeContinuation: AsyncStream<SpeculativeEvent>.Continuation
+    /// DORMANT / waking / awake / failed, in order (single consumer; newest 32 kept).
+    public let awakeStates: AsyncStream<AwakeState>
+    private let awakeContinuation: AsyncStream<AwakeState>.Continuation
     private let commands: AsyncStream<Command>.Continuation
     private let commandStream: AsyncStream<Command>
 
@@ -572,6 +613,23 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var voiceOverEchoItems: [String] = []
         /// The open response is held by `spec` (its audio is gated in the player).
         var responseGated = false
+
+        /// v0.6: not DORMANT (waking or awake). Connecting, reconnecting and the
+        /// uplink only happen while true.
+        var awake = true
+        /// Connected since the last wake (`.awake` was yielded).
+        var awakeAnnounced = false
+        /// Bumped by every `wake` / `sleep`: a connect loop of an older one stops.
+        var linkGeneration = 0
+        /// The next uplink starts here (capture frame), not where the last one ended.
+        var wakeFrom: Int64?
+        /// `connect(resume:)` for this window.
+        var wakeResume = false
+        /// Clips were prepared in this window.
+        var clipsPrepared = false
+        /// Cues in the player (utterance ids).
+        var cues: Set<String> = []
+        var cueCounter = 0
     }
 
     /// An item waiting for its words is given up on (deleted as her echo) after this.
@@ -595,8 +653,15 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         (holdEvents, holdContinuation) = AsyncStream<HoldEvent>.makeStream(bufferingPolicy: .bufferingNewest(64))
         (speculativeEvents, speculativeContinuation) =
             AsyncStream<SpeculativeEvent>.makeStream(bufferingPolicy: .bufferingNewest(64))
+        (awakeStates, awakeContinuation) = AsyncStream<AwakeState>.makeStream(bufferingPolicy: .bufferingNewest(32))
         (commandStream, commands) = AsyncStream<Command>.makeStream(bufferingPolicy: .unbounded)
-        inner.withLock { $0.core.wakeOnVoice = configuration.wakeOnVoice }
+        let dormant = configuration.startsDormant
+        inner.withLock { s in
+            s.awake = !dormant
+            // DORMANT: sustained local voice never opens an uplink (there is no socket).
+            s.core.wakeOnVoice = dormant ? false : configuration.wakeOnVoice
+        }
+        if dormant { clips?.renderAllowed = false }
         graph.player.timeline = timeline                 // `.firstAudioPlayed` / `.flushed` land in the same turns
         wire()
     }
@@ -908,7 +973,11 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             applied(facts)
             audioCameUp()
         }
-        startConnecting()
+        if inner.withLock({ $0.awake }) {
+            startConnecting()
+        } else {
+            awakeContinuation.yield(.dormant)
+        }
     }
 
     public func shutdown() {
@@ -934,6 +1003,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         brain.finish()
         holdContinuation.finish()
         speculativeContinuation.finish()
+        awakeContinuation.finish()
         tasks.withLock { list in list.forEach { $0.cancel() } }
     }
 
@@ -1068,8 +1138,139 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// Connect again after a key problem (the key sheet saved a new key) or to
     /// retry at once.
     public func reconnect() {
-        inner.withLock { $0.needsSetup = false }
+        // DORMANT: a saved key or endpoint is used at the next wake (W2: nothing now).
+        let awake = inner.withLock { s -> Bool in
+            s.needsSetup = false
+            return s.awake
+        }
+        if awake { startConnecting() }
+    }
+
+    // MARK: DORMANT ⇄ awake (v0.6)
+
+    /// Not DORMANT: waking (connecting) or awake (connected).
+    public var isAwake: Bool { inner.withLock { $0.awake } }
+
+    /// The capture timeline's "now" (24 kHz frames): what a tap-to-wake passes.
+    public var captureFrame: Int64 { graph.capture.capturedFrames }
+
+    /// Wakes her (the local wake phrase, a tap, a due greeting): yields `.waking`
+    /// before anything touches the network, then connects (`connect(resume:)`).
+    /// Once connected the uplink opens `wakePrerollSeconds` before `onsetFrame`
+    /// (a capture-timeline frame; nil = now), so "Hey Dee, what time is it?" said
+    /// in one breath reaches the server whole. Already awake: the uplink is left
+    /// alone (a phrase heard in an open window changes nothing here).
+    public func wake(onsetFrame: Int64?, resume: Bool = true) {
+        let pre = Int64((configuration.wakePrerollSeconds * PCM16Capture.sampleRate).rounded())
+        wake(from: onsetFrame.map { $0 - pre }, resume: resume)
+    }
+
+    /// `wake(onsetFrame:)` for a caller that already subtracted the pre-roll
+    /// (`ConversationWindow.Action.openUplink(fromFrame:)`): the uplink starts at
+    /// exactly `uplinkFromFrame` (nil = now − `wakePrerollSeconds`).
+    public func wake(uplinkFromFrame: Int64?, resume: Bool = true) {
+        wake(from: uplinkFromFrame, resume: resume)
+    }
+
+    private func wake(from frame: Int64?, resume: Bool) {
+        let now = graph.capture.capturedFrames
+        let pre = Int64((configuration.wakePrerollSeconds * PCM16Capture.sampleRate).rounded())
+        let ring = Int64(PCM16Capture.ringSeconds * PCM16Capture.sampleRate)
+        let go = inner.withLock { s -> Bool in
+            guard s.started, !s.shutDown, !s.awake else { return false }
+            s.awake = true
+            s.awakeAnnounced = false
+            s.linkGeneration += 1
+            s.clipsPrepared = false
+            s.wakeFrom = max(0, now - ring, min(frame ?? (now - pre), now))
+            s.wakeResume = resume
+            s.core.wakeOnVoice = configuration.wakeOnVoice
+            return true
+        }
+        guard go else { return }
+        mark(.note, detail: "wake")
+        awakeContinuation.yield(.waking)
+        clips?.renderAllowed = true
         startConnecting()
+    }
+
+    /// DORMANT again (the window closed, the app went to the background, the
+    /// provider changed): the uplink closes, the session closes (no reconnect, no
+    /// rollover, no key mint), sustained voice no longer opens anything, clips are
+    /// not rendered. The conversation's words stay for the next `wake` (seed).
+    public func sleep() {
+        let generation = inner.withLock { s -> Int? in
+            guard !s.shutDown, s.awake else { return nil }
+            s.awake = false
+            s.awakeAnnounced = false
+            s.linkGeneration += 1
+            s.wakeFrom = nil
+            s.core.wakeOnVoice = false
+            closeUplink(&s)
+            return s.linkGeneration
+        }
+        guard let generation else { return }
+        clips?.renderAllowed = false
+        mark(.note, detail: "sleep")
+        command(.run { [weak self] session in
+            await session.close()
+            // A `wake` that came while this close was queued (sleep then wake while
+            // still connecting): its link may just have been closed — connect again.
+            guard let self, self.inner.withLock({ $0.awake && $0.linkGeneration != generation }) else { return }
+            self.startConnecting()
+        })
+        awakeContinuation.yield(.dormant)
+    }
+
+    /// Adds a consumer of the microphone at 16 kHz (the wake ear): fed from the same
+    /// tap (VPIO on) in every state, DORMANT included, on the tap thread, in order.
+    /// Downsampled by `DeeWake.Downsampler24to16`, whose frame tracking keeps the
+    /// 24 kHz capture frame of each chunk's first sample exact.
+    public func addMicSink(_ sink: @escaping MicSink) {
+        let down = Mutex(Downsampler24to16())
+        graph.capture.addSink { chunk in
+            let (samples, first) = down.withLock { $0.process(PCM16.samples(chunk.data), firstFrame24k: chunk.startFrame) }
+            guard let first, !samples.isEmpty else { return }
+            sink(samples, first)
+        }
+    }
+
+    /// The wake ear hears the microphone from now on (every state; it decides
+    /// what it listens for). It never sends anything anywhere.
+    public func attach(wakeEar: any WakeEar) {
+        addMicSink { pcm, frame in wakeEar.consume(pcm, captureFrame24k: frame) }
+    }
+
+    /// Plays a listening cue through her player (echo-cancelled like her voice).
+    @discardableResult
+    public func playCue(_ cue: ListeningCue) -> Bool {
+        let pcm = Self.cuePCM(cue)
+        return inner.withLock { s -> Bool in
+            guard s.started, !s.shutDown, s.audioUp, !s.sessionPlaying, s.sessionItems.isEmpty else { return false }
+            s.cueCounter += 1
+            let id = "cue-\(s.cueCounter)-\(cue.rawValue)"
+            s.cues.insert(id)
+            graph.player.enqueue(pcm, utterance: id)
+            graph.player.finish(utterance: id)
+            return true
+        }
+    }
+
+    /// Two soft sine notes (~−28 dBFS, 5 ms fades): up for `.wake`, down for `.listeningOff`.
+    static func cuePCM(_ cue: ListeningCue) -> Data {
+        let rate = PCM16Capture.sampleRate
+        let notes: [Double] = cue == .wake ? [660, 880] : [660, 494]
+        let noteFrames = Int(rate * 0.07)
+        let fade = Int(rate * 0.005)
+        var out: [Int16] = []
+        out.reserveCapacity(noteFrames * notes.count)
+        for f in notes {
+            for i in 0..<noteFrames {
+                let env = min(1, Double(min(i, noteFrames - 1 - i)) / Double(fade))
+                out.append(Int16(1300 * env * sin(2 * .pi * f * Double(i) / rate)))
+            }
+        }
+        return out.withUnsafeBytes { Data($0) }
     }
 
     // MARK: Test / harness hooks
@@ -1338,7 +1539,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
 
     private func startConnecting() {
         let go = inner.withLock { s -> Bool in
-            guard s.started, !s.shutDown, !s.connectLoopRunning, !s.needsSetup else { return false }
+            guard s.started, !s.shutDown, !s.connectLoopRunning, !s.needsSetup, s.awake else { return false }
             s.connectLoopRunning = true
             return true
         }
@@ -1351,32 +1552,59 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     }
 
     private func connectLoop() async {
-        defer { inner.withLock { $0.connectLoopRunning = false } }
+        var stale = false
+        defer {
+            let again = inner.withLock { s -> Bool in
+                s.connectLoopRunning = false
+                return stale && s.awake && !s.needsSetup && !s.shutDown
+            }
+            // A wake that came while this loop (of an older window) was unwinding.
+            if again { startConnecting() }
+        }
         var attempt = 0
+        var closedRetried = false
         while !Task.isCancelled {
-            guard inner.withLock({ !$0.shutDown && !$0.needsSetup }) else { return }
+            let (go, resume, generation) = inner.withLock { s in
+                (!s.shutDown && !s.needsSetup && s.awake, s.wakeResume, s.linkGeneration)
+            }
+            guard go else { return }
             var wait: Double?
             do {
-                try await session.connect()
+                if generation > 0 {
+                    // A window opened by `wake`: resumed (seeded) per `wakeResume`.
+                    try await session.connect(resume: resume)
+                } else {
+                    try await session.connect()
+                }
+                if inner.withLock({ $0.linkGeneration != generation }) { stale = true }
                 return
             } catch let e as RealtimeSessionError {
+                if inner.withLock({ $0.linkGeneration != generation }) { stale = true; return }
                 switch e {
                 case .noKey:
-                    setProblem(.cloudVoiceNeedsSetup("No OpenAI key."), setup: true)
+                    setProblem(.cloudVoiceNeedsSetup(configuration.provider.isOpenAI
+                        ? "No OpenAI key." : "No key for \(configuration.provider.spokenName)."), setup: true)
                     return
                 case .unauthorized(let m):
-                    setProblem(.cloudVoiceNeedsSetup("The OpenAI key was refused\(m.map { ": \($0)" } ?? ".")"), setup: true)
+                    setProblem(.cloudVoiceNeedsSetup(Self.refusedKey(configuration.provider, m)), setup: true)
                     return
                 case .closed:
+                    // An older window's `sleep` closed the session while this window's
+                    // link was opening (sleep then wake while connecting): once, again.
+                    if !closedRetried, inner.withLock({ $0.awake && !$0.shutDown }) {
+                        closedRetried = true
+                        continue
+                    }
                     return
                 case .rateLimited(let after):
                     wait = after
                     setProblem(.cloudVoiceUnavailable("Rate limited."), setup: false)
                 default:
-                    setProblem(.cloudVoiceUnavailable(Self.describe(e)), setup: false)
+                    setProblem(.cloudVoiceUnavailable(Self.unreachable(configuration.provider, Self.describe(e))), setup: false)
                 }
             } catch {
-                setProblem(.cloudVoiceUnavailable("\(error)"), setup: false)
+                if inner.withLock({ $0.linkGeneration != generation }) { stale = true; return }
+                setProblem(.cloudVoiceUnavailable(Self.unreachable(configuration.provider, "\(error)")), setup: false)
             }
             let delays = configuration.connectRetryDelays.isEmpty ? [5.0] : configuration.connectRetryDelays
             let delay = max(wait ?? 0, delays[min(attempt, delays.count - 1)])
@@ -1385,12 +1613,24 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         }
     }
 
+    /// "The OpenAI key was refused…" / "The AI server at HOST refused the key…".
+    static func refusedKey(_ p: ProviderLabel, _ m: String?) -> String {
+        let tail = m.map { ": \($0)" } ?? "."
+        return p.isOpenAI ? "The OpenAI key was refused\(tail)" : "\(p.spokenName.prefix(1).uppercased() + p.spokenName.dropFirst()) refused the key\(tail)"
+    }
+
+    /// Mode 1 keeps v0.5's detail text; a LAN server is named ("I can't reach the AI server at HOST").
+    static func unreachable(_ p: ProviderLabel, _ detail: String) -> String {
+        p.isOpenAI ? detail : "Can't reach \(p.spokenName): \(detail)"
+    }
+
     private func setProblem(_ p: VoiceProblem?, setup: Bool?) {
         inner.withLock { s in
             if let setup { s.needsSetup = setup }
             guard s.problem != p else { return }
             s.problem = p
             brain.yield(.connection(p))
+            if let p, s.awake, s.linkGeneration > 0 { awakeContinuation.yield(.failed(p)) }
             if let p { voice(.error("Cloud voice: \(p.message) (\(Self.detail(p)))"), &s) }
         }
     }
@@ -1439,6 +1679,14 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     s.problem = nil
                     brain.yield(.connection(nil))
                 }
+                if s.linkGeneration > 0, s.awake, !s.awakeAnnounced {
+                    s.awakeAnnounced = true
+                    awakeContinuation.yield(.awake)
+                    if configuration.prepareClipsOnWake, !s.clipsPrepared, let clips {
+                        s.clipsPrepared = true
+                        Task { await clips.prepare() }
+                    }
+                }
                 apply(s.core.setConnected(true, at: t), &s)
             case .disconnected:
                 s.connected = false
@@ -1479,7 +1727,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             case .rolledOver:
                 break                                // the map was rebased at `.uplinkOrigin`
             case .stateChanged(let state):
-                if state == .idle, s.started, !s.shutDown, !s.needsSetup {
+                if state == .idle, s.started, !s.shutDown, !s.needsSetup, s.awake {
                     // The session gave up (or never connected): keep trying.
                     let go = !s.connectLoopRunning
                     if go { control.async { [weak self] in self?.startConnecting() } }
@@ -1676,11 +1924,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 mark(.note, detail: "uplink dropped \(frames / 24) ms at \(at.map(String.init) ?? "-")")
                 forward = false
             case .fallbackAdvised(let reason):
-                if let (p, setup) = Self.problem(for: reason) {
+                if let (p, setup) = Self.problem(for: reason, provider: configuration.provider) {
                     if let setup { s.needsSetup = setup }
                     if s.problem != p {
                         s.problem = p
                         brain.yield(.connection(p))
+                        if s.awake, s.linkGeneration > 0 { awakeContinuation.yield(.failed(p)) }
                     }
                 }
                 voice(.error("Cloud voice: \(Self.describe(reason))"), &s)
@@ -1737,6 +1986,21 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         graph.player.enqueue(pcm, utterance: item)
     }
 
+    /// The problem a fallback reason means, worded for `provider` (OpenAI: v0.5's texts).
+    static func problem(for reason: FallbackReason, provider: ProviderLabel) -> (VoiceProblem, Bool?)? {
+        guard !provider.isOpenAI else { return problem(for: reason) }
+        let name = provider.spokenName
+        switch reason {
+        case .noKey: return (.cloudVoiceNeedsSetup("No key for \(name)."), true)
+        case .unauthorized: return (.cloudVoiceNeedsSetup(refusedKey(provider, nil)), true)
+        case .quotaExceeded, .rateLimited: return (.cloudVoiceUnavailable("\(name) is busy."), nil)
+        case .socketLost(_, let d): return (.cloudVoiceUnavailable("Lost \(name)\(d.map { ": \($0)" } ?? ".")"), nil)
+        case .connectFailed(let d): return (.cloudVoiceUnavailable("Can't reach \(name): \(d)"), nil)
+        case .serverError(let d): return (.cloudVoiceUnavailable("\(name) failed\(d.map { ": \($0)" } ?? ".")"), nil)
+        case .noResponse, .congested: return nil
+        }
+    }
+
     static func problem(for reason: FallbackReason) -> (VoiceProblem, Bool?)? {
         switch reason {
         case .noKey: (.cloudVoiceNeedsSetup("No OpenAI key."), true)
@@ -1771,7 +2035,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         inner.withLock { s in
             switch e {
             case .started(let u, _):
-                let clip = s.clips[u] != nil
+                let clip = s.clips[u] != nil || s.cues.contains(u)
                 apply(s.core.playbackStarted(at: t, aside: clip), &s)
                 if !clip {
                     for ev in s.sentences.itemStarted(u) { brain.yield(Self.brainEvent(ev)) }
@@ -1781,7 +2045,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             case .underrun(let u):
                 mark(.note, detail: "underrun \(u)")
             case .finished(let u, let ms, let flushed):
-                if let clip = s.clips.removeValue(forKey: u) {
+                if s.cues.remove(u) != nil {
+                    // A listening cue: nothing for the brain or the session.
+                } else if let clip = s.clips.removeValue(forKey: u) {
                     brain.yield(.clipPlayed(clip, cut: flushed))
                     if s.clips.isEmpty, s.localOn {
                         s.localOffDueAt = t + s.core.outputLatency + EarCore.echoTail
@@ -1885,8 +2151,17 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         s.uplinkGeneration += 1
         let generation = s.uplinkGeneration
         let capture = graph.capture
-        let from = s.map.captureEnd ?? max(0, capture.capturedFrames - Int64(configuration.prerollSeconds * PCM16Capture.sampleRate))
-        let chunks = capture.open(from: from, maxPreroll: configuration.prerollSeconds)
+        let chunks: AsyncStream<PCM16Capture.Chunk>
+        if let wakeFrom = s.wakeFrom {
+            // The first uplink of a window: from the wake onset − 0.3 s, never earlier
+            // (no speech from before the phrase leaves the phone), never the gap since
+            // the last window.
+            s.wakeFrom = nil
+            chunks = capture.open(from: wakeFrom, maxPreroll: PCM16Capture.ringSeconds)
+        } else {
+            let from = s.map.captureEnd ?? max(0, capture.capturedFrames - Int64(configuration.prerollSeconds * PCM16Capture.sampleRate))
+            chunks = capture.open(from: from, maxPreroll: configuration.prerollSeconds)
+        }
         let t = Task { [weak self] in
             for await chunk in chunks {
                 guard let self, self.send(chunk, generation: generation) else { return }
@@ -1917,10 +2192,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 let data = chunk.data.subdata(in: (chunk.data.startIndex + skip * 2)..<chunk.data.endIndex)
                 s.map.sent(startFrame: end, frames: chunk.frames - skip)
                 session.feedAudio(s.uplinkGate.process(data, startFrame: end))
+                configuration.uplinkActivity?.record(frames: chunk.frames - skip, voice: s.core.voiceActive(at: graph.now))
                 return true
             }
             s.map.sent(startFrame: chunk.startFrame, frames: chunk.frames)
             session.feedAudio(s.uplinkGate.process(chunk.data, startFrame: chunk.startFrame))
+            configuration.uplinkActivity?.record(frames: chunk.frames, voice: s.core.voiceActive(at: graph.now))
             return true
         }
     }

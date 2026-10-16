@@ -66,6 +66,11 @@ public enum FixtureCategory: String, Codable, Sendable, CaseIterable {
     /// A listener's backchannel said while Dee talks ("go on", "mm-hm"): she keeps
     /// talking (user decision, tune 2). Not part of the 62 acoustic fixtures.
     case backchannel
+    /// 0.6 wake suite: a wake phrase, alone or with a question in one breath. Not core.
+    case wake
+    /// 0.6 wake suite: speech not addressed to her (near-miss words, her name in a
+    /// sentence): must never wake her. Not core.
+    case unaddressed
 }
 
 /// One piece of a fixture: words, or a deliberate silence.
@@ -211,6 +216,69 @@ public enum FixtureCatalog {
         // Backchannels said while she talks.
         .init("bc01", .backchannel, .say, "Daniel", .neutral, [w("Go on.")]),
         .init("bc02", .backchannel, .say, "Samantha", .soft, [w("Mm-hm.")]),
+
+        // 0.6 wake suite (`WakeSuite`). "Hey Dee" alone, many voices (accept ≥ 95%).
+        .init("wd01", .wake, .say, "Samantha", .neutral, [w("Hey Dee.")]),
+        .init("wd02", .wake, .say, "Daniel", .neutral, [w("Hey Dee.")]),
+        .init("wd03", .wake, .say, "Karen", .neutral, [w("Hey Dee.")]),
+        .init("wd04", .wake, .say, "Flo (English (US))", .neutral, [w("Hey Dee!")]),
+        .init("wd05", .wake, .say, "Reed (English (US))", .neutral, [w("Hey Dee.")]),
+        .init("wd06", .wake, .say, "Moira", .neutral, [w("Hey Dee.")]),
+        .init("wd07", .wake, .openai, "alloy", .neutral, [w("Hey Dee.")]),
+        .init("wd08", .wake, .openai, "coral", .soft, [w("Hey Dee.")]),
+        .init("wd09", .wake, .openai, "ash", .loud, [w("Hey Dee!")]),
+        .init("wd10", .wake, .openai, "shimmer", .child, [w("Hey Dee!")]),
+        .init("wd11", .wake, .openai, "sage", .neutral, [w("Hey Dee.")]),
+        .init("wd12", .wake, .openai, "verse", .fast, [w("Hey Dee.")]),
+        .init("wd13", .wake, .openai, "ballad", .soft, [w("Hey Dee.")]),
+        .init("wd14", .wake, .openai, "echo", .neutral, [w("Hey Dee.")]),
+        // One breath: the question must be answered (audio from ~0.3 s before the wake onset).
+        .init("wq01", .wake, .openai, "coral", .neutral, [w("Hey Dee, what time is it?")]),
+        .init("wq02", .wake, .say, "Daniel", .neutral, [w("Hey Dee, what's your favorite color?")]),
+        .init("wq03", .wake, .openai, "alloy", .neutral, [w("Hey Dee, are you awake?")]),
+        .init("wq04", .wake, .openai, "shimmer", .child, [w("Hey Dee, do you like music?")]),
+        // A pause after the phrase, then the question (one fixture).
+        .init("wp01", .wake, .openai, "sage", .neutral, [w("Hey Dee."), p(1.0), w("Can you hear me okay?")]),
+        .init("wp02", .wake, .say, "Samantha", .neutral, [w("Hey Dee."), p(0.8), w("What did you do today?")]),
+        // Close commands (the window closes at once).
+        .init("wc01", .command, .openai, "alloy", .neutral, [w("Okay, go to sleep.")]),
+        .init("wc02", .command, .say, "Daniel", .neutral, [w("That's all for now.")]),
+        .init("wc03", .command, .openai, "coral", .neutral, [w("Hey Dee, stop listening.")]),
+        // Custom phrases (accept ≥ 90% each).
+        .init("cc01", .wake, .say, "Samantha", .neutral, [w("Computer.")]),
+        .init("cc02", .wake, .say, "Daniel", .neutral, [w("Computer.")]),
+        .init("cc03", .wake, .openai, "alloy", .neutral, [w("Computer.")]),
+        .init("cc04", .wake, .openai, "coral", .soft, [w("Computer.")]),
+        .init("cc05", .wake, .openai, "ash", .fast, [w("Computer!")]),
+        .init("cc06", .wake, .openai, "shimmer", .child, [w("Computer!")]),
+        .init("cq01", .wake, .openai, "sage", .neutral, [w("Computer, what time is it?")]),
+        .init("hr01", .wake, .say, "Samantha", .neutral, [w("Hey Robo.")]),
+        .init("hr02", .wake, .say, "Daniel", .neutral, [w("Hey Robo.")]),
+        .init("hr03", .wake, .openai, "alloy", .neutral, [w("Hey Robo.")]),
+        .init("hr04", .wake, .openai, "coral", .soft, [w("Hey Robo.")]),
+        .init("hr05", .wake, .openai, "echo", .neutral, [w("Hey Robo!")]),
+        .init("hr06", .wake, .openai, "shimmer", .child, [w("Hey Robo!")]),
+        .init("hrq01", .wake, .openai, "verse", .neutral, [w("Hey Robo, tell me a joke.")]),
+        .init("op01", .wake, .say, "Samantha", .neutral, [w("Okay Pixel.")]),
+        .init("op02", .wake, .say, "Daniel", .neutral, [w("Okay Pixel.")]),
+        .init("op03", .wake, .openai, "alloy", .neutral, [w("Okay Pixel.")]),
+        .init("op04", .wake, .openai, "coral", .soft, [w("Okay Pixel.")]),
+        .init("op05", .wake, .openai, "sage", .neutral, [w("Okay Pixel.")]),
+        .init("op06", .wake, .openai, "shimmer", .child, [w("Okay Pixel!")]),
+        .init("opq01", .wake, .openai, "ash", .neutral, [w("Okay Pixel, are you awake?")]),
+        // Unaddressed speech: her name in a sentence, near-miss words (never a wake).
+        .init("un01", .unaddressed, .openai, "coral", .neutral, [w("My friend says that Dee is a robot who lives on my shelf.")]),
+        .init("un02", .unaddressed, .say, "Daniel", .neutral, [w("I told her the deadline was on Thursday.")]),
+        .init("un03", .unaddressed, .openai, "ash", .neutral, [w("Hey, the delivery guy is at the door.")]),
+        .init("un04", .unaddressed, .say, "Samantha", .neutral, [w("The lady at the bakery gave us extra bread.")]),
+        .init("un05", .unaddressed, .openai, "sage", .neutral, [w("He is driving to the D C office next week.")]),
+        .init("un06", .unaddressed, .say, "Karen", .neutral, [w("Hey there, how have you been lately?")]),
+        .init("un07", .unaddressed, .openai, "verse", .neutral, [w("We watched a show about an old computer museum.")]),
+        .init("un08", .unaddressed, .openai, "alloy", .neutral, [w("Okay, picture this: a tiny robot on a beach.")]),
+        .init("un09", .unaddressed, .say, "Daniel", .neutral, [w("Hey Rob, can you pass the salt?")]),
+        .init("un10", .unaddressed, .openai, "echo", .neutral, [w("I need to compute the total before dinner.")]),
+        .init("un11", .unaddressed, .openai, "ballad", .soft, [w("Had a hot head about it, then I hid the heater.")]),
+        .init("un12", .unaddressed, .say, "Moira", .neutral, [w("Did you see her robe? It was the color of the sea.")]),
     ]
 
     /// Fixtures added for the tune-2 regression suite (not part of the 62).
@@ -218,7 +286,12 @@ public enum FixtureCatalog {
 
     /// The 62 acoustic fixtures (every category but `continuation` / `backchannel`, no extras).
     public static var core: [FixtureSpec] {
-        all.filter { $0.category != .continuation && $0.category != .backchannel && !extras.contains($0.id) }
+        all.filter { $0.category != .continuation && $0.category != .backchannel && !extras.contains($0.id) && !isWakeSuite($0) }
+    }
+
+    /// 0.6 wake suite fixtures (`wd…`, `wq…`, `wp…`, `wc…`, custom phrases, `un…`): not core.
+    public static func isWakeSuite(_ f: FixtureSpec) -> Bool {
+        f.category == .wake || f.category == .unaddressed || f.id.hasPrefix("wc")
     }
 
     /// Fixtures after which the user has not finished: waiting is the right answer

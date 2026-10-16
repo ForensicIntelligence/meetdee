@@ -3,10 +3,12 @@ import DeeRealtime
 import DeeSelf
 import Foundation
 
-/// The cloud-voice settings (Settings › Dee) and the session config built from them.
+/// The cloud-voice settings (Dee's in-app settings; v0.6 keeps the old UserDefaults keys
+/// for the voice and model) and the session config built from them.
 public struct CloudSettings: Sendable, Equatable {
     /// UserDefaults keys (Settings.bundle).
     public enum Key {
+        /// The old Settings.bundle key field (v0.5). Read only by `KeyIntake.migrateLegacyKey`.
         public static let apiKey = "openAIKey"
         public static let voice = "cloudVoice"
         public static let model = "cloudModel"
@@ -111,8 +113,15 @@ public struct CloudSettings: Sendable, Equatable {
     }
 }
 
-/// The OpenAI key pasted into Settings › Dee: validated, moved to the Keychain, and
-/// cleared from UserDefaults (where Settings.bundle fields live, unencrypted).
+/// The OpenAI key entered in Dee's own settings (v0.6: onboarding or the in-app
+/// settings — never Settings.bundle, whose fields are plaintext UserDefaults).
+///
+/// - `absorb(_:)` — the user tapped "Check key": one cheap authenticated GET
+///   /v1/models through the recorded `Transport` (X1), then the Keychain. A refused key
+///   (401/403) is not stored; offline, the key is stored unvalidated.
+/// - `migrateLegacyKey(from:)` — once, before onboarding shows: a key left in the old
+///   Settings.bundle field moves to the Keychain with **no network call**, and the
+///   plaintext copy is always removed (on a Keychain failure the user re-enters it).
 public struct KeyIntake: Sendable {
     public enum Outcome: Sendable, Equatable {
         /// Nothing pasted.
@@ -123,61 +132,78 @@ public struct KeyIntake: Sendable {
         case rejected(String)
     }
 
-    public typealias Fetch = @Sendable (URLRequest) async throws -> (Data, URLResponse)
+    public enum Migration: Sendable, Equatable {
+        /// No old field (or an empty one).
+        case nothing
+        /// Moved to the Keychain (unchecked; the first window will tell).
+        case moved
+        /// The field held something that is not an OpenAI key: removed, not stored.
+        case discarded
+        /// The Keychain refused it: removed anyway (K1); the user must enter it again.
+        case keychainFailed
+    }
+
+    public typealias Fetch = HTTPFetch
     public let keyStore: KeyStore
     public let fetch: Fetch
     public var endpoint = URL(string: "https://api.openai.com/v1/models")!
 
-    public init(keyStore: KeyStore = KeyStore(), fetch: @escaping Fetch = KeyIntake.uncachedFetch) {
+    /// - Parameter fetch: the recorded transport's fetch (OpenAI: same-host redirects).
+    public init(keyStore: KeyStore = KeyStore(), fetch: @escaping Fetch = Transport.openAIDefault.fetch) {
         self.keyStore = keyStore
         self.fetch = fetch
     }
 
-    /// The check's own session: ephemeral (no disk cache, cookies or credential
-    /// store), so the authenticated request never lands in a `Cache.db`.
-    public static let uncachedFetch: Fetch = { request in
-        let config = URLSessionConfiguration.ephemeral
-        config.urlCache = nil
-        config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        let session = URLSession(configuration: config)
-        defer { session.finishTasksAndInvalidate() }
-        return try await session.data(for: request)
-    }
-
     /// The Keychain refused the key (the outcome text `absorb` returns).
     public static let keychainFailure = "Couldn't save the key in the Keychain."
+    /// The old Settings.bundle field (plaintext UserDefaults), read once for migration.
+    public static let legacyDefaultsKey = CloudSettings.Key.apiKey
 
-    /// Reads the Settings field, validates with one cheap GET, stores, clears the field.
-    /// The field is cleared once the key is in the Keychain, or when it was refused
-    /// or is not a key; it is kept only when the Keychain could not save it (so the
-    /// pasted key is not lost; the next launch tries again).
-    public func absorb(from defaults: UserDefaults) async -> Outcome {
-        guard let raw = defaults.string(forKey: CloudSettings.Key.apiKey),
-              !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .nothing }
-        let outcome = await absorb(raw)
-        if outcome != .rejected(Self.keychainFailure) {
-            defaults.removeObject(forKey: CloudSettings.Key.apiKey)
+    /// Once, before onboarding: no network, the plaintext copy always removed.
+    public func migrateLegacyKey(from defaults: UserDefaults) -> Migration {
+        guard let raw = defaults.string(forKey: Self.legacyDefaultsKey) else {
+            defaults.removeObject(forKey: Self.legacyDefaultsKey)
+            return .nothing
         }
-        return outcome
+        defaults.removeObject(forKey: Self.legacyDefaultsKey)
+        guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .nothing }
+        guard let key = KeyStore.normalize(raw) else { return .discarded }
+        do { _ = try keyStore.save(key) } catch { return .keychainFailed }
+        return .moved
     }
 
+    /// "Check key": validate with one GET, then store.
     public func absorb(_ raw: String) async -> Outcome {
+        guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .nothing }
         guard let key = KeyStore.normalize(raw) else { return .rejected("That doesn't look like an OpenAI key.") }
+        var validated = false
+        switch await Self.check(key, endpoint: endpoint, fetch: fetch) {
+        case .refused: return .rejected("OpenAI refused that key.")
+        case .valid: validated = true
+        case .unknown: break   // offline: keep it; the session will say so if it is refused later
+        }
+        do { _ = try keyStore.save(key) } catch { return .rejected(Self.keychainFailure) }
+        return .stored(validated: validated)
+    }
+
+    public enum Check: Sendable, Equatable { case valid, refused, unknown }
+
+    /// One authenticated GET /v1/models (purpose "models"). Never logs the key.
+    public static func check(_ key: String, endpoint: URL = URL(string: "https://api.openai.com/v1/models")!,
+                             fetch: Fetch) async -> Check {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "GET"
         request.timeoutInterval = 8
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        var validated = false
+        request.setValue("models", forHTTPHeaderField: Transport.purposeHeader)
         do {
             let (_, response) = try await fetch(request)
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            if status == 401 || status == 403 { return .rejected("OpenAI refused that key.") }
-            validated = (200..<300).contains(status)
+            if status == 401 || status == 403 { return .refused }
+            return (200..<300).contains(status) ? .valid : .unknown
         } catch {
-            // Offline: keep it; the session will say so if it is refused later.
+            return .unknown
         }
-        do { _ = try keyStore.save(key) } catch { return .rejected(Self.keychainFailure) }
-        return .stored(validated: validated)
     }
 }
 
@@ -212,8 +238,8 @@ public enum CloudStatus: Sendable, Equatable {
 
     public var message: String {
         switch self {
-        case .noKey: "Add your OpenAI key in Settings › Dee"
-        case .badKey: "OpenAI refused the key — paste a new one in Settings › Dee"
+        case .noKey: "I need an OpenAI key — open my settings"
+        case .badKey: "That OpenAI key didn't work — open my settings"
         case .offline: "No connection — I'll talk again when I'm back online"
         case .rateLimited: "OpenAI is busy (rate limited) — trying again"
         case .quota: "The OpenAI spend limit was reached"

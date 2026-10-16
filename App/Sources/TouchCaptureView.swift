@@ -7,6 +7,9 @@ import UIKit
 /// gestures don't expose `majorRadius`, so this is a thin UIKit layer.
 struct TouchCaptureView: UIViewRepresentable {
     var onSample: @MainActor (TouchSample) -> Void
+    /// A two-finger long-press (0.8 s) opens her settings. The one-finger 0.8 s press
+    /// stays the hug (`TouchInterpreter` `.hold`): the recognizer never cancels touches.
+    var onTwoFingerHold: @MainActor () -> Void = {}
 
     func makeUIView(context: Context) -> CaptureView {
         let view = CaptureView()
@@ -14,17 +17,32 @@ struct TouchCaptureView: UIViewRepresentable {
         view.isMultipleTouchEnabled = true
         view.backgroundColor = .clear
         view.isAccessibilityElement = true
+        view.onTwoFingerHold = onTwoFingerHold
         view.accessibilityLabel = "Dee"
-        view.accessibilityHint = "Stroke gently to pet her. Tap an eye to make her blink."
+        view.accessibilityHint = "Tap to talk to her. Stroke gently to pet her. Tap an eye to make her blink. Hold with two fingers for her settings."
+        let hold = UILongPressGestureRecognizer(target: view, action: #selector(CaptureView.twoFingerHold(_:)))
+        hold.numberOfTouchesRequired = 2
+        hold.minimumPressDuration = 0.8
+        hold.cancelsTouchesInView = false
+        hold.delaysTouchesBegan = false
+        hold.delaysTouchesEnded = false
+        view.addGestureRecognizer(hold)
         return view
     }
 
     func updateUIView(_ view: CaptureView, context: Context) {
         view.onSample = onSample
+        view.onTwoFingerHold = onTwoFingerHold
     }
 
     final class CaptureView: UIView {
         var onSample: (@MainActor (TouchSample) -> Void)?
+        var onTwoFingerHold: (@MainActor () -> Void)?
+
+        @objc func twoFingerHold(_ g: UILongPressGestureRecognizer) {
+            guard g.state == .began else { return }
+            MainActor.assumeIsolated { onTwoFingerHold?() }
+        }
         private var ids: [ObjectIdentifier: Int] = [:]
         private var nextID = 1
 

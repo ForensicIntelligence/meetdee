@@ -7,6 +7,9 @@ import SwiftUI
 /// is captions. Debug builds add a keyboard and transcript for development.
 struct RootView: View {
     @Environment(DeeModel.self) private var model
+    @Bindable var store: ProviderStore
+    var runOnboarding: () -> Void
+    @State private var showSettings = false
     #if DEBUG
     @State private var showDebug = false
     @State private var draft = ""
@@ -17,7 +20,7 @@ struct RootView: View {
             FaceView(inputs: model.faceInputs)
                 .ignoresSafeArea()
             // Touch: pets, pokes, taps on an eye. Sits above the face, below the chrome.
-            TouchCaptureView { model.touched($0) }
+            TouchCaptureView(onSample: { model.touched($0) }, onTwoFingerHold: openSettings)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -33,6 +36,19 @@ struct RootView: View {
         .overlay { loadOverlay }
         .statusBarHidden()
         .persistentSystemOverlays(.hidden)
+        .sheet(isPresented: $showSettings, onDismiss: { model.settingsClosed() }) {
+            DeeSettingsView(store: store, runOnboarding: runOnboarding)
+                .environment(model)
+        }
+        .onChange(of: model.settingsRequested) { _, asked in
+            if asked { openSettings() }
+        }
+    }
+
+    private func openSettings() {
+        model.settingsOpened()
+        store.reload()
+        showSettings = true
     }
 
     // MARK: - Status
@@ -41,6 +57,7 @@ struct RootView: View {
         VStack(alignment: .leading, spacing: 8) {
             topRow
             cloudChip
+            wakeChip
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
@@ -52,7 +69,9 @@ struct RootView: View {
     @ViewBuilder private var cloudChip: some View {
         let line: (text: String, symbol: String, urgent: Bool)? = {
             if let d = model.disclosure { return (d, "waveform", false) }
-            if let n = model.notice { return (n, "key", false) }
+            if let n = model.notice { return (n, "info.circle", false) }
+            if let p = model.providerProblem { return (p, "gearshape", true) }
+            if let e = model.earProblem { return (e, "ear.trianglebadge.exclamationmark", true) }
             if let s = model.cloudStatus { return (s.message, s.symbol, s.needsUser) }
             return nil
         }()
@@ -64,8 +83,32 @@ struct RootView: View {
                 .padding(.horizontal, 10).padding(.vertical, 6)
                 .background(Color.white.opacity(0.08), in: .capsule)
                 .accessibilityIdentifier("cloudStatus")
+                .accessibilityAddTraits(line.urgent ? .isButton : [])
+                .onTapGesture { if line.urgent { openSettings() } }
                 .transition(.opacity)
         }
+    }
+
+    /// Whether she is listening: "Say “Hey Dee”" while dormant (tap to talk), a soft
+    /// "Listening" while a conversation window is open. Release too.
+    @ViewBuilder private var wakeChip: some View {
+        let s = model.wakeStatus
+        Button {
+            model.tapToTalk()
+        } label: {
+            Label(s.text, systemImage: s.symbol)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(s.open ? Color.deeEye : Color.white.opacity(0.65))
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(Color.white.opacity(s.open ? 0.10 : 0.06), in: .capsule)
+        }
+        .buttonStyle(.plain)
+        .disabled(s.open || !model.canWake)
+        .accessibilityLabel(s.accessibility)
+        .accessibilityHint(s.open ? "" : "Starts a conversation")
+        .accessibilityIdentifier("wakeState")
+        .transition(.opacity)
+        .animation(.easeInOut, value: s)
     }
 
     private var topRow: some View {
@@ -80,6 +123,15 @@ struct RootView: View {
                     .transition(.opacity.combined(with: .scale))
             }
             Spacer()
+            Button(action: openSettings) {
+                Image(systemName: "gearshape")
+                    .font(.body)
+                    .foregroundStyle(Color.white.opacity(0.35))
+                    .frame(width: 44, height: 44)
+                    .contentShape(.rect)
+            }
+            .accessibilityLabel("Settings")
+            .accessibilityIdentifier("settingsButton")
             #if DEBUG
             Button {
                 withAnimation { showDebug.toggle() }

@@ -222,6 +222,9 @@ public struct Scenario: Codable, Sendable, Equatable {
     public var session: SessionTuning?
     /// The echo path models a device without echo cancellation (recorded for the report).
     public var aecOff: Bool?
+    /// 0.6: a wake-phrase scenario (`--wake phrase`): she starts DORMANT and only the
+    /// on-device phrase opens a window. nil: the always-open baseline (tune2).
+    public var wake: WakeSetup?
 
     public init(name: String, description: String? = nil, noise: Noise? = nil, echo: EchoConfig? = nil,
                 instructions: String? = nil, leadIn: Double? = nil, steps: [Step], family: String? = nil,

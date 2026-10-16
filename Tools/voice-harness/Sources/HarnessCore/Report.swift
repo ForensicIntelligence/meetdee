@@ -105,6 +105,9 @@ public struct HarnessReport: Codable, Sendable {
         if !metrics.leaks.isEmpty {
             md += "- Leaks: " + metrics.leaks.map { "\($0.itemID) [\($0.rules.joined(separator: ", "))] “\(Self.cell($0.text))”" }.joined(separator: "; ") + "\n"
         }
+        if !metrics.leaksUnspoken.isEmpty {
+            md += "- Generated but never said aloud (information, not gated): " + metrics.leaksUnspoken.map { "\($0.scenario) \($0.itemID) [\($0.rules.joined(separator: ", "))] “\(Self.cell($0.text))”" }.joined(separator: "; ") + "\n"
+        }
         if !metrics.truncations.isEmpty {
             md += "\n### Truncations\n\n| Scenario | Item | audio_end_ms | played ms | ok | history = heard |\n|---|---|---|---|---|---|\n"
             for t in metrics.truncations {

@@ -89,6 +89,17 @@ struct FixtureGenerator {
             return Beds.tv(talkers: talkers, seconds: Self.bedSeconds, sampleRate: Self.rate)
         }
 
+        // 0.6 wake suite: long speech beds (false wakes per hour). Original text written
+        // for the harness; macOS `say`, no key, no cost.
+        try bed("tvlong", provenance: "Rendered with macOS `say` (voices Daniel, Samantha, Fred, Kathy, Moira, Karen; 12 original lines written for the harness), staggered and summed like Beds.tv, 120 s (HarnessCore Beds.tv, seed 0x7E1E). Wake-suite false-wake bed.") {
+            let talkers = try WakeSuite.tvLines.map { try say($0.text, voice: $0.voice, rate: nil) }
+            return Beds.tv(talkers: talkers, seconds: 120, sampleRate: Self.rate)
+        }
+        try bed("radio", provenance: "Talk radio: macOS `say` (voices Daniel, Samantha, Karen, Moira, Fred, Kathy, Reed, Flo; 16 original lines written for the harness) one voice at a time, 0.3–0.8 s gaps, 120 Hz–7 kHz, 180 s (HarnessCore Beds.radio, seed 0x4AD10). Wake-suite false-wake bed.") {
+            let segments = try WakeSuite.radioLines.map { try say($0.text, voice: $0.voice, rate: nil) }
+            return Beds.radio(segments: segments, seconds: 180, sampleRate: Self.rate)
+        }
+
         var irs = existing?.impulseResponses ?? []
         let irFile = "ir/room.wav"
         if force || !fm.fileExists(atPath: dir.appendingPathComponent(irFile).path) || irs.isEmpty {

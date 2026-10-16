@@ -25,8 +25,6 @@ targets:
     sources:
       - path: App/Sources
       - path: App/Resources
-      - path: App/Settings.bundle
-        buildPhase: resources
       # Opening splash: the Forensic Intelligence block reveal (black background).
       - path: "Fi Block Bounce Reveal.mp4"
         buildPhase: resources
@@ -51,11 +49,15 @@ targets:
         product: DeeRealtime
       - package: DeeKit
         product: DeeBrain
+      - package: DeeKit
+        product: DeeWake
+      - package: DeeKit
+        product: DeeLocal
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ca.forensicintelligence.dee
         PRODUCT_NAME: Dee
-        MARKETING_VERSION: "0.5.0"
+        MARKETING_VERSION: "0.6.0"
         CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
@@ -67,12 +69,14 @@ targets:
         INFOPLIST_KEY_UIStatusBarStyle: UIStatusBarStyleLightContent
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Dee listens so she can talk with you. While she is open and online, everything her microphone picks up (you, anyone else nearby, the TV) is streamed to OpenAI, which understands it and answers in her voice; OpenAI may keep it for up to 30 days to check for abuse. Sounds such as laughter or a doorbell are also recognised on this device."
-        INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "Dee can read and add calendar events when you talk about your plans. To answer, she looks at up to two weeks of your calendar, and the titles and times of up to 8 events she finds go to her cloud voice (OpenAI) so she can tell you."
-        INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: "Dee can read and add reminders when you talk about your to-dos. To answer, the titles of up to 10 of your open reminders go to her cloud voice (OpenAI) so she can tell you."
-        INFOPLIST_KEY_NSContactsUsageDescription: "Dee can look up a contact's phone, email or birthday when you ask her to. The contact you ask about goes to her cloud voice (OpenAI) so she can tell you."
-        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Dee can tell you roughly where you are (town and area) when you ask. That place name goes to her cloud voice (OpenAI) so she can say it."
-        INFOPLIST_KEY_NSCameraUsageDescription: "Dee uses the cameras to see you and the things around you: her eyes follow your face, she recognises friends she has met, and she gets curious about what she sees. Video is processed on this device and is never recorded or sent anywhere; only a few words about what she notices (\"a cup you are showing her\") go to her cloud voice so she can talk about it."
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: "Dee listens on this iPhone for her wake phrase (“Hey Dee”, or the one you chose). Listening for it happens only on the device and never leaves the phone. Once she wakes, what her microphone hears during that conversation goes to the AI service you chose in her setup (OpenAI, or your own server on your network) until the conversation ends. Sounds such as laughter or a doorbell are also recognised on this device."
+        INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "Dee can read and add calendar events when you talk about your plans. To answer, she looks at up to two weeks of your calendar, and the titles and times of up to 8 events she finds go to her AI service (OpenAI or your own server, whichever you chose) so she can tell you."
+        INFOPLIST_KEY_NSRemindersFullAccessUsageDescription: "Dee can read and add reminders when you talk about your to-dos. To answer, the titles of up to 10 of your open reminders go to her AI service (OpenAI or your own server, whichever you chose) so she can tell you."
+        INFOPLIST_KEY_NSContactsUsageDescription: "Dee can look up a contact's phone, email or birthday when you ask her to. The contact you ask about goes to her AI service (OpenAI or your own server, whichever you chose) so she can tell you."
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Dee can tell you roughly where you are (town and area) when you ask. That place name goes to her AI service (OpenAI or your own server, whichever you chose) so she can say it."
+        INFOPLIST_KEY_NSSpeechRecognitionUsageDescription: "Dee hears her wake phrase with Apple's speech recognition on this iPhone only — nothing is sent anywhere to listen for it. If you choose “on this iPhone” for her hearing, your words in a conversation are transcribed on the device too."
+        INFOPLIST_KEY_NSLocalNetworkUsageDescription: "Dee connects to the AI server you set up on your home network (for example Ollama or LM Studio on your Mac), if you choose one. She talks only to the address you enter."
+        INFOPLIST_KEY_NSCameraUsageDescription: "Dee uses the cameras to see you and the things around you: her eyes follow your face, she recognises friends she has met, and she gets curious about what she sees. Video is processed on this device and is never recorded or sent anywhere; only a few words about what she notices (\"a cup you are showing her\") go to her AI service during a conversation so she can talk about it."
 
   DeeUITests:
     type: bundle.ui-testing

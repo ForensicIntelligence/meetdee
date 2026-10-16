@@ -13,22 +13,113 @@ public enum SpokenCommand: Sendable, Equatable {
     case stop
     /// Forget this conversation and start a fresh one.
     case newConversation
-    /// Go to sleep.
+    /// Go to sleep (closes the conversation window, and her body sleeps).
     case sleep
+    /// "Stop listening" / "that's all": close the conversation window now (v0.6; the
+    /// body stays awake — only the microphone stops leaving the phone).
+    case stopListening
+    /// "Change your wake phrase to X" (v0.6). The text is the proposed phrase, in
+    /// title case, not yet validated (`WakePhrase(validating:)` does that); she repeats
+    /// it and asks to confirm before anything is saved.
+    case changeWakePhrase(to: String)
+
+    /// Commands that close the conversation window at once (after her local goodbye).
+    public var closesWindow: Bool {
+        switch self {
+        case .sleep, .stopListening: true
+        default: false
+        }
+    }
 
     /// The command `utterance` is, or nil.
     /// - Parameter deeIsTalking: Dee is speaking, preparing a reply, or has only just
     ///   stopped. "Stop" and "quiet" only mean "be quiet" then; said to a silent Dee
     ///   they are conversation ("Stop!" after a tickle, "Quiet." describing a room),
     ///   and she answers them instead of ignoring the user.
-    public static func match(_ utterance: String, deeIsTalking: Bool) -> SpokenCommand? {
-        let c = core(of: utterance)
+    /// - Parameter stripLeading: removes the current wake phrase from the front
+    ///   (`WakeMatcher.stripLeading`), so "Computer, go to sleep" is `.sleep` with a
+    ///   custom phrase. nil: only the built-in name forms ("hey Dee") are stripped.
+    public static func match(_ utterance: String, deeIsTalking: Bool,
+                             stripLeading: ((String) -> String)? = nil) -> SpokenCommand? {
+        let text = stripLeading.map { $0(utterance) } ?? utterance
+        if let phrase = wakePhraseChange(text) { return .changeWakePhrase(to: phrase) }
+        let c = core(of: text)
         guard !c.isEmpty else { return nil }
         if newConversationPhrases.contains(c) { return .newConversation }
         if sleepPhrases.contains(c) { return .sleep }
+        if stopListeningPhrases.contains(c) { return .stopListening }
         if deeIsTalking, stopPhrases.contains(c) { return .stop }
         return nil
     }
+
+    /// A yes / no answer to her confirmation question ("My wake phrase will be …. Is
+    /// that right?"), or nil when the utterance is neither.
+    public static func confirmation(_ utterance: String) -> Bool? {
+        let c = core(of: utterance)
+        guard !c.isEmpty else { return nil }
+        if yesPhrases.contains(c) { return true }
+        if noPhrases.contains(c) { return false }
+        // "Yeah, that's right", "no, keep the old one": the first word decides, unless the
+        // rest turns it around ("yes, no wait").
+        let words = c.split(separator: " ").map(String.init)
+        guard let first = words.first, words.count > 1 else { return nil }
+        let negators: Set<String> = ["no", "not", "don't", "wait", "nope"]
+        if ["yes", "yeah", "yep", "yup", "correct", "sure"].contains(first), !words.dropFirst().contains(where: negators.contains) { return true }
+        if ["no", "nope", "nah"].contains(first) { return false }
+        return nil
+    }
+
+    /// The proposed phrase of "change your wake phrase to X" (and its variants), or nil.
+    /// Only openers and "please"/"thanks" are stripped — never a trailing "Dee", which
+    /// may be part of the new phrase ("…to Hi Dee").
+    static func wakePhraseChange(_ utterance: String) -> String? {
+        var words = normalize(utterance).split(separator: " ").map(String.init)
+        var changed = true
+        while changed, !words.isEmpty {
+            changed = false
+            for lead in leading + changeOpeners where words.starts(with: lead) {
+                words.removeFirst(lead.count)
+                changed = true
+                break
+            }
+        }
+        while let last = words.last, ["please", "thanks"].contains(last) { words.removeLast() }
+        if words.suffix(2) == ["thank", "you"] { words.removeLast(2) }
+        // Join "wake up" / "wakeup" / "wake" into one token so the patterns stay small.
+        var joined: [String] = []
+        var i = 0
+        while i < words.count {
+            if words[i] == "wake", i + 1 < words.count, words[i + 1] == "up" { joined.append("wake"); i += 2; continue }
+            joined.append(words[i] == "wakeup" ? "wake" : words[i])
+            i += 1
+        }
+        let w = joined
+        func rest(after prefix: [String]) -> [String]? { w.starts(with: prefix) ? Array(w.dropFirst(prefix.count)) : nil }
+        var tail: [String]?
+        for verb in ["change", "set", "switch", "make", "turn"] {
+            for noun in ["phrase", "word"] {
+                for link in [["to"], ["into"], ["be"], []] {
+                    if tail == nil, let r = rest(after: [verb, "your", "wake", noun] + link) { tail = r }
+                }
+            }
+        }
+        for noun in ["phrase", "word"] where tail == nil {
+            for opener in [["your", "wake", noun, "is"], ["your", "new", "wake", noun, "is"], ["your", "wake", noun, "should", "be"],
+                           ["the", "wake", noun, "is"], ["new", "wake", noun]] where tail == nil {
+                tail = rest(after: opener)
+            }
+            if tail == nil, w.first == "use", w.suffix(4) == ["as", "your", "wake", noun] { tail = Array(w.dropFirst().dropLast(4)) }
+        }
+        guard var t = tail else { return nil }
+        if t.first == "now" { t.removeFirst() }
+        guard !t.isEmpty else { return nil }
+        return t.map { $0.prefix(1).uppercased() + $0.dropFirst() }.joined(separator: " ")
+    }
+
+    static let changeOpeners: [[String]] = [
+        ["i", "want", "to"], ["i'd", "like", "to"], ["i", "would", "like", "to"], ["let's"], ["let", "me"], ["i", "want", "you", "to"],
+        ["please"],
+    ].sorted { $0.count > $1.count }
 
     /// Whether the utterance is spoken *to* Dee by name ("Dee, are you awake?",
     /// "hey Dee"), or asks her to wake up. Used while nobody is in view or she
@@ -137,6 +228,22 @@ public enum SpokenCommand: Sendable, Equatable {
     static let sleepPhrases: Set<String> = [
         "go to sleep", "goodnight", "good night", "time to sleep", "nap time", "time for bed",
         "go to bed", "time for a nap", "sleep time",
+    ]
+
+    /// Close the conversation window (v0.6). Whole utterance only: "that's all I have"
+    /// is conversation.
+    static let stopListeningPhrases: Set<String> = [
+        "stop listening", "stop listening to me", "you can stop listening", "that's all", "that is all",
+        "that'll be all", "that will be all", "we're done", "we are done", "that's all i need", "that's all i needed",
+    ]
+    static let yesPhrases: Set<String> = [
+        "yes", "yeah", "yep", "yup", "yes it is", "yes please", "sure", "right", "correct", "that's right", "that's correct",
+        "exactly", "yes that's right", "yeah that's right", "do it", "go ahead", "please do", "uh huh", "mhm", "absolutely",
+        "perfect", "sounds good", "yes exactly",
+    ]
+    static let noPhrases: Set<String> = [
+        "no", "nope", "nah", "no it isn't", "no it's not", "that's wrong", "wrong", "not right", "that's not right", "cancel",
+        "never mind", "nevermind", "forget it", "keep it", "keep the old one", "don't", "no don't", "no thanks", "no thank you",
     ]
 
     /// Must open the utterance (after greetings) to count as waking her.
