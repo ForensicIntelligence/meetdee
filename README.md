@@ -1,11 +1,11 @@
 # Dee
 
-**Developer:** Forensic Intelligence
+A pocket robot companion for iPhone: Loona's eyes, Wall-E's soul. 
 
-A pocket robot companion for iPhone: Loona's eyes, Wall-E's soul. Her face, senses,
+Her face, senses,
 feelings, memories and sense of self are computed on the device; her voice and words
-come from OpenAI's realtime speech-to-speech model (`gpt-realtime-2.1-mini`, or
-`gpt-realtime-2.1` in Settings), which hears her human, answers in character and speaks.
+come from either OpenAI's realtime speech-to-speech model (`gpt-realtime-2.1-mini`, or
+`gpt-realtime-2.1` in Settings), or an accessible LAN-base equivalent (built-in on iOS) which hears her human, answers in character and speaks.
 Before every reply and every time she speaks first, the model is given a full
 description of who she is and how she feels right now ("Dee DNA", `docs/DNA.md`). Her
 voice is an AI voice: she says so herself the first time she talks through the cloud,
@@ -13,8 +13,10 @@ and the screen shows it.
 
 Without a connection (or without a key) Dee stays alive — eyes, touch, camera, feelings —
 but cannot talk. A small status chip says why ("Add your OpenAI key in Settings › Dee",
-"OpenAI refused the key", "No connection", "rate limited") and her eyes take a quieter,
-puzzled look until her voice is back. There is no local language model.
+"OpenAI refused the key", "No connection", "rate limited", "LAN Model not Accessible") and her eyes take a quieter,
+puzzled look until her voice is back. There is no local language model, only LAN-based (ie: Ollama running on a Mac or PC) or OpenAI.  Maybe I'll change that later.
+
+Note that "Dee" is more or less useless at this time. A modern Tamagochi, if you will.  But maybe Dee has a future as an Agentic Harness? 
 
 ## Setup
 1. Open `Dee.xcodeproj` (regenerate with `xcodegen generate` after editing `project.yml`).
