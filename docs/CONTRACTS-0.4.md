@@ -1,5 +1,7 @@
 # v0.4 module contracts — "She's alive"
 
+**Developer:** Forensic Intelligence
+
 Four modules are built in parallel; the app (`App/Sources`) is wired against these
 signatures at the same time. **Implement them exactly** (names, parameter labels,
 types). Adding extra API is fine; renaming or removing is not.

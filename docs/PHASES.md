@@ -1,5 +1,7 @@
 # Dee — Phased Development Plan
 
+**Developer:** Forensic Intelligence
+
 Dee is a Loona/Wall-E-style robot companion that lives in an iPhone. It talks and has
 expressive animated eyes. Her face, senses, mind, self and memories run on the device;
 from 0.6 her hearing, words and voice come from OpenAI's realtime speech-to-speech model
@@ -8,7 +10,7 @@ from 0.6 her hearing, words and voice come from OpenAI's realtime speech-to-spee
 integration comes in a later major version.
 
 Every phase ends with: `swift test` green, iOS app building, a DEVLOG entry, a git
-commit (staging `Dee/` only — the Desktop repo is shared), and a Claude memory
+commit (staging `Dee/` only — the Desktop repo is shared), and a project-notes
 update. Each phase is one **minor version**.
 
 | Version | Phase | Scope | Status |

@@ -1,5 +1,7 @@
 # Dee: On-device iOS 26/27 frameworks for a speaking agentic assistant (brief, 2026-10-08, fact-checked)
 
+**Developer:** Forensic Intelligence
+
 ## 1. Speech-to-text
 
 **SpeechAnalyzer / SpeechTranscriber (iOS 26+, use this as the primary path)**

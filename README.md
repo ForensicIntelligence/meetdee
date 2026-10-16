@@ -1,5 +1,7 @@
 # Dee
 
+**Developer:** Forensic Intelligence
+
 A pocket robot companion for iPhone: Loona's eyes, Wall-E's soul. Her face, senses,
 feelings, memories and sense of self are computed on the device; her voice and words
 come from OpenAI's realtime speech-to-speech model (`gpt-realtime-2.1-mini`, or

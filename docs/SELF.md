@@ -1,5 +1,7 @@
 # Dee v0.5 "Someone": the self-model architecture
 
+**Developer:** Forensic Intelligence
+
 Status: **design, final**. This document combines three proposals (cognitive, social,
 narrative) and three judges' critiques. It is binding for v0.5 unless John changes
 it. Requirements: `docs/research/self-model-brief.md`. Existing engine:

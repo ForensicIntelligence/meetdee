@@ -1,5 +1,7 @@
 # DeeRealtime — v0.6 contract
 
+**Developer:** Forensic Intelligence
+
 New library product `DeeRealtime` in `Packages/DeeKit` (design step B2). It is Dee's client for
 OpenAI's Realtime API, **GA interface** (no `OpenAI-Beta` header), over a WebSocket, model
 `gpt-realtime-2.1-mini` by default. Depends on Foundation, Network and Security only: no DeeCore,

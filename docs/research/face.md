@@ -1,5 +1,7 @@
 # Dee Face: Visual Design Brief (fact-checked)
 
+**Developer:** Forensic Intelligence
+
 ## 1. The reference video
 
 - **Video:** https://www.youtube.com/shorts/xakELIhs-rw. The only thing I could fetch is the title, "Robot Dog Isn't this more fun than an iron egg". The channel, the description and what happens in the video are **UNVERIFIED**. The title points to a Loona-class pet robot compared with egg-shaped robots, possibly Eilik or EBO. That comparison is **UNVERIFIED**.

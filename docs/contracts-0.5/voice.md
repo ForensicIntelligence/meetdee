@@ -1,5 +1,7 @@
 # CONTRACTS-0.5 addendum: DeeVoice (SELF.md §7.1, §2)
 
+**Developer:** Forensic Intelligence
+
 All changes are additive. No public API was renamed or removed.
 
 ## VoiceEvent (new case)

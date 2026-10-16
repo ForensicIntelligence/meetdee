@@ -1,5 +1,7 @@
 # voice-harness
 
+**Developer:** Forensic Intelligence
+
 Dee's live voice loopback harness (voice design §7.4, layer 3) with trace record / replay (§7.3, layer 2).
 It runs DeeVoice's real `CloudVoice` on a manual-render `AudioGraph`, paced in real time, against DeeRealtime's
 real `RealtimeSession`. The microphone is fed by `MicMixer`, which sums three things: fixture speech, a room bed at a

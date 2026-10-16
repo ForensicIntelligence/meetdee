@@ -1,5 +1,7 @@
 # DeeMind — v0.5 contract addendum: appraise, adjust, then commit
 
+**Developer:** Forensic Intelligence
+
 Closes the self.md open item "Appraisal ordering (§4.3, review 2g)". The other v0.5
 DeeMind changes (`CuriosityDirector.candidates` / `commit` / `avoid`, `Appraisal.internal`,
 no neglect penalty) are in `mindcore.md`.

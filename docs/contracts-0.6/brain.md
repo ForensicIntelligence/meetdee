@@ -1,5 +1,7 @@
 # DeeBrain — v0.6 contract
 
+**Developer:** Forensic Intelligence
+
 New library product `DeeBrain` in `Packages/DeeKit` (design steps B4, B5, B7). It is Dee's
 brain on the OpenAI realtime session: it decides when she answers, describes her to the
 model before every response (Dee DNA, `docs/DNA.md`, binding), bridges the tools, and

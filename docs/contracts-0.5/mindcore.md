@@ -1,5 +1,7 @@
 # DeeMind + DeeCore — v0.5 contract addendum
 
+**Developer:** Forensic Intelligence
+
 All changes are additive. No public API was renamed or removed. With the new
 fields at their defaults, every existing call site behaves exactly as in v0.4
 (the system prompt is byte-identical; `nextPrompt` keeps its behaviour; existing

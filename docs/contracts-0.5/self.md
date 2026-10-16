@@ -1,5 +1,7 @@
 # CONTRACTS-0.5 addendum: DeeSelf (SELF.md §2–§6, §10–§13, step 0.5.1 + review fixes)
 
+**Developer:** Forensic Intelligence
+
 Revised after the 0.5.1 core review (`self-core-review.md`): request channels, per-reducer
 RNG streams and hooks so the eight unfinished sub-reducers can be built in parallel,
 issued-note effects, forget / merge / forget-person, schema v2 (no cascade from

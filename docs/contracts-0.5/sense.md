@@ -1,5 +1,7 @@
 # DeeSense additions for 0.5 (owner: sense): `Sources/DeeSense`, `Tests/DeeSenseTests`
 
+**Developer:** Forensic Intelligence
+
 All changes add to the existing API. Nothing is renamed or removed. Two new `SenseUpdate` cases
 break exhaustive `switch`es, so `DeeModel.handle(_ update:)` must add `.head` and `.faces`
 cases (or a `default`).

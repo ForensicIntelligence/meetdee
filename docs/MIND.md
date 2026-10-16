@@ -1,5 +1,7 @@
 # Dee's Mind — emotions, personality, age
 
+**Developer:** Forensic Intelligence
+
 Dee is a modern Tamagotchi with a lot more going on inside. Its inner life is
 **26 parameters**: 13 personality traits and 13 feelings. Each is canonically a
 byte (0–255), and the whole state is one decodable value:

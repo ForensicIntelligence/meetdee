@@ -1,5 +1,7 @@
 # Dee DNA — v11 (binding spec)
 
+**Developer:** Forensic Intelligence
+
 Date: 2026-10-09. Status: **binding** for v0.6 (gpt-realtime-2.1-mini speech-to-speech; the local Qwen model and
 `<dee_state>` are removed). Owners: `DeeDNA` (new library, pure) and `RealtimeBrain` (app, stage 2).
 Inputs read: `DeeMind` (Parameters, MindCode, Mind, EmotionEngine, Expression, Appraisal, Age), `DeeSelf`

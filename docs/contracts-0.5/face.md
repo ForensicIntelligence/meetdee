@@ -1,5 +1,7 @@
 # DeeFace — v0.5 contract addendum
 
+**Developer:** Forensic Intelligence
+
 All changes are additive. No public API was renamed or removed, and old call sites
 produce exactly the same `FaceAnimator.target` as before (pinned by
 `ListenPreviewTests.defaultsAreOff`).

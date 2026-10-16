@@ -1,5 +1,7 @@
 # Dee — Developer Log
 
+**Developer:** Forensic Intelligence
+
 A running, honest record of building Dee: a pocket robot companion with Loona's eyes,
 Wall-E's soul, and a 4-billion-parameter brain that never leaves the phone. Written
 to become a magazine series, so it keeps the numbers, the dead ends and the
