@@ -26,8 +26,8 @@ public final class StandaloneHost: BrainHost {
     public var extraNotes: [String] = []
 
     // The conversation window (v0.6, providers-wake-onboarding §4). The one rule every
-    // host shares: an open window means she is engaged and addressed; outside one,
-    // nothing is answered — and no server transcript (her name included) ever opens it.
+    // host shares: an open window means Dee is engaged and addressed; outside one,
+    // nothing is answered — and no server transcript (Dee's name included) ever opens it.
     /// `.alwaysOpen`: the window never closes (the harness's 28-scenario baseline, the
     /// brain tests). `.phrase`: it opens only through `window(_:)` inputs (the local
     /// wake ear, a tap, a greeting) and closes on its own rules.
@@ -42,6 +42,8 @@ public final class StandaloneHost: BrainHost {
     public var monotonic: @MainActor () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     /// The current wake phrase: commands may follow it ("Computer, go to sleep").
     public var wakePhrase = WakePhrase.default
+    /// Who the host speaks as (the session instructions: `DNAPrompt.sessionInstructions(preset:)`).
+    public private(set) var persona = PersonaCatalog.classic
     /// "Change your wake phrase to X" waiting for a yes.
     public private(set) var phraseChange = WakePhraseChange()
 
@@ -55,14 +57,14 @@ public final class StandaloneHost: BrainHost {
         return actions
     }
 
-    /// Whether the window lets her answer at all (always, in `.alwaysOpen`).
+    /// Whether the window lets Dee answer at all (always, in `.alwaysOpen`).
     public var windowAnswers: Bool { wakeMode == .alwaysOpen || Engagement.answers(window: window.state) }
 
     // What happened (for the harness and tests)
     public private(set) var heardLog: [(text: String, verdict: HeardVerdict)] = []
     public private(set) var wordsFailedCount = 0
     public private(set) var commands: [SpokenCommand] = []
-    /// Her answers to "change your wake phrase" (what she would say), and the outcomes.
+    /// Dee's answers to "change your wake phrase" (what Dee would say), and the outcomes.
     public private(set) var phrasePrompts: [WakePhraseChange.Prompt] = []
     public private(set) var phraseOutcomes: [WakePhraseChange.Outcome] = []
     public private(set) var replies: [[ReplyEvent]] = []
@@ -75,16 +77,24 @@ public final class StandaloneHost: BrainHost {
 
     /// - Parameters:
     ///   - mind: e.g. `try Mind(databaseURL: nil)`; `mind.restore(code)` sets a state.
-    ///   - seed: the enduring self's seed (`SelfSeeder`).
+    ///   - seed: the enduring self's seed (`SelfSeeder`); a persona preset uses its own.
+    ///   - persona: who the host speaks as. Classic Dee (the default) keeps every tuned
+    ///     harness golden; a preset is applied to `mind` and seeds the self from itself.
     public init(mind: Mind, memory: MemoryStore? = nil, person: PersonID? = nil, seed: UInt64 = 7,
+                persona: PersonaPreset = PersonaCatalog.classic,
                 at now: Date = Date(), utcOffset: TimeInterval = TimeInterval(TimeZone.current.secondsFromGMT())) async {
         self.mind = mind
         self.memory = memory
         self.person = person
+        if !persona.isClassic { await mind.apply(persona, at: now) }
         let snap = await mind.snapshot(at: now)
         snapshot = snap
-        let enduring = SelfSeeder.seed(personality: snap.code.personality, seed: seed, at: now)
+        let enduring = persona.isClassic ? SelfSeeder.seed(personality: snap.code.personality, seed: seed, at: now)
+            : SelfSeeder.seed(preset: persona, fallbackSeed: seed, at: now)
         cortex = Cortex(enduring: enduring, mind: snap, at: now, utcOffset: utcOffset)
+        cortex.identity = persona
+        self.persona = persona
+        if !persona.isClassic { wakePhrase = (try? WakePhrase(validating: persona.wakePhraseDefault)) ?? .default }
         voiceBaseline = await mind.voiceBaseline
         _ = cortex.step(.conversationStarted(now), mind: snap, at: now)
         if let person { _ = cortex.step(.identified(person, distance: 0), mind: snap, at: now) }
@@ -129,8 +139,8 @@ public final class StandaloneHost: BrainHost {
     public func heard(_ turn: HeardTurn) async -> HeardVerdict {
         let now = Date()
         if case .voice = turn.source {
-            // Outside a window nothing is for her — not even her name in a server
-            // transcript (W1: only the on-device ear wakes her).
+            // Outside a window nothing is for Dee — not even Dee's name in a server
+            // transcript (W1: only the on-device ear wakes Dee).
             guard windowAnswers else {
                 heardLog.append((turn.text, .ignored))
                 return .ignored
@@ -144,9 +154,10 @@ public final class StandaloneHost: BrainHost {
                 return .handled
             }
             let matcher = WakeMatcher(wakePhrase)
-            if let c = SpokenCommand.match(turn.text, deeIsTalking: talking, stripLeading: { matcher.stripLeading($0) }) {
+            if let c = SpokenCommand.match(turn.text, deeIsTalking: talking, stripLeading: { matcher.stripLeading($0) },
+                                           names: persona.isClassic ? [] : persona.addressingWords) {
                 commands.append(c)
-                // DeeModel: `stop(hush: true)` — her voice and the brain, hushed.
+                // DeeModel: `stop(hush: true)` — Dee's voice and the brain, hushed.
                 if c == .stop || c.closesWindow { stopSpeaking(hush: true) }
                 if c == .sleep { asleep = true }
                 if case .changeWakePhrase(let raw) = c {
@@ -243,7 +254,7 @@ public final class StandaloneHost: BrainHost {
     public private(set) var stops = 0
 
     /// As DeeModel: the Cortex senses `.bargeInAnswered` and its effects run — a
-    /// `.stopSpeaking` would stop her as the app's `stop()` does (tune 5 F1: with
+    /// `.stopSpeaking` would stop Dee as the app's `stop()` does (tune 5 F1: with
     /// `.bargeIn` it did, and cancelled the very answer to the barge-in).
     public func bargedIn() {
         bargeIns += 1
@@ -252,7 +263,7 @@ public final class StandaloneHost: BrainHost {
         }
     }
 
-    /// DeeModel's `stop(hush:)` on the brain: her voice stops and the brain cancels.
+    /// DeeModel's `stop(hush:)` on the brain: Dee's voice stops and the brain cancels.
     public func stopSpeaking(hush: Bool) {
         stops += 1
         guard let brain else { return }

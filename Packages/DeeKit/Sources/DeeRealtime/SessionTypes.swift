@@ -123,9 +123,9 @@ public struct RealtimeSessionConfig: Sendable, Equatable {
     public var rateLimitBaseBackoff: Double = 1
     public var rateLimitMaxBackoff: Double = 30
     /// User speech that starts before a reply's first audio cancels the reply
-    /// (`.replyPreempted`): she never answers half a thought. Speech that starts
-    /// while her previous audio is still playing is left to the app (it may be
-    /// her echo: `rejectEcho` or `bargeIn` decides).
+    /// (`.replyPreempted`): Dee never answers half a thought. Speech that starts
+    /// while Dee's previous audio is still playing is left to the app (it may be
+    /// Dee's echo: `rejectEcho` or `bargeIn` decides).
     public var cancelUnspokenReplyOnSpeech = true
     /// Speaking rate used to place sentences on the audio timeline before an
     /// item's audio is complete (ms per transcript character at speed 1.0). The
@@ -383,7 +383,7 @@ public struct ResponseSummary: Sendable, Equatable {
     /// `status_details.error.code` for failed responses.
     public var errorCode: String?
 
-    /// The reply was cut off by `max_output_tokens` (she stopped mid-sentence).
+    /// The reply was cut off by `max_output_tokens` (Dee stopped mid-sentence).
     public var hitTokenLimit: Bool { status == "incomplete" && reason == "max_output_tokens" }
 }
 

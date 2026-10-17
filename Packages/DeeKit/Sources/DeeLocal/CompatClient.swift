@@ -190,23 +190,57 @@ public struct CompatClient: Sendable {
 
     /// Streams one chat response. The stream ends after `.finish` (or throws `CompatError`).
     /// `firstByteDeadline`: no response headers within it → `.transport(.timedOut)`.
-    public func chat(_ req: ChatRequest, route: Route = .openAI, firstByteDeadline: Double = 90, purpose: String = "chat")
+    /// `lane`: held from before the request until its HTTP stream has closed (one request at a
+    /// time per server, `ChatLane`). `rateLimit`: HTTP 429 before any byte of the answer is
+    /// waited out and retried (honouring `Retry-After`) within its budget, then fails as `.status(429)`.
+    public func chat(_ req: ChatRequest, route: Route = .openAI, firstByteDeadline: Double = 90, purpose: String = "chat",
+                     lane: ChatLane? = nil, rateLimit: RateLimitRetry = .none)
         -> AsyncThrowingStream<ChatPiece, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
+                if let lane {
+                    guard await lane.acquire() else { continuation.finish(throwing: CancellationError()); return }
+                    if Task.isCancelled {
+                        await lane.release()
+                        continuation.finish(throwing: CancellationError())
+                        return
+                    }
+                }
+                await chatBody(req, route: route, firstByteDeadline: firstByteDeadline, purpose: purpose,
+                               rateLimit: rateLimit, continuation: continuation)
+                if let lane { await lane.release() }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    private func chatBody(_ req: ChatRequest, route: Route, firstByteDeadline: Double, purpose: String,
+                          rateLimit: RateLimitRetry, continuation: AsyncThrowingStream<ChatPiece, Error>.Continuation) async {
                 do {
                     let path = route == .openAI ? "/v1/chat/completions" : "/api/chat"
                     let body = route == .openAI ? req.openAIBody() : req.ollamaBody()
-                    let r = try await request(path, method: "POST", body: body, timeout: firstByteDeadline, purpose: purpose)
-                    let (response, bytes): (HTTPURLResponse, AsyncThrowingStream<Data, Error>)
-                    do {
-                        let stream = transport.stream
-                        let s = try await withDeadline(firstByteDeadline) { try await stream(r) }
-                        (response, bytes) = (s.response, s.body)
-                    } catch let e as CompatError {
-                        throw e
-                    } catch {
-                        throw CompatError.transport(HTTPFailure.classify(error))
+                    var (response, bytes): (HTTPURLResponse, AsyncThrowingStream<Data, Error>)
+                    var attempt = 0
+                    var waitedSoFar = 0.0
+                    while true {
+                        let r = try await request(path, method: "POST", body: body, timeout: firstByteDeadline, purpose: purpose)
+                        do {
+                            let stream = transport.stream
+                            let s = try await withDeadline(firstByteDeadline) { try await stream(r) }
+                            (response, bytes) = (s.response, s.body)
+                        } catch let e as CompatError {
+                            throw e
+                        } catch {
+                            throw CompatError.transport(HTTPFailure.classify(error))
+                        }
+                        guard response.statusCode == 429 else { break }
+                        let wait = RateLimitRetry.delay(retryAfter: response.value(forHTTPHeaderField: "Retry-After"), attempt: attempt)
+                        guard waitedSoFar + wait <= rateLimit.budget + 1e-9 else { break }
+                        // Busy (a single-slot server, or another client on it): wait, then ask again.
+                        do { for try await _ in bytes {} } catch {}
+                        try await Task.sleep(for: .seconds(wait))
+                        waitedSoFar += wait
+                        attempt += 1
                     }
                     if response.statusCode >= 300 {
                         var body = Data()
@@ -263,9 +297,6 @@ public struct CompatClient: Sendable {
                 } catch {
                     continuation.finish(throwing: error)
                 }
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
     }
 
     // MARK: Audio

@@ -206,10 +206,10 @@ gratitude and resentment have baseline 0 and read absolutely; energy reads
 absolutely). Each candidate expression gets a score and the highest wins. Calm
 defaults score about 0.1–0.2, so anything clearly felt beats them.
 
-- **At rest she is not "curious"** (the old perpetual "?" bug: a curious Dee's
+- **At rest Dee is not "curious"** (the old perpetual "?" bug: a curious Dee's
   resting interest is high, and the old mapping read it absolutely). A fresh
-  Dee at rest looks **content**. As energy drains through a quiet day she turns
-  **dreamy**, then **sleepy**. With little bond (or joy below normal) she's
+  Dee at rest looks **content**. As energy drains through a quiet day Dee turns
+  **dreamy**, then **sleepy**. With little bond (or joy below normal) Dee's
   **neutral**.
 - Every `Emotion` except the app-driven `asleep`, `thinking` and `listening`
   (34 of 37) is reachable. Some examples (tests in `ExpressionTests`):
@@ -232,7 +232,7 @@ defaults score about 0.1–0.2, so anything clearly felt beats them.
 ### Reflex (`MindSnapshot.reflex`)
 
 A momentary reaction to the last stimulus that **sits above mood** and can
-contradict it, so she feels alive. `Mind` computes it in `hear`/`react` from the
+contradict it, so Dee feels alive. `Mind` computes it in `hear`/`react` from the
 appraisal and the feelings just before it, and snapshots carry it for
 `Mind.reflexDuration` (4 s); a neutral stimulus clears it.
 
@@ -253,8 +253,8 @@ appraisal and the feelings just before it, and snapshots carry it for
 | music / laughter / applause heard | happy (dreamy when tired) / giddy / excited (happy when tired) |
 | crying heard | worried |
 | novel sight | curious, awe when very novel |
-| `Appraisal.internal(relief:)` (v0.5: an expectation she was nervous about went well) | relieved (≥ 0.2; relief wins ties) |
-| `Appraisal.internal(pride:)` (v0.5: she completed one of her intentions) | proud (shy if very unconfident) |
+| `Appraisal.internal(relief:)` (v0.5: an expectation Dee was nervous about went well) | relieved (≥ 0.2; relief wins ties) |
+| `Appraisal.internal(pride:)` (v0.5: Dee completed one of Dee's intentions) | proud (shy if very unconfident) |
 | nothing notable | nil |
 
 **Internal events (v0.5).** `Appraisal.internal(relief:pride:)` is Dee's own
@@ -267,7 +267,7 @@ fires them when an expectation resolves well or an intention is completed.
 
 Humour does more than flash a smile: laughter that isn't a jab **genuinely
 softens anger** (−0.3 × humour × (0.5 + humour trait) of current anger) and a
-little sadness and resentment. She can laugh even when upset.
+little sadness and resentment. Dee can laugh even when upset.
 
 ### Mood signals and urge to talk
 
@@ -291,26 +291,26 @@ a short stage direction in parentheses for the language model, or nil.
 - **Unexpected sounds** are raised almost immediately (crying gets a gentle
   "is everyone okay?").
 - **Novel sights are paced:** at most one sight prompt per 45 s (per 2 min when
-  it's the back camera, so carrying the phone around doesn't make her narrate
+  it's the back camera, so carrying the phone around doesn't make Dee narrate
   the house). **Animals** and **awe-level novelty** (> 0.85, via
   `noteSight(_:camera:novelty:at:)`) jump the queue. Generic labels ("person",
   "wall") are ignored.
-- **Empty room:** with nobody present she calls out ("Hello? Is someone
+- **Empty room:** with nobody present Dee calls out ("Hello? Is someone
   there?") only for an **alarming or loud** (≥ 0.7, `noteSound(_:unexpected:
-  loudness:at:)`) unexpected sound, at most every 2 min — and, if she was asleep
+  loudness:at:)`) unexpected sound, at most every 2 min — and, if Dee was asleep
   (the app sets `asleepSince`), only after **3 min of sleep**.
   `CuriosityDirector.callsOutUnattended(sound:loudness:asleepFor:)` exposes the
-  rule so the app can also decide whether the noise wakes her.
+  rule so the app can also decide whether the noise wakes Dee.
 - **Back-off when ignored:** every prompt the user leaves unanswered doubles
   the general-initiative gap (×2 per prompt, up to ×16, capped at 10 min).
   After 3 unanswered prompts only novel sights and unexpected sounds can start
-  a conversation. The user speaking, touching her or arriving resets it.
+  a conversation. The user speaking, touching Dee or arriving resets it.
 - **Touch remarks** ("your human is petting you") only when the app didn't
   already send the touch to the model; noting `.deeSpoke` clears a pending
-  touch so she never answers it twice. Pokes earn "your human keeps poking you"
+  touch so Dee never answers it twice. Pokes earn "your human keeps poking you"
   only once a burst reaches ~6.
 - **General initiative** while the user is present: after a gap of
-  `60 − 40 × urgeToTalk` seconds (20–60 s) since anyone spoke or she last
+  `60 − 40 × urgeToTalk` seconds (20–60 s) since anyone spoke or Dee last
   initiated. Topics, weighted by mood:
   - things seen in the last 10 min that never came up (strongly preferred) and
     music heard
@@ -326,16 +326,16 @@ a short stage direction in parentheses for the language model, or nil.
 - **Mood-dependent phrasing:** grumpy Dee asks "a bit grumpily — you're still
   annoyed, but you can't help asking"; sad Dee quietly; tired Dee sleepily;
   playful Dee playfully; and so on.
-- **Reunion greetings** (loneliness > 0.4 on arrival) say she's glad they're
+- **Reunion greetings** (loneliness > 0.4 on arrival) say Dee's glad they're
   back — never "it got a bit lonely without them", never guilt.
-- **Avoid list (v0.5):** `avoid: Set<String>` holds subjects she must not bring
+- **Avoid list (v0.5):** `avoid: Set<String>` holds subjects Dee must not bring
   up (the user's boundaries, e.g. "job"). A candidate is dropped when an avoid
   term matches a whole word (plural "s"/"es" tolerated) of its label or topic
   line, so `avoid = ["food"]` removes "ask about their favourite food" and
   `["guitars"]` removes a sighted guitar. Greetings, empty-room call-outs and
   alarming sounds are exempt.
 - **Candidates (v0.5):** `candidates(at:snapshot:userPresent:busy:)` returns
-  every option she could raise — `Candidate(kind, subject, label, prompt,
+  every option Dee could raise — `Candidate(kind, subject, label, prompt,
   priority, urgency)`, best first — without consuming anything; phrasing comes
   from a copy of the seeded generator, so repeated calls agree.
   - `priority` (0…1): call-out 1, greeting 0.95, alarming sound 0.9, crying

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import HarnessCore
 
-// Tune 5 (scope: the harness). Questions asked over her (content barge-ins) and
+// Tune 5 (scope: the harness). Questions asked over Dee (content barge-ins) and
 // elapsed time said in words. The interrupt tests reproduce the tune-4 live probes
 // (Reports/20261010-011423 with app parity, Reports/20261010-011624 with
 // DEE_HARNESS_CORTEX_STOP=0), scenario scratchpad/tune4-probe.json.
@@ -10,7 +10,7 @@ import Testing
 private func gate(_ gates: [Gate], _ id: String) -> Gate? { gates.first { $0.id == id } }
 
 private extension RunBuilder {
-    /// A question asked over her reply to `base` (step of the barge-in utterance).
+    /// A question asked over Dee's reply to `base` (step of the barge-in utterance).
     mutating func question(_ fixture: String, _ onset: Double, _ eos: Double, text: String, base: String,
                            replyItem: String, replyStarted: Double, pausedAt: Double?, stoppedAt: Double?,
                            outcome: RunRecord.BargeOutcome = .stopped, expect: Scenario.Expect = .reply) {
@@ -104,7 +104,7 @@ private func noStopProbe() -> RunRecord {
     return b.run
 }
 
-@Suite("Tune 5: questions asked over her")
+@Suite("Tune 5: questions asked over Dee")
 struct Tune5InterruptTests {
     func metrics(_ runs: [RunRecord]) -> Metrics { Metrics.compute(runs, pricing: .mini) }
 
@@ -120,7 +120,7 @@ struct Tune5InterruptTests {
         let g = gate(Gates.evaluate(m), "interrupt_questions")
         #expect(g?.status == .fail && g?.value.hasPrefix("0.0% (0/3)") == true)
         #expect(g?.note?.contains("t4-probe-content-bargein:q02 never answered") == true)
-        // The barge-in gate itself passed live: she did stop.
+        // The barge-in gate itself passed live: Dee did stop.
         #expect(gate(Gates.evaluate(m), "barge_in")?.status == .pass)
     }
 
@@ -175,7 +175,7 @@ struct Tune5InterruptTests {
         b.utterance("l01", 1, 11)
         b.userItem("u1", seen: 1.2, committed: 11.5)
         b.reply("a1", started: 12, ended: 14.2, flushed: true, playedMs: 2200)
-        // Her reply's second item (same response, created at 11.6) after the question.
+        // Dee's reply's second item (same response, created at 11.6) after the question.
         b.run.responses[0].itemIDs.append("a1b")
         b.run.playback.append({ var p = RunRecord.Playback(itemID: "a1b", started: 16.2); p.ended = 18; p.playedMs = 1800; return p }())
         b.question("q01", 14, 15.2, text: "What's your favorite color?", base: "l01", replyItem: "a1",
@@ -189,7 +189,7 @@ struct Tune5InterruptTests {
                    replyStarted: 39, pausedAt: 40.6, stoppedAt: 41.5)
         b.userItem("u4", seen: 40.6, committed: 41.8)
         b.reply("a4", started: 42.3, ended: 42.6, flushed: true, playedMs: 300)
-        // She talked straight through the question (missed), then answered.
+        // Dee talked straight through the question (missed), then answered.
         b.utterance("l03", 60, 70)
         b.userItem("u5", seen: 60.2, committed: 70.5)
         b.reply("a5", started: 71, ended: 78)

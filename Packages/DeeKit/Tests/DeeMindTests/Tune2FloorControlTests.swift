@@ -26,8 +26,8 @@ struct Tune2FloorControlTests {
         #expect(stop.kindness > -0.1)
         #expect(snap.regard > before - 0.05, "regard \(before) → \(snap.regard)")
         #expect(await mind.state.hostileInteractions == 0)
-        // Two ordinary turns later (as live), "Stop." said loudly over her voice (c01):
-        // getting a word in, not shouting at her.
+        // Two ordinary turns later (as live), "Stop." said loudly over Dee's voice (c01):
+        // getting a word in, not shouting at Dee.
         _ = await mind.hear("Okay, so today at work, my boss called a meeting at 4:30 on a Friday.", prosody: Self.normal,
                             at: Self.t0.addingTimeInterval(45))
         _ = await mind.hear("I'm trying to plan a little garden on my balcony.", prosody: Self.normal, at: Self.t0.addingTimeInterval(93))

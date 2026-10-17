@@ -7,7 +7,7 @@ import Foundation
 /// the last one is kept in `lastError` and the in-memory state stays consistent
 /// with what was actually written.
 public actor MemoryStore {
-    /// Name of a placeholder person: someone Dee is talking to whose name she does
+    /// Name of a placeholder person: someone Dee is talking to whose name Dee does
     /// not know yet. One per session / unrecognised face (`placeholderPerson(session:)`).
     public static let unknownFriendName = "unknown friend"
     /// Calls to `noteEncounter` closer together than this extend the current

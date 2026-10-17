@@ -105,7 +105,7 @@ import Testing
         rig.voice.shutdown()
     }
 
-    /// 4. Her echo tail after a reply: the session still counts her as playing, so
+    /// 4. Dee's echo tail after a reply: the session still counts Dee as playing, so
     /// an echo onset there neither preempts the next reply nor reaches the brain.
     @Test func echoInHerTailDoesNotPreemptTheNextReply() async throws {
         let rig = try LoopRig()
@@ -118,11 +118,11 @@ import Testing
         await rig.settle()
         let listening = { rig.brainSession { $0 == .stateChanged(.listening) }.count }
         let before = listening()
-        try rig.quiet(0.4)                            // played out; her echo is still in the room
+        try rig.quiet(0.4)                            // played out; Dee's echo is still in the room
         _ = await rig.events.wait { $0 == .speakingFinished }
         await rig.settle()
-        #expect(listening() == before, "the session was told she stopped while her echo was in the room")
-        // The brain asks for a follow-up; her echo opens a server item meanwhile.
+        #expect(listening() == before, "the session was told Dee stopped while Dee's echo was in the room")
+        // The brain asks for a follow-up; Dee's echo opens a server item meanwhile.
         _ = try await rig.voice.respond()
         #expect(await rig.waitSent("response.create", count: 2))
         rig.push(Srv.speechStarted("item_e", ms: 600))
@@ -132,7 +132,7 @@ import Testing
         rig.push(Srv.speechStopped("item_e", ms: 900), Srv.committed("item_e"))
         #expect(await rig.waitSent("conversation.item.delete"))
         await rig.settle()
-        #expect(rig.sent("response.cancel").isEmpty, "the pending reply was preempted by her echo")
+        #expect(rig.sent("response.cancel").isEmpty, "the pending reply was preempted by Dee's echo")
         #expect(rig.brainSession { if case .replyPreempted = $0 { true } else { false } }.isEmpty)
         #expect(rig.brainSession {
             switch $0 {
@@ -143,7 +143,7 @@ import Testing
         rig.voice.shutdown()
     }
 
-    /// 4. The session hears `playbackFinished` once her echo tail has passed.
+    /// 4. The session hears `playbackFinished` once Dee's echo tail has passed.
     @Test func theSessionHearsSheStoppedAfterHerTail() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -163,7 +163,7 @@ import Testing
         rig.voice.shutdown()
     }
 
-    /// 4. No initiative inside her echo tail; no clip while an initiative is on its way.
+    /// 4. No initiative inside Dee's echo tail; no clip while an initiative is on its way.
     @Test func initiativesAndClipsKeepClearOfEachOthersEcho() async throws {
         let (cache, dir) = try await clips([.giggle])
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -173,14 +173,14 @@ import Testing
         #expect(rig.voice.play(.giggle, deferWhileUserSpeaks: false))
         try rig.quiet(0.5)
         _ = await rig.events.wait { $0 == .speakingFinished }
-        #expect(await rig.voice.initiative(instructions: "x") == .refused(.speaking))   // her laugh's tail
+        #expect(await rig.voice.initiative(instructions: "x") == .refused(.speaking))   // Dee's laugh's tail
         try rig.quiet(EarCore.echoTail + 0.1)
         #expect(await rig.voice.initiative(instructions: "Say something about the lamp.") == .sent)
         #expect(!rig.voice.play(.giggle, deferWhileUserSpeaks: false))
         rig.voice.shutdown()
     }
 
-    /// 6. A phone call while her reply is still being generated: it never plays
+    /// 6. A phone call while Dee's reply is still being generated: it never plays
     /// after the call.
     @Test func anInterruptionBeforeTheFirstAudioCancelsTheReply() async throws {
         let rig = try LoopRig()
@@ -202,7 +202,7 @@ import Testing
         rig.voice.shutdown()
     }
 
-    /// 7. `stopClip` stops her laugh and leaves the reply that is on its way alone.
+    /// 7. `stopClip` stops Dee's laugh and leaves the reply that is on its way alone.
     @Test func stopClipLeavesTheReplyAlone() async throws {
         let (cache, dir) = try await clips([.laugh1])
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -210,7 +210,7 @@ import Testing
         try await rig.start()
         try rig.quiet(0.3)
         try await answer(rig)                        // the reply is being generated…
-        #expect(rig.voice.play(.laugh1, deferWhileUserSpeaks: false))   // …while she laughs at the joke
+        #expect(rig.voice.play(.laugh1, deferWhileUserSpeaks: false))   // …while Dee laughs at the joke
         try rig.quiet(0.1)
         #expect(rig.voice.stopClip())
         try rig.quiet(0.05)
@@ -224,7 +224,7 @@ import Testing
         await rig.settle()
         let start = rig.output.count
         try rig.quiet(0.2)
-        #expect(!rig.voice.stopClip())                // nothing but her reply: left alone
+        #expect(!rig.voice.stopClip())                // nothing but Dee's reply: left alone
         try rig.quiet(0.5)
         #expect(abs(rig.audibleMs(fromSample: start) - 400) < 40)
         rig.voice.shutdown()

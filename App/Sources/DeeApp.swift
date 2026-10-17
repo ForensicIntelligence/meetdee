@@ -55,7 +55,7 @@ struct DeeApp: App {
                     }
                     .environment(model)
                     .transition(.opacity)
-                    // Dee wakes only after the splash and onboarding, so her audio session
+                    // Dee wakes only after the splash and onboarding, so Dee's audio session
                     // and permission prompts never land on top of them.
                     .task { await model.start() }
                 }

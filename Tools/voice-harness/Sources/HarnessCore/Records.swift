@@ -38,9 +38,9 @@ public struct RunRecord: Codable, Sendable, Equatable {
         public var rubric: String?
         /// What `expectMention` probes (`Scenario.Probe`; nil = memory). Tune 2.
         public var probe: Scenario.Probe?
-        /// Her reply must mention none of these (tune 2: no hurt after floor control).
+        /// Dee's reply must mention none of these (tune 2: no hurt after floor control).
         public var forbidMention: [String]?
-        /// A listener's backchannel said while she talks (tune 2).
+        /// A listener's backchannel said while Dee talks (tune 2).
         public var backchannel: Bool?
 
         public init(index: Int, step: Int, fixture: String, role: UtteranceRole, text: String, start: Double,
@@ -54,7 +54,7 @@ public struct RunRecord: Codable, Sendable, Equatable {
             self.backchannel = backchannel
         }
 
-        /// A backchannel ("keep going", "go on", "mm-hm") said over her: she keeps
+        /// A backchannel ("keep going", "go on", "mm-hm") said over Dee: Dee keeps
         /// talking. Older records (no flag) are read by fixture.
         public var isBackchannel: Bool {
             role == .bargeIn && (backchannel ?? TurnShape.isBackchannel(fixture))
@@ -128,20 +128,20 @@ public struct RunRecord: Codable, Sendable, Equatable {
     public enum BargeOutcome: String, Codable, Sendable {
         /// Dee's audio stopped after the user's onset.
         case stopped
-        /// She kept talking (played to the end, or > `missAfter` s after onset). For a
+        /// Dee kept talking (played to the end, or > `missAfter` s after onset). For a
         /// backchannel this is the right outcome ("continued").
         case missed
-        /// Her reply had already ended (or never started) when the user began.
+        /// Dee's reply had already ended (or never started) when the user began.
         case notApplicable = "n/a"
 
-        /// How a scripted interruption ended, from her playback (pure: the runner and
+        /// How a scripted interruption ended, from Dee's playback (pure: the runner and
         /// the tests share it).
         /// - `reply`: the interrupted item; `later`: every other item, for a flush of
         ///   a queued item of the same reply.
         /// - A barge-in is watched for `Metrics.bargeMissAfter` s after its onset; a
         ///   backchannel until `Metrics.backchannelWatch` s after its end of speech (a
         ///   late stop on "keep going" is still a stop).
-        /// - `pausedAt`: tune 2, DeeVoice pauses her at once on an onset over her voice
+        /// - `pausedAt`: tune 2, DeeVoice pauses Dee at once on an onset over Dee's voice
         ///   (`TurnTimeline` `.barge_in` mark, written when the pause ends as a barge-in)
         ///   and flushes only when the words are decided (≈ 1.6–1.9 s, up to
         ///   `pauseHoldMax` s). A flush whose pause began inside the watch window is a
@@ -169,7 +169,7 @@ public struct RunRecord: Codable, Sendable, Equatable {
         public static let pauseHoldMax = 6.5
 
         /// The pause that ended in this stop: the latest `.barge_in` timeline mark at or
-        /// after her reply started, no earlier than 1 s before the onset, and at or before
+        /// after Dee's reply started, no earlier than 1 s before the onset, and at or before
         /// the flush. nil when there is none (an immediate cut marks at the flush).
         public static func pauseMark(_ marks: [Double], replyStarted: Double?, onset: Double, stoppedAt: Double) -> Double? {
             marks.filter { $0 >= max(replyStarted ?? -.infinity, onset - 1) && $0 <= stoppedAt + 0.05 }.max()
@@ -193,11 +193,11 @@ public struct RunRecord: Codable, Sendable, Equatable {
         public var onset: Double
         /// Dee's audio stopped (player flushed).
         public var stoppedAt: Double?
-        /// Tune 2: her voice went silent (DeeVoice pause, `.barge_in` mark); the flush
+        /// Tune 2: Dee's voice went silent (DeeVoice pause, `.barge_in` mark); the flush
         /// (`stoppedAt`) follows when the words are decided. nil in older records.
         public var pausedAt: Double?
         public var outcome: BargeOutcome
-        /// A listener's backchannel (she should keep talking). nil in older records:
+        /// A listener's backchannel (Dee should keep talking). nil in older records:
         /// read by fixture (`TurnShape.isBackchannel`).
         public var backchannel: Bool?
         public init(step: Int, baseFixture: String, fixture: String, targetAtMs: Double, replyItem: String?,
@@ -215,7 +215,7 @@ public struct RunRecord: Codable, Sendable, Equatable {
         }
     }
 
-    /// Dee spoke with nobody talking; only her echo reached the mic.
+    /// Dee spoke with nobody talking; only Dee's echo reached the mic.
     public struct EchoSegment: Codable, Sendable, Equatable {
         public var step: Int
         public var line: String
@@ -223,7 +223,7 @@ public struct RunRecord: Codable, Sendable, Equatable {
         public var outcome: String
         public var audioStarted: Double?
         public var audioEnded: Double?
-        /// The window checked for self-triggers (her audio plus the echo tail).
+        /// The window checked for self-triggers (Dee's audio plus the echo tail).
         public var window: Interval
         public init(step: Int, line: String, requested: Double, outcome: String, audioStarted: Double?,
                     audioEnded: Double?, window: Interval) {
@@ -334,7 +334,7 @@ public struct RunRecord: Codable, Sendable, Equatable {
     public var truncations: [Truncation] = []
     public var bargeIns: [BargeIn] = []
     public var echoSegments: [EchoSegment] = []
-    /// Final transcripts of her items (`.assistantTranscript`), by item.
+    /// Final transcripts of Dee's items (`.assistantTranscript`), by item.
     public var deeTranscripts: [String: String] = [:]
     /// Sentences the player passed (`sentenceFinished(heard: true)`), by item.
     public var heardSentences: [String: [String]] = [:]
@@ -357,7 +357,7 @@ public struct RunRecord: Codable, Sendable, Equatable {
     public var responseCreates: [ResponseCreate]?
     /// RealtimeBrain decisions (`BrainTrace`, no text).
     public var brainTrace: [Note]?
-    /// User items the session deleted as her echo (never forwarded to the brain).
+    /// User items the session deleted as Dee's echo (never forwarded to the brain).
     public var echoRejected: [String]?
     /// Items a `resetConversation` removed on purpose (`RealtimeSession.forgottenItemIDs`);
     /// the truncation history check skips them.

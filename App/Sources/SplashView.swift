@@ -19,7 +19,7 @@ struct SplashView: View {
             }
         }
         .task {
-            // Missing or unplayable video must never trap her behind the splash.
+            // Missing or unplayable video must never trap Dee behind the splash.
             if Bundle.main.url(forResource: Self.resource, withExtension: "mp4") == nil {
                 onFinished()
                 return

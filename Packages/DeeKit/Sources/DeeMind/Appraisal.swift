@@ -39,7 +39,7 @@ public struct Appraisal: Sendable, Equatable {
     public var apology = 0.0
     /// "Whatever", "boring", "go away".
     public var dismissal = 0.0
-    /// The user asks about Dee itself ("how are you?").
+    /// The user asks about Dee ("how are you?").
     public var interestInDee = 0.0
     /// User laughing or joking.
     public var humor = 0.0
@@ -61,7 +61,7 @@ public struct Appraisal: Sendable, Equatable {
     /// is it", "I had a bad day") then doesn't count as unkindness toward Dee.
     /// Hand-built appraisals default to true.
     public var aimedAtDee = true
-    /// Floor control addressed to her: "stop", "wait, stop talking for a second", "hold
+    /// Floor control addressed to Dee: "stop", "wait, stop talking for a second", "hold
     /// on", "be quiet for a sec". Turn-taking, not rudeness: on its own it is neutral
     /// (tune 2; live: "Wait, stop talking for a second" read as being brushed off and
     /// drove regard to −0.42). Hostile words said with it still count.
@@ -95,10 +95,10 @@ public struct Appraisal: Sendable, Equatable {
     /// True for Dee's own internal event (see `Appraisal.internal(relief:pride:)`):
     /// a resolved expectation or a completed intention, not something the user did.
     public var isInternal = false
-    /// Something she was anxious about turned out fine, 0…1: fear and sadness
+    /// Something Dee was anxious about turned out fine, 0…1: fear and sadness
     /// ease, a little joy.
     public var relief = 0.0
-    /// She finished something she meant to do, 0…1: joy and a little interest.
+    /// Dee finished something Dee meant to do, 0…1: joy and a little interest.
     public var pride = 0.0
 
     public init() {}
@@ -203,7 +203,7 @@ public struct Appraiser: Sendable {
         a.humor = min(1, Self.score(lower, Lexicon.laughter) + Self.laughterScore(words))
         a.aimedAtDee = addressed || rude > 0 || a.threat > 0 || dismissedDee > 0
         let polite = Self.score(lower, Lexicon.politeness)
-        // Floor control ("stop", "hold on", "be quiet for a sec"): addressed to her, and
+        // Floor control ("stop", "hold on", "be quiet for a sec"): addressed to Dee, and
         // neutral unless hostile words come with it.
         let floor = Self.floorControlScore(lower)
         let floorOnly = floor > 0 && Self.onlyFloorControl(lower)
@@ -256,8 +256,8 @@ public struct Appraiser: Sendable {
             let peak = max(0, (p.peakDB - baseline.loudnessDB - 12) / 12)
             let voiced = max(0, a.loudness) * 0.6 + min(1, fast) * 0.25 + min(1, peak) * 0.3
             voiceForce = voiced
-            // Floor control is said over her voice, so it is often louder: that is
-            // getting a word in, not shouting at her (typed CAPS still count).
+            // Floor control is said over Dee's voice, so it is often louder: that is
+            // getting a word in, not shouting at Dee (typed CAPS still count).
             typed = max(typed, a.floorControl ? min(voiced, Self.floorControlVoiceCap) : voiced)
             // Loud + negative words = aggression; soft + kind words = tenderness.
             if a.loudness > 0.3 { a.dominance = min(1, a.dominance + a.loudness * 0.5) }
@@ -275,7 +275,7 @@ public struct Appraiser: Sendable {
         }
 
         // Shouting turns rudeness up and makes even neutral words feel harsh — when they
-        // are said at Dee, not when they ask her something ("I'm not sure it's fair to
+        // are said at Dee, not when they ask Dee something ("I'm not sure it's fair to
         // the dog. What do you think?" said loudly is worry, not an attack).
         if a.intensity > 0.3 {
             let harsh = wordSentiment < -0.2 && a.aimedAtDee && !words.contains("?") && a.distress == 0 && !a.floorControl
@@ -567,7 +567,7 @@ enum Lexicon {
         ("go away", 0.5), ("leave me alone", 0.4),
     ]
     /// Taking the floor (tune 2). "stop talking" and "be quiet" used to count as a
-    /// brush-off and a rude command; said to her they are turn-taking. "shut up" stays rude.
+    /// brush-off and a rude command; said to Dee they are turn-taking. "shut up" stays rude.
     static let floorControl: [(String, Double)] = [
         ("stop talking", 0.6), ("stop", 0.5), ("wait", 0.4), ("hold on", 0.5), ("hang on", 0.5), ("be quiet", 0.5),
         ("quiet", 0.3), ("shh", 0.5), ("shhh", 0.5), ("sh", 0.4), ("shush", 0.5), ("hush", 0.5), ("pause", 0.4),

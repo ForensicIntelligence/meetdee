@@ -1,7 +1,7 @@
 import DeeCore
 import Foundation
 
-/// Decides when Dee starts a conversation herself, and about what.
+/// Decides when Dee starts a conversation unprompted, and about what.
 ///
 /// Pure and deterministic (seeded): the app feeds it what happens (`note`) and asks
 /// every second or so (`nextPrompt`). The answer is a short stage direction in
@@ -17,24 +17,24 @@ import Foundation
 /// - Unexpected sounds are raised almost immediately. Novel sights are paced
 ///   (`sightSpacing`, 45 s; 2 min for the back camera) unless they are animals or
 ///   awe-level novelty, which jump the queue.
-/// - With nobody present, she calls out ("Hello? Is someone there?") only for an
-///   alarming or loud unexpected sound, at most every 2 min, and — if she was
+/// - With nobody present, Dee calls out ("Hello? Is someone there?") only for an
+///   alarming or loud unexpected sound, at most every 2 min, and — if Dee was
 ///   asleep — only after `minSleepBeforeCallout` (3 min) of sleep.
-/// - Otherwise, while the user is present, she initiates after a gap of 20…60 s
-///   (shorter the more she wants to talk, `MindSnapshot.urgeToTalk`), preferring
-///   novel things she saw, then asking about the human, suggesting a game or
-///   sharing a thought — weighted by mood, and phrased in her mood (grumpy Dee asks
+/// - Otherwise, while the user is present, Dee initiates after a gap of 20…60 s
+///   (shorter the more Dee wants to talk, `MindSnapshot.urgeToTalk`), preferring
+///   novel things Dee saw, then asking about the human, suggesting a game or
+///   sharing a thought — weighted by mood, and phrased in Dee's mood (grumpy Dee asks
 ///   grumpily).
 /// - Back-off: every prompt the user leaves unanswered doubles the gap (×2 per
 ///   prompt, up to ×16, capped at `maxBackoffGap`, 10 min). After
 ///   `unansweredLimit` (3) unanswered prompts only novel sights and unexpected
-///   sounds can start a conversation. The user speaking, touching her or
+///   sounds can start a conversation. The user speaking, touching Dee or
 ///   arriving resets it.
 /// - The same subject never comes up twice within `subjectCooldown` (20 min).
 /// - Subjects in `avoid` (the user's boundaries) never come up; greetings,
 ///   call-outs and alarming sounds are exempt.
 ///
-/// v0.5: `candidates(at:snapshot:userPresent:busy:)` lists everything she could
+/// v0.5: `candidates(at:snapshot:userPresent:busy:)` lists everything Dee could
 /// raise (kind, subject, prompt, priority, urgency) without consuming anything, and
 /// `commit(_:at:asReply:)` raises one — so DeeSelf's IntentionBoard can weigh them
 /// against follow-ups and repairs. `nextPrompt` is the compatible wrapper: the same
@@ -60,11 +60,11 @@ public struct CuriosityDirector: Sendable {
     static let minPromptSpacing: TimeInterval = 6
     /// Calling out to an empty room at most this often.
     static let unattendedSpacing: TimeInterval = 120
-    /// A sleeping Dee calls out only once she has slept at least this long.
+    /// A sleeping Dee calls out only once Dee has slept at least this long.
     public static let minSleepBeforeCallout: TimeInterval = 3 * 60
     /// Loudness (0…1) from which an unexpected sound in an empty room is "loud".
     public static let loudCallout = 0.7
-    /// Spacing between two prompts about things she saw (front / back camera).
+    /// Spacing between two prompts about things Dee saw (front / back camera).
     public static let sightSpacing: TimeInterval = 45
     public static let backSightSpacing: TimeInterval = 120
     /// Sight novelty (0…1) that counts as awe and skips the sight spacing
@@ -117,13 +117,13 @@ public struct CuriosityDirector: Sendable {
     private var pokeNotes: [Date] = []
     private var rng: Rand
 
-    /// Prompts emitted to a present user since they last spoke (or touched her,
+    /// Prompts emitted to a present user since they last spoke (or touched Dee,
     /// or arrived). Drives the back-off.
     public private(set) var unanswered = 0
 
-    /// When Dee fell asleep, or nil while she's awake. The app sets this; a sound
-    /// heard while asleep remembers how long she had slept, so the call-out rule
-    /// still applies after the noise wakes her.
+    /// When Dee fell asleep, or nil while Dee's awake. The app sets this; a sound
+    /// heard while asleep remembers how long Dee had slept, so the call-out rule
+    /// still applies after the noise wakes Dee.
     public var asleepSince: Date?
 
     public init() { self.init(seed: 0xD_EE04) }
@@ -148,12 +148,12 @@ public struct CuriosityDirector: Sendable {
             if presentSince == nil { presentSince = now }
         case .deeSpoke:
             lastSpeechAt = now
-            // Whatever she just said already answered any pending touch; don't
+            // Whatever Dee just said already answered any pending touch; don't
             // bring it up a second time.
             touch = nil
         case let .touched(kind):
             let label = Self.clean(kind)
-            unanswered = 0               // touching her is engaging with her
+            unanswered = 0               // touching Dee is engaging with Dee
             var t = Heard(label: label, at: now)
             if Self.touchKey(label).hasPrefix("pok") {
                 pokeNotes.removeAll { now.timeIntervalSince($0) > Self.touchFreshness || $0 > now }
@@ -179,7 +179,7 @@ public struct CuriosityDirector: Sendable {
     }
 
     /// `.heard` with the sound's loudness (0…1, or dBFS when negative, as for
-    /// `Appraisal.sound`). With nobody present she only calls out for alarming or
+    /// `Appraisal.sound`). With nobody present Dee only calls out for alarming or
     /// loud (≥ `loudCallout`) sounds; without a loudness, only alarming ones.
     public mutating func noteSound(_ label: String, unexpected: Bool, loudness: Double?, at now: Date) {
         let l = Self.clean(label)
@@ -193,8 +193,8 @@ public struct CuriosityDirector: Sendable {
     }
 
     /// Whether an unexpected sound is worth calling out to an empty room: alarming
-    /// or loud, and — if she was asleep — only after `minSleepBeforeCallout`.
-    /// The app can use this to decide whether the noise should wake her at all.
+    /// or loud, and — if Dee was asleep — only after `minSleepBeforeCallout`.
+    /// The app can use this to decide whether the noise should wake Dee at all.
     public static func callsOutUnattended(sound label: String, loudness: Double?, asleepFor: TimeInterval?) -> Bool {
         if let slept = asleepFor, slept < minSleepBeforeCallout { return false }
         let alarming = SoundKind(clean(label)) == .alarming
@@ -257,7 +257,7 @@ public struct CuriosityDirector: Sendable {
             if let o = touchOption(t, now, tone: tone) { return raise(o, at: now) }
         }
 
-        // 5. General initiative, backed off while she's being ignored.
+        // 5. General initiative, backed off while Dee's being ignored.
         guard generalUrgency(now, snapshot: snapshot) >= 1 else { return nil }
         let options = generalOptions(now, snapshot: snapshot, tone: tone, &rng)
         guard !options.isEmpty else { return nil }
@@ -694,7 +694,7 @@ public struct CuriosityDirector: Sendable {
 
     // MARK: Tone
 
-    /// How Dee phrases things in her current mood.
+    /// How Dee phrases things in Dee's current mood.
     static func tone(_ s: MindSnapshot, _ rng: inout Rand) -> String {
         let f = s.code.feelings
         let options: [String]

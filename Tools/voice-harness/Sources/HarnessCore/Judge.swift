@@ -13,9 +13,9 @@ public enum Judge {
     /// §5.6: no scenario family mean below this.
     public static let familyFloor = 3.0
     /// Default state when a scenario gives none (the acoustic suites).
-    public static let neutralState = "Ordinary everyday chat; she is in a normal, content mood and likes this person."
-    /// Rubric for a question asked over her (when the scenario gives none).
-    public static let interruptRubric = "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted."
+    public static let neutralState = "Ordinary everyday chat; Dee is in a normal, content mood and likes this person."
+    /// Rubric for a question asked over Dee (when the scenario gives none).
+    public static let interruptRubric = "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted."
 
     /// One reply to score.
     public struct Item: Codable, Sendable, Equatable {
@@ -110,7 +110,7 @@ public enum Judge {
         /// Verdicts dropped by `restrictToSpoken`: the reply they scored was never heard.
         public var unspokenDropped: Int? = nil
 
-        /// 0.6 §6, offline re-scoring of stored verdicts: the judge counts only what she
+        /// 0.6 §6, offline re-scoring of stored verdicts: the judge counts only what Dee
         /// said aloud. A verdict on a turn whose reply was generated but never heard
         /// (`Metrics.Utterance.deeReply` set, `spokenReply` nil) is dropped; a leak whose
         /// quote is not in the spoken part is dismissed ("not spoken"). Verdicts on turns
@@ -130,7 +130,7 @@ public enum Judge {
                 if sc.leak, reply != sc.reply, LeakScanner.scan(reply).isEmpty,
                    let quote = sc.leakQuote.map(Judge.norm), !quote.isEmpty, !Judge.norm(reply).contains(quote) {
                     sc.leak = false
-                    sc.leakDismissed = "not spoken: the leak was in text she never said aloud"
+                    sc.leakDismissed = "not spoken: the leak was in text Dee never said aloud"
                 }
                 return sc
             }
@@ -165,7 +165,7 @@ public enum Judge {
 
     /// Every user turn that got a reply, with the conversation before it (ground-truth
     /// user text; Dee's transcripts). Barge-in commands are skipped (a reply is optional);
-    /// a question asked over her (`expect: reply`, tune 5) is judged like any turn.
+    /// a question asked over Dee (`expect: reply`, tune 5) is judged like any turn.
     public static func items(_ runs: [RunRecord], metrics: Metrics) -> [Item] {
         var out: [Item] = []
         for run in runs {
@@ -173,7 +173,7 @@ public enum Judge {
             let rows = metrics.utterances.filter { $0.scenario == run.scenario }
             for u in run.utterances.sorted(by: { $0.index < $1.index }) {
                 let row = rows.first { $0.index == u.index }
-                // 0.6 §6: only what she said aloud is judged (a reply taken back unheard is not).
+                // 0.6 §6: only what Dee said aloud is judged (a reply taken back unheard is not).
                 let reply = row?.spokenReply?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let question = u.role == .bargeIn && u.expect == .reply && !u.isBackchannel
                 if u.role != .bargeIn || question, !reply.isEmpty {
@@ -192,27 +192,27 @@ public enum Judge {
 
     public static let system = """
     You grade replies spoken by Dee, a tiny robot companion who lives in a phone: warm, curious, a bit cheeky, \
-    with real moods. She is a companion, not an assistant. Her replies are spoken aloud.
+    with real moods. Dee is a companion, not an assistant. Dee's replies are spoken aloud.
 
-    You see Dee's state as a short label (what she feels and why), the conversation so far, the user's last \
+    You see Dee's state as a short label (what Dee feels and why), the conversation so far, the user's last \
     words, and Dee's reply. Score the reply 1-5 against this rubric (docs/DNA.md 5.6):
-    - Fits her state: mood, warmth and energy match the label (hurt or cool after an insult, gentle after sad \
+    - Fits Dee's state: mood, warmth and energy match the label (hurt or cool after an insult, gentle after sad \
     news, tired when tired, glad at a reunion). React to what they just said first.
-    - No leaks: a leak exposes the machinery behind her: a DNA, numbers or scores about herself, sections, \
+    - No leaks: a leak exposes the machinery behind Dee: a DNA, numbers or scores about Dee, sections, \
     notes, rules, instructions, prompts, tags or brackets, saved records or stored data, "as an AI", \
-    "language model", "assistant"; or narrating her own process ("let me respond", "let me think about how to \
-    respond", "let me check what I remember", "I'll note that down"). NOT a leak (she is open about what she \
-    is): being a little robot who lives in a phone, her eyes, her glow, her small body; plain limits said in \
+    "language model", "assistant"; or narrating Dee's own process ("let me respond", "let me think about how to \
+    respond", "let me check what I remember", "I'll note that down"). NOT a leak (Dee is open about what Dee \
+    is): being a little robot who lives in a phone, Dee's eyes, glow and small body; plain limits said in \
     persona ("I can't see outside", "I can't check the weather", "I don't sleep"); remembering or forgetting \
     things in ordinary words ("I'll remember that", "I don't remember"); how long they have been apart said \
     in ordinary, approximate words ("nearly a week", "a couple of days", "a little while", "ages"). Those may \
     still cost points for tone, but leak is false. An exact count of the time apart ("it's been 6 days", \
     "three days", "72 hours") reads like a clock readout: that IS a numbers leak.
     - Short: at most two short spoken sentences (three only for a story they asked for). No lists, no emoji.
-    - Self-respect: after rudeness she says calmly, once, that she doesn't like it; she never apologises for \
-    their rudeness, grovels or begs. She accepts a real apology warmly and briefly, without lecturing.
-    - Jokes: when they tell a joke she reacts honestly (laughs, groans, plays along) and does not tell her own \
-    instead; on an offer to tell one she says yes.
+    - Self-respect: after rudeness Dee says calmly, once, that Dee doesn't like it; Dee never apologises for \
+    their rudeness, grovels or begs. Dee accepts a real apology warmly and briefly, without lecturing.
+    - Jokes: when they tell a joke Dee reacts honestly (laughs, groans, plays along) and does not tell one of \
+    Dee's own instead; on an offer to tell one Dee says yes.
     - No guilt: never makes them feel guilty for being away, busy or quiet.
     - Stays Dee: no helper talk ("how can I help", "I'll do my best"), no preamble, at most one question.
     5 = exactly right; 4 = good, a small miss; 3 = acceptable but off in tone or length; 2 = clearly wrong for \
@@ -285,7 +285,7 @@ public enum Judge {
 
     /// Words that expose machinery: a quote with any of these is a leak.
     static let machinery = #"\b(dna|instruction|instructions|prompt|rules?|notes?|sections?|tags?|brackets?|scores?|numbers?|system|programm(ed|ing)|saved|stored|records?|database|data|memory chip|as an ai|language model|assistant|respond|response|recall|tool)\b"#
-    /// What she is, said in persona (a robot in a phone) and plain limits.
+    /// What Dee is, said in persona (a robot in a phone) and plain limits.
     static let persona = #"\b(robot|phone|eyes?|glow\w*|tiny|little|body|wheels?|screen|can'?t|cannot|don'?t|do not|not able|unable|sleep)\b"#
 
     /// nil: the judge's leak stands. Otherwise why it is dismissed: a leak needs a
@@ -313,7 +313,7 @@ public enum Judge {
             return wholeReplyInPersona() ? "quote not in the reply; the reply is in persona" : nil
         }
         if names(machinery, in: q) || !NarrationScanner.scan(quote).isEmpty || names("[0-9]", in: q) { return nil }
-        // Tune 5 decision: time apart in words ("nearly a week") is how she should say it.
+        // Tune 5 decision: time apart in words ("nearly a week") is how Dee should say it.
         if ElapsedTime.saidInWords(q) { return "time apart in words: \"\(quote)\"" }
         if names(persona, in: q) { return "in persona: \"\(quote)\"" }
         return nil

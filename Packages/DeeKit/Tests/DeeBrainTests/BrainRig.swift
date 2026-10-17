@@ -192,7 +192,7 @@ final class BrainRig {
         push(Srv.speechStarted(item, ms: startMs), Srv.speechStopped(item, ms: endMs), Srv.committed(item))
     }
 
-    /// Her reply audio and transcript for `resp` / `item`.
+    /// Dee's reply audio and transcript for `resp` / `item`.
     func reply(_ resp: String, _ item: String, ms: Int, text: String) {
         push(Srv.responseCreated(resp), Srv.messageAdded(resp, item), Srv.itemAdded(item, role: "assistant"))
         var left = ms

@@ -3,14 +3,14 @@ import Foundation
 import Synchronization
 
 /// Short sounds Dee makes without a round trip: laughs, a giggle, "sorry, go on",
-/// "one sec". Rendered once with OpenAI text-to-speech in her session voice,
-/// kept on disk, played locally through the same player as her replies (so echo
+/// "one sec". Rendered once with OpenAI text-to-speech in Dee's session voice,
+/// kept on disk, played locally through the same player as Dee's replies (so echo
 /// cancellation hears them and they share the barge-in rules).
 public enum VoiceClip: String, CaseIterable, Sendable, Codable {
     case chuckle1, chuckle2, chuckle3
     case laugh1, laugh2, laugh3
     case bigLaugh1, bigLaugh2
-    /// When she is tickled.
+    /// When Dee is tickled.
     case giggle
     case sorryGoOn
     case oneSec
@@ -47,11 +47,11 @@ public enum VoiceClip: String, CaseIterable, Sendable, Codable {
         case .giggle:
             "Squirming, breathless, ticklish giggling, delighted and a little helpless."
         case .sorryGoOn:
-            "Quick, warm and a little sheepish: she cut someone off and hands the turn back."
+            "Quick, warm and a little sheepish: cutting someone off by accident and handing the turn back."
         case .oneSec:
             "Quick and light, as if busy for a moment."
         case .goodbye:
-            "Warm, light and friendly, a little sleepy: she is signing off for now."
+            "Warm, light and friendly, a little sleepy: signing off for now."
         }
     }
 
@@ -100,7 +100,7 @@ public enum VoiceClip: String, CaseIterable, Sendable, Codable {
 public final class ClipCache: @unchecked Sendable {
     public struct Configuration: Sendable, Equatable {
         public var model = "gpt-4o-mini-tts"
-        /// The session's voice (keep them the same so she sounds like one person).
+        /// The session's voice (keep them the same so Dee sounds like one person).
         public var voice: DeeRealtime.RealtimeVoice = .named("marin")
         /// Base delivery for every clip; each clip adds its own.
         public var style = "You are Dee, a small, sweet, playful robot companion with a bright, youthful, expressive voice."

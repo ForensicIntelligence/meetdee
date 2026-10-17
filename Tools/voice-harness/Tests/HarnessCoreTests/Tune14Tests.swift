@@ -3,8 +3,8 @@ import Testing
 @testable import HarnessCore
 
 // Tune 14 (scope: the harness).
-// 1. Backchannel scoring (user decision): her reply ending at its own sentence cap
-//    (`sentenceCapStop`) after a backchannel she continued on is "continued", not a
+// 1. Backchannel scoring (user decision): Dee's reply ending at its own sentence cap
+//    (`sentenceCapStop`) after a backchannel Dee continued on is "continued", not a
 //    stop. Numbers are from the live runs: T13 A `20261010-224809`
 //    t2-backchannel-echo20 c05 (59.2–63.1) and T12 B `20261010-205810` echo20 c05.
 //    A cut caused by the user's speech still scores stopped (T13 A fan15 c05).
@@ -55,7 +55,7 @@ private func t12bEcho20() -> RunRecord {
 }
 
 /// T13 A fan15 c05: "I'm listening." heard as "When you listen.": continued at 50.10,
-/// then `earlyWords` on the user's item and she stopped (flush 50.92) to answer. A real stop.
+/// then `earlyWords` on the user's item and Dee stopped (flush 50.92) to answer. A real stop.
 private func t13Fan15() -> RunRecord {
     backchannelRun(scenario: "t2-backchannel-fan15", onset: 47.98, eos: 50.57, replyStarted: 46.48, stoppedAt: 50.92,
                    playedMs: 1805,
@@ -64,7 +64,7 @@ private func t13Fan15() -> RunRecord {
                            (50.9, #"backchannel("resumed-brain")"#)])
 }
 
-@Suite("Tune 14: her own sentence cap after a continued backchannel is not a stop")
+@Suite("Tune 14: Dee's own sentence cap after a continued backchannel is not a stop")
 struct Tune14BackchannelTests {
     func metrics(_ runs: RunRecord...) -> Metrics { Metrics.compute(runs, pricing: .mini) }
 
@@ -77,7 +77,7 @@ struct Tune14BackchannelTests {
         #expect(m.backchannelCapEnds == ["t2-backchannel-echo20:c05"])
         let g = try #require(gate(Gates.evaluate(m), "backchannel"))
         #expect(g.status == .pass)
-        #expect(g.note?.contains("continued, then ended at her sentence cap: t2-backchannel-echo20:c05") == true)
+        #expect(g.note?.contains("continued, then ended at Dee's sentence cap: t2-backchannel-echo20:c05") == true)
         // Not a per-utterance problem either (the regressions section).
         #expect(!m.utterances.contains { $0.problems.contains("stopped on a backchannel") })
     }
@@ -99,13 +99,13 @@ struct Tune14BackchannelTests {
     }
 
     @Test func theVoicePausingHerForTheUserIsAUserCutEvenWithACapMark() {
-        // A `.barge_in` pause (pausedAt) means the user's speech cut her.
+        // A `.barge_in` pause (pausedAt) means the user's speech cut Dee.
         let m = metrics(t13Echo20(pausedAt: 59.5))
         #expect(m.backchannelStops == 1 && m.backchannelCapEnds.isEmpty)
     }
 
     @Test func aCapMarkNotAtTheFlushOrWithoutContinuedIsStillAStop() {
-        // The cap fired a second before: something else flushed her at 63.08.
+        // The cap fired a second before: something else flushed Dee at 63.08.
         #expect(metrics(t13Echo20(capAt: 62.0)).backchannelStops == 1)
         // A cap after the flush did not cause it.
         #expect(metrics(t13Echo20(capAt: 63.2)).backchannelStops == 1)
@@ -212,7 +212,7 @@ struct Tune14PoolTests {
     }
 
     @Test func theCapRuleAppliesInsideThePoolToo() {
-        // T13 A echo20 + T12 B echo20 (both her own cap) and the fan15 real stop: 1 stop.
+        // T13 A echo20 + T12 B echo20 (both Dee's own cap) and the fan15 real stop: 1 stop.
         let p = Pool.evaluate([source("T13A", [t13Echo20(), t13Fan15()]), source("T12B", [t12bEcho20()])])
         #expect(p.metrics.backchannelStops == 1 && p.metrics.backchannelsApplicable == 3)
         #expect(p.metrics.backchannelCapEnds == ["T13A/t2-backchannel-echo20:c05", "T12B/t2-backchannel-echo20:c05"])

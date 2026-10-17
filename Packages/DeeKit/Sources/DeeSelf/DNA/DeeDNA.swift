@@ -3,7 +3,7 @@ import DeeMemory
 import DeeMind
 import Foundation
 
-// docs/DNA.md §1 — the Dee DNA snapshot: everything that makes Dee's next words hers,
+// docs/DNA.md §1 — the Dee DNA snapshot: everything that makes Dee's next words Dee's,
 // as plain values. Built by `DNAAssembler.assemble` (pure), turned into text by
 // `DNAPrompt.render`. Holds no user text (the 5-gram corpus never enters it).
 
@@ -378,7 +378,7 @@ public struct DeeDNA: Sendable, Equatable {
     /// v5 (tune 4): session instructions v5, the Length line counted "in all" and
     /// stopped after the last allowed sentence, a due follow-up asked first (with the
     /// greeting after time apart in the same sentence), the greeting kept until a
-    /// reply of hers was actually heard (`TurnContext.heardReplies`).
+    /// reply of Dee's was actually heard (`TurnContext.heardReplies`).
     /// v6 (tune 5): session instructions v6; time apart in words everywhere ("nearly a
     /// week", "a couple of days"; never a number of days or hours); G14 never asks them
     /// to finish their words.
@@ -391,7 +391,7 @@ public struct DeeDNA: Sendable, Equatable {
     /// line, their words never said back, their question answered in the first sentence.
     /// v10 (tune 9): session instructions v10; nothing primes "I heard you", no thinking
     /// aloud anywhere in a reply, one reply per turn (never a lead-in, then a second one).
-    /// v11 (tune 12): session instructions v11; her day is small concrete things, never her process.
+    /// v11 (tune 12): session instructions v11; Dee's day is small concrete things, never Dee's process.
     public static let version = "v11"
 
     public var turn: TurnContext
@@ -424,4 +424,6 @@ public struct DeeDNA: Sendable, Equatable {
     public var appraisal: TurnAppraisal
     // §2.9
     public var guidance: Guidance
+    /// The persona preset (identity line, pronouns in the trait meanings, Voice phrase).
+    public var persona: PersonaPreset = PersonaCatalog.classic
 }

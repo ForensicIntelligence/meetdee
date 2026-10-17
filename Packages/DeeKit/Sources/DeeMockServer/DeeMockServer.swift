@@ -26,6 +26,8 @@ public struct MockChatReply: Sendable, Equatable {
     public var errorMessage = "error"
     /// 200 with an `{"error":…}` JSON body (no stream).
     public var errorBodyWith200 = false
+    /// `Retry-After` header on an error status (e.g. "1").
+    public var retryAfter: String?
     public var promptTokens = 100
     public var cachedTokens = 0
     public var completionTokens = 20
@@ -118,6 +120,15 @@ public final class DeeMockServer: @unchecked Sendable {
         var wsMessages: [String] = []
         var greeting: [[String: Any]] = []
         var speechRate = 24_000
+        /// Chat connections being served (until the connection closes).
+        var activeChats: Set<ObjectIdentifier> = []
+        var maxActiveChats = 0
+        /// lithos-metal-style single slot: a chat while another is served gets 429 at once.
+        var singleSlot = false
+        var slotRetryAfter: String?
+        var slotRejections = 0
+        /// Seconds the single slot stays taken after its client hung up (lithos-metal: ~1.5 s).
+        var slotReleaseDelay: Double = 0
     }
     private let state: Mutex<State>
 
@@ -196,12 +207,33 @@ public final class DeeMockServer: @unchecked Sendable {
     /// Text frames received on `/v1/realtime`.
     public var realtimeMessages: [String] { state.withLock { $0.wsMessages } }
 
+    /// Serve one chat at a time; any concurrent chat gets HTTP 429 (with `Retry-After` if given),
+    /// like the user's lithos-metal server (0.6 LAN verify). The slot frees when the connection closes.
+    public func setSingleSlot(_ on: Bool, retryAfter: String? = nil, releaseDelay: Double = 0) {
+        state.withLock { $0.singleSlot = on; $0.slotRetryAfter = retryAfter; $0.slotReleaseDelay = releaseDelay }
+    }
+    /// Most chat connections served at the same time so far.
+    public var maxConcurrentChats: Int { state.withLock { $0.maxActiveChats } }
+    /// Chats refused because the single slot was busy.
+    public var slotRejections: Int { state.withLock { $0.slotRejections } }
+
     // MARK: Connections
 
     private func accept(_ conn: NWConnection) {
         state.withLock { $0.connections[ObjectIdentifier(conn)] = conn }
         conn.stateUpdateHandler = { [weak self, weak conn] st in
-            if case .cancelled = st, let conn { _ = self?.state.withLock { $0.connections.removeValue(forKey: ObjectIdentifier(conn)) } }
+            if case .cancelled = st, let conn {
+                let id = ObjectIdentifier(conn)
+                let delay = self?.state.withLock { s -> Double in
+                    s.connections.removeValue(forKey: id)
+                    return s.activeChats.contains(id) ? s.slotReleaseDelay : 0
+                } ?? 0
+                if delay > 0 {
+                    self?.queue.asyncAfter(deadline: .now() + delay) { [weak self] in _ = self?.state.withLock { $0.activeChats.remove(id) } }
+                } else {
+                    _ = self?.state.withLock { $0.activeChats.remove(id) }
+                }
+            }
             if case .failed = st { conn?.cancel() }
         }
         conn.start(queue: queue)
@@ -314,6 +346,24 @@ public final class DeeMockServer: @unchecked Sendable {
     // MARK: Chat
 
     private func chat(_ req: MockRequest, _ conn: NWConnection, native: Bool) {
+        let cid = ObjectIdentifier(conn)
+        let refused = state.withLock { s -> String?? in
+            if s.singleSlot, !s.activeChats.isEmpty { s.slotRejections += 1; return .some(s.slotRetryAfter) }
+            s.activeChats.insert(cid)
+            s.maxActiveChats = max(s.maxActiveChats, s.activeChats.count)
+            return .none
+        }
+        if case .some(let retryAfter) = refused {
+            var headers = ["Content-Type": "application/json"]
+            if let retryAfter { headers["Retry-After"] = retryAfter }
+            let body = (try? JSONSerialization.data(withJSONObject: ["error": ["message": "busy", "type": "rate_limit", "code": NSNull()]])) ?? Data()
+            send(conn, status: "429 Too Many Requests", headers: headers, body: body)
+            return
+        }
+        // A client that hangs up frees the slot at once (nothing more is ever sent on this connection).
+        conn.receive(minimumIncompleteLength: 1, maximumLength: 1) { _, _, complete, error in
+            if complete || error != nil { conn.cancel() }
+        }
         let body = req.jsonObject ?? [:]
         let asked = body["model"] as? String ?? ""
         let (script, index, models, loaded) = state.withLock { s -> (ChatScript, Int, [String], String) in
@@ -333,7 +383,12 @@ public final class DeeMockServer: @unchecked Sendable {
             }
         }
         if reply.status >= 400 {
-            json(conn, status: reply.status, ["error": ["message": reply.errorMessage, "type": "server_error", "code": NSNull()]])
+            if let ra = reply.retryAfter {
+                let body = (try? JSONSerialization.data(withJSONObject: ["error": ["message": reply.errorMessage, "type": "server_error", "code": NSNull()]])) ?? Data()
+                send(conn, status: "\(reply.status) \(Self.reason(reply.status))", headers: ["Content-Type": "application/json", "Retry-After": ra], body: body)
+            } else {
+                json(conn, status: reply.status, ["error": ["message": reply.errorMessage, "type": "server_error", "code": NSNull()]])
+            }
             return
         }
         if reply.errorBodyWith200 {

@@ -7,7 +7,7 @@ import Testing
 ///   is now configurable (`RealtimeSessionConfig.turnDetection`);
 /// - the rollover summary answered the user (2 of 4 live: "I can't see a clock or
 ///   your device…", "Absolutely—I do! … music"): it now gets an explicit input,
-///   summarisation-only instructions, and never surfaces as her speech.
+///   summarisation-only instructions, and never surfaces as Dee's speech.
 @Suite struct Tune3Tests {
     // MARK: Helpers
 
@@ -28,7 +28,7 @@ import Testing
         return nil
     }
 
-    /// One whole exchange on the live socket: user speech, commit, transcript, her reply played out.
+    /// One whole exchange on the live socket: user speech, commit, transcript, Dee's reply played out.
     func exchange(_ h: Harness, item: String, said: String, resp: String, reply: String) async throws {
         h.push(S.speechStarted(item), S.speechStopped(item), S.committed(item), S.userTranscript(item, said))
         await h.log.wait { $0 == .userTranscript(itemID: item, text: said) }
@@ -40,7 +40,7 @@ import Testing
         await h.sync()
     }
 
-    /// Events that mean "she is talking / a response of hers is running".
+    /// Events that mean "Dee is talking / a response of Dee's is running".
     func isHerResponse(_ e: RealtimeEvent) -> Bool {
         switch e {
         case .responseStarted, .assistantAudio, .assistantAudioDone, .assistantTranscriptDelta, .assistantSentence,
@@ -132,7 +132,7 @@ import Testing
     }
 
     /// With `create_response: true` the server may start a response before the
-    /// one Dee asked for is created: it must not take over her request (her
+    /// one Dee asked for is created: it must not take over Dee's request (Dee's
     /// `response.created` with `dee_turn` does), make a sound, or stay in the
     /// conversation.
     @Test func aResponseTheServerMadeByItselfIsCancelledAndRemoved() async throws {
@@ -248,7 +248,7 @@ import Testing
     /// Live trace t2-fallback-rollover-speech q02: the summary was sent at 25.43,
     /// "Are you awake?" started at 25.56, the summary's text streamed meanwhile.
     /// Nothing of the summary reaches the event stream — not even if the server
-    /// sent audio or a transcript for it — the state never says she is talking,
+    /// sent audio or a transcript for it — the state never says Dee is talking,
     /// and the user's turn runs exactly as without a rollover: committed, answered
     /// with its DNA (not refused), played, and only then the switch.
     @Test func theSummaryNeverReachesTheVoiceAndTheUserIsAnsweredNormally() async throws {
@@ -282,13 +282,13 @@ import Testing
                       S.userTranscript("item_q02", "Are you awake?"))
         #expect(await h.log.wait { $0 == .userCommitted(itemID: "item_q02", previousItemID: nil) } != nil)
         #expect(Array(h.log.all.dropFirst(before)).allSatisfy { !isHerResponse($0) },
-                "the summary surfaced as her speech")
+                "the summary surfaced as Dee's speech")
         #expect(!h.log.contains { if case .error = $0 { true } else { false } })
         #expect(try await h.session.requestResponse(dna: "DEE DNA test") == .sent)
         first.pushAll(S.responseCreated("r2"), S.messageAdded("r2", "a2"), S.audio("r2", "a2", ms: 300),
                       S.transcriptDone("r2", "a2", "Wide awake!"), S.responseDone("r2"))
         #expect(await h.log.wait { $0.responseDone?.responseID == "r2" } != nil)
-        // A barge-in on her reply truncates her item only.
+        // A barge-in on Dee's reply truncates Dee's item only.
         _ = await h.session.bargeIn(playedMs: 150)
         let truncated = first.sent(type: "conversation.item.truncate").compactMap { e -> String? in
             if case .itemTruncate(let id, _, _, _) = e { id } else { nil }
@@ -304,8 +304,8 @@ import Testing
         #expect(h.log.count { $0.responseDone != nil } == 2)   // r1 and r2 only
     }
 
-    /// While the summary is being written she may still start talking: it is not
-    /// a response of hers.
+    /// While the summary is being written Dee may still start talking: it is not
+    /// a response of Dee's.
     @Test func anInitiativeIsNotHeldBackByTheSummary() async throws {
         var config = Harness.defaultConfig()
         config.rolloverAfter = 60

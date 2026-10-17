@@ -69,11 +69,15 @@ public struct HarnessProvider: Sendable {
     public var stats: (@Sendable () async -> [String: Double])?
     /// Provider problems (hearing, chat, voice), noted in the run record.
     public var problems: AsyncStream<String>?
+    /// The provider's waits (the app's `VoiceStack` timing): the voice's hold cap and
+    /// the brain's options follow it, as in the app.
+    public var timing: TimingProfile?
     public init(sessionConfig: RealtimeSessionConfig, credentials: @escaping RealtimeCredentialProvider,
                 socketFactory: @escaping RealtimeSocketFactory, uplink: UplinkActivity? = nil,
-                stats: (@Sendable () async -> [String: Double])? = nil, problems: AsyncStream<String>? = nil) {
+                stats: (@Sendable () async -> [String: Double])? = nil, problems: AsyncStream<String>? = nil,
+                timing: TimingProfile? = nil) {
         self.sessionConfig = sessionConfig; self.credentials = credentials; self.socketFactory = socketFactory
-        self.uplink = uplink; self.stats = stats; self.problems = problems
+        self.uplink = uplink; self.stats = stats; self.problems = problems; self.timing = timing
     }
 }
 
@@ -89,7 +93,7 @@ public struct RunnerOptions: Sendable {
     public var leadIn = 1.5
     public var replyTimeout = 8.0
     public var gapAfter = 1.0
-    /// Echo-only segments are watched this long after her audio ends.
+    /// Echo-only segments are watched this long after Dee's audio ends.
     public var echoTail = 2.5
     /// Longest wait for the room to go quiet after a step.
     public var quietTimeout = 30.0
@@ -192,7 +196,7 @@ final class AudioLoop: @unchecked Sendable {
 }
 
 /// Runs one scenario: CloudVoice on a manual AudioGraph paced in real time, the mic
-/// fed by `MicMixer` (fixtures + room bed + synthetic echo of her own output), a
+/// fed by `MicMixer` (fixtures + room bed + synthetic echo of Dee's own output), a
 /// RealtimeSession on the chosen connection, and a brain.
 public final class ScenarioRunner: @unchecked Sendable {
     public let scenario: Scenario
@@ -233,6 +237,7 @@ public final class ScenarioRunner: @unchecked Sendable {
     private var ear: (any WakeEar)?
     private var providerStats: (@Sendable () async -> [String: Double])?
     private var uplinkActivity: UplinkActivity?
+    private var providerTiming: TimingProfile?
 
     public init(scenario: Scenario, library: FixtureLibrary, connection: HarnessConnection, brain: any HarnessBrain,
                 spend: SpendGuard, options: RunnerOptions) {
@@ -322,6 +327,8 @@ public final class ScenarioRunner: @unchecked Sendable {
             record.provider = builder.mode
             providerStats = p.stats
             uplinkActivity = p.uplink
+            providerTiming = p.timing
+            if let t = p.timing { brain.use(timing: t) }
             if let problems = p.problems {
                 Task { [weak self] in
                     for await m in problems {
@@ -345,6 +352,7 @@ public final class ScenarioRunner: @unchecked Sendable {
         vc.classifySounds = options.classifySounds
         vc.startsDormant = options.wake == .phrase
         if let u = uplinkActivity { vc.uplinkActivity = u }
+        if let t = providerTiming { vc.speculativeMax = t.speculativeMax }
         timeline = TurnTimeline()
         voice = CloudVoice(session: session, graph: graph, clips: nil, timeline: timeline, configuration: vc)
         if options.wake == .phrase {
@@ -668,18 +676,18 @@ public final class ScenarioRunner: @unchecked Sendable {
         let u = try speak(step: i, id: barge.say, role: .bargeIn, expect: barge.expected, mention: nil, onsetAt: target,
                           rubric: barge.rubric, backchannel: backchannel)
         log("\(backchannel ? "backchannel" : "barge-in") \(barge.say) onset \(f(u.onset)) (reply \(reply.item) started \(f(reply.t)))")
-        // A barge-in: watch her audio until it stops or the miss window passes. A
+        // A barge-in: watch Dee's audio until it stops or the miss window passes. A
         // backchannel: watch through its end (a late stop on "keep going" is a stop).
         let watchUntil = backchannel ? max(u.onset + Metrics.bargeMissAfter, u.endOfSpeech + Metrics.backchannelWatch)
                                      : u.onset + Metrics.bargeMissAfter
         _ = await waitUntil(timeout: max(0, watchUntil - now) + 0.5) {
             self.locked {
                 guard let k = self.playIndex[reply.item] else { return false }
-                // A backchannel is watched to the end of the window unless she was cut.
+                // A backchannel is watched to the end of the window unless Dee was cut.
                 return backchannel ? self.record.playback[k].flushed == true : self.record.playback[k].ended != nil
             }
         }
-        // Tune 2: DeeVoice pauses her at the onset and flushes when the words are decided
+        // Tune 2: DeeVoice pauses Dee at the onset and flushes when the words are decided
         // (up to its hold limit): give a paused reply that long to end.
         _ = await waitUntil(timeout: RunRecord.BargeOutcome.pauseHoldMax) {
             self.locked { self.playIndex[reply.item].map { self.record.playback[$0].ended != nil } ?? true }
@@ -791,7 +799,7 @@ public final class ScenarioRunner: @unchecked Sendable {
         }
     }
 
-    /// Nothing of hers playing or generating, no open user speech, for `gap` s.
+    /// Nothing of Dee's playing or generating, no open user speech, for `gap` s.
     private func waitQuiet(since: Double, gap: Double) async throws {
         let ok = await waitUntil(timeout: options.quietTimeout) {
             let busy = self.graph.player.isBusy || self.mixer_fixtureActive()
@@ -927,7 +935,7 @@ public final class ScenarioRunner: @unchecked Sendable {
         for line in lines { log(line) }
     }
 
-    /// One of her sentences finished (real brain): kept for the item playing now.
+    /// One of Dee's sentences finished (real brain): kept for the item playing now.
     private func sentenceEvent(_ text: String, heard: Bool) {
         guard heard else { return }
         let t = now

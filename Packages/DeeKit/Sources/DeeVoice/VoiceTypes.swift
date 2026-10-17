@@ -59,7 +59,7 @@ public struct HeardSound: Sendable, Equatable {
     }
 
     /// What family the sound belongs to. `.laughter` events are reported even when
-    /// they are not unexpected, so Dee can laugh along whatever her mood.
+    /// they are not unexpected, so Dee can laugh along whatever Dee's mood.
     public var kind: SoundKind { SoundCatalog.kind(of: identifier) }
 }
 

@@ -4,8 +4,8 @@ import DeeLocal
 import SwiftUI
 
 /// Dee's in-app settings (providers-wake-onboarding §5): opened from the small gear or
-/// a two-finger long-press on her eyes. Saving never touches the network while she is
-/// dormant; a new provider is used from her next conversation window.
+/// a two-finger long-press on Dee's eyes. Saving never touches the network while Dee is
+/// dormant; a new provider is used from Dee's next conversation window.
 struct DeeSettingsView: View {
     @Environment(DeeModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -18,36 +18,41 @@ struct DeeSettingsView: View {
     @AppStorage("agingEnabled") private var agingEnabled = false
     @AppStorage("yearsPerDay") private var yearsPerDay = "0.1"
     @State private var confirmReset = false
+    /// The persona being edited (pronouns of every label below).
+    private var p: PersonaPreset { store.persona }
+    private var t: PronounText { store.persona.text }
 
     var body: some View {
         NavigationStack {
             Form {
+                CompanionSection(store: store)
+
                 Section {
                     ProviderSetupView(store: store)
                         .listRowInsets(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
                 } header: {
-                    Text("Who does her thinking")
+                    Text("Who does \(t.their) thinking")
                 } footer: {
-                    Text(store.issues.first?.message ?? "Changes are used from her next conversation.")
+                    Text(store.issues.first?.message ?? "Changes are used from the next conversation.")
                 }
 
                 Section("Wake phrase") { WakePhraseEditor(store: store) }
                 Section("Voice") { VoicePicker(store: store) }
 
                 Section {
-                    Toggle("Speak first when she sees someone", isOn: $store.speakFirst)
-                    Toggle("Share memories with her AI", isOn: $shareMemories)
+                    Toggle("Speak first when \(t.they("see")) someone", isOn: $store.speakFirst)
+                    Toggle("Share memories with \(t.their) AI", isOn: $shareMemories)
                 } footer: {
                     Text(store.draft.mode == .lanEverything
                          ? "With your own server, memories go only to that server during a conversation."
-                         : "Off: what she remembers about people stays on this iPhone and isn't sent to OpenAI.")
+                         : "Off: what \(t.they("remember")) about people stays on this iPhone and isn't sent to OpenAI.")
                 }
 
                 Section("Age") {
-                    Toggle("Dee has an age", isOn: $ageEnabled)
+                    Toggle("\(p.name) has an age", isOn: $ageEnabled)
                     if ageEnabled {
                         TextField("Starting age (robot-years)", text: $startAge).keyboardType(.decimalPad)
-                        Toggle("She grows up", isOn: $agingEnabled)
+                        Toggle("\(t.They("grow")) up", isOn: $agingEnabled)
                         if agingEnabled {
                             TextField("Years per day", text: $yearsPerDay).keyboardType(.decimalPad)
                         }
@@ -63,9 +68,9 @@ struct DeeSettingsView: View {
                 }
 
                 Section {
-                    NavigationLink("About privacy") { PrivacyView(mode: store.draft.mode) }
+                    NavigationLink("About privacy") { PrivacyView(mode: store.draft.mode, persona: p) }
                     Button("Run the introduction again") { dismiss(); runOnboarding() }
-                    Button("Start over (forget her feelings)", role: .destructive) { confirmReset = true }
+                    Button("Start over (forget \(t.their) feelings)", role: .destructive) { confirmReset = true }
                 } footer: {
                     Text("Dee \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")")
                 }
@@ -89,11 +94,11 @@ struct DeeSettingsView: View {
                 }
             }
             .confirmationDialog("Start over?", isPresented: $confirmReset) {
-                Button("Forget her feelings and start over", role: .destructive) {
+                Button("Forget \(t.their) feelings and start over", role: .destructive) {
                     UserDefaults.standard.set(true, forKey: "resetMind")
                 }
             } message: {
-                Text("Her mood and personality reset the next time Dee opens. People she knows are kept.")
+                Text("\(t.Their) mood and personality reset to \(p.name)'s own the next time Dee opens. People \(t.they) \(p.pronouns.verb("know")) are kept.")
             }
         }
         .preferredColorScheme(.dark)
@@ -102,15 +107,17 @@ struct DeeSettingsView: View {
 
 struct PrivacyView: View {
     let mode: ProviderMode
+    var persona: PersonaPreset = PersonaCatalog.classic
+    private var t: PronounText { persona.text }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                item("Her wake phrase", "Listened for only on this iPhone, with Apple's on-device speech recognition, in every mode. Until she hears it (or you tap her), no audio leaves the phone, no connection is open and nothing is paid.")
-                item("During a conversation", Self.during(mode))
+                item("\(t.Their) wake phrase", "Listened for only on this iPhone, with Apple's on-device speech recognition, in every mode. Until \(t.they("hear")) it (or you tap \(t.them)), no audio leaves the phone, no connection is open and nothing is paid.")
+                item("During a conversation", Self.during(mode, persona: persona))
                 item("Ending it", "“Go to sleep”, “stop listening” or “that's all” — or a minute of quiet — closes the connection and stops the microphone audio at once.")
-                item("Her camera", "Processed on this iPhone. Never recorded or sent; only a few words about what she notices go to her AI during a conversation.")
-                item("Memories", "Stored only on this iPhone. With “Share memories” on, a few relevant ones go with a reply to her AI (OpenAI, or your own server in the all-local mode).")
+                item("\(t.Their) camera", "Processed on this iPhone. Never recorded or sent; only a few words about what \(t.they("notice")) go to \(t.their) AI during a conversation.")
+                item("Memories", "Stored only on this iPhone. With “Share memories” on, a few relevant ones go with a reply to \(t.their) AI (OpenAI, or your own server in the all-local mode).")
                 item("Keys", "Your OpenAI key and server keys are kept only in this iPhone's Keychain, never in plain settings. An OpenAI key is never sent to your own server.")
             }
             .padding(20)
@@ -119,12 +126,13 @@ struct PrivacyView: View {
         .navigationTitle("Privacy")
     }
 
-    static func during(_ mode: ProviderMode) -> String {
-        switch mode {
+    static func during(_ mode: ProviderMode, persona: PersonaPreset = PersonaCatalog.classic) -> String {
+        let t = persona.text
+        return switch mode {
         case .openAI:
-            "Her microphone audio and the Dee DNA for each reply go to OpenAI, which hears, thinks and speaks. OpenAI may keep it up to 30 days for abuse checks. Paid by your key."
+            "\(t.Their) microphone audio and the Dee DNA for each reply go to OpenAI, which hears, thinks and speaks. OpenAI may keep it up to 30 days for abuse checks. Paid by your key."
         case .lanBrainOpenAIVoice:
-            "Your words (audio) go to OpenAI to be transcribed, and her sentences go to OpenAI to be spoken. Her thinking, Dee DNA and memories go only to your own server."
+            "Your words (audio) go to OpenAI to be transcribed, and \(t.their) sentences go to OpenAI to be spoken. \(t.Their) thinking, Dee DNA and memories go only to your own server."
         case .lanEverything:
             "Everything goes only to your own servers on your network, or stays on this iPhone. Nothing goes to OpenAI."
         }

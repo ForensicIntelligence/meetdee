@@ -6,14 +6,14 @@ import Testing
 // Tune 8 (scratchpad/tune7-live.md; report Tools/voice-harness/Reports/20261010-063215,
 // traces Tools/voice-harness/Traces/20261010-063215):
 // (T7-1/T7-2) `Backchannel.isMisheardFragment` is the one rule voice and brain use for
-// short misheard words over her voice. (T7-3) a phantom "Yeah." from her own echo (AEC
-// off) resumed as a backchannel armed `resumeGrace`, and "Are you awake?" paused her only
+// short misheard words over Dee's voice. (T7-3) a phantom "Yeah." from Dee's own echo (AEC
+// off) resumed as a backchannel armed `resumeGrace`, and "Are you awake?" paused Dee only
 // 1.56 s after its onset.
 
 // MARK: - T7-1 / T7-2: the misheard-fragment rule, from the live strings
 
 @Suite struct Tune8MisheardFragmentTests {
-    /// Backchannels over her that came back misheard, live.
+    /// Backchannels over Dee that came back misheard, live.
     @Test func liveBackchannelMisreadsAreFragments() {
         let live = [
             "Sheupr and going.",        // backchannel-echo20 c05 "Keep going" (tune 7: decided early as 3 words)
@@ -31,7 +31,7 @@ import Testing
         }
     }
 
-    /// Reactions only say "go on" over her voice (decision: backchannels continue her).
+    /// Reactions only say "go on" over Dee's voice (decision: backchannels continue Dee).
     @Test func reactionsAreFragments() {
         for t in ["I see.", "Me too.", "Thank you.", "Thank you, Dee.", "Thanks.", "I know.", "Me neither.", "Fair enough."] {
             #expect(Backchannel.isMisheardFragment(t), "\(t)")
@@ -58,8 +58,8 @@ import Testing
 // MARK: - T7-3: an echo-prone hold arms no grace
 
 @Suite(.serialized) struct EchoProneHoldTests {
-    /// Her reply playing with no echo cancellation; an onset `at` s into it pauses her
-    /// (live: the voice's own evidence on her echo); its words are `words`; the brain
+    /// Dee's reply playing with no echo cancellation; an onset `at` s into it pauses Dee
+    /// (live: the voice's own evidence on Dee's echo); its words are `words`; the brain
     /// says "go on" (`continueAfterBackchannel`, live `resumed-brain`).
     private func pausedAndResumed(_ rig: LoopRig, at: Double, words: [String], text: String) async throws {
         try await rig.start()
@@ -75,7 +75,7 @@ import Testing
             await rig.settle()
             talked += 0.02
         }
-        try #require(rig.voice.floorHold?.itemID == "item_u2", "she was not paused")
+        try #require(rig.voice.floorHold?.itemID == "item_u2", "Dee was not paused")
         try rig.quiet(0.1)
         rig.push(Srv.speechStopped("item_u2", ms: rig.uplinkMsNow - 100), Srv.committed("item_u2"))
         rig.deltas("item_u2", words)
@@ -86,8 +86,8 @@ import Testing
         try #require(resumed != nil, "never went on")
     }
 
-    /// The next onset over her, 0.13 s after she went on (live: 24.04 → 24.168); true
-    /// when it paused her on its sound within 0.4 s.
+    /// The next onset over Dee, 0.13 s after Dee went on (live: 24.04 → 24.168); true
+    /// when it paused Dee on its sound within 0.4 s.
     private func nextOnsetPausesHer(_ rig: LoopRig) async throws -> Bool {
         try rig.quiet(0.12)
         try rig.talk(0.15)
@@ -101,12 +101,12 @@ import Testing
         return false
     }
 
-    /// t2-interrupt-echo20 (live 22.64–26.00, AEC off, echo −20 dB): her reply's first
-    /// audio 22.64; her echo opened item …NdisD3 at 22.90 (0.26 s in; "Yeah."), which
-    /// paused her; the brain resumed (`backchannel("resumed-brain")` 24.04); "Are you
-    /// awake?" began at 24.168 and the voice noted "after resume: words decide": she was
+    /// t2-interrupt-echo20 (live 22.64–26.00, AEC off, echo −20 dB): Dee's reply's first
+    /// audio 22.64; Dee's echo opened item …NdisD3 at 22.90 (0.26 s in; "Yeah."), which
+    /// paused Dee; the brain resumed (`backchannel("resumed-brain")` 24.04); "Are you
+    /// awake?" began at 24.168 and the voice noted "after resume: words decide": Dee was
     /// paused only by its words at 26.00 (1.56 s). Now the echo-prone "Yeah." arms no grace
-    /// and the question's onset pauses her at once.
+    /// and the question's onset pauses Dee at once.
     @Test func aPhantomYeahEarlyInHerReplyArmsNoGrace() async throws {
         let rig = try LoopRig()
         _ = rig.graph.setManualFacts(aecActive: false, outputLatency: 0)
@@ -121,18 +121,18 @@ import Testing
         rig.voice.shutdown()
     }
 
-    /// A real "Keep going." (two words) early in her reply still arms the grace: "I'm
-    /// listening." right after never pauses her again (tune 6).
+    /// A real "Keep going." (two words) early in Dee's reply still arms the grace: "I'm
+    /// listening." right after never pauses Dee again (tune 6).
     @Test func twoWordsEarlyStillArmTheGrace() async throws {
         let rig = try LoopRig()
         _ = rig.graph.setManualFacts(aecActive: false, outputLatency: 0)
         try await pausedAndResumed(rig, at: 0.3, words: ["Keep", " going", "."], text: "Keep going.")
         let paused = try await nextOnsetPausesHer(rig)
-        #expect(!paused, "the rest of the backchannel paused her again")
+        #expect(!paused, "the rest of the backchannel paused Dee again")
         rig.voice.shutdown()
     }
 
-    /// A one-word "Mm-hm." later in her reply (live: real ones began ≥ 1.5 s in) is theirs:
+    /// A one-word "Mm-hm." later in Dee's reply (live: real ones began ≥ 1.5 s in) is theirs:
     /// the grace holds.
     @Test func oneWordLaterInHerReplyArmsTheGrace() async throws {
         let rig = try LoopRig()
@@ -143,7 +143,7 @@ import Testing
         rig.voice.shutdown()
     }
 
-    /// With echo cancellation on, a "Yeah." early in her reply is theirs: the grace holds.
+    /// With echo cancellation on, a "Yeah." early in Dee's reply is theirs: the grace holds.
     @Test func withEchoCancellationAnEarlyYeahArmsTheGrace() async throws {
         let rig = try LoopRig()
         _ = rig.graph.setManualFacts(aecActive: true, outputLatency: 0)

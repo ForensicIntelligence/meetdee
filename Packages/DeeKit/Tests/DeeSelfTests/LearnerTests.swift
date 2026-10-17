@@ -468,7 +468,7 @@ import Testing
             if (before >= 0) != (f.polarity >= 0) {
                 flips += 1
                 #expect(k >= 3, "never before the third contrary exposure")
-                #expect(f.revealedAt == nil, "a change of heart is latent until she says so")
+                #expect(f.revealedAt == nil, "a change of heart is latent until Dee says so")
             }
         }
         #expect(flips == 1 && f.polarity < 0)
@@ -572,7 +572,7 @@ import Testing
         #expect(run.m.momentary.signals.contains { $0.name == "gagBorn" && $0.id == g.id })
         var late = Self.run()
         _ = Self.laughAfterTurn(&late, topic: "toast", at: 10, laughAfter: 20)
-        #expect(late.m.enduring.gags.isEmpty, "laughter more than 15 s later is not about her")
+        #expect(late.m.enduring.gags.isEmpty, "laughter more than 15 s later is not about Dee")
     }
 
     @Test func everyStyleHasHooksAndRitualPhrases() {

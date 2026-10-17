@@ -20,7 +20,7 @@ import Testing
         rig.brain.trace.filter { if case .requestFailed = $0 { true } else { false } }.count
     }
 
-    /// A question over her voice that her ear knows is theirs (their voice on the
+    /// A question over Dee's voice that Dee's ear knows is theirs (their voice on the
     /// microphone, so its words reach the brain as they come), held by the voice's floor.
     static func overHerByVoice(_ rig: BrainRig, _ item: String) async throws {
         rig.push(Srv.speechStarted(item, ms: 3000))
@@ -35,12 +35,12 @@ import Testing
         rig.brain.trace.filter { if case .speculationReleased = $0 { true } else { false } }.count
     }
 
-    // MARK: T5-1 — the re-check costs nothing when her audio comes later
+    // MARK: T5-1 — the re-check costs nothing when Dee's audio comes later
 
     /// t2-latency-clean q01: first audio 4.92, final words 5.00, released 5.14
     /// (`speculationReleased(heldMs: 220)`): the 0.12 s re-check window started only when
     /// audio and words were both in. Their side was quiet from the window on; the
-    /// re-check now counts from there, so she plays as soon as the words settle.
+    /// re-check now counts from there, so Dee plays as soon as the words settle.
     @Test func liveQ01ReleasesWhenTheWordsSettleNotARecheckLater() async throws {
         // Deltas 0.1 s of microphone apart must read as still settling however slow the host.
         let rig = try await BrainRig(tune: { $0.partialSettle = 0.6 })
@@ -51,7 +51,7 @@ import Testing
         var elapsed = 0.2                                                // since their end of speech
         var i = 0
         var audioIn = false
-        // Deltas keep coming (words settling) until 0.95 s; her audio is in at 0.85 s.
+        // Deltas keep coming (words settling) until 0.95 s; Dee's audio is in at 0.85 s.
         while elapsed < 0.95 {
             if i < words.count { T2.delta(rig, "item_u1", words[i]); i += 1 }
             for _ in 0..<5 { try rig.step() }
@@ -81,7 +81,7 @@ import Testing
 
     // MARK: T5-2 — an interrupting question always gets exactly one answer
 
-    /// t2-interrupt-clean q02 (40.37–42.3 s): "Are you awake?" over her. The voice's hold
+    /// t2-interrupt-clean q02 (40.37–42.3 s): "Are you awake?" over Dee. The voice's hold
     /// committed the burst early (40.44); the server ended "the rest" as a new item with
     /// no speech start (stop + commit 40.60) and its transcript came back empty. The brain
     /// answered the question (41.06) and then the empty tail blind (41.24): refused
@@ -123,8 +123,8 @@ import Testing
         rig.shutdown()
     }
 
-    /// The other half: a request refused because the answer is in flight never touches her
-    /// voice. Live the brain still believed her cut reply was `playing` (its `itemPlayed`
+    /// The other half: a request refused because the answer is in flight never touches Dee's
+    /// voice. Live the brain still believed Dee's cut reply was `playing` (its `itemPlayed`
     /// not in yet) and "cut" it again before the refused request: a stop of nothing that
     /// closes the reply gate and cancels the answer at its first audio.
     @Test func aRefusedRequestNeverCancelsTheAnswerInFlight() async throws {
@@ -139,7 +139,7 @@ import Testing
         #expect(await rig.until { rig.responseCreates().count == 2 }, "\(rig.trail())")
         rig.push(Srv.responseCreated("resp_2"))                            // the answer: in flight, no audio yet
         await rig.settle()
-        // Her cut reply's events still racing in: the brain sees it "playing" again.
+        // Dee's cut reply's events still racing in: the brain sees it "playing" again.
         rig.brain.inject(.sentenceStarted(itemID: "item_a1", index: 1, text: "And then it rained."))
         await rig.settle()
         let cancels = rig.count("response.cancel")
@@ -197,10 +197,10 @@ import Testing
         rig.shutdown()
     }
 
-    // MARK: T5-3 — the answer to a question over her goes out without the 0.3 s guard
+    // MARK: T5-3 — the answer to a question over Dee goes out without the 0.3 s guard
 
-    /// Live p50: hold end (her reply flushed) +0.92 s, answer requested +1.20 s — the
-    /// `stopGuard` after the cut. A cut of her playing reply only has to reach the session
+    /// Live p50: hold end (Dee's reply flushed) +0.92 s, answer requested +1.20 s — the
+    /// `stopGuard` after the cut. A cut of Dee's playing reply only has to reach the session
     /// before the request; the speculative gate covers the rest.
     @Test func theAnswerOverHerGoesOutAsSoonAsTheCutIsIn() async throws {
         let rig = try await BrainRig()
@@ -219,7 +219,7 @@ import Testing
             if rig.responseCreates().count == 2 { askedAt = .now }
             try? await Task.sleep(for: .milliseconds(2))
         }
-        let cut = try #require(cutAt, "her reply is cut: \(rig.trail())")
+        let cut = try #require(cutAt, "Dee's reply is cut: \(rig.trail())")
         let asked = try #require(askedAt, "the answer is asked for: \(rig.trail())")
         #expect(asked - cut < .milliseconds(200), "requested \(asked - cut) after the cut (was 0.3 s)")
         // …and the cut reached the session first: the new answer is not cancelled by it.
@@ -229,7 +229,7 @@ import Testing
         let trunc = try #require(order.firstIndex(of: "truncate:item_a1"))
         let create = try #require(order.lastIndex(of: "response.create"))
         #expect(trunc < create, "\(order)")
-        #expect(rig.count("response.cancel") <= 1, "only her old reply's: \(order)")
+        #expect(rig.count("response.cancel") <= 1, "only Dee's old reply's: \(order)")
         rig.shutdown()
     }
 
@@ -276,7 +276,7 @@ import Testing
 
     /// t2-backchannel-echo20 l03: "Dee, guess what, at school today…" — the server split
     /// "D." off (committed 104.24), their speech went on (`speech_started` 104.44), the
-    /// brain answered "D." in exact mode at 104.80 with no gate: she played over them at
+    /// brain answered "D." in exact mode at 104.80 with no gate: Dee played over them at
     /// 105.50. Now "D." waits for the rest, and nothing is asked for while they talk.
     @Test func liveEcho20L03DIsNotAnsweredOverThem() async throws {
         let rig = try await BrainRig(exactWords: true)
@@ -299,7 +299,7 @@ import Testing
     }
 
     /// Every reply goes through the release gate, an exact one asked for late too: while
-    /// a newer item is being said she is never released.
+    /// a newer item is being said Dee is never released.
     @Test func aLateExactReplyIsGatedToo() async throws {
         let rig = try await BrainRig(exactWords: true, tune: { $0.exactWait = 2 })
         try await rig.start()
@@ -309,7 +309,7 @@ import Testing
         rig.push(Srv.userTranscript("item_u1", "I made pancakes this morning."))
         #expect(await rig.until { rig.responseCreates().count == 1 }, "\(rig.trail())")
         #expect(rig.brain.trace.contains(.speculated), "gated, not skipped as late: \(rig.brain.trace)")
-        rig.push(Srv.speechStarted("item_u2", ms: 3000))                  // they go on before her audio
+        rig.push(Srv.speechStarted("item_u2", ms: 3000))                  // they go on before Dee's audio
         await rig.settle()
         T4.audio(rig, "resp_1", "item_a1", ms: 800, text: "Ooh, pancakes!")
         let at = rig.output.count
@@ -382,7 +382,7 @@ import Testing
         }
     }
 
-    /// latency-clean q07 ("Will it rain tomorrow?"): her first sentence sends them to an
+    /// latency-clean q07 ("Will it rain tomorrow?"): Dee's first sentence sends them to an
     /// app → taken back unheard and asked once more with `noAppNote`.
     @Test func anAppInHerFirstSentenceIsNeverHeard() async throws {
         let rig = try await BrainRig()
@@ -400,7 +400,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// A later sentence: she stops before it (what she said stands).
+    /// A later sentence: Dee stops before it (what Dee said stands).
     @Test func anAppInALaterSentenceStopsHerBeforeIt() async throws {
         let rig = try await BrainRig()
         try await rig.start()

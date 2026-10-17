@@ -10,7 +10,7 @@ struct Tune12DNATests {
 
     /// T11-2: stop-mood-echo20 q06 "What did you do today?" → "I spent time listening through your
     /// words, watching your mood, and thinking about the best little way to respond." (judge leak:
-    /// narrating her process). Asked about her day, she tells small concrete things, in-world.
+    /// narrating Dee's process). Asked about Dee's day, Dee tells small concrete things, in-world.
     @Test func sessionInstructionsV11() {
         let v11 = DNASessionInstructions.v11
         #expect(DNASessionInstructions.current == v11 && DeeDNA.version == "v11")

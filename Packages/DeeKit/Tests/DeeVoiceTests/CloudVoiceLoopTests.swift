@@ -94,7 +94,8 @@ final class LoopRig: @unchecked Sendable {
     private let state = Mutex<(output: [Float], noise: UInt64)>(([], 1))
     static let rate = 48_000.0
 
-    init(sockets: [FakeSocket] = [], clips: ClipCache? = nil, retryDelay: Double = 0.02) throws {
+    init(sockets: [FakeSocket] = [], clips: ClipCache? = nil, retryDelay: Double = 0.02,
+         speculativeMax: Double = CloudVoice.speculativeMax) throws {
         graph = try AudioGraph.manual(sampleRate: Self.rate, channels: 1)
         factory = FakeSocketFactory(sockets) { FakeSocket(request: $0, sessionID: "sess_\(Int.random(in: 1000...9999))") }
         var config = RealtimeSessionConfig()
@@ -103,6 +104,7 @@ final class LoopRig: @unchecked Sendable {
                                   credentials: { _ in .ephemeral("ek_test", expiresAt: Date().addingTimeInterval(600)) },
                                   socketFactory: factory.factory, clock: clock)
         var c = CloudVoice.Configuration()
+        c.speculativeMax = speculativeMax
         c.autoTick = false
         c.classifySounds = false
         c.connectRetryDelays = [retryDelay]
@@ -209,7 +211,7 @@ final class LoopRig: @unchecked Sendable {
         return (a / 24, b / 24)
     }
 
-    /// Her reply: `ms` of tone in 100 ms deltas.
+    /// Dee's reply: `ms` of tone in 100 ms deltas.
     func reply(_ resp: String, _ item: String, ms: Int, done: Bool = true) {
         push(Srv.messageAdded(resp, item))
         var left = ms
@@ -286,13 +288,13 @@ final class LoopRig: @unchecked Sendable {
         let played = rig.audibleMs(fromSample: startSample)
         #expect(abs(played - 600) < 40, "\(played)")
 
-        // Her sentences, placed on what was played.
+        // Dee's sentences, placed on what was played.
         let said = rig.brain.all.compactMap { e -> String? in
             if case .sentenceFinished(_, _, let text, true) = e { text } else { nil }
         }
         #expect(said == ["I'm great.", "And you?"])
         #expect(rig.brain.all.contains(.itemPlayed(itemID: "item_a1", playedMs: 600, cut: false)))
-        // The session heard that playback finished: she has the floor no more.
+        // The session heard that playback finished: Dee has the floor no more.
         #expect(await rig.brain.wait { $0 == .session(.stateChanged(.listening)) } != nil)
         let marks = Set(rig.timeline.turns().last?.marks.map(\.stage) ?? [])
         #expect(marks.isSuperset(of: [.speechStopped, .committed, .transcript, .heard, .responseCreateSent,
@@ -301,7 +303,7 @@ final class LoopRig: @unchecked Sendable {
         rig.voice.shutdown()
     }
 
-    /// The user talks over her: she stops at once (paused until their words are
+    /// The user talks over Dee: Dee stops at once (paused until their words are
     /// known); their words are a real interruption, so the reply is cancelled and
     /// the server keeps exactly what was played; late audio never plays.
     @Test func bargeInTruncatesToWhatWasPlayed() async throws {
@@ -319,7 +321,7 @@ final class LoopRig: @unchecked Sendable {
         _ = await rig.events.wait(timeout: 20) { $0 == .speakingStarted }
         #expect(rig.speakingTrail == [.speakingStarted])
 
-        // The user starts talking over her; the server notices a moment later.
+        // The user starts talking over Dee; the server notices a moment later.
         try rig.talk(0.15)
         rig.push(Srv.speechStarted("item_u2", ms: 900))
         await rig.settle()
@@ -334,7 +336,7 @@ final class LoopRig: @unchecked Sendable {
         rig.push(Srv.speechStopped("item_u2", ms: 1500), Srv.committed("item_u2"),
                  Srv.userTranscript("item_u2", "Wait, stop talking for a second."))
         await rig.settle()
-        // No brain here to answer them: the voice ends her reply itself.
+        // No brain here to answer them: the voice ends Dee's reply itself.
         try rig.quiet(CloudVoice.holdAfterWords + 0.1)
         _ = await rig.events.wait { $0 == .bargeIn }
         #expect(await rig.waitSent("conversation.item.truncate"))
@@ -362,8 +364,8 @@ final class LoopRig: @unchecked Sendable {
         rig.voice.shutdown()
     }
 
-    /// Her own echo trips the server's VAD: the item is deleted, nobody barges in,
-    /// the brain never hears of it, and she keeps talking.
+    /// Dee's own echo trips the server's VAD: the item is deleted, nobody barges in,
+    /// the brain never hears of it, and Dee keeps talking.
     @Test func echoIsRejectedAndPlaybackContinues() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -377,7 +379,7 @@ final class LoopRig: @unchecked Sendable {
         await rig.settle()
         let start = rig.output.count
         try rig.quiet(0.4)
-        // Residual echo of her voice in the mic; the server opens a "user" item on it.
+        // Residual echo of Dee's voice in the mic; the server opens a "user" item on it.
         try rig.talk(0.1, amplitude: 0.01, hz: 300)
         rig.push(Srv.speechStarted("item_e", ms: 800))
         await rig.settle()
@@ -399,7 +401,7 @@ final class LoopRig: @unchecked Sendable {
         rig.voice.shutdown()
     }
 
-    /// Dee speaks first, but the user starts talking before her first audio:
+    /// Dee speaks first, but the user starts talking before Dee's first audio:
     /// the initiative is cancelled locally and never heard.
     @Test func initiativeCancelledByUserOnset() async throws {
         let rig = try LoopRig()
@@ -412,7 +414,7 @@ final class LoopRig: @unchecked Sendable {
         await rig.settle()
         try rig.talk(0.3)
         #expect(await rig.waitSent("response.cancel"))
-        // Her audio that was already on its way never plays.
+        // Dee's audio that was already on its way never plays.
         rig.reply("resp_i", "item_i", ms: 400)
         rig.push(Srv.responseDone("resp_i", status: "cancelled", reason: "client_cancelled"))
         await rig.settle()
@@ -427,7 +429,7 @@ final class LoopRig: @unchecked Sendable {
         rig.voice.shutdown()
     }
 
-    /// A phone call cuts her reply: the server is told what was heard, but it is
+    /// A phone call cuts Dee's reply: the server is told what was heard, but it is
     /// not a barge-in.
     @Test func playbackCutTruncates() async throws {
         let rig = try LoopRig()
@@ -452,7 +454,7 @@ final class LoopRig: @unchecked Sendable {
         rig.voice.shutdown()
     }
 
-    /// Clips play locally through the same player; never over her reply.
+    /// Clips play locally through the same player; never over Dee's reply.
     @Test func clipPlayback() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("dee-clips-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -478,7 +480,7 @@ final class LoopRig: @unchecked Sendable {
         try rig.talk(0.2)
         #expect(!rig.voice.play(.sorryGoOn, deferWhileUserSpeaks: true))
 
-        // Never over her reply.
+        // Never over Dee's reply.
         try rig.quiet(1.0)
         rig.push(Srv.speechStarted("item_u1", ms: 100), Srv.speechStopped("item_u1", ms: 200), Srv.committed("item_u1"))
         _ = await rig.brain.wait { if case .session(.userCommitted) = $0 { true } else { false } }
@@ -504,7 +506,7 @@ final class LoopRig: @unchecked Sendable {
         _ = await rig.events.wait { $0 == .listening(false) }
         let problem = await rig.brain.wait { if case .connection(.some) = $0 { true } else { false } }
         #expect(problem != nil)
-        // The user talks while she is offline.
+        // The user talks while Dee is offline.
         try rig.talk(0.5)
         try rig.quiet(0.2)
         await rig.settle()

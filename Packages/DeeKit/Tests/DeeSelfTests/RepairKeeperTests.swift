@@ -255,7 +255,7 @@ import Testing
             #expect(run.m.ongoing.repair == .repairing, "\(describe(b))")
             #expect(run.r.bids == 1)
         }
-        // Review finding 13: laughter long after she spoke (a TV) is not a bid.
+        // Review finding 13: laughter long after Dee spoke (a TV) is not a bid.
         var tv = Self.ruptured(mind: Self.cross)
         tv.step(.sound(label: "laughter", unexpected: false), at: 300)
         #expect(tv.m.ongoing.repair == .ruptured && tv.r.bids == 0)
@@ -340,7 +340,7 @@ import Testing
         run.step(Self.insult, at: 900)
         #expect(Self.notes(run.m).isEmpty, "once per rupture")
 
-        // After reconciliation it is not raised again, and her boundary is put away.
+        // After reconciliation it is not raised again, and Dee's boundary is put away.
         run.step(Self.apology, at: 901)
         let fx2 = run.step(Self.pet, at: 902)
         #expect(run.m.ongoing.repair == .reconciled)

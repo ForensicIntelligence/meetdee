@@ -117,9 +117,19 @@ public enum DNAPrompt {
     }
 
     /// §3 — the stable session instructions (byte-identical for a given app version).
+    /// The single entry point for every session (realtime, cascade, harness): Classic Dee
+    /// gets `DNASessionInstructions.current` (v11, unchanged; another name is swapped into
+    /// its opening as before), a persona preset gets v12 in its own name and voice.
     public static func sessionInstructions(persona: Persona = Persona()) -> String {
+        let preset = persona.preset
+        if !preset.isClassic { return DNASessionInstructions.current(for: preset) }
         let v = DNASessionInstructions.current
         return persona.name == "Dee" ? v : v.replacingOccurrences(of: "You are Dee,", with: "You are \(persona.name),")
+    }
+
+    /// `sessionInstructions(persona:)` for a preset.
+    public static func sessionInstructions(preset: PersonaPreset) -> String {
+        sessionInstructions(persona: Persona(preset: preset))
     }
 
     // MARK: - Options (degradation state)
@@ -242,8 +252,7 @@ public enum DNAPrompt {
 
         // 1 IDENTITY
         out.append(Line(1, .heading, "1 IDENTITY"))
-        out.append(Line(1, .identity, "You are \(d.name), a tiny robot who lives in this phone, \(DNATables.identityLimit). "
-            + "Only your big glowing eyes show; you talk out loud."))
+        out.append(Line(1, .identity, identityLine(d)))
         out.append(Line(1, .age, ageLine(d)))
 
         // 2 TEMPERAMENT
@@ -362,9 +371,10 @@ public enum DNAPrompt {
 
         // 6 WHO YOU ARE
         let me = d.selfModel
+        let adult = !d.persona.isClassic
         out.append(Line(6, .heading, "6 WHO YOU ARE"))
         out.append(Line(6, .values, "You value \(SelfBlock.list(me.topValues.map(SelfBlock.valueWord))). Your humour: "
-            + "\(SelfBlock.humourPhrase(me.humour)) (sometimes \(SelfBlock.humourPhrase(me.humourSecondary)))."))
+            + "\(SelfBlock.humourPhrase(me.humour, adult: adult)) (sometimes \(SelfBlock.humourPhrase(me.humourSecondary, adult: adult)))."))
         if !o.selfMinimal {
             out.append(Line(6, .tastes, "You ", items: me.tastes, separator: "; you ", suffix: ".", needsItems: true))
             out.append(Line(6, .capabilities, "", items: Array((me.strengths + me.limits).prefix(o.capabilities)), separator: " ", needsItems: true))
@@ -454,7 +464,7 @@ public enum DNAPrompt {
         out.append(Line(9, .voice, "Voice: \(g.voice)."))
         out.append(Line(9, .doRules, "Do: ", items: g.doLines, suffix: ".", needsItems: true))
         out.append(Line(9, .avoidRules, "Avoid: ", items: g.avoidLines, suffix: ".", needsItems: true))
-        out.append(Line(9, .always, DNATables.alwaysLine))
+        out.append(Line(9, .always, d.persona.isClassic ? DNATables.alwaysLine : DNATables.alwaysLine(name: d.name)))
         out.append(Line(9, .trace, "DNA TRACE (never say): \(DeeDNA.version) \(d.mindCode.display)"))
         return out
     }
@@ -476,6 +486,20 @@ public enum DNAPrompt {
         if length.contains("one") { return "12 words" }
         if length.contains("three") { return "35 words" }
         return "25 words"
+    }
+
+    /// §1 IDENTITY. Classic Dee keeps the pre-preset line byte for byte; a persona preset
+    /// is an adult with a name, an age and pronouns (persona spec §3 "Identity line"),
+    /// keeping the hard no-apps limit (tune 7).
+    static func identityLine(_ d: DeeDNA) -> String {
+        guard !d.persona.isClassic else {
+            return "You are \(d.name), a tiny robot who lives in this phone, \(DNATables.identityLimit). "
+                + "Only your big glowing eyes show; you talk out loud."
+        }
+        // No longer than Classic's line: the archetypes sit just under the 1200 target.
+        let age = d.persona.age.map { "\($0), " } ?? ""
+        return "You are \(d.name), \(age)\(d.persona.pronouns.label): an adult companion living in this phone as a small robot, "
+            + "\(DNATables.identityLimit). Only your eyes show."
     }
 
     static func ageLine(_ d: DeeDNA) -> String {

@@ -124,7 +124,7 @@ public struct Person: Sendable, Equatable, Codable, Identifiable {
     }
 
     /// True for an "unknown friend" placeholder: someone Dee is talking to whose
-    /// name she does not know yet (one per session / unrecognised face).
+    /// name Dee does not know yet (one per session / unrecognised face).
     public var isPlaceholder: Bool { name == MemoryStore.unknownFriendName }
 
     /// Case-insensitive match against the name and every alias.

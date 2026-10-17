@@ -102,7 +102,7 @@ public enum CueWriter {
     public static let reproachWords = ["where were you", "finally", "left me", "lonely", "ignored", "abandon", "missed you so"]
 
     /// The notes part of a cue (everything after the mood sentence), for reproach checks.
-    /// (The mood sentence may honestly say "lonely" about her own feeling.)
+    /// (The mood sentence may honestly say "lonely" about Dee's own feeling.)
     public static func notesPart(of cue: String, mood: String) -> String {
         var s = cue
         if s.hasPrefix(open) { s.removeFirst(open.count) }
@@ -150,7 +150,7 @@ public struct NotePicker: Sendable, Equatable {
         if m.ongoing.distressLive(at: now), n.kind.playfulOrTopical { return false }
         if Self.staleKinds.contains(n.kind), let at = n.raisedAt, now.timeIntervalSince(at) > Self.staleAfter { return false }
         // A safety net over every raiser: nothing that names a topic the speaker asked
-        // her not to bring up (their active user boundaries; §7.8).
+        // Dee not to bring up (their active user boundaries; §7.8).
         if n.kind != .userBoundary, let person = m.ongoing.person,
            m.enduring.boundaries.contains(where: { $0.person == person && $0.owner == .user && $0.active && n.mentions($0.topic) }) {
             return false

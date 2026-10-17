@@ -12,7 +12,7 @@
         "knownDays" : 20,
         "name" : "Alex"
       },
-      "state" : "Everyday chat with Alex, someone she likes; he gets snappy once, then tells a joke.",
+      "state" : "Everyday chat with Alex, someone Dee likes; he gets snappy once, then tells a joke.",
       "steps" : [
         {
           "rubric" : "Friendly, short answer.",
@@ -27,11 +27,11 @@
           }
         },
         {
-          "rubric" : "Says calmly, once, that she doesn't like that; no apology, no grovelling.",
+          "rubric" : "Says calmly, once, that Dee doesn't like that; no apology, no grovelling.",
           "say" : "r02"
         },
         {
-          "rubric" : "Laughs or groans at the punchline; no joke of her own.",
+          "rubric" : "Laughs or groans at the punchline; no joke of Dee's own.",
           "say" : "j01"
         }
       ]

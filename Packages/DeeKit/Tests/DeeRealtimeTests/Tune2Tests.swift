@@ -262,7 +262,7 @@ extension FakeSocket {
     /// "Are you awake?" started at 26.37 (link 1), link 2 was live at 27.57, and
     /// link 1's `speech_stopped` (27.748) let the switch happen before its commit:
     /// the item was never committed anywhere. Now the switch waits for the
-    /// commit, the reply, and the end of her playback.
+    /// commit, the reply, and the end of Dee's playback.
     @Test func aRolloverNeverSwitchesBetweenSpeechStoppedAndTheCommit() async throws {
         var config = Harness.defaultConfig()
         config.rolloverAfter = 60

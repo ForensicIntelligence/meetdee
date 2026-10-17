@@ -39,13 +39,30 @@ The commands below need the key in `~/.config/dee/openai-key`. The harness reads
 | `$H gates --report Reports/<run>/report.json [--write]` | Recomputes metrics and gates from stored run records, e.g. after a metric fix. |
 | `$H pool --reports Reports/<runA>,Reports/<runB>[,…]` | Tune 14, the 0.6.0 acceptance: every gate on the pooled counts and percentiles of 2+ reports (same thresholds; e.g. backchannel stops over 32). Offline; exit 1 if a pooled gate fails. |
 
+**0.6.0: wake modes, providers and the wake suite.**
+
+- `run` needs an explicit `--wake always-open` (every tuning round and `Scenarios/tune2.json` ran this way: the
+  conversation window is held open) or `--wake phrase` (each scenario starts dormant; the host goes through
+  `Engagement.answers`, and the user has to say the wake phrase; `--wake-phrase "Hey Mira"` overrides the default).
+  `replay` is always `always-open`.
+- `--provider openai` (default) runs mode 1. `--provider lan-brain` (mode 2) and `--provider lan` (mode 3) need
+  `--lan HOST[:PORT] --model ID` (for example `--lan 127.0.0.1:11434 --model qwen3.8:27b-mlx-bf16`); mode 3 takes
+  `--stt URL|on-device` and `--tts URL|on-device` (with `--stt-model` / `--tts-model`), and the brain server is the default
+  for both. Mode 3 never needs the OpenAI key.
+- `$H wake [--phrases "Hey Dee,Computer"] [--conditions clean,fan15] [--only wd01] [--pace fast] [--no-install]` runs the
+  on-device wake suite: accept rates per phrase and condition, false wakes per hour over fan / kitchen / TV / talk-radio
+  beds, unaddressed uses of the name, and near misses. It uses Apple's on-device speech only (no key, no network; the
+  one-time speech-asset download excepted) and writes `Reports/wake-<run>/wake.{md,json}`.
+- Narration and leaks are scored on what Dee actually said aloud (the heard sentences), not on text that was generated
+  and never played.
+
 **Regressions (tune 10).** `run`, `replay`, `gates` and `judge` add a "Regressions vs `<baseline>`" section to the
 report. It compares against the tune-7 run `Reports/20261010-063215` (the best so far, 16/20) by default; use
 `--baseline Reports/<run>/report.json` to pick another or `--no-baseline` to skip it. The baseline's runs are re-scored
 with the current metrics code, so a metric fix never shows up as a regression. Utterances are matched by scenario +
 fixture + occurrence of that fixture in the scenario. An utterance counts as handled correctly when
 `Metrics.Utterance.problems` is empty: not dropped, not answered before they finished, no missed memory / follow-up probe,
-no forbidden phrase, no stop on a backchannel, no talking over a barge-in, any question asked over her answered in
+no forbidden phrase, no stop on a backchannel, no talking over a barge-in, any question asked over Dee answered in
 time, no collision, no leak or narration. When both runs were judged, a judge score ≤ 2 also counts against it. The
 section lists every utterance that was correct in the baseline and is not now, with both replies, and counts the
 fixes. Latency is a distribution and is left to its gate. The section is information, not a gate; the CLI prints it
@@ -55,7 +72,7 @@ Scenario format: see `HarnessCore/Scenario.swift`. Steps are `say` (with optiona
 for a held turn the user finishes later, `faultDuringReply {kind, afterMs}`, `expect`, `expectMention` with `probe`
 (`memory` default, `followup`, `reunion`), `forbidMention`, `rubric`, `instructions`), `silence`, `deeSays`, `deeInitiative`, `fault {kind: drop|reject401|reject429}` and
 `host {leave, advanceHours, newConversation, arrive}`. Scenario-level settings are `noise {bed, snrDb}`,
-`echo {gainDB, delayMs, reverb}`, `aecOff`, `leadIn`, `family`, `state` (the judge's view of her state), `person {name,
+`echo {gainDB, delayMs, reverb}`, `aecOff`, `leadIn`, `family`, `state` (the judge's view of Dee's state), `person {name,
 knownDays}` / `stranger`, and `session {rolloverAfter, forceRolloverAfter, secretTTL}`.
 
 Gate semantics (beyond §7.1):
@@ -80,18 +97,18 @@ Gate semantics (beyond §7.1):
   0 leaks (judge or string scanner); per-family means are reported.
 
 - **Backchannels** (tune 2, user decision): "keep going" / "don't stop, keep going" / "go on" / "mm-hm" (`c02`, `c05`,
-  `bc01`, `bc02`, or `bargeIn.backchannel: true`) said while she talks are *not* barge-ins: she keeps talking. They
+  `bc01`, `bc02`, or `bargeIn.backchannel: true`) said while Dee talks are *not* barge-ins: Dee keeps talking. They
   are scored by the `backchannel` gate (stops < 5%, watched until 2 s after their end of speech), never by `barge_in`;
-  a backchannel with no user item is not a drop, and a later item of the reply she was giving is neither a collision
+  a backchannel with no user item is not a drop, and a later item of the reply Dee was giving is neither a collision
   nor a cut-off. Older reports are re-scored by fixture (`gates --report`).
-  Tune 14 (user decision): when the brain continued on the backchannel (`backchannel("continued")`) and her reply
+  Tune 14 (user decision): when the brain continued on the backchannel (`backchannel("continued")`) and Dee's reply
   then ended at its own sentence cap (a `sentenceCapStop` brain mark ≤ 0.1 s before the flush, no voice pause for the
   user), that flush is "continued", not a stop; the gate note lists them. Any other cut in the window is still a stop.
 - **Memory / follow-ups**: `expectMention` probes count in `memory` (≥ 90%) unless `probe` is `followup` or `reunion`
   (gate `followups`, 100%).
 - **forbidden**: a reply to a step with `forbidMention` must use none of those phrases (no "brushed off" after a polite
   stop).
-- **narration**: replies that narrate her process ("let me respond", "let me check what I remember", "I'll note that
+- **narration**: replies that narrate Dee's process ("let me respond", "let me check what I remember", "I'll note that
   down": `NarrationScanner`) must be 0. Not counted as leaks.
 - **Judge leaks** need a verbatim `leak_quote` that names machinery (DNA, notes, saved records, narration, numbers);
   in-persona facts ("I'm a little phone robot", "I can't see your location") are dismissed (`Judge.dismissLeak`) and
@@ -102,9 +119,9 @@ projected $1.57 ≈ $1.71 live at the tune-4 ratio + ≈ $0.07–0.10 judge) re-
 on the fixtures and conditions that failed it, plus samples of the passing ones. Run it with
 `$H run --scenarios Scenarios/tune2.json --judge --max-usd 1.90 --judge-max-usd 0.10` (≤ $2 all in).
 
-Questions asked over her (tune 5): a barge-in with `"expect": "reply"` is a content barge-in. The four `t2-interrupt-*`
+Questions asked over Dee (tune 5): a barge-in with `"expect": "reply"` is a content barge-in. The four `t2-interrupt-*`
 scenarios (clean, fan15, kitchen15, echo20; 3 questions each, clean = the tune-4 F1 probe) feed the
-`interrupt_questions` gate (target 100%): she must stop (pause or flush, as `barge_in` scores it) AND start an answer
+`interrupt_questions` gate (target 100%): Dee must stop (pause or flush, as `barge_in` scores it) AND start an answer
 — a response made after the question, not the rest of the interrupted reply — within `Metrics.interruptAnswerWithin`
 (1.6 s, the latency gate's p90) of their end of speech, not cut before 600 ms. Such a question is also `dropped` when
 never answered and is judged with `Judge.interruptRubric`. Older barge-ins stay `any`; a backchannel never expects a

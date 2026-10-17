@@ -24,8 +24,13 @@ public struct CloudSettings: Sendable, Equatable {
     public var voice = "marin"
     public var model = "gpt-realtime-2.1-mini"
     public var shareMemories = true
+    /// Who the session speaks as: its instructions come from `DNAPrompt.sessionInstructions`
+    /// (Classic Dee: v11, byte-for-byte; a persona preset: v12 in its name and voice).
+    public var persona = Persona()
 
-    public init(voice: String = "marin", model: String = "gpt-realtime-2.1-mini", shareMemories: Bool = true) {
+    public init(voice: String = "marin", model: String = "gpt-realtime-2.1-mini", shareMemories: Bool = true,
+                persona: Persona = Persona()) {
+        self.persona = persona
         self.voice = Self.voices.contains(voice) ? voice : "marin"
         self.model = Self.models.contains(model) ? model : "gpt-realtime-2.1-mini"
         self.shareMemories = shareMemories
@@ -106,7 +111,7 @@ public struct CloudSettings: Sendable, Equatable {
         c.eagerness = Self.turnEagerness
         c.turnDetection = Self.turnDetection(silenceMs: vadSilenceMs)
         c.voice = .named(voice)
-        c.instructions = DNASessionInstructions.current
+        c.instructions = DNAPrompt.sessionInstructions(persona: persona)
         c.tools = tools
         c.reasoningEffort = RealtimeBrain.ordinaryEffort.rawValue
         return c
@@ -207,8 +212,8 @@ public struct KeyIntake: Sendable {
     }
 }
 
-/// The small status chip in the Release build: what is wrong with her cloud voice,
-/// in words for the person in front of her (`DeeModel.voiceProblem`).
+/// The small status chip in the Release build: what is wrong with Dee's cloud voice,
+/// in words for the person in front of Dee (`DeeModel.voiceProblem`).
 public enum CloudStatus: Sendable, Equatable {
     case noKey
     case badKey
@@ -258,7 +263,7 @@ public enum CloudStatus: Sendable, Equatable {
         }
     }
 
-    /// The face shows her "cloud off" look (eyes, touch and camera stay alive).
+    /// The face shows Dee's "cloud off" look (eyes, touch and camera stay alive).
     public var cloudOff: Bool {
         if case .other = self { return false }
         return true
@@ -274,7 +279,7 @@ public enum CloudStatus: Sendable, Equatable {
 }
 
 /// OpenAI's usage policy: people must be told the voice is AI-generated. Dee says
-/// it herself the first time she speaks through the cloud (once per install).
+/// so the first time Dee speaks through the cloud (once per install).
 public enum AIVoiceDisclosure {
     /// The line (spoken verbatim through `RealtimeBrain.say`: an out-of-band canned
     /// line, §4.2). The app keeps offering it until it has actually been played.

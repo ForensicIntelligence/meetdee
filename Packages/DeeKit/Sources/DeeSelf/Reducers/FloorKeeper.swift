@@ -17,7 +17,7 @@ import Foundation
 /// Voice-loop fixes (audit C3): Dee's own sound during the user's turn does not end
 /// it, and a pause after a barge-in hands the floor to the user (not a timed yield).
 /// Review fix (M2): `.userSpeaking` times out too, when their words never arrive as
-/// `.heard` (a spoken command, an utterance she did not answer).
+/// `.heard` (a spoken command, an utterance Dee did not answer).
 public struct FloorKeeper: SubReducer {
     public static let name = "FloorKeeper"
 
@@ -95,8 +95,8 @@ public struct FloorKeeper: SubReducer {
 
         case .speakingStarted:
             // A sound while the user holds the floor (a laugh, a canned line) is an
-            // interjection, not Dee taking her turn: their turn stays open, so their
-            // next words are not misread as them interrupting her (audit C3). Her
+            // interjection, not Dee taking Dee's turn: their turn stays open, so their
+            // next words are not misread as them interrupting Dee (audit C3). Dee's
             // reply's sentences (`.deeSaid`) still take the floor.
             if !m.momentary.floor.isUserTurn {
                 if case .deeSpeaking = m.momentary.floor {} else { m.momentary.floor = .deeSpeaking(since: now) }
@@ -150,7 +150,7 @@ public struct FloorKeeper: SubReducer {
             m.momentary.floorEvents.append(.cutOff)
             lingerTag(&m, now: now)
             // Answered (tune 5 F1): the brain's reply is the answer; stopping here
-            // cancelled it, so a question asked over her was never answered.
+            // cancelled it, so a question asked over Dee was never answered.
             if p == .bargeIn { effects.append(.stopSpeaking) }
 
         case .conversationStarted:
@@ -224,7 +224,7 @@ public struct FloorKeeper: SubReducer {
             m.momentary.floor = .userSpeaking(since: userTurnStarted ?? now)
         case .deeSpeaking(let since):
             // Half-duplex: speech over Dee means a barge-in is coming; if it came within
-            // 1 s of her starting, she interrupted them.
+            // 1 s of Dee starting, Dee interrupted them.
             if now.timeIntervalSince(since) <= Self.interruptWindow {
                 m.momentary.floorEvents.append(.deeInterrupted)
             }

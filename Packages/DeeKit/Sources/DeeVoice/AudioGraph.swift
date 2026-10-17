@@ -18,8 +18,8 @@ protocol AudioGraphClient: AnyObject, Sendable {
 }
 
 /// Dee's one audio graph: an `AVAudioEngine` with voice processing (echo
-/// cancellation) that carries both directions, so every sound she makes is
-/// cancelled from what she hears.
+/// cancellation) that carries both directions, so every sound Dee makes is
+/// cancelled from what Dee hears.
 ///
 /// It owns:
 /// - the audio session (`.playAndRecord` / `.voiceChat` / `.defaultToSpeaker`) and
@@ -100,7 +100,7 @@ public final class AudioGraph: @unchecked Sendable {
         /// graph restarts by itself. After a route / configuration change the
         /// stream player just pauses and resumes where it was (nothing is cut).
         case interrupted(String)
-        /// An interruption (phone call, Siri) or a media-services reset stopped her
+        /// An interruption (phone call, Siri) or a media-services reset stopped Dee's
         /// output — not the user. Sent for every such interruption, also when
         /// nothing was playing (`utterance` nil): a reply still being generated
         /// must not play when audio comes back minutes later. When the stream
@@ -576,7 +576,7 @@ public final class AudioGraph: @unchecked Sendable {
     /// Audio stopped under us: stop every client player now, synchronously, so
     /// nothing plays on a stopped engine. The stream player's source node just
     /// stops being pulled and resumes where it was when the engine runs again, so
-    /// a route change (AirPods in) pauses her reply rather than ending it. Only a
+    /// a route change (AirPods in) pauses Dee's reply rather than ending it. Only a
     /// real interruption or a services reset (`cutStream`) cuts it, reported as
     /// `.playbackCut` (also when nothing was playing) so the server can be told
     /// what was heard and a reply on its way can be cancelled.

@@ -16,7 +16,7 @@ import Testing
         h.push(S.responseCreated("resp_late"), S.messageAdded("resp_late", "a1"), S.audio("resp_late", "a1", ms: 100))
         #expect(await h.log.wait { $0 == .responseStarted(responseID: "resp_late", kind: .reply) } != nil)
         await h.log.wait { $0.isAudio }
-        #expect(h.log.count(\.isAudio) > 0, "her late answer plays")
+        #expect(h.log.count(\.isAudio) > 0, "Dee's late answer plays")
         #expect(h.sentCount("response.cancel") == 0)
         #expect(!h.log.contains(.fallbackAdvised(.noResponse)))
     }

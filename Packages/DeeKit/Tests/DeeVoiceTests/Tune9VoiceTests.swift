@@ -6,25 +6,25 @@ import Testing
 // traces Tools/voice-harness/Traces/20261010-080526): interrupt-echo20 q08 "Who made you?"
 // (AEC off, echo −20 dB) came back as **"Movie."**; `Backchannel.isMisheardFragment` took
 // any single leftover word for a misheard "go on" (`guard kept.count > 1 else { return true }`),
-// the brain resumed her (`backchannel("continued")` 51.50) and the question was never
+// the brain resumed Dee (`backchannel("continued")` 51.50) and the question was never
 // answered. Now one word is "go on" only when the words know it ("Grand.", "She.",
 // "Done.", "Yeah.", a hum, or a misspelling of one) or when it *sounded* like a
 // backchannel (`FragmentSound`: ≤ 0.45 s of voice, ≤ 2 syllables, not rising).
 
-/// Over-her words of tunes 6–8 live (every barge-in fixture's transcript in
+/// Over-Dee's words of tunes 6–8 live (every barge-in fixture's transcript in
 /// Reports/*/report.json, `/tmp/dee-t9-voice/bi.py`).
 enum LiveOverHer {
     /// Backchannels (bc01 "Go on.", bc02 "Mm-hm.", c02 "Don't stop, keep going.", c05
-    /// "Keep going, I'm listening.") as they came back: she must go on.
+    /// "Keep going, I'm listening.") as they came back: Dee must go on.
     static let goOn = [
         "Grand.", "Jeron.", "Yeah.", "She.", "Done.", "Sheep.", "Cheap.", "Going.", "MMHM.", "MMHN.", "HM.", "MHM.",
         "Put going.", "Sheupr and going.", "I'm listen.", "Sometimes listening.", "Sheep going.", "Cheap going.",
         "Going on.", "Um, grand.",
     ]
-    /// q08 "Who made you?" over her, every way it came back in tunes 6–8: never "go on".
+    /// q08 "Who made you?" over Dee, every way it came back in tunes 6–8: never "go on".
     static let q08 = ["Movie.", "To making.", "Too much.", "What do?", "Who are you?", "It's too new.", "Too late.",
                       "Who made you?"]
-    /// Content words heard live (not over her) that a misheard question could be: a turn
+    /// Content words heard live (not over Dee) that a misheard question could be: a turn
     /// without a backchannel's sound.
     static let contentWords = ["Movie.", "Music.", "Weather.", "Lettuce.", "Football.", "Tomatoes.", "Store.", "Team.",
                                "Billy.", "Tidy.", "Something."]
@@ -135,7 +135,7 @@ enum LiveOverHer {
 // MARK: - Real speech in the room (the harness's fixtures, the way tune 8 played them)
 
 @Suite(.serialized) struct FragmentSoundRoomTests {
-    /// Fixture `id` said 2.2 s into her reply (l02), its server item from 0.3 s before
+    /// Fixture `id` said 2.2 s into Dee's reply (l02), its server item from 0.3 s before
     /// its onset to 0.15 s after its end; what the ear says it sounded like.
     private func sound(_ id: String, _ cond: String) throws -> FragmentSound? {
         var sim = RoomSim(seconds: 7, aec: cond != "echo20")
@@ -151,7 +151,7 @@ enum LiveOverHer {
 
     /// interrupt-echo20 q08 (live T8-1) and fan15 / clean: "Who made you?" never sounds like
     /// a backchannel, so "Movie." is a turn even with its sound; "Go on." (bc01) always does,
-    /// so even a word the words don't know would let her go on.
+    /// so even a word the words don't know would let Dee go on.
     @Test(arguments: ["clean", "fan15", "echo20"])
     func whoMadeYouNeverSoundsLikeABackchannel(cond: String) throws {
         let q08 = try #require(try sound("q08", cond))
@@ -187,10 +187,10 @@ extension LoopRig {
 }
 
 @Suite(.serialized) struct MovieOverHerLoopTests {
-    /// t2-interrupt-echo20 50.0–51.9 (tune 8): onset 50.16 over her reply, the voice's quick
-    /// commit 51.09, partial "Movie." 51.29, final 51.54 → she went on and the question was
-    /// never answered. Here: the real "Who made you?" pauses her, its words come back as
-    /// "Movie." — she stays paused, the hold's verdict is "answer", the voice never resumes,
+    /// t2-interrupt-echo20 50.0–51.9 (tune 8): onset 50.16 over Dee's reply, the voice's quick
+    /// commit 51.09, partial "Movie." 51.29, final 51.54 → Dee went on and the question was
+    /// never answered. Here: the real "Who made you?" pauses Dee, its words come back as
+    /// "Movie." — Dee stays paused, the hold's verdict is "answer", the voice never resumes,
     /// and the brain's checks (`isHoldBackchannel`, `isMisheardFragment(itemID:text:)`) agree.
     @Test func movieOverHerIsAnsweredNotResumed() async throws {
         let rig = try LoopRig()
@@ -203,7 +203,7 @@ extension LoopRig {
         try rig.say("q08")
         rig.push(Srv.speechStarted("item_u2", ms: micAt + 100))
         await rig.settle()
-        try #require(rig.voice.floorHold?.itemID == "item_u2", "she was not paused")
+        try #require(rig.voice.floorHold?.itemID == "item_u2", "Dee was not paused")
         let commit = try #require(try await rig.stepUntil(0.8) { !rig.sent("input_audio_buffer.commit").isEmpty },
                                   "never committed their words")
         _ = commit
@@ -227,9 +227,9 @@ extension LoopRig {
         rig.voice.shutdown()
     }
 
-    /// The control: the real "Go on." (bc01) over her whose words come back as a word the
-    /// rule doesn't know ("Bread.") sounded like a backchannel: she goes on, by its words
-    /// and sound, as before tune 8 (decision: backchannels continue her).
+    /// The control: the real "Go on." (bc01) over Dee whose words come back as a word the
+    /// rule doesn't know ("Bread.") sounded like a backchannel: Dee goes on, by its words
+    /// and sound, as before tune 8 (decision: backchannels continue Dee).
     @Test func goOnHeardAsAnUnknownWordStillResumesByItsSound() async throws {
         let rig = try LoopRig()
         let holds = Collector(rig.voice.holdEvents)
@@ -241,7 +241,7 @@ extension LoopRig {
         try rig.say("bc01")
         rig.push(Srv.speechStarted("item_u2", ms: micAt + 100))
         await rig.settle()
-        try #require(rig.voice.floorHold?.itemID == "item_u2", "she was not paused")
+        try #require(rig.voice.floorHold?.itemID == "item_u2", "Dee was not paused")
         #expect(try await rig.stepUntil(0.8) { !rig.sent("input_audio_buffer.commit").isEmpty } != nil)
         rig.push(Srv.committed("item_u2"))
         try rig.quiet(0.12)

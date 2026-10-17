@@ -35,7 +35,7 @@ import Testing
     }
 
     /// fillers-echo30 t03 (72.20–72.94): the deltas said "…call my mom Anne." at 72.52;
-    /// `heard(verdict: "answer")` 72.74 and her reply was released 72.94. Now the unheard
+    /// `heard(verdict: "answer")` 72.74 and Dee's reply was released 72.94. Now the unheard
     /// fast reply is taken back from the deltas and the continuation answers both.
     @Test func liveEcho30T03AnneIsHeldFromTheDeltas() async throws {
         let rig = try await BrainRig(tune: { $0.trailingWait = 1.0 })
@@ -60,9 +60,9 @@ import Testing
     // MARK: T10-1 — the quiet release never races the words
 
     /// fillers-echo10 t03 (`Traces/20261010-130349/t2-fillers-echo10.jsonl` 70.2–71.3):
-    /// commit 70.30, her audio in 70.88, `speculationReleased(quietMs: 930)` at 71.000 —
+    /// commit 70.30, Dee's audio in 70.88, `speculationReleased(quietMs: 930)` at 71.000 —
     /// and the first delta of "Was going to call my mom Ann." at 71.008 (transcription lag
-    /// 0.70 s against 0.23–0.40 s typical). Live she answered across the continuation.
+    /// 0.70 s against 0.23–0.40 s typical). Live Dee answered across the continuation.
     /// With no words yet the release waits for them (bounded), and the deltas take it back.
     @Test func liveEcho10T03TheReleaseWaitsForLateWords() async throws {
         let rig = try await BrainRig()
@@ -71,7 +71,7 @@ import Testing
         try await T4.turn(rig, "item_u1", talk: 1.6, lag: 0.23)
         let start = rig.output.count
         #expect(await rig.until { rig.responseCreates().count == 1 })
-        try rig.quiet(0.35)                                                   // 70.88: her audio is in
+        try rig.quiet(0.35)                                                   // 70.88: Dee's audio is in
         T4.audio(rig, "resp_1", "item_a1", ms: 1200, text: "Oh, that sounds like a lovely plan.")
         await rig.settle()
         // To 0.98 s after their end: the window and its re-check have passed (live 0.93).
@@ -87,7 +87,7 @@ import Testing
         #expect(await rig.until { rig.brain.trace.contains(.speculationDropped("taken back")) }, "\(rig.brain.trace)")
         try rig.quiet(0.6)
         await rig.settle()
-        #expect(T4.peak(rig, from: start) < 0.05, "not a sample of her reply was heard")
+        #expect(T4.peak(rig, from: start) < 0.05, "not a sample of Dee's reply was heard")
         #expect(T4.released(rig) == nil)
         rig.shutdown()
     }
@@ -124,29 +124,29 @@ import Testing
         await rig.settle()
         try rig.quiet(0.26)                                                   // 0.84 s after their end
         T2.deltas(rig, "item_u1", "Was going to call my mom Ann.")
-        try rig.quiet(0.14)                                                   // 0.98: only the settle holds her
+        try rig.quiet(0.14)                                                   // 0.98: only the settle holds Dee
         #expect(T4.released(rig) == nil, "\(rig.brain.trace)")
         #expect(await rig.until { rig.brain.trace.contains(.held("trailing")) }, "\(rig.brain.trace)")
         try rig.quiet(0.6)
         await rig.settle()
         #expect(rig.brain.trace.contains(.speculationDropped("taken back")), "\(rig.brain.trace)")
         #expect(T4.released(rig) == nil, "\(rig.brain.trace)")
-        #expect(T4.peak(rig, from: start) < 0.05, "not a sample of her reply was heard")
+        #expect(T4.peak(rig, from: start) < 0.05, "not a sample of Dee's reply was heard")
         rig.shutdown()
     }
 
-    // MARK: T10-4 — latency: a turn begun just after her voice
+    // MARK: T10-4 — latency: a turn begun just after Dee's voice
 
     /// latency-clean q07 (`Traces/20261010-130349/t2-latency-clean.jsonl` 62.7–65.9): they
-    /// began 0.18 s after her voice ended (inside `commandWindow`: `waitForPartial`), the
+    /// began 0.18 s after Dee's voice ended (inside `commandWindow`: `waitForPartial`), the
     /// deltas "Is it going to rain tomorrow?" came 65.55–65.57 and the reply was asked
     /// for only once they settled (65.74; overhead 0.42 s). Six turns of the run had this
-    /// shape. Her voice is silent: the first words that cannot be a backchannel decide at
-    /// once, as over her voice (the reply is gated like any).
+    /// shape. Dee's voice is silent: the first words that cannot be a backchannel decide at
+    /// once, as over Dee's voice (the reply is gated like any).
     @Test func liveLatencyCleanQ07ATurnJustAfterHerVoiceDecidesOnItsEarlyWords() async throws {
         let rig = try await BrainRig(tune: { $0.partialSettle = 3 })
         try await rig.start()
-        rig.brain.inject(.itemPlayed(itemID: "item_a0", playedMs: 2400, cut: false))   // her voice just ended
+        rig.brain.inject(.itemPlayed(itemID: "item_a0", playedMs: 2400, cut: false))   // Dee's voice just ended
         rig.utterance("item_u1")
         #expect(await rig.until { rig.brain.trace.contains(.committed(plan: "waitForPartial")) }, "\(rig.brain.trace)")
         T2.deltas(rig, "item_u1", "Is it going to rain tomorrow?")
@@ -155,7 +155,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// A backchannel just after her voice still never decides early (its settled words do).
+    /// A backchannel just after Dee's voice still never decides early (its settled words do).
     @Test func aBackchannelJustAfterHerVoiceIsNotDecidedEarly() async throws {
         let rig = try await BrainRig(tune: { $0.partialSettle = 3 })
         try await rig.start()

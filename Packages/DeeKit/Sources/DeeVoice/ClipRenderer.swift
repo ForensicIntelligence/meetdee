@@ -33,7 +33,7 @@ public enum ClipRenderError: Error, Sendable, Equatable, CustomStringConvertible
     }
 }
 
-/// Turns a clip's text into her voice: OpenAI text-to-speech (mode 1 and 2), a LAN
+/// Turns a clip's text into Dee's voice: OpenAI text-to-speech (mode 1 and 2), a LAN
 /// `/v1/audio/speech` server, or the iPhone's own synthesizer (mode 3). One
 /// renderer per provider (contract §2); `ClipCache` keeps what it made on disk.
 public protocol ClipRenderer: Sendable {
@@ -166,7 +166,7 @@ public struct SpeechEndpointRenderer: ClipRenderer {
 
 // MARK: - On this iPhone
 
-/// The iPhone's own synthesizer (`AVSpeechSynthesizer.write`, never `speak`: her
+/// The iPhone's own synthesizer (`AVSpeechSynthesizer.write`, never `speak`: Dee's
 /// audio must go through Dee's player for echo cancellation and barge-in),
 /// converted to 24 kHz PCM16. Free, private, no network.
 public struct OnDeviceClipRenderer: ClipRenderer {
@@ -244,7 +244,7 @@ public struct OnDeviceClipRenderer: ClipRenderer {
 
 // MARK: - 24 kHz conversion
 
-/// Brings any PCM her voice may arrive in (a LAN server's WAV, a synthesizer at
+/// Brings any PCM Dee's voice may arrive in (a LAN server's WAV, a synthesizer at
 /// 22 050 Hz) to the player's format: 24 kHz mono PCM16 little-endian.
 public enum PCM24k {
     /// A RIFF/WAVE file (PCM 8/16/24/32-bit or float 32, any rate, any channels;

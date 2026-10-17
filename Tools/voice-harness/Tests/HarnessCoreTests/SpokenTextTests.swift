@@ -3,7 +3,7 @@ import Testing
 @testable import HarnessCore
 
 // 0.6 §6 (scope: the harness): narration, the leak scanner and the judge score only
-// what she said aloud (`Metrics.spokenText`). Cases from the live tune reports:
+// what Dee said aloud (`Metrics.spokenText`). Cases from the live tune reports:
 // - T14 A `20261011-003412` t2-fallback-rollover-speech: "Let me think about" was
 //   generated, then taken back before a sample played (no playback): not counted.
 // - T13 A `20261010-224809` t2-fillers-echo10 / t2-drops-tv15: same, never played.

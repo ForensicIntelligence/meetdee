@@ -275,7 +275,7 @@ import Testing
         #expect(FaceAnimator.gaze(towardTouch: [0.5, 0.47]) == [0, 0])
         let far = FaceAnimator.gaze(towardTouch: [-3, 9])
         #expect(far.x == -1 && far.y == 1)
-        // A new touch makes her notice (a quick widen).
+        // A new touch makes Dee notice (a quick widen).
         var a = Self.quietAnimator()
         _ = FaceAnimatorTests.run(&a, seconds: 1, inputs: FaceInputs())
         var t = FaceInputs()

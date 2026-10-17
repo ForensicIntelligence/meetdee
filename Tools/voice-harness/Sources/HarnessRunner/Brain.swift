@@ -23,6 +23,8 @@ public protocol HarnessBrain: AnyObject, Sendable {
     func setTurnInstructions(_ instructions: String?) async
     /// The run is over.
     func detach() async
+    /// The provider's waits, before `attach` (LAN modes; the default ignores them).
+    func use(timing: TimingProfile)
 
     // With defaults (the minimal brain uses them):
 
@@ -67,7 +69,7 @@ public struct HarnessWakeConfig: Sendable {
 /// The outcome of `HarnessBrain.speak`.
 public enum SpeakResult: Sendable, Equatable {
     case sent
-    /// `retryable`: refused because someone (or she) was talking — try again shortly.
+    /// `retryable`: refused because someone (or Dee) was talking — try again shortly.
     case refused(String, retryable: Bool)
 }
 
@@ -88,7 +90,7 @@ public extension HarnessBrain {
 public struct HarnessLog: Sendable {
     public let request: @Sendable (_ kind: String, _ outcome: String) -> Void
     public let note: @Sendable (_ text: String) -> Void
-    /// One of her sentences finished playing (`heard`) or was cut (real brain).
+    /// One of Dee's sentences finished playing (`heard`) or was cut (real brain).
     public let sentence: (@Sendable (_ text: String, _ heard: Bool) -> Void)?
     /// A brain decision (`BrainTrace`, no text).
     public let trace: (@Sendable (_ entry: String) -> Void)?
@@ -182,4 +184,8 @@ public enum BrainRegistry {
             throw NotWired(description: "unknown brain \(name); known: \(names.joined(separator: ", "))")
         }
     }
+}
+
+extension HarnessBrain {
+    public func use(timing: TimingProfile) {}
 }

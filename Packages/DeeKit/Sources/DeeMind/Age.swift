@@ -25,6 +25,8 @@ public struct AgeSettings: Equatable, Sendable, Codable {
 
     /// Oldest a Dee can get, in Dee-years.
     public static let maxAge = 120.0
+    /// Real-time ageing (a year per year): the default rate for an adult persona preset.
+    public static let adultYearsPerDay = 1.0 / 365
     /// Fastest ageing rate: the Settings app's "very fast" (a year per hour).
     public static let maxYearsPerDay = 24.0
 

@@ -45,7 +45,7 @@ struct Tune2CharacterTests {
         #expect(!cue.lowercased().contains("lonely"))
     }
 
-    /// Back after 50 h and she sees them (face, mutual gaze, nobody speaks): her own
+    /// Back after 50 h and Dee sees them (face, mutual gaze, nobody speaks): Dee's own
     /// greeting initiative carries the reunion ("be glad"), never "lonely".
     @Test func reunionGreetingInitiativeWhenSheSeesThem() {
         let lonely = Kit.snap([.loneliness: 0.88, .joy: 0.5])
@@ -64,7 +64,7 @@ struct Tune2CharacterTests {
             }
             t += 0.5
         }
-        let c = try? #require(cue, "she greets them first")
+        let c = try? #require(cue, "Dee greets them first")
         #expect(c?.contains("They're back") == true, "\(c ?? "-")")
         #expect(c?.lowercased().contains("lonely") == false)
     }

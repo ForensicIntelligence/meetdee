@@ -108,8 +108,8 @@ import Testing
     }
 
     /// The summary states the name as a fact and never narrates memory: tune 5's
-    /// summaries said "Dee confirms it will remember Priya's name", and she then
-    /// said "I'll store it" (DNA decision: she never says she'll remember/store).
+    /// summaries said "Dee confirms it will remember Priya's name", and Dee then
+    /// said "I'll store it" (DNA decision: Dee never says Dee will remember/store).
     @Test func theSummaryStatesTheNameAndNeverNarratesMemory() {
         let i = RealtimeSession.summaryInstructions
         #expect(i.contains("The person's name is <name>."))
@@ -166,7 +166,7 @@ import Testing
     /// kind of music makes you bounce in your seat?" (11 000 ms) was cut at 6 460 ms;
     /// the voice heard 3 sentences. The truncate, the stored history and
     /// `heardText` are HeardRule's heard text, exactly. The reunion then started a
-    /// new conversation (`resetConversation`, 15.93 s): her turn leaves the history
+    /// new conversation (`resetConversation`, 15.93 s): Dee's turn leaves the history
     /// on purpose and is listed in `forgottenItemIDs`, so a history check skips it
     /// (the live 30/31 "mismatch" was historyText "" for exactly this item).
     @Test func aCutReplyIsStoredExactlyAsHeardAndAResetForgetsItOnPurpose() async throws {

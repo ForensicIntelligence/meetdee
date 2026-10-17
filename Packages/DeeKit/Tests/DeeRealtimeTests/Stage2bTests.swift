@@ -49,7 +49,7 @@ import Testing
         #expect(Self.effort(h.socket.sent(type: "response.create").last) == "minimal")
     }
 
-    /// A reply preempted by what turns out to be her echo is asked for again with
+    /// A reply preempted by what turns out to be Dee's echo is asked for again with
     /// the same effort.
     @Test func aReRequestedReplyKeepsItsEffort() async throws {
         let h = try await Harness.connected()
@@ -66,13 +66,13 @@ import Testing
 
     // MARK: 2. local playback (clips)
 
-    /// Speech that starts over a clip is maybe her echo: it does not preempt the
-    /// reply being generated, and her reply still plays.
+    /// Speech that starts over a clip is maybe Dee's echo: it does not preempt the
+    /// reply being generated, and Dee's reply still plays.
     @Test func speechOverAClipDoesNotPreemptTheReply() async throws {
         let h = try await Harness.connected()
         await userTurn(h, "u1")
         try await h.session.requestResponse()
-        await h.session.setLocalPlayback(true)               // she laughs at the joke
+        await h.session.setLocalPlayback(true)               // Dee laughs at the joke
         h.push(S.responseCreated("r1"), S.speechStarted("u2"))
         await h.sync()
         #expect(!h.log.contains { if case .replyPreempted = $0 { true } else { false } })
@@ -104,7 +104,7 @@ import Testing
 
     // MARK: 3. barge-in over several items
 
-    /// Her reply is playing and a second one is queued behind it: both are
+    /// Dee's reply is playing and a second one is queued behind it: both are
     /// truncated to what was heard, and the generating one is cancelled.
     @Test func bargeInCutsEveryQueuedItem() async throws {
         let h = try await Harness.connected()
@@ -155,7 +155,7 @@ import Testing
 
     // MARK: 4. a reply that does not complete
 
-    /// Cut by the token limit: the transcript ran ahead of the audio. Her turn
+    /// Cut by the token limit: the transcript ran ahead of the audio. Dee's turn
     /// keeps what the audio covers, and the trailing sentence is placed at the
     /// speaking rate, not squeezed into the audio that came.
     @Test func anIncompleteReplyKeepsOnlyWhatItsAudioCovers() async throws {
@@ -190,7 +190,7 @@ import Testing
     }
 
     /// The socket drops mid-reply: the seed for the next session holds only what
-    /// her audio covered.
+    /// Dee's audio covered.
     @Test func aReplyCutByTheSocketKeepsOnlyWhatCame() async throws {
         let h = try await Harness.connected()
         await userTurn(h, "u1")
@@ -217,7 +217,7 @@ import Testing
 
     // MARK: 5. acceptSpeech
 
-    /// Speech held as maybe-echo (it began over her audio) is confirmed as the
+    /// Speech held as maybe-echo (it began over Dee's audio) is confirmed as the
     /// user: from then on it preempts like any user speech.
     @Test func acceptedSpeechPreemptsAPendingReply() async throws {
         let h = try await Harness.connected()
@@ -247,7 +247,7 @@ import Testing
         h.push(S.responseCreated("r1"), S.messageAdded("r1", "a1"), S.audio("r1", "a1", ms: 300),
                S.functionCallAdded("r1", "f1", name: "recall"),
                S.callDone("r1", "f1", call: "c1", name: "recall", args: "{}"),
-               S.speechStarted("u2"))                         // over her playing audio
+               S.speechStarted("u2"))                         // over Dee's playing audio
         await h.sync()
         await h.session.acceptSpeech(itemID: "u2")
         h.push(S.responseDone("r1"))

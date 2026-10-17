@@ -70,16 +70,16 @@ final class BandSpectrum: @unchecked Sendable {
     }
 }
 
-/// Her echo per frequency: what the microphone would hold of her playback in
-/// each band, so a voice *under* her loud echo still shows where she is quiet.
+/// Dee's echo per frequency: what the microphone would hold of Dee's playback in
+/// each band, so a voice *under* Dee's loud echo still shows where Dee is quiet.
 ///
-/// Two people talking rarely fill the same frequencies at the same moment: her
+/// Two people talking rarely fill the same frequencies at the same moment: Dee's
 /// harmonics and the user's interleave, and each pauses inside words. With no
-/// echo cancellation (or a weak one) her echo can be as loud as the user, so the
+/// echo cancellation (or a weak one) Dee's echo can be as loud as the user, so the
 /// broadband level can't tell them apart — but per band it can.
 ///
-/// - **Reference.** Her rendered audio (`EchoReference.Bin.samples`) in 10 ms
-///   hops: band powers, smeared by her room's reverb (`decayDBPerHop`).
+/// - **Reference.** Dee's rendered audio (`EchoReference.Bin.samples`) in 10 ms
+///   hops: band powers, smeared by Dee's room's reverb (`decayDBPerHop`).
 /// - **Echo path.** The delay is `EchoReference`'s; the gain per band is learned
 ///   as a high percentile of mic ÷ reference while the broadband model has a
 ///   clear echo match and the user isn't talking (`learn`). Until most bands are
@@ -107,7 +107,7 @@ struct SpectralEcho: Sendable {
     static let readyShare = 0.7
 
     struct Result: Sendable, Equatable {
-        /// Level of what her echo doesn't explain (dBFS, mean square).
+        /// Level of what Dee's echo doesn't explain (dBFS, mean square).
         var nearDB: Double
         /// Its share of the frame's energy (90 Hz – 4 kHz).
         var fraction: Double
@@ -119,7 +119,7 @@ struct SpectralEcho: Sendable {
 
     private var B: Int { BandSpectrum.count }
     private var refTail: [Float] = []
-    /// Her rendered audio of the last `historySeconds` (24 kHz), ending at hop `refLast`.
+    /// Dee's rendered audio of the last `historySeconds` (24 kHz), ending at hop `refLast`.
     private var history: [Float] = []
     static let historySeconds = 0.6
     private var smear: [Double] = []
@@ -179,10 +179,10 @@ struct SpectralEcho: Sendable {
             if let last = refLast {
                 var j = last + 1
                 if i - last > Int64(Self.capacity) { j = i - Int64(Self.capacity) + 1 }
-                if i - last > 1 {                               // a gap: silence in her history
+                if i - last > 1 {                               // a gap: silence in Dee's history
                     history.append(contentsOf: [Float](repeating: 0, count: Int(min(i - last - 1, 64)) * hopN))
                 }
-                while j < i {                                   // a gap: her reverb decays
+                while j < i {                                   // a gap: Dee's reverb decays
                     for b in 0..<B { smear[b] *= Self.decayPerHop }
                     store(j)
                     j += 1
@@ -209,7 +209,7 @@ struct SpectralEcho: Sendable {
         return Int(((i % c) + c) % c)
     }
 
-    /// Her smeared reference that can reach mic hop `i`, per band (max over the lags).
+    /// Dee's smeared reference that can reach mic hop `i`, per band (max over the lags).
     private func reach(_ i: Int64, delay: Double?) -> [Double] {
         var out = [Double](repeating: 0, count: B)
         guard let last = refLast else { return out }
@@ -228,7 +228,7 @@ struct SpectralEcho: Sendable {
                 let k = slot(j) * B
                 for b in 0..<B { out[b] = max(out[b], ref[k + b]) }
             } else if j > last, j - last < Int64(Self.capacity) {
-                // After her last hop: her reverb keeps decaying.
+                // After Dee's last hop: Dee's reverb keeps decaying.
                 let f = pow(Self.decayPerHop, Double(j - last))
                 let k = slot(last) * B
                 for b in 0..<B { out[b] = max(out[b], ref[k + b] * f) }
@@ -238,9 +238,9 @@ struct SpectralEcho: Sendable {
         return out
     }
 
-    /// Her pitches in the audio that can still be in the mic at `t`: her 40 ms
-    /// windows from `delay` back through her room's reverb (`reverbSpan`) — the
-    /// tail of a syllable she finished keeps its pitch in the room. Nil when her
+    /// Dee's pitches in the audio that can still be in the mic at `t`: Dee's 40 ms
+    /// windows from `delay` back through Dee's room's reverb (`reverbSpan`) — the
+    /// tail of a syllable Dee finished keeps its pitch in the room. Nil when Dee's
     /// history doesn't reach (no delay known yet): nothing can be told apart.
     func herPitches(at t: Double, delay: Double?) -> [Double]? {
         guard let last = refLast, let delay else { return nil }
@@ -265,14 +265,14 @@ struct SpectralEcho: Sendable {
         return out
     }
 
-    /// Her reverb keeps a finished syllable's pitch in the room this long.
+    /// Dee's reverb keeps a finished syllable's pitch in the room this long.
     static let reverbSpan = 0.32
 
-    /// `f` is a voice other than hers: no pitch of hers that can still be in the
-    /// room is near it (octave errors aside). Unknown (`nil`), or no pitch of hers
-    /// to compare with (her onset, an unvoiced stretch — live tune 2: she paused
-    /// for her own echo 0.66 s into a reply): not told apart. In her real gaps
-    /// her echo is low and the broadband bar hears the user anyway.
+    /// `f` is a voice other than Dee's: no pitch of Dee's that can still be in the
+    /// room is near it (octave errors aside). Unknown (`nil`), or no pitch of Dee's
+    /// to compare with (Dee's onset, an unvoiced stretch — live tune 2: Dee paused
+    /// for Dee's own echo 0.66 s into a reply): not told apart. In Dee's real gaps
+    /// Dee's echo is low and the broadband bar hears the user anyway.
     static func differentVoice(_ f: Double, from hers: [Double]?) -> Bool {
         guard let hers, !hers.isEmpty, f > 0 else { return false }
         for her in hers where her > 0 {
@@ -283,9 +283,9 @@ struct SpectralEcho: Sendable {
 
     // MARK: Microphone
 
-    /// One mic frame ending at `t`: its 10 ms hops against her predicted echo.
+    /// One mic frame ending at `t`: its 10 ms hops against Dee's predicted echo.
     /// `delay`: the echo delay when known; `broadbandGain`: the broadband echo gain
-    /// (the per-band prior); `learn`: the frame is hers alone (a clear echo
+    /// (the per-band prior); `learn`: the frame is Dee's alone (a clear echo
     /// match, nobody talking) — its bands teach the per-band gain. Returns nil
     /// when the model can't speak (no reference, not learned yet).
     mutating func analyze(_ samples: [Float], rate: Double, endingAt t: Double, delay: Double?,
@@ -296,7 +296,7 @@ struct SpectralEcho: Sendable {
         let hops = max(1, samples.count / hopN)
         let haveRef = t - lastRefTime < 1.0
         guard haveRef else {
-            // Her voice isn't around: nothing to compare (only keep the tail).
+            // Dee's voice isn't around: nothing to compare (only keep the tail).
             micTail.append(contentsOf: samples)
             if micTail.count > fft.size { micTail.removeFirst(micTail.count - fft.size) }
             return nil
@@ -313,7 +313,7 @@ struct SpectralEcho: Sendable {
             let i = EchoReference.index(t - Double(hops - 1 - h) * Self.hop)
             let r = haveRef ? reach(i, delay: delay) : [Double](repeating: 0, count: B)
             let herActive = r.reduce(0, +) >= pow(10, EchoReference.activeDB / 10)
-            // The room's own noise per band, learned while her voice can't reach the mic.
+            // The room's own noise per band, learned while Dee's voice can't reach the mic.
             if r.reduce(0, +) < pow(10, (EchoReference.activeDB - 20) / 10) {
                 for b in 0..<B {
                     if noise[b] < 0 || m[b] < noise[b] { noise[b] = noise[b] < 0 ? m[b] : 0.7 * noise[b] + 0.3 * m[b] }
@@ -328,7 +328,7 @@ struct SpectralEcho: Sendable {
                 hopU += max(0, m[b] - margin * g[b] * r[b] - 2 * max(noise[b], 0))
                 hopTotal += m[b]
             }
-            // Only a hop her echo explains teaches the model (never the user's voice in it).
+            // Only a hop Dee's echo explains teaches the model (never the user's voice in it).
             if learn, herActive, hopTotal > 0, hopU / hopTotal < Self.learnFraction {
                 let peak = r.max() ?? 0
                 for b in 0..<B where r[b] >= peak * 1e-3 && r[b] > 0 {

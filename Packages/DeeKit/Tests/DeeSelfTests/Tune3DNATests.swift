@@ -21,7 +21,7 @@ struct Tune3DNATests {
 
     /// The 50 h reunion (t2-reunion-morning / -evening): live, §4 said "last talked just
     /// now" (the current turn) and the rules said "Avoid: any hint they were away too
-    /// long", so she never said it had been two days. Now: two days, said lightly.
+    /// long", so Dee never said it had been two days. Now: two days, said lightly.
     @Test func liveReunionAfterFiftyHoursSaysHowLongItHasBeen() throws {
         let mind = Kit.snap()
         let t0 = Kit.t0
@@ -74,7 +74,7 @@ struct Tune3DNATests {
     }
 
     /// t2-followup-exam: live the follow-up was "On your mind (only if the moment invites
-    /// it): Ask one short question about exam." and she never asked. The due follow-up is
+    /// it): Ask one short question about exam." and Dee never asked. The due follow-up is
     /// now the reply's first job: "Ask now, first", with the matching Do line.
     @Test func liveExamFollowUpIsAskNowFirst() throws {
         let mind = Kit.snap()

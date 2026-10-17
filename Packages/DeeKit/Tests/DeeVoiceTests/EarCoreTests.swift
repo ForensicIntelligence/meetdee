@@ -5,16 +5,16 @@ import Testing
 /// Drives `EarCore` with synthetic microphone frames on a virtual clock.
 ///
 /// Levels (16 kHz, 40 ms frames): room noise ≈ −65 dBFS; the user's voice
-/// (harmonic, amplitude 0.3) ≈ −18 dBFS; her residual echo after voice
+/// (harmonic, amplitude 0.3) ≈ −18 dBFS; Dee's residual echo after voice
 /// processing (amplitude 0.01) ≈ −47 dBFS; a soft user (0.02) ≈ −41 dBFS — voiced,
-/// but under the barge-in bar (−40 dBFS + 8 dB × her level).
+/// but under the barge-in bar (−40 dBFS + 8 dB × Dee's level).
 struct EarHarness {
     var core = EarCore()
     var t = 100.0
     var log: [EarCore.Action] = []
     let rate = 16_000.0
     let frameSize = 640
-    /// Her playback level fed with every frame while `playing`.
+    /// Dee's playback level fed with every frame while `playing`.
     var playing = false
     var level = 0.7
     private var phase = 0
@@ -91,7 +91,7 @@ struct EarHarness {
         h.voice(0.3)
         #expect(h.decisions == [.bargeIn(itemID: "item_u")])
         #expect(h.events.contains(.bargeIn))
-        // The action comes before the event: she is already quiet when the app hears of it.
+        // The action comes before the event: Dee is already quiet when the app hears of it.
         let i = h.log.firstIndex(of: .bargeIn(itemID: "item_u"))!
         let j = h.log.firstIndex(of: .emit(.bargeIn))!
         #expect(i < j)
@@ -165,15 +165,15 @@ struct EarHarness {
         #expect(h.decisions == [.rejectEcho(itemID: "item_e")])
         #expect(!h.events.contains(.bargeIn))
         #expect(h.core.isRejected("item_e"))
-        // Her echo is never "the user talking".
+        // Dee's echo is never "the user talking".
         #expect(!h.core.userIsSpeaking(at: h.t))
         // Nothing of it is heard later either.
         #expect(h.core.serverTranscript(itemID: "item_e", text: "my own words", at: h.t).isEmpty)
     }
 
-    /// An echo item the server keeps open while she plays is never given up on
+    /// An echo item the server keeps open while Dee plays is never given up on
     /// at the timeout (the user may yet talk inside it: tune-1 live, long-echo10
-    /// c02); it is decided when it stops — or once she stops, at the timeout.
+    /// c02); it is decided when it stops — or once Dee stops, at the timeout.
     @Test func echoThatStaysOpenIsDecidedWhenItStops() {
         var h = EarHarness()
         h.startPlayback()
@@ -185,9 +185,9 @@ struct EarHarness {
         #expect(h.decisions == [.rejectEcho(itemID: "item_e")])
     }
 
-    /// Tune 3: an item still open after she stopped waits for its stop — the user
+    /// Tune 3: an item still open after Dee stopped waits for its stop — the user
     /// may yet talk into it (tv15 p06a) — but never longer than
-    /// `openItemAfterTail` after her echo left the room.
+    /// `openItemAfterTail` after Dee's echo left the room.
     @Test func echoThatNeverStopsIsRejectedOnceSheStops() {
         var h = EarHarness()
         h.startPlayback()
@@ -208,7 +208,7 @@ struct EarHarness {
         h.echo(0.5)
         h.stopPlayback()
         h.clear()
-        h.serverStart("item_u")                      // inside her echo tail
+        h.serverStart("item_u")                      // inside Dee's echo tail
         #expect(h.core.isDeciding("item_u"))
         h.voice(1.2, amplitude: 0.02)                 // soft: never over the bar, but clearly them
         #expect(h.decisions == [.acceptOnset(itemID: "item_u")])
@@ -248,10 +248,10 @@ struct EarHarness {
         h.startPlayback()
         h.clear()
         h.serverStart("item_e")
-        h.voice(1.0, amplitude: 0.1, hz: 300)         // her un-cancelled voice, −26 dBFS
+        h.voice(1.0, amplitude: 0.1, hz: 300)         // Dee's un-cancelled voice, −26 dBFS
         h.serverStop("item_e")
         #expect(h.decisions == [.rejectEcho(itemID: "item_e")])
-        // A user shouting over her still gets through.
+        // A user shouting over Dee still gets through.
         h.clear()
         h.serverStart("item_u")
         h.voice(0.5, amplitude: 0.6)
@@ -272,7 +272,7 @@ struct EarHarness {
     @Test func aLaughNeverDeletesTheWordsOfSomeoneHoldingTheFloor() {
         var h = EarHarness()
         h.voice(0.6, amplitude: 0.02)                 // soft talker, mid-turn
-        h.startPlayback(aside: true)                  // she laughs along
+        h.startPlayback(aside: true)                  // Dee laughs along
         h.clear()
         h.serverStart("item_u")
         #expect(h.decisions == [.acceptOnset(itemID: "item_u")])
@@ -415,7 +415,7 @@ struct EarHarness {
         var h = EarHarness()
         h.startPlayback()
         let onset = h.t
-        h.echo(0.6)                                   // her, under the bar
+        h.echo(0.6)                                   // Dee, under the bar
         h.serverStart("item_u", onset: onset)
         h.voice(0.6)                                  // then the user, loud
         h.stopPlayback()
@@ -424,7 +424,7 @@ struct EarHarness {
         h.clear()
         h.log += h.core.serverTranscript(itemID: "item_u", text: "wait wait", at: h.t)
         guard case .heard(let u)? = h.events.first else { Issue.record("no heard"); return }
-        #expect(u.duration < 0.75, "\(u.duration)")   // the user's 0.6 s, not her 0.6 s too
+        #expect(u.duration < 0.75, "\(u.duration)")   // the user's 0.6 s, not Dee 0.6 s too
         #expect(u.prosody.loudnessDB > -22)
     }
 
@@ -464,7 +464,7 @@ struct EarHarness {
     }
 }
 
-/// Her own voice is never reported as a sound (ported from the v0.4 fixes).
+/// Dee's own voice is never reported as a sound (ported from the v0.4 fixes).
 @Suite struct EarCoreSoundTests {
     func afterSpeaking() -> EarHarness {
         var h = EarHarness()
@@ -499,12 +499,12 @@ struct EarHarness {
         h.voice(0.5, amplitude: 0.3)
         let a = h.core.classified([("laughter", 0.8)], at: h.t)
         #expect(a.count == 1)
-        // Her faint echo "laughing" does not.
+        // Dee's faint echo "laughing" does not.
         var g = EarHarness()
         g.startPlayback()
         g.echo(0.5)
         #expect(g.core.classified([("laughter", 0.8)], at: g.t).isEmpty)
-        // Other sounds stay blocked while she talks.
+        // Other sounds stay blocked while Dee talks.
         #expect(h.core.classified([("dog_bark", 0.9)], at: h.t + 0.1).isEmpty)
     }
 }

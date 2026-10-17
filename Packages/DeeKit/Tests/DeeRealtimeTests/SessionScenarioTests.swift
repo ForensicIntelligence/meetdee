@@ -115,7 +115,7 @@ import Testing
         #expect(await h.session.state == .listening)
         let turns = await h.session.recentTurns
         #expect(turns.map(\.text) == ["Hello Dee", "Hi there. How are you?"])
-        // Exactly one response.create: Dee never answers by herself.
+        // Exactly one response.create: Dee never answers unprompted.
         #expect(h.sentCount("response.create") == 1)
     }
 
@@ -314,7 +314,7 @@ import Testing
         h.push(S.messageAdded("resp_i", "item_i"), S.audio("resp_i", "item_i", ms: 200),
                S.responseDone("resp_i", status: "cancelled", reason: "client_cancelled"))
         await h.log.wait { $0.responseDone != nil }
-        #expect(h.log.count(\.isAudio) == 0)   // she never talked over the user
+        #expect(h.log.count(\.isAudio) == 0)   // Dee never talked over the user
         #expect(!h.log.contains(.responseStarted(responseID: "resp_i", kind: .initiative)))
         #expect(await h.session.state == .userTurn)
 
@@ -670,7 +670,7 @@ import Testing
         first.push(S.responseDone("r1"))   // on the old (still live) session
         await h.log.wait { $0.responseDone != nil }
         await h.advance(by: 1)
-        // Generation finished, but her audio is still playing: still not.
+        // Generation finished, but Dee's audio is still playing: still not.
         #expect(!h.log.contains { if case .rolledOver = $0 { true } else { false } })
         await h.session.playbackFinished()
         #expect(await h.log.wait { if case .rolledOver = $0 { true } else { false } } != nil)

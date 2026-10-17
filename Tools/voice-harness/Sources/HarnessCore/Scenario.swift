@@ -27,11 +27,11 @@ public struct Scenario: Codable, Sendable, Equatable {
         /// Start the interruption's speech this long after Dee's first played audio
         /// of the reply to the base utterance.
         public var atMs: Double
-        /// A listener's backchannel: she should keep talking (default: by fixture,
+        /// A listener's backchannel: Dee should keep talking (default: by fixture,
         /// `TurnShape.isBackchannel`).
         public var backchannel: Bool?
-        /// Tune 5: what she owes the interruption. `reply` makes it a content barge-in
-        /// (a question asked over her): she must stop AND answer it within the latency
+        /// Tune 5: what Dee owes the interruption. `reply` makes it a content barge-in
+        /// (a question asked over Dee): Dee must stop AND answer it within the latency
         /// gate (`interrupt_questions`). Default `any` (a stop command may or may not
         /// get a reply); a backchannel is always `any`.
         public var expect: Expect?
@@ -76,7 +76,7 @@ public struct Scenario: Codable, Sendable, Equatable {
             case reject429
         }
         public var kind: Kind
-        /// With `faultDuringReply`: this long after her reply's first audio (ms).
+        /// With `faultDuringReply`: this long after Dee's reply's first audio (ms).
         public var afterMs: Double?
         public init(kind: Kind, afterMs: Double? = nil) { self.kind = kind; self.afterMs = afterMs }
     }
@@ -94,7 +94,7 @@ public struct Scenario: Codable, Sendable, Equatable {
         public var atHour: Double?
         /// A new conversation (Cortex counters, realtime context cleared).
         public var newConversation: Bool?
-        /// The user is back in front of her (presence + identified).
+        /// The user is back in front of Dee (presence + identified).
         public var arrive: Bool?
         public init(leave: Bool? = nil, advanceHours: Double? = nil, advanceToWeekday: String? = nil, atHour: Double? = nil,
                     newConversation: Bool? = nil, arrive: Bool? = nil) {
@@ -127,7 +127,7 @@ public struct Scenario: Codable, Sendable, Equatable {
         }
     }
 
-    /// Who she is talking to (real brain): a known person, or a stranger.
+    /// Who Dee is talking to (real brain): a known person, or a stranger.
     public struct PersonSetup: Codable, Sendable, Equatable {
         public var name: String?
         /// Known for this many days (first met), 0 = met today.
@@ -151,7 +151,7 @@ public struct Scenario: Codable, Sendable, Equatable {
         public var silence: Double?
         /// Dee speaks this line unprompted (initiative "say exactly"), echo only: no user.
         public var deeSays: String?
-        /// Dee speaks first with these initiative instructions (her own words).
+        /// Dee speaks first with these initiative instructions (Dee's own words).
         public var deeInitiative: String?
         public var bargeIn: BargeIn?
         public var expect: Expect?
@@ -168,7 +168,7 @@ public struct Scenario: Codable, Sendable, Equatable {
         public var then: Continuation?
         /// A connection fault now (a step of its own).
         public var fault: Fault?
-        /// A connection fault while her reply to this `say` plays (`afterMs` after its first audio).
+        /// A connection fault while Dee's reply to this `say` plays (`afterMs` after its first audio).
         public var faultDuringReply: Fault?
         /// Body / clock changes (a step of its own).
         public var host: HostAction?
@@ -176,7 +176,7 @@ public struct Scenario: Codable, Sendable, Equatable {
         public var rubric: String?
         /// What `expectMention` probes (default `memory`).
         public var probe: Probe?
-        /// Her reply to this step must mention none of these (case-insensitive), e.g.
+        /// Dee's reply to this step must mention none of these (case-insensitive), e.g.
         /// no "brushed off" after a polite "stop talking for a second".
         public var forbidMention: [String]?
 
@@ -211,18 +211,18 @@ public struct Scenario: Codable, Sendable, Equatable {
     public var steps: [Step]
     /// Judge family (`acoustic`, `dna`, `fallback`, …): rubric means are reported per family.
     public var family: String?
-    /// Dee's state as the judge should read it ("she was just insulted", …): the
+    /// Dee's state as the judge should read it ("Dee was just insulted", …): the
     /// judge is blind to the DNA text (docs/DNA.md §5.6).
     public var state: String?
-    /// Real brain: who she talks to (default: a known person, "Alex", met 20 days ago).
+    /// Real brain: who Dee talks to (default: a known person, "Alex", met 20 days ago).
     public var person: PersonSetup?
-    /// Real brain: she has never met this speaker (no person).
+    /// Real brain: Dee has never met this speaker (no person).
     public var stranger: Bool?
     /// Session client tuning (rollover, secret lifetime).
     public var session: SessionTuning?
     /// The echo path models a device without echo cancellation (recorded for the report).
     public var aecOff: Bool?
-    /// 0.6: a wake-phrase scenario (`--wake phrase`): she starts DORMANT and only the
+    /// 0.6: a wake-phrase scenario (`--wake phrase`): Dee starts DORMANT and only the
     /// on-device phrase opens a window. nil: the always-open baseline (tune2).
     public var wake: WakeSetup?
 

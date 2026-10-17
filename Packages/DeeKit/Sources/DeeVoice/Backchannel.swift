@@ -5,9 +5,9 @@ import Foundation
 /// own and never a reason to stop.
 ///
 /// `CloudVoice` uses it to settle a held barge-in (`FloorHold`): a backchannel
-/// lets her go on from exactly where she paused; anything else ("stop", "wait",
-/// a question) ends her reply there. The brain's floor logic uses the same
-/// classification (one rule for both, so she never resumes for words the brain
+/// lets Dee go on from exactly where Dee paused; anything else ("stop", "wait",
+/// a question) ends Dee's reply there. The brain's floor logic uses the same
+/// classification (one rule for both, so Dee never resumes for words the brain
 /// then answers, nor stops for words the brain lets pass).
 ///
 /// The rule: every clause is a continuer (fillers like "Dee", "please", "just",
@@ -27,7 +27,7 @@ public enum Backchannel {
         "cheap going", "cheap", "going", "keep go",
         // How a soft "go on" comes back (tune 3 live, echo20 bc01: "Jeron.").
         "jeron", "jerron", "geron", "gerron", "jaron", "goan", "gowan", "go one", "goon",
-        // How "keep going" comes back over a kitchen / her echo (tune 4 live, kitchen15 c05: "Sheep going.").
+        // How "keep going" comes back over a kitchen / Dee's echo (tune 4 live, kitchen15 c05: "Sheep going.").
         "sheep going", "she's going", "shes going", "she going", "keeps going", "keep goin", "key going",
         "keep it up", "keeping going",
     ]
@@ -77,15 +77,15 @@ public enum Backchannel {
         }
     }
 
-    /// Words that are never a misheard "go on": they stop her, call her, ask, or
-    /// make a sentence about them or her.
+    /// Words that are never a misheard "go on": they stop Dee, call Dee, ask, or
+    /// make a sentence about them or Dee.
     static let notFragments: Set<String> = aloneWords.union([
         "i", "i'm", "im", "i've", "i'd", "i'll", "me", "my", "you", "you're", "youre", "your", "we", "we're", "us",
         "let's", "lets", "it", "that", "this",
     ])
 
-    /// The `notFragments` a person says alone — they stop her, call her or ask (a lone
-    /// "Me." or "It." over her is no sentence: it may be her echo, tune 10 T9-7).
+    /// The `notFragments` a person says alone — they stop Dee, call Dee or ask (a lone
+    /// "Me." or "It." over Dee is no sentence: it may be Dee's echo, tune 10 T9-7).
     static let aloneWords: Set<String> = [
         "stop", "wait", "hold", "hang", "pause", "quiet", "shush", "shh", "sh", "hush", "enough", "halt", "cancel", "never",
         "nevermind", "no", "nope", "not", "don't", "dont", "shut", "bye", "goodbye", "goodnight", "later", "move", "skip",
@@ -95,8 +95,8 @@ public enum Backchannel {
         "was", "were", "tell", "say", "repeat", "again", "but", "actually",
     ]
 
-    /// Tune 8: reactions that, said over her voice, only mean "go on" (the decision:
-    /// backchannels continue her). "Thank you" over her reply thanks her for what she
+    /// Tune 8: reactions that, said over Dee's voice, only mean "go on" (the decision:
+    /// backchannels continue Dee). "Thank you" over Dee's reply thanks Dee for what Dee
     /// is saying; a goodbye or a stop is never one of these.
     public static let reactionPhrases: Set<String> = [
         "i see", "i know", "me too", "me neither", "thank you", "thanks", "you bet", "i bet", "i agree", "you're right",
@@ -107,7 +107,7 @@ public enum Backchannel {
     /// "K." — is the start of a turn).
     static let shortFragments: Set<String> = ["oh", "ah", "aw", "ok", "go", "ya", "ye", "yo", "eh", "hm", "mm"]
 
-    /// Tune 9 (T8-1): single words that are a whole "go on" over her voice, or what one
+    /// Tune 9 (T8-1): single words that are a whole "go on" over Dee's voice, or what one
     /// came back as live ("Grand." for "Go on.", "She."/"Sheep." for "Keep going", "Done."
     /// for the tail of "Mm-hm"). Any other single word ("Movie.", "Music.", "Weather.") is
     /// a backchannel only if it also *sounds* like one (`FragmentSound.backchannelLike`).
@@ -159,9 +159,9 @@ public enum Backchannel {
         return prev[y.count]
     }
 
-    /// Tune 7/8: the single rule (voice and brain) for a backchannel over her voice
+    /// Tune 7/8: the single rule (voice and brain) for a backchannel over Dee's voice
     /// that came back from transcription as a fragment that means nothing on its own.
-    /// The caller decides it was said over her voice (the voice: in a hold, a short
+    /// The caller decides it was said over Dee's voice (the voice: in a hold, a short
     /// burst, its full transcript; the brain: `duringHerSpeech`). Safe on a partial: a
     /// partial that is still such a fragment never decides a turn early.
     ///

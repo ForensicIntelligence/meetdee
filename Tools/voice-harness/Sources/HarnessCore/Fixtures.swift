@@ -63,13 +63,13 @@ public enum FixtureCategory: String, Codable, Sendable, CaseIterable {
     /// The rest of a held turn ("and…", "hold on"), or a scripted follow-on line
     /// (knock-knock answers). Not part of the 62 acoustic fixtures.
     case continuation
-    /// A listener's backchannel said while Dee talks ("go on", "mm-hm"): she keeps
+    /// A listener's backchannel said while Dee talks ("go on", "mm-hm"): Dee keeps
     /// talking (user decision, tune 2). Not part of the 62 acoustic fixtures.
     case backchannel
     /// 0.6 wake suite: a wake phrase, alone or with a question in one breath. Not core.
     case wake
-    /// 0.6 wake suite: speech not addressed to her (near-miss words, her name in a
-    /// sentence): must never wake her. Not core.
+    /// 0.6 wake suite: speech not addressed to Dee (near-miss words, Dee's name in a
+    /// sentence): must never wake Dee. Not core.
     case unaddressed
 }
 
@@ -120,7 +120,7 @@ public struct FixtureSpec: Codable, Sendable, Equatable {
 }
 
 /// The ~60 user utterances (voice design §7.4 + the harness brief). Dee speaks
-/// `marin`; user voices never use `marin` / `cedar`, so her echo and the user stay
+/// `marin`; user voices never use `marin` / `cedar`, so Dee's echo and the user stay
 /// distinguishable by ear in the recordings.
 public enum FixtureCatalog {
     private static func w(_ s: String) -> FixturePart { .words(s) }
@@ -213,7 +213,7 @@ public enum FixtureCatalog {
         // A second "call my mom and…" (the transcript renders a trailing "and" as "Ann").
         .init("t04", .trailing, .say, "Flo (English (US))", .neutral, [w("Tomorrow I'm going to call my mom and")]),
         .init("k08", .continuation, .say, "Flo (English (US))", .neutral, [w("ask her for her soup recipe. What should I make with it?")]),
-        // Backchannels said while she talks.
+        // Backchannels said while Dee talks.
         .init("bc01", .backchannel, .say, "Daniel", .neutral, [w("Go on.")]),
         .init("bc02", .backchannel, .say, "Samantha", .soft, [w("Mm-hm.")]),
 
@@ -266,7 +266,7 @@ public enum FixtureCatalog {
         .init("op05", .wake, .openai, "sage", .neutral, [w("Okay Pixel.")]),
         .init("op06", .wake, .openai, "shimmer", .child, [w("Okay Pixel!")]),
         .init("opq01", .wake, .openai, "ash", .neutral, [w("Okay Pixel, are you awake?")]),
-        // Unaddressed speech: her name in a sentence, near-miss words (never a wake).
+        // Unaddressed speech: Dee's name in a sentence, near-miss words (never a wake).
         .init("un01", .unaddressed, .openai, "coral", .neutral, [w("My friend says that Dee is a robot who lives on my shelf.")]),
         .init("un02", .unaddressed, .say, "Daniel", .neutral, [w("I told her the deadline was on Thursday.")]),
         .init("un03", .unaddressed, .openai, "ash", .neutral, [w("Hey, the delivery guy is at the door.")]),
@@ -299,7 +299,7 @@ public enum FixtureCatalog {
     /// are scored by their own spans.
     public static let holdsFloor: Set<String> = ["c06", "t01", "t02", "t03", "t04"]
 
-    /// Said while Dee talks, these are a listener's backchannel, not a barge-in: she
+    /// Said while Dee talks, these are a listener's backchannel, not a barge-in: Dee
     /// keeps talking (user decision, tune 2: "keep going" / "go on" / "mm-hm"). Scored
     /// by the `backchannel` gate, never by `barge_in`.
     public static let backchannels: Set<String> = ["c02", "c05", "bc01", "bc02"]
@@ -317,7 +317,7 @@ public enum TurnShape {
     /// false cut-off; the latency counts from the end of what follows).
     public static func holdsFloor(_ fixture: String) -> Bool { FixtureCatalog.holdsFloor.contains(fixture) }
 
-    /// A listener's backchannel ("keep going", "go on", "mm-hm"): she keeps talking.
+    /// A listener's backchannel ("keep going", "go on", "mm-hm"): Dee keeps talking.
     public static func isBackchannel(_ fixture: String) -> Bool { FixtureCatalog.backchannels.contains(fixture) }
 
     public static func bucket(_ fixture: String) -> Bucket {

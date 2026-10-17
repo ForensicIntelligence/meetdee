@@ -40,7 +40,7 @@ import Testing
 
     @Test func echoMarginRaisesTheBarWhileDeeIsLoud() {
         var d = BargeInDetector()
-        // -40 dBFS clears the bar when Dee is quiet but not when she's at full volume.
+        // -40 dBFS clears the bar when Dee is quiet but not when Dee's at full volume.
         #expect(run(&d, db: -39, frames: 20, level: 1) == false)
         d.reset()
         #expect(run(&d, db: -39, frames: 20, level: 0))

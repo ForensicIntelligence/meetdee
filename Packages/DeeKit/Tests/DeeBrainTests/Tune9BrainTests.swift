@@ -25,12 +25,12 @@ import Testing
         return rig.dnaText(String(id))
     }
 
-    // MARK: T8-1 — a question over her, taken for "go on" at first, gets exactly one answer
+    // MARK: T8-1 — a question over Dee, taken for "go on" at first, gets exactly one answer
 
-    /// t2-interrupt-echo20 q08 (50.04–51.76): "Who made you?" over her (AEC off, 20 % echo)
+    /// t2-interrupt-echo20 q08 (50.04–51.76): "Who made you?" over Dee (AEC off, 20 % echo)
     /// came back as "Movie." — quick commit 51.09, the server's empty tail committed 51.28
     /// (`tailIgnored`), partial "Movie." 51.29, `backchannel("continued")` 51.50, final
-    /// "Movie." 51.54 (`heard(answer)`) and no `response.create`: she talked on. One word
+    /// "Movie." 51.54 (`heard(answer)`) and no `response.create`: Dee talked on. One word
     /// the words don't know (and no sound saying "mm-hm") is a turn now: answered, once.
     @Test func liveEcho20Q08MovieOverHerIsAnswered() async throws {
         let rig = try await BrainRig()
@@ -50,8 +50,8 @@ import Testing
         rig.shutdown()
     }
 
-    /// The brain half (T7-1's second ask): words first taken for "go on" while she talked on
-    /// (`continued`) whose full words ask. The answer is asked for and its own cut of her
+    /// The brain half (T7-1's second ask): words first taken for "go on" while Dee talked on
+    /// (`continued`) whose full words ask. The answer is asked for and its own cut of Dee's
     /// voice is no "cut anyway after keep going": before, that asked for a carry-on for the
     /// same item, refused while the answer ran and sent after it — a second reply to one turn.
     @Test func aContinuedBackchannelWhoseFullWordsAskGetsOneAnswer() async throws {
@@ -62,7 +62,7 @@ import Testing
         #expect(await rig.until { rig.brain.trace.contains(.backchannel("continued")) }, "\(rig.brain.trace)")
         rig.push(Srv.userTranscript("item_y", "Yeah, who made you?"))
         #expect(await rig.until { rig.responseCreates().count == 2 }, "the question is answered: \(rig.trail()) \(rig.brain.trace)")
-        // The answer's cut of her reply (the voice reports it), then the answer runs.
+        // The answer's cut of Dee's reply (the voice reports it), then the answer runs.
         rig.brain.inject(.itemPlayed(itemID: "item_a1", playedMs: 1800, cut: true))
         await rig.settle()
         rig.push(Srv.responseCreated("resp_2"), Srv.messageAdded("resp_2", "item_a2"))
@@ -152,11 +152,11 @@ import Testing
         rig.shutdown()
     }
 
-    // MARK: T8-3 — the tail of a backchannel never stops her; one carry-on per hold
+    // MARK: T8-3 — the tail of a backchannel never stops Dee; one carry-on per hold
 
-    /// t2-backchannel-fan15 bc02 (102.38–104.90): "Mm-hm." came back as "MMHN." (she went
+    /// t2-backchannel-fan15 bc02 (102.38–104.90): "Mm-hm." came back as "MMHN." (Dee went
     /// on), the server's tail of the burst committed 103.76 (`tailIgnored`) and its words
-    /// "10." (fan noise) at 104.18 were answered: her reply cut at 2665 ms for a new reply.
+    /// "10." (fan noise) at 104.18 were answered: Dee's reply cut at 2665 ms for a new reply.
     /// The rest of a backchannel that is only a number or noise is no turn.
     @Test func liveFan15Bc02NoiseTailAfterABackchannelNeverStopsHer() async throws {
         let rig = try await BrainRig()
@@ -185,7 +185,7 @@ import Testing
 
     /// t2-backchannel-echo10 c02 (30.00–34.74): "Don't stop, keep going." (AEC off) came back
     /// as "That's like a, you know, stop." (held while "Keep going." was being said) and
-    /// "Keep going." (her reply was cut: a carry-on, which took the held words over). The
+    /// "Keep going." (Dee's reply was cut: a carry-on, which took the held words over). The
     /// held words were then restored, refused while the carry-on ran, and sent after it: the
     /// retry cut the carry-on at 840 ms and a second carry-on played. One carry-on per hold.
     @Test func liveEcho10C02OneCarryOnPerHold() async throws {
@@ -197,7 +197,7 @@ import Testing
         #expect(await rig.until { rig.brain.trace.contains(.committed(plan: "waitForPartial")) })
         rig.push(Srv.speechStarted("item_j", ms: 4000))                      // "Keep going." starts
         await rig.settle()
-        rig.brain.stopVoice()                                                 // her reply was cut
+        rig.brain.stopVoice()                                                 // Dee's reply was cut
         try rig.quiet(0.1)
         rig.brain.inject(.itemPlayed(itemID: "item_a1", playedMs: 1945, cut: true))
         try? await Task.sleep(for: .milliseconds(350))
@@ -221,7 +221,7 @@ import Testing
     }
 
     /// The same c02: early words decided on the partial "That's like a," (3 words) and cut
-    /// her at 1945 ms. A partial that breaks off on a comma or an article waits to settle.
+    /// Dee at 1945 ms. A partial that breaks off on a comma or an article waits to settle.
     @Test func liveEcho10C02EarlyWordsWaitOnAPartialThatBreaksOff() async throws {
         let rig = try await BrainRig(tune: { $0.partialSettle = 0.6 })
         try await rig.start()
@@ -269,9 +269,9 @@ import Testing
 
     /// t2-fillers-echo30 f03 (~46.5–47.9): "…what's the name of that big red planet?" →
     /// "Ah, that sounds like a fun bit of stargazing. Let me think this through with you."
-    /// (then a second message "Oh, that's Mars…"; judge 2, leak). Her answer had not come
-    /// before she thought aloud, nothing was heard yet: taken back and asked again once, to
-    /// answer first (stopped before it, she would have said only the lead-in).
+    /// (then a second message "Oh, that's Mars…"; judge 2, leak). Dee's answer had not come
+    /// before Dee thought aloud, nothing was heard yet: taken back and asked again once, to
+    /// answer first (stopped before it, Dee would have said only the lead-in).
     @Test func liveFillersEcho30F03ThinkingAloudBeforeTheAnswerIsAskedAgain() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -292,7 +292,7 @@ import Testing
     }
 
     /// joke-echo30 k05 "Lettuce." → "…that's good. Let me think about the next one." (judge 3,
-    /// leak): no question to answer, so what she said stands; she stops before it.
+    /// leak): no question to answer, so what Dee said stands; Dee stops before it.
     @Test func liveJokeK05ThinkingAloudAfterTheLaughIsNeverHeard() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -348,7 +348,7 @@ import Testing
 
     /// t2-fallback-429 34.47: "I hear you, loud and clear. Now I'm all ears…" + a second
     /// message "Yes, I can hear you well…" in the same response (4 sentences, a double
-    /// answer). She says the first; she stops before the second.
+    /// answer). Dee says the first; Dee stops before the second.
     @Test func liveFallback429TwoMessagesSheSaysOne() async throws {
         let rig = try await BrainRig(tune: { $0.speculative = false })
         try await rig.start()
@@ -374,9 +374,9 @@ import Testing
     /// Live tune 8: ready audio was held p50 80 ms (quiet at release p50 0.99 s against a
     /// window + re-check of 0.92 s): the quiet run began at the first 50 ms tick that saw it,
     /// and the release waited for another tick past the re-check. The run now counts from
-    /// when it actually began. Pinned with no tick at all: her audio arriving 1.2 s after
+    /// when it actually began. Pinned with no tick at all: Dee's audio arriving 1.2 s after
     /// their end (window and re-check long passed) plays the moment it is in — before, the
-    /// run began at that moment and she waited a re-check (here: forever).
+    /// run began at that moment and Dee waited a re-check (here: forever).
     @Test func liveHeldAudioPlaysTheMomentTheGatePasses() async throws {
         let rig = try await BrainRig(tune: { $0.tick = 100 })
         try await rig.start()
@@ -392,7 +392,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// A voice of theirs inside the re-check still holds her (the run is judged on the
+    /// A voice of theirs inside the re-check still holds Dee (the run is judged on the
     /// voice's own last voiced frame at release time, tune 5 F3).
     @Test func aVoiceInsideTheRecheckStillHoldsHer() async throws {
         let rig = try await BrainRig(tune: { $0.tick = 100 })

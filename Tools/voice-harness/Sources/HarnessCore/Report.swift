@@ -48,7 +48,7 @@ public struct HarnessReport: Codable, Sendable {
         if rg.notRun > 0 { md += "; not run now: \(rg.notRun)" }
         md += "\n"
         if rg.regressions.isEmpty { return md + "- None.\n" }
-        md += "\n| Scenario | # | Fixture | Now | Then she said | Now she said |\n|---|---|---|---|---|---|\n"
+        md += "\n| Scenario | # | Fixture | Now | Then Dee said | Now Dee said |\n|---|---|---|---|---|---|\n"
         for e in rg.regressions {
             md += "| \(e.scenario) | \(e.index) | \(e.fixture)\(e.occurrence > 1 ? " (\(e.occurrence))" : "") | **\(cell(e.problems.joined(separator: "; ")))** | \(cell(e.baselineReply ?? "–")) | \(cell(e.reply ?? "–")) |\n"
         }
@@ -86,7 +86,7 @@ public struct HarnessReport: Codable, Sendable {
         }
         md += "- Barge-in latencies (s): \(metrics.bargeInLatencies.map { Self.f($0) }.joined(separator: ", "))\n"
         if !metrics.interruptQuestions.isEmpty {
-            md += "- Interrupting questions (asked over her): " + metrics.interruptQuestions.map { q in
+            md += "- Interrupting questions (asked over Dee): " + metrics.interruptQuestions.map { q in
                 "\(q.scenario):\(q.fixture) \(q.answered ? "answered" : (q.applicable ? "**\(q.miss ?? "missed")**" : "n/a"))\(q.latency.map { " \(Self.f($0)) s" } ?? "")"
             }.joined(separator: "; ") + "\n"
         }
@@ -97,7 +97,7 @@ public struct HarnessReport: Codable, Sendable {
         }
         md += "\n"
         if metrics.echoSegmentsNotSpoken > 0 {
-            md += "- Echo-only steps not exercised (her initiative was refused): \(metrics.echoSegmentsNotSpoken)\n"
+            md += "- Echo-only steps not exercised (Dee's initiative was refused): \(metrics.echoSegmentsNotSpoken)\n"
         }
         if !metrics.collisions.isEmpty {
             md += "- Collisions: " + metrics.collisions.map { "\($0.scenario) \($0.itemID) at \(Self.f($0.at)) s over \($0.fixture)" }.joined(separator: "; ") + "\n"
@@ -161,7 +161,7 @@ public struct HarnessReport: Codable, Sendable {
                 }
             }
             if !run.echoSegments.isEmpty {
-                md += "\n| Echo-only (step) | Line | Initiative | Her audio | Self-triggered |\n|---|---|---|---|---|\n"
+                md += "\n| Echo-only (step) | Line | Initiative | Dee's audio | Self-triggered |\n|---|---|---|---|---|\n"
                 for e in run.echoSegments {
                     let trig = run.userItems.filter { e.window.contains($0.firstSeen) }.map(\.itemID)
                     md += "| \(e.step) | \(Self.cell(e.line)) | \(e.outcome) | \(Self.f(e.audioStarted))–\(Self.f(e.audioEnded)) s | \(trig.isEmpty ? "no" : "**\(trig.joined(separator: ", "))**") |\n"

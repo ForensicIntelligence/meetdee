@@ -16,7 +16,7 @@ public enum EarAvailability: Sendable, Equatable {
     case unsupported
     /// Legacy recogniser only: Siri & Dictation are off.
     case siriDictationOff
-    /// `ProcessInfo.thermalState ≥ .serious`: the ear pauses (a tap still wakes her).
+    /// `ProcessInfo.thermalState ≥ .serious`: the ear pauses (a tap still wakes Dee).
     case thermalBackoff
 
     public static let unavailableText = "I can't hear my wake phrase — tap me to talk"

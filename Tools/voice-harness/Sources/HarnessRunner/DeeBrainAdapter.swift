@@ -36,10 +36,10 @@ public final class HarnessClock: Sendable {
 /// - the Cortex's effects are executed: `.persist` writes go to a real `SelfStore`
 ///   and `.remember` facts to the real `MemoryStore` (both in a temp dir), a Cortex
 ///   `.initiative` becomes `brain.respond(.initiative(""))`, a `.say` a canned line;
-/// - every heard sentence of hers is reported to the runner (truncation check);
+/// - every heard sentence of Dee's is reported to the runner (truncation check);
 /// - the people layer the app runs on the user's words (`App/People.swift`): a
 ///   stranger is a placeholder person in `MemoryStore`, facts are learnt into it, and a
-///   name they give is confirmed — from then on she knows who she is talking to, and
+///   name they give is confirmed — from then on Dee knows who Dee is talking to, and
 ///   the next DNA says "Their name is …" (DeeModel's note).
 @MainActor
 final class HarnessHost: BrainHost {
@@ -66,7 +66,7 @@ final class HarnessHost: BrainHost {
     // 0.6 wake (providers-wake-onboarding §4). `.alwaysOpen` (the tune2 baseline): the
     // window never closes and close commands don't close it. `.phrase`: the app's own
     // `WakeController` drives the window from the on-device ear only; nothing is
-    // answered outside a window and no server transcript (her name included) opens it.
+    // answered outside a window and no server transcript (Dee's name included) opens it.
     var wakeMode: WakeMode = .alwaysOpen
     private(set) var wake: WakeController?
     weak var voice: CloudVoice?
@@ -101,7 +101,7 @@ final class HarnessHost: BrainHost {
     private let peopleSession = UUID()
     private(set) var placeholder: PersonID?
     private(set) var extraNotes: [String] = []
-    /// The person she is talking to changed (memory tools follow it).
+    /// The person Dee is talking to changed (memory tools follow it).
     var onPerson: ((PersonID?) -> Void)?
 
     init(mind: Mind, memory: MemoryStore, selfStore: SelfStore, person: PersonID?, clock: HarnessClock) async throws {
@@ -154,7 +154,7 @@ final class HarnessHost: BrainHost {
                 onNote?("cortex canned line")
                 if let brain { Task { _ = await brain.say(line) } }
             case .stopSpeaking:
-                // DeeModel.execute(.stopSpeaking) → stop(): the brain stops her voice and
+                // DeeModel.execute(.stopSpeaking) → stop(): the brain stops Dee's voice and
                 // cancels (not a hush). The Cortex asks for it on `.bargeIn` (FloorKeeper).
                 onNote?("cortex stopSpeaking")
                 stopsExecuted += 1
@@ -221,7 +221,7 @@ final class HarnessHost: BrainHost {
     func heard(_ turn: HeardTurn) async -> HeardVerdict {
         let now = clock.now()
         if case .voice = turn.source {
-            // Outside a window nothing is for her, her name included (W1).
+            // Outside a window nothing is for Dee, Dee's name included (W1).
             guard windowAnswers else {
                 heardLog.append((turn.text, .ignored))
                 return .ignored
@@ -395,7 +395,7 @@ final class HarnessHost: BrainHost {
 
     /// App parity (DeeModel.bargedIn, tune 5 F1): the brain's answer ended a floor hold, so
     /// the Cortex senses `.bargeInAnswered` (same floor bookkeeping as `.bargeIn`, but no
-    /// `.stopSpeaking`: stopping here cancelled the very answer to a question asked over her).
+    /// `.stopSpeaking`: stopping here cancelled the very answer to a question asked over Dee).
     /// Its effects run as the app runs them.
     func bargedIn() {
         bargeInsSensed += 1
@@ -479,6 +479,11 @@ public final class RealtimeBrainAdapter: HarnessBrain, @unchecked Sendable {
     /// The session carries the DNA itself (tune 1): the socket factory is used unchanged.
     public func wrapSocketFactory(_ base: @escaping RealtimeSocketFactory) -> RealtimeSocketFactory { base }
 
+    private let timingBox = Box<TimingProfile?>(nil)
+
+    /// LAN modes: the brain runs on the provider's timing, as in the app.
+    public func use(timing: TimingProfile) { timingBox.withLock { $0 = timing } }
+
     public func attach(voice: CloudVoice, log: HarnessLog) async {
         do {
             try await setUp(voice: voice, log: log)
@@ -498,7 +503,8 @@ public final class RealtimeBrainAdapter: HarnessBrain, @unchecked Sendable {
         personBox.withLock { $0 = person }
         let host = try await HarnessHost(mind: mind, memory: memory, selfStore: selfStore, person: person, clock: clock)
         let clock = self.clock
-        let brain = RealtimeBrain(voice: voice, host: host, toolbox: toolbox, options: .init(),
+        let options: RealtimeBrain.Options = timingBox.withLock { $0 }.map { .init(timing: $0) } ?? .init()
+        let brain = RealtimeBrain(voice: voice, host: host, toolbox: toolbox, options: options,
                                   clock: { clock.now() })
         host.brain = brain
         host.voice = voice

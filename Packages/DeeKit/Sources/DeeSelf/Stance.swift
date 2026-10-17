@@ -146,9 +146,9 @@ public enum TagReconciler {
         case kept, exemptReflex, exemptAffection, exemptWry, substituted
     }
 
-    /// Reconciles the LLM's sentence tag with her mood (§3.5). Substitutes only at
+    /// Reconciles the LLM's sentence tag with Dee's mood (§3.5). Substitutes only at
     /// band distance 2 and only when none of the exemptions hold:
-    /// - a reflex in the tag's band is live (≤ 4 s): she can laugh while upset;
+    /// - a reflex in the tag's band is live (≤ 4 s): Dee can laugh while upset;
     /// - the tag is positive and regard > 0.3: affection coexisting with frustration;
     /// - the tag is smug or mischievous while the mood is negHigh: wry.
     public static func reconcile(_ tag: Emotion, mind: MindSnapshot, liveReflex: Emotion?) -> (emotion: Emotion, verdict: Verdict) {
@@ -205,7 +205,7 @@ extension Moment {
     }
 }
 
-/// Emotions calm enough to show the `thinking` face while she prepares a reply
+/// Emotions calm enough to show the `thinking` face while Dee prepares a reply
 /// (same set as `FaceAnimator.calmForThinking`, which is internal to DeeFace).
 public let calmForThinking: Set<Emotion> = [.neutral, .happy, .curious, .thinking, .listening, .sleepy, .content, .bored]
 

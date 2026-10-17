@@ -90,7 +90,7 @@ struct ModeCard: View {
 
     static func summary(_ mode: ProviderMode) -> String {
         switch mode {
-        case .openAI: "OpenAI hears, thinks and speaks for Dee. The most natural conversations, paid per use with your own key."
+        case .openAI: "OpenAI hears, thinks and speaks. The most natural conversations, paid per use with your own key."
         case .lanBrainOpenAIVoice: "A model on your Mac or server thinks; OpenAI only hears and speaks. Needs an OpenAI key and your server's address."
         case .lanEverything: "Everything on your own network, or on this iPhone. Nothing goes to OpenAI, and it's free."
         }
@@ -102,13 +102,13 @@ struct ModeCard: View {
             [("Quality", "Best: one realtime model, natural voice, quick turn-taking."),
              ("Speed", "Answers in about a second."),
              ("Cost", "Paid by your OpenAI key, per minute of conversation."),
-             ("Privacy", "During a conversation her audio and her Dee DNA go to OpenAI (kept up to 30 days for abuse checks)."),
+             ("Privacy", "During a conversation the audio and the Dee DNA go to OpenAI (kept up to 30 days for abuse checks)."),
              ("Needs", "An OpenAI API key.")]
         case .lanBrainOpenAIVoice:
             [("Quality", "Depends on your model; OpenAI's voice and hearing."),
              ("Speed", "A second or two slower; a model that isn't loaded takes longer the first time."),
              ("Cost", "Only OpenAI speech (cheaper than mode 1); your server is free."),
-             ("Privacy", "Your words and her voice go to OpenAI; her thinking, Dee DNA and memories stay on your network."),
+             ("Privacy", "Your words and the spoken replies go to OpenAI; the thinking, Dee DNA and memories stay on your network."),
              ("Needs", "An OpenAI key and your AI server's address.")]
         case .lanEverything:
             [("Quality", "Depends on your model and speech servers."),
@@ -257,7 +257,7 @@ struct ServerSection: View {
     }
 }
 
-/// Mode 3: where hearing / her voice run — the brain server, another LAN server, or
+/// Mode 3: where hearing / Dee's voice run — the brain server, another LAN server, or
 /// this iPhone (never OpenAI).
 struct SpeechPartSection: View {
     @Bindable var store: ProviderStore
@@ -281,7 +281,7 @@ struct SpeechPartSection: View {
     }
 
     var body: some View {
-        SetupGroup(title: part == .stt ? "Hearing" : "Her voice", symbol: part == .stt ? "ear" : "speaker.wave.2.fill") {
+        SetupGroup(title: part == .stt ? "Hearing" : "Voice", symbol: part == .stt ? "ear" : "speaker.wave.2.fill") {
             Picker(part == .stt ? "Hearing" : "Voice", selection: Binding(get: { choice }, set: select)) {
                 ForEach(Choice.allCases) { Text($0.rawValue).tag($0) }
             }

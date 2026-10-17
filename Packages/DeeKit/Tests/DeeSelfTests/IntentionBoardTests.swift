@@ -199,7 +199,7 @@ import Testing
         run.m.ongoing.turnsThisConversation = 1
         run.step(.presence(arrived: true), at: ready + 3)
         // Their first turn, even within 10 s of arrival: the arrival grace only holds
-        // back initiative (live transcript: the reunion turn is where she asks).
+        // back initiative (live transcript: the reunion turn is where Dee asks).
         run.step(Kit.heard("hi"), at: ready + 8)
         let n = Self.aims(run)
         #expect(n.count == 1)
@@ -490,7 +490,7 @@ import Testing
         run.m.momentary.focus = .person(Kit.john)
         run.step(.head(yaw: 0, pitch: 0), at: 0)
         for t in stride(from: 10.0, through: 300, by: 10) { run.step(Kit.heard("so yeah"), at: t) }
-        #expect(Self.aims(run).isEmpty, "she answers what was said")
+        #expect(Self.aims(run).isEmpty, "Dee answers what was said")
     }
 
     // MARK: Initiative
@@ -573,7 +573,7 @@ import Testing
         #expect(!speak(at: 70))
         #expect(speak(at: 72), "then 40 s")
         #expect(run.r.unansweredInitiatives == 3)
-        #expect(!speak(at: 72 + 1_000), "3 unanswered: she waits for them")
+        #expect(!speak(at: 72 + 1_000), "3 unanswered: Dee waits for them")
         run.step(Kit.heard("sorry, what?"), at: 1_100)
         #expect(run.r.unansweredInitiatives == 0)
         #expect(!speak(at: 1_101), "quiet right after they speak")
@@ -603,7 +603,7 @@ import Testing
                 run.issue(aim)
             }
         }
-        #expect(!spoke.isEmpty, "she starts talking when you look at her for a while")
+        #expect(!spoke.isEmpty, "Dee starts talking when you look at Dee for a while")
         #expect(spoke.count <= 3, "but backs off when ignored: \(spoke)")
         for s in spoke {
             #expect(CueWriter.estimateTokens(s) <= CueWriter.maxNoteTokens)

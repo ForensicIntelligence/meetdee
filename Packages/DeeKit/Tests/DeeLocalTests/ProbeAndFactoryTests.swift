@@ -172,7 +172,7 @@ import DeeMockServer
         session.feedAudio(Data(count: 48_000 * 2))
         try await Task.sleep(for: .milliseconds(300))
         engine.activity(true, 2_400, 14_400)
-        engine.activity(false, 14_400, 26_400)
+        engine.activity(false, 14_400, 50_400)   // the stop + the merge window
         #expect(await log.wait { !$0.compactMap { if case .userTranscript(_, let t) = $0 { t } else { nil } }.isEmpty })
         try await session.requestResponse(dna: sampleDNA)
         #expect(await log.wait { _ in !log.done.isEmpty })

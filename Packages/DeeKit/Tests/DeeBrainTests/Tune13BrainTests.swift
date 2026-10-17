@@ -15,17 +15,17 @@ import Testing
     typealias T7 = Tune7BrainTests
 
     /// T12-2, t2-backchannel-echo20 c05 (Traces/20261010-205810, 59.5–66.3): "Keep going." →
-    /// `continued` (61.64), "I'm listening." → the tail of it, she went on. 2.58 s after the
-    /// go-on her reply reached its sentence cap (`sentenceCapStop`, truncate at 64.21): her own
+    /// `continued` (61.64), "I'm listening." → the tail of it, Dee went on. 2.58 s after the
+    /// go-on Dee's reply reached its sentence cap (`sentenceCapStop`, truncate at 64.21): Dee's own
     /// stop, which the "cut anyway after keep going" rule took for a barge-in and answered with
-    /// a carry-on at 64.52 ("Oh, okay, let's keep going…"). Her own stop asks for nothing.
+    /// a carry-on at 64.52 ("Oh, okay, let's keep going…"). Dee's own stop asks for nothing.
     @Test func liveEcho20C05HerOwnSentenceCapStopIsNoCarryOn() async throws {
         let rig = try await BrainRig(tune: { $0.speculative = false })
         try await rig.start()
         try await T12.continuerThenMore(rig, second: "I'm listening.", talk: 0.5)
         #expect(rig.brain.trace.contains(.backchannel("continued")), "\(rig.brain.trace)")
         #expect(rig.responseCreates().count == 1, "nothing answered: \(rig.trail())")
-        // She talks on to her sentence cap, inside 3 s of the go-on.
+        // Dee talks on to Dee's sentence cap, inside 3 s of the go-on.
         let more = ["It goes on and on.", "Folders inside folders.", "Nobody knows where anything is."]
         for (i, s) in more.enumerated() where !rig.brain.trace.contains(.sentenceCapStop) {
             rig.brain.inject(.sentenceStarted(itemID: "item_a1", index: i + 1, text: s))
@@ -35,7 +35,7 @@ import Testing
         rig.brain.inject(.itemPlayed(itemID: "item_a1", playedMs: 3565, cut: true))
         await rig.settle()
         try? await Task.sleep(for: .milliseconds(400))
-        #expect(rig.responseCreates().count == 1, "no carry-on after her own stop: \(rig.trail()) \(rig.brain.trace)")
+        #expect(rig.responseCreates().count == 1, "no carry-on after Dee's own stop: \(rig.trail()) \(rig.brain.trace)")
         rig.shutdown()
     }
     // The tune-13 named answer-first note (q08) was removed in tune 14: Tune14BrainTests.

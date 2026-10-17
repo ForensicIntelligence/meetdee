@@ -68,7 +68,7 @@ import Testing
     }
 
     /// Reflexes sit above mood: even exhausted, a laugh is still brighter and quicker
-    /// than her neutral voice when rested.
+    /// than Dee's neutral voice when rested.
     @Test func brightReflexSurvivesLowEnergy() {
         let laughingWhileTired = style(.giddy, energy: 0.0)
         let neutralRested = style(.neutral, energy: 0.6)

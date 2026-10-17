@@ -3,7 +3,7 @@
 **Developer:** Forensic Intelligence
 
 New library product `DeeBrain` in `Packages/DeeKit` (design steps B4, B5, B7). It is Dee's
-brain on the OpenAI realtime session: it decides when she answers, describes her to the
+brain on the OpenAI realtime session: it decides when Dee answers, describes Dee to the
 model before every response (Dee DNA, `docs/DNA.md`, binding), bridges the tools, and
 holds the cloud settings, key intake and status mapping. Depends on DeeCore, DeeMind,
 DeeMemory, DeeSelf, DeeRealtime, DeeVoice. No UIKit/SwiftUI and no app code: a macOS
@@ -26,23 +26,23 @@ Tests: `swift test --filter DeeBrainTests` (offline: real `AudioGraph.manual()`,
 | `StandaloneHost` | A full host on a real `Mind` + `Cortex` (+ optional `MemoryStore`), body state as flags. |
 | `BrainTrace` | Decisions and sizes only (plan, verdict, DNA estimate, section bytes, steps, guard drops, SHA-256, usage): never text. |
 
-## When she answers
+## When Dee answers
 
 On `.userCommitted(item)`:
 
 | Situation | Plan | Then |
 |---|---|---|
-| `host.answersOnCommit` false (asleep, nobody engaged) | `waitForAddress` | wait for the transcript; `host.heard` → `.answer` only if addressed to Dee (her name wakes her) → exact reply; `.ignored` → `session.dropUserItem` (deleted from the conversation and the history/seeds). Failed transcript, or none within `addressWait` (6 s) → dropped too. |
+| `host.answersOnCommit` false (asleep, nobody engaged) | `waitForAddress` | wait for the transcript; `host.heard` → `.answer` only if addressed to Dee (Dee's name wakes Dee) → exact reply; `.ignored` → `session.dropUserItem` (deleted from the conversation and the history/seeds). Failed transcript, or none within `addressWait` (6 s) → dropped too. |
 | exact rule holds | `waitForWords` | ≤ 0.4 s for the transcript → `host.heard` → exact DNA (with `appraisal.text`) → reply; timeout or failed transcript → fast DNA. A command → `.handled`, no reply, `session.userTurnHandled`. |
-| speech started over her voice or < 0.35 s after it (`commandWindow`), no exact rule | `waitForPartial` | ≤ `overlapWait` (0.6 s) for the turn's first settled words (transcription deltas, settled after 0.15 s without a new one): a backchannel → no reply (see below); held words → held; anything else → fast reply at once; none in time → fast reply. The full transcript still runs `host.heard`. |
+| speech started over Dee's voice or < 0.35 s after it (`commandWindow`), no exact rule | `waitForPartial` | ≤ `overlapWait` (0.6 s) for the turn's first settled words (transcription deltas, settled after 0.15 s without a new one): a backchannel → no reply (see below); held words → held; anything else → fast reply at once; none in time → fast reply. The full transcript still runs `host.heard`. |
 | otherwise | `respondFast` | DNA now (state + `ProsodyRead`), reply now; the transcript still runs `host.heard` (commands stop the reply through the app's `stop`; `.ignored` takes an unheard reply back and drops the item). |
 
 **Tune 2 (live run 20261009-143612 + A/B).**
-- *Exact mode only for DNA.md §4.3's cases.* Speech over her voice no longer waits for the full transcript (p50 0.48 s,
+- *Exact mode only for DNA.md §4.3's cases.* Speech over Dee's voice no longer waits for the full transcript (p50 0.48 s,
   p90 0.77 s after the commit; 136 of 155 exact waits timed out); it waits for its first settled words
   (`waitForPartial`).
 - *Provisional words.* `.userTranscriptDelta`s are accumulated per item; 0.15 s after the last one (live: the burst ends
-  p50 0.25 s after the commit, 0.22 s before the full transcript, before her first audio) they are the turn's
+  p50 0.25 s after the commit, 0.22 s before the full transcript, before Dee's first audio) they are the turn's
   provisional words. They decide floor questions only: `TurnPolicy.held(words)` on a turn whose fast reply is out and
   unheard → `stopVoice`, held (trace `.held`); the full words confirm or overrule (answered at once if they are
   finished). The appraisal and `host.heard` still use the full transcript.
@@ -53,13 +53,13 @@ On `.userCommitted(item)`:
   why/what/how question in an utterance that announced a joke ("Want to hear a joke? Why did the scarecrow…?", j01) is
   held `riddleWait` (1.5 s) for the punchline, then answered.
 - *Commands answered fast* (`host.heard` → `.handled`) take back the unheard reply (`stopVoice`).
-- *Backchannels (user decision: "keep going" while she talks is not a barge-in).* `TurnPolicy.isBackchannel`: every
+- *Backchannels (user decision: "keep going" while Dee talks is not a barge-in).* `TurnPolicy.isBackchannel`: every
   clause a continuer ("keep going", "go on", "don't stop", "I'm listening", "mm-hm", "uh-huh", "yeah", "okay"…), ≤ 8
-  words, no question ("really?" aside). Over her voice: if she is still playing, no reply and no stop, the turn is
-  released (`userTurnHandled`, trace `.backchannel("continued")`); if her voice was already cut (EarCore decided on the
+  words, no question ("really?" aside). Over Dee's voice: if Dee is still playing, no reply and no stop, the turn is
+  released (`userTurnHandled`, trace `.backchannel("continued")`); if Dee's voice was already cut (EarCore decided on the
   sound) or ended, a reply with the note "They want you to go on: carry on from where you stopped, without starting over
-  or repeating yourself" (trace `.backchannel("resumed")`). Cut within 3 s after a "continued" one → she carries on too.
-- *Spoken preambles.* Her reply's first 7 words (assistant transcript deltas) are checked by `isMetaPreamble` ("let me
+  or repeating yourself" (trace `.backchannel("resumed")`). Cut within 3 s after a "continued" one → Dee carries on too.
+- *Spoken preambles.* Dee's reply's first 7 words (assistant transcript deltas) are checked by `isMetaPreamble` ("let me
   think / respond / check / recall…", "I'll check / save…", "how to respond", "quick save", "let me tuck"…). Before the
   user has spoken again: `stopVoice` (it is cut as it starts), and when its response ends the turn is answered again
   once (kind `retry`) with the note "Answer them straight away; if you use a tool, call it without saying anything first"
@@ -80,14 +80,14 @@ On `.userCommitted(item)`:
 - *No post-commit wait in ordinary turns.* The exact rule no longer fires on a loud / intense voice or a stranger's first
   turn (live: 7 of 9 exact waits timed out at 0.4 s, all of the brain's 0.44 s commit → create p90); loudness rides in
   the fast DNA's prosody line. Remaining waits: the exact rule's word-dependent cases and `waitForPartial` (speech over
-  or right after her voice).
+  or right after Dee's voice).
 - *Reasoning effort.* Ordinary turns ask for `RealtimeBrain.ordinaryEffort` = `minimal` (`effective(_:)` maps
   `ThinkingMode.chatEffort` to it; thinking efforts are kept; the session default is the same). Live create → first
   audio followed reasoning tokens, not DNA size: 0 tokens 0.44 s p50, 40–99 0.72, 100–199 1.06, 200+ 1.64 s. Text eval:
   mean reasoning tokens 30 vs 50 (low), first text p90 0.47–0.62 s vs 0.67–0.93 s, narration before tool calls 4–7 vs
   13 of 64. An ordinary fast turn is never re-asked for its words (`answeredAt` counts `minimal` as the chat effort).
 - *Backchannels: one rule.* `TurnPolicy.isBackchannel` is DeeVoice's `Backchannel.isBackchannel` (hums: "MMHN.", "HM.",
-  "mm", "uh-huh"; live F4: the brain's own copy answered both after the voice resumed her).
+  "mm", "uh-huh"; live F4: the brain's own copy answered both after the voice resumed Dee).
 - *Floor holds (CloudVoice `holdEvents`).* `.resumed(itemIDs:)` → each unrequested item is released
   (`userTurnHandled`, trace `.backchannel("resumed-<why>")`) and never answered; a commit of an item the voice already
   settled (`wasBackchannel(itemID:)`) → released at once (trace `.backchannelReleased`); a `waitForPartial` item in
@@ -99,8 +99,8 @@ On `.userCommitted(item)`:
 - *Narration in any sentence.* The reply transcript is split into sentences (`TurnPolicy.sentences`); the first is checked
   with `isMetaPreamble` (tune-2 path: cut + one retry), every later one with `isNarration` (talk about answering,
   looking up or saving: "Let me think about how to respond.", "Let me check what I remember", "I'll note that"; not
-  "Let me think of another one!" / "Let me think about it with you."). A later one stops her when that sentence starts
-  (`sentenceStarted`, trace `.narrationStop` then `.preamble(cut: true)`); what she said stands, no retry.
+  "Let me think of another one!" / "Let me think about it with you."). A later one stops Dee when that sentence starts
+  (`sentenceStarted`, trace `.narrationStop` then `.preamble(cut: true)`); what Dee said stands, no retry.
 - *Host.* `BrainHost.bargedIn()` (default no-op); `StandaloneHost.modeSignalsOverride` and `bargeIns` for tests and the
   harness.
 
@@ -111,7 +111,7 @@ gate (p50 ≤ 1.1 s) cannot pass with that. `high` can commit "Hold on." or "I h
 and…" as a turn of its own; the brain absorbs that. When `host.heard` says `.answer` and
 `TurnPolicy.unfinished(text)` is:
 - `holdOn` (the whole utterance is "hold on", "one sec", "let me think", repeated or with
-  fillers/her name): never answered; an unheard reply to it is taken back (`stopVoice`);
+  fillers/Dee's name): never answered; an unheard reply to it is taken back (`stopVoice`);
   `userTurnHandled`. Trace `.held("holdOn")`.
 - `trailing` (ends in "…", a dash, or a word a sentence does not end on: and, but, or,
   because, um/uh/er, the, a, an, with, my, your; "and then"): an unheard reply is taken back;
@@ -124,12 +124,12 @@ back. The session also cancels a reply with no audio yet when they go on talking
 
 Exact rule (`TurnPolicy.exactModeWanted`, DNA.md §4.3): repair ∈
 {strained, ruptured, repairing}; the previous DNA issued a follow-up, `deixisAmbiguous` or
-`misread` note; a stated hypothesis or live distress. (Tune 2: speech over her voice is no
+`misread` note; a stated hypothesis or live distress. (Tune 2: speech over Dee's voice is no
 longer exact; it is `waitForPartial`. Tune 3: a loud voice and a stranger's first turn are
 fast.)
 
 Never: `stopSpeaking` on the user-utterance path except to take back an unheard reply to
-speech that was not for her or is unfinished, or a late "think hard" (commands stop her
+speech that was not for Dee or is unfinished, or a late "think hard" (commands stop Dee
 through the app); a re-request on `.replyPreempted` / `.initiativeCancelled` (the session
 re-requests after an echo itself).
 A request refused with `.responseInFlight` is retried once after that response's
@@ -145,32 +145,32 @@ answered instead. Thinking: the brain owns `ThinkingMode` per conversation; fast
 use `effortBeforeWords`, exact ones `turn(for:)`; a late "think hard" re-asks (stop +
 exact, higher effort) while nothing of the fast reply was heard.
 
-**Tune 5 (live run 20261010-003257; probes 20261010-011423 / -011624; `tune4-live.md` F1–F7).**
-- *A question asked over her is answered (F1, HIGH).* When the brain's answer ends the voice's floor hold, `host.bargedIn()`
+**Tune 5 (live run 20261010-003257; probes 20261010-011423 / -011624; tune-4 findings F1–F7).**
+- *A question asked over Dee is answered (F1, HIGH).* When the brain's answer ends the voice's floor hold, `host.bargedIn()`
   is called, and the host now senses **`Percept.bargeInAnswered`**: FloorKeeper's barge-in bookkeeping (cut off,
   yielding, Dee-interrupted, the cut-off note) without `.stopSpeaking`. Live, `.bargeIn` → `.stopSpeaking` → the app's
   `stop()` cancelled that very answer (0 of 3 interrupting questions answered; 3 of 3 with the stop skipped).
-  `DeeModel.bargedIn()` and `StandaloneHost.bargedIn()` sense it; `.bargeIn` (the voice's own barge-in) still stops her,
-  and a spoken "stop" still stops her through the command path (`StandaloneHost` now stops as the app does:
+  `DeeModel.bargedIn()` and `StandaloneHost.bargedIn()` sense it; `.bargeIn` (the voice's own barge-in) still stops Dee,
+  and a spoken "stop" still stops Dee through the command path (`StandaloneHost` now stops as the app does:
   `stopVoice` + `cancel(hush: true)`).
 - *Release gate (F2/F3).* The speculative reply plays once all hold: `confirmWindow` (0.8 s) of quiet measured from the
   later of the server's end of speech and EarCore's last voice frame (`voice.lastUserVoiceAt`); their voice not active
   now (`voice.userVoiceActive`: EarCore's 0.15 s, bed-proof voice flag — no longer the 0.6 s latched `userIsSpeaking`,
   which kitchen and TV beds kept on); and words not still settling — unless the final transcript has come and is
   complete (`wordsFinal`: the commit and the final words agree). The gate must pass twice, `releaseRecheck` (0.12 s)
-  apart, before she plays (l05: released 0.15 s after they resumed). Unsettled words hold her at most `confirmMax`
+  apart, before Dee plays (l05: released 0.15 s after they resumed). Unsettled words hold Dee at most `confirmMax`
   (**1.0 s**, was 1.6) after the commit; their own voice at most `confirmMax + voiceHoldExtra` (1.6 s).
 - *Stranded prepositions (F4).* "I didn't get the job I interviewed for." is complete: a determiner's noun phrase, a
   subject pronoun, 1–3 words, the preposition, and the transcript's closing period (`TurnPolicy.strandedInRelative`).
   "We talked about", "Yesterday I went to." and anything without the period still trail.
-- *Continuers over her (F6).* Over her voice (in a hold, started over her, or one she went on through) words are
+- *Continuers over Dee (F6).* Over Dee's voice (in a hold, started over Dee, or one Dee went on through) words are
   classified by `voice.isHoldBackchannel(itemID:text:)` (in `provisional`, the backchannel re-check, and a new check
-  before an unrequested item over her is answered): "Sheep going.", "I'm listening." are never answered.
-- *The unfinished-words aim is never heard.* Her reply transcript is checked as it streams
-  (`TurnPolicy.isUnfinishedAim`: "finish the sentence", "you trailed off", their words quoted back with "…"): in her
+  before an unrequested item over Dee is answered): "Sheep going.", "I'm listening." are never answered.
+- *The unfinished-words aim is never heard.* Dee's reply transcript is checked as it streams
+  (`TurnPolicy.isUnfinishedAim`: "finish the sentence", "you trailed off", their words quoted back with "…"): in Dee's
   first sentence the unheard reply is taken back and their turn held as trailing (their next commit answers both;
-  nothing within `trailingWait` → answered with `unfinishedAnswerNote`; the aim a second time → she stays quiet); in a
-  later sentence she stops before it. Trace `.unfinishedAim(takenBack:)`.
+  nothing within `trailingWait` → answered with `unfinishedAnswerNote`; the aim a second time → Dee stays quiet); in a
+  later sentence Dee stops before it. Trace `.unfinishedAim(takenBack:)`.
 - *Punchlines (F7).* A reply to the turn after a riddle's set-up, or two after "Knock knock", carries
   `TurnPolicy.punchlineNote` ("laugh first … never explain it").
 
@@ -191,7 +191,7 @@ exact, higher effort) while nothing of the fast reply was heard.
     - `"speech"`: a new server `speech_started` (another item) while it is held. The turn is held (`resumeWait` 2 s,
       postponed while they talk), and their next commit answers both parts (`committed` releases held items with
       `userTurnHandled`).
-    - `"taken back"`: every unheard take-back (settled words unfinished or a riddle, a command, not for her, a rethink, a
+    - `"taken back"`: every unheard take-back (settled words unfinished or a riddle, a command, not for Dee, a rethink, a
       preamble) discards a held reply instead of cutting it: nothing is truncated beyond the voice's cancel and
       truncate-at-0.
     - `channelUnheard` is true while held.
@@ -208,36 +208,36 @@ exact, higher effort) while nothing of the fast reply was heard.
   - Window choice: the live A/B ran 500/650/800 ms, but the gate never held audio there (the bug above), so the
     windows were compared on every turn of the four runs (309 turns): ground-truth speech spans, recorded first-audio
     arrival, and resume detection 80 ms after onset.
-    - Her first audio arrives ≥ ~1.0 s after the end of speech on nearly every turn, so any window ≤ 1.0 s left end →
+    - Dee's first audio arrives ≥ ~1.0 s after the end of speech on nearly every turn, so any window ≤ 1.0 s left end →
       first audio unchanged (p50 / p90 1.17 / 1.53 s on tune 3).
     - Collisions fell from 10 to 4 at 500 ms, 3 at 650 and 2 at 800. A 1.2 s window raised the p50 to 1.24 s.
     - The two left resumed 1.04 s after the end (j01's punchline), which is now a riddle hold.
 - *A joke announced one turn earlier* (`TurnPolicy.held(_:after:)`, `isRiddleSetUp(_:after:)`): server_vad commits "Want
   to hear a joke?" on its own. A why/what/how set-up whose previous user turn (≤ 20 s) said joke or riddle is a riddle
   hold: the held reply is taken back and the punchline is theirs.
-- *Sentence cap* (`Options.sentenceCap` 3): she stops before sentence 4 of a reply (trace `.sentenceCapStop`, never
+- *Sentence cap* (`Options.sentenceCap` 3): Dee stops before sentence 4 of a reply (trace `.sentenceCapStop`, never
   mid-word). Not for a story or an explanation (`wantsLongAnswer` on the words, also when they arrive after a fast
   reply), not in thinking mode, not for canned lines.
 - *Token caps at `minimal`:* 240 / 340 / 440 for one / two / three sentences (`low`: 280 / 380 / 480).
   - Live tune 3 output tokens p50 / p90: two sentences 220 / 303, three 245 / 341, four 287 / 459.
   - Tighter caps cut good replies before they cut long ones: at 300, 23 of 152 replies of three sentences or fewer would
     lose a sentence, and 8 would still run over three. So the cap is a backstop. The DNA v5 Length line does the work.
-- *Greeting kept until heard:* the brain counts replies of hers with a heard sentence this conversation
+- *Greeting kept until heard:* the brain counts replies of Dee's with a heard sentence this conversation
   (`heardReplies`, reset by `newConversation`) and passes it in every `TurnContext`. DNA v5's G5 holds until one was
   heard.
 
-### Tune 6 (live run 20261010-020243, `tune5-live.md`)
+### Tune 6 (live run 20261010-020243)
 
 - **Interrupting questions: exactly one answer (T5-2).** The 4 unanswered questions all had the same cause, verified on
   the wire: the voice's hold committed the burst early, the server ended "the rest" as a new item with no
   `speech_started`, and `RealtimeSession.openSpeech` stayed on the committed item, so the session's "never start talking
-  over someone" gate preempted the answer and its retry at their first audio. That is DeeRealtime's to fix (patch:
-  `scratchpad/tune6-voice-realtime-openSpeech.patch`). The brain side, made impossible:
+  over someone" gate preempted the answer and its retry at their first audio. That is DeeRealtime's to fix (applied in
+  DeeRealtime after this round). The brain side, made impossible:
   - A *tail* — a commit whose `speech_stopped` came with no `speech_started` of its own, within
     `CloudVoice.holdTailWindow` of the commit before it, or in the voice's `floorHold.tails` — is no turn (trace
     `.tailIgnored`): never answered blind, never absorbs held turns, let go silently (`userTurnHandled`). Its words, if
     any come, are handled like any turn's.
-  - A request with another response in flight never touches her voice: `reply()` cuts a playing reply only when
+  - A request with another response in flight never touches Dee's voice: `reply()` cuts a playing reply only when
     nothing else is in flight, and `stopVoice()` clears `playing` at the cut (live, a stale `playing` would have
     "cut" nothing again and closed the reply gate on the answer).
   - One answer per turn (`coveringReply`, trace `.covered`): a turn is not asked for, nor retried after a refusal, when
@@ -247,12 +247,12 @@ exact, higher effort) while nothing of the fast reply was heard.
 - **The release gate (T5-1, T5-4, T5-6).** Every reply is gated (`speculationWanted` never skips: a late exact reply
   or a retry measures its caps from its request). The quiet run (`Speculation.quietSince`: no voice now, no server
   speech of a newer item, `confirmWindow` since their last voice) is tracked from the request, so the 0.12 s re-check
-  is already met when her audio arrives (live p50 1.17 → 1.26 s came from starting it at audio-ready). The gate is
-  let go only once her first audio is in. While the server hears a newer item of theirs (`openServerSpeech`, closed by
+  is already met when Dee's audio arrives (live p50 1.17 → 1.26 s came from starting it at audio-ready). The gate is
+  let go only once Dee's first audio is in. While the server hears a newer item of theirs (`openServerSpeech`, closed by
   any `speech_stopped` or its commit), no reply is asked for: the turn is held (`.held("speech")`) and their next
-  commit answers all of it; if that commit turns out not to be a turn for her (not for her, a backchannel), the
+  commit answers all of it; if that commit turns out not to be a turn for Dee (not for Dee, a backchannel), the
   newest held turn it took over is answered after all (`restoreAbsorbed`).
-- **Interrupt answers (T5-3).** After a cut of her *playing* reply a speculative request waits only until the session
+- **Interrupt answers (T5-3).** After a cut of Dee's *playing* reply a speculative request waits only until the session
   has taken the cut (`session.state` leaves `speaking`/`cancelling`, at most `stopGuard`), not a fixed 0.3 s; the
   reply gate needs no guard there (`speculate()` marks the request). Asking at the commit while the hold is open needs
   a voice path that ends the hold and keeps the speculation (open ask below).
@@ -260,58 +260,58 @@ exact, higher effort) while nothing of the fast reply was heard.
   "OK.", "Dee?" are turns) and wait `fragmentWait` (1.5 s) for the rest. "I had pasta for dinner. And." stays
   trailing.
 - **Never heard (T5-4, T5-8).** The unfinished-words aim is matched by meaning (`unfinishedAimMeanings`: did they mean
-  to say something, is she waiting / listening, only her name; not when it is about someone else: "say *to* her").
+  to say something, is Dee waiting / listening, only Dee's name; not when it is about someone else: "say *to* Dee").
   A sentence that sends them to an app, a clock, a forecast, a calendar or a search (`isAppReferral`) is taken back in
-  her first sentence (asked again once with `noAppNote`) or stopped before later (trace `.appReferral`).
+  Dee's first sentence (asked again once with `noAppNote`) or stopped before later (trace `.appReferral`).
 
-### Tune 7 (live run 20261010-035320, `tune6-live.md`)
+### Tune 7 (live run 20261010-035320)
 
 - **The answer belongs to the question (T6-1).** Every reply names the turn it answers
   (`requestResponse(dna:…, answering: item)`, the channel's user item), never whatever the server committed last.
   Live (interrupt-clean q02, interrupt-fan15 q08) the answer was asked for just after the server committed an empty
   tail of the same burst; keyed to that tail, the voice's drop of it cancelled the answer. Taking a tail away (dropped
-  empty, rejected as her echo, not for her) now never touches the question's answer. DeeRealtime (tune 7) adds the
+  empty, rejected as Dee's echo, not for Dee) now never touches the question's answer. DeeRealtime (tune 7) adds the
   parameter and keeps a reply whose dropped item said nothing.
-- **Misheard short fragments over her are backchannels (T6-3; decision: backchannels continue her).** While she
-  talks (over her voice, her reply playing or paused in a hold), one or two words that are not clearly a stop ("Stop.",
-  "Wait.", "No.", "Hold on."), a question ("Why?", "Who made…"), her name or a letter ("Dee.", "D."), a number or a
-  two-word sentence about them or her ("I'm bored.", "Love you.") are a backchannel (`TurnPolicy.isMisheardFragment`,
-  `goOnWords`): "Put going.", "Grand.", "She.", the tail "Done.". Over her voice the early words decide only from three
+- **Misheard short fragments over Dee are backchannels (T6-3; decision: backchannels let Dee continue).** While Dee
+  talks (over Dee's voice, Dee's reply playing or paused in a hold), one or two words that are not clearly a stop ("Stop.",
+  "Wait.", "No.", "Hold on."), a question ("Why?", "Who made…"), Dee's name or a letter ("Dee.", "D."), a number or a
+  two-word sentence about them or Dee ("I'm bored.", "Love you.") are a backchannel (`TurnPolicy.isMisheardFragment`,
+  `goOnWords`): "Put going.", "Grand.", "She.", the tail "Done.". Over Dee's voice the early words decide only from three
   words, or two that ask ("Who made", "Are you"); one or two wait for their settled or full words. The same rule for the
-  voice's hold is `scratchpad/tune7-brain-to-voice.patch` (`Backchannel.isBackchannel(_:inHold: true)`).
-- **The sentence budget (T6-6).** She stops before the sentence past the turn's own budget
+  voice's hold is the tune-7 DeeVoice change (`Backchannel.isBackchannel(_:inHold: true)`).
+- **The sentence budget (T6-6).** Dee stops before the sentence past the turn's own budget
   (`TurnPolicy.sentenceBudget` of the DNA Length line: three → 3, two or one → 2; never more than `sentenceCap`; not for
   a story, an explanation or thinking mode). Every sentence the voice plays counts, a short exclamation too.
-- **Never a robot's report (T6-7).** A sentence that frames her words as a robot's report or status
-  (`TurnPolicy.isSelfReport`: "Tiny robot report: …", "Status update: …", "Beep boop") is taken back in her first
+- **Never a robot's report (T6-7).** A sentence that frames Dee's words as a robot's report or status
+  (`TurnPolicy.isSelfReport`: "Tiny robot report: …", "Status update: …", "Beep boop") is taken back in Dee's first
   sentence (asked again once with `noReportNote`) or stopped before later (trace `.selfReport`).
 - **Early request at the local end of speech (T6-5): tried on paper, not kept.** Tune-6 live: end of speech → commit
   p50 0.51 s (n = 153); a request at EarCore's last voice + 0.25 s would save ≈ 0.2 s, but the release gate (0.8 s quiet
-  + 0.12 s re-check ≈ 0.92 s) would then be the only thing holding her where today the audio itself comes at ≈ 1.15 s.
-  joke-echo30 j01 (punchline 1.04 s after the set-up) falls in that window: today the resume holds her; with the early
-  request she would play over the punchline. And 90 of 253 within-turn pauses (0.28–0.45 s) that the server does not
+  + 0.12 s re-check ≈ 0.92 s) would then be the only thing holding Dee where today the audio itself comes at ≈ 1.15 s.
+  joke-echo30 j01 (punchline 1.04 s after the set-up) falls in that window: today the resume holds Dee; with the early
+  request Dee would play over the punchline. And 90 of 253 within-turn pauses (0.28–0.45 s) that the server does not
   split today would be split by the client commit. DeeRealtime's `respondToSpeech` stays available.
 
-### Tune 8 (live run 20261010-063215, `tune7-live.md`)
+### Tune 8 (live run 20261010-063215)
 
 - **One misheard-fragment rule (T7-1).** `TurnPolicy.isMisheardFragment` is DeeVoice's
   `Backchannel.isMisheardFragment`; the brain's own looser list is gone. Live (interrupt-fan15 q08) "Who made you?" over
-  her came back as "Too late."; the brain's rule took it for "go on" (she talked on to her sentence cap) and the voice's
-  would not. "Too late." / "Big deal." over her are turns now. A carry-on ("go on from where you stopped") answers no turn
+  Dee came back as "Too late."; the brain's rule took it for "go on" (Dee talked on to Dee's sentence cap) and the voice's
+  would not. "Too late." / "Big deal." over Dee are turns now. A carry-on ("go on from where you stopped") answers no turn
   (`Channel.carryOn`, never `coveringReply`): when the full words of an item first taken for "keep going" are more, the
   unheard carry-on is taken back and the turn gets exactly one answer.
-- **Continuer endings never decide early (T7-2).** Over her voice, early words never decide on a partial whose last word
+- **Continuer endings never decide early (T7-2).** Over Dee's voice, early words never decide on a partial whose last word
   ends a continuer (`TurnPolicy.endsLikeContinuer`: going/goin/on/listening/listen/ahead, a hum): echo20 c05 "Sheupr
-  and going." was decided at once (3 words) and cut her. "I'm listen." (fan15 c05) is a cut-off continuer under the
+  and going." was decided at once (3 words) and cut Dee. "I'm listen." (fan15 c05) is a cut-off continuer under the
   voice's rule, so its full words are "go on".
-- **No carry-on over a newer turn (T7-3).** A cut of her voice after a backchannel she talked on through brings a
+- **No carry-on over a newer turn (T7-3).** A cut of Dee's voice after a backchannel Dee talked on through brings a
   carry-on only when no newer turn of theirs is being answered or decided (`newerTurnPending`). Live (interrupt-echo20
-  q02) the answer to "Are you awake?" cut her; the phantom "Yeah." then got a carry-on, refused, retried when the answer
+  q02) the answer to "Are you awake?" cut Dee; the phantom "Yeah." then got a carry-on, refused, retried when the answer
   completed — the retry re-armed the gate and threw the held 3.9 s answer away (0.9 s lost).
 - **Their question answered, never said back (T7-4 / T7-6, DNA v9).** A first sentence that only repeats their words
   (`TurnPolicy.echoesTheirWords`: "Hi Alex, who made you?") is taken back unheard and asked again once with
   `answerFirstNote` (trace `.echoedQuestion`). "I heard you say" is a preamble (first sentence) / narration (later). A
-  question asked over her voice carries `answerFirstNote`.
+  question asked over Dee's voice carries `answerFirstNote`.
 - **`respondToSpeech` (T7-5): measured, not wired.** Tune-7 traces: the server's `speech_stopped` → `committed` is
   p50 1 ms / p90 2 ms (n = 380), so a request at `speech_stopped` saves nothing. The ~74 ms commit round trip exists
   only for the voice's own quick commits in a hold (n = 19), where the reply waits for the words by design (an early
@@ -325,34 +325,34 @@ exact, higher effort) while nothing of the fast reply was heard.
   (200), p90 1.40 → 1.35 / 1.30 — neither reaches the 1.1 s p50 target, whose remaining share is the model (create →
   first audio 0.62 s p50). Recommendation: an A/B live run at 250 ms before any change.
 
-### Tune 9 (live run 20261010-080526, `tune8-live.md`)
+### Tune 9 (live run 20261010-080526)
 
 - **A question taken for "go on" first gets exactly one answer (T8-1).** Live interrupt-echo20 q08 "Who made you?" came
   back as "Movie." and the one fragment rule took any single word as "go on": `continued`, then the final words (verdict
   "answer") were let go as "go on" too. The rule is now the voice's sound-aware one (`CloudVoice.isMisheardFragment(itemID:
   text:)`, voice patch applied): a word the words don't know is "go on" only if it *sounded* like a backchannel. Brain
-  half: when the full words of an item she talked on through are a turn, its answer's own cut of her voice is no "cut
+  half: when the full words of an item Dee talked on through are a turn, its answer's own cut of Dee's voice is no "cut
   anyway after keep going" (`continuedThrough` cleared; `newerTurnPending` counts an answer to that same item) — before,
   that asked for a carry-on for the same item, refused, then sent after the answer: two replies to one turn.
 - **Server stalls (T8-2).** The session no longer gives a request up at 2.5 s (`responseTimeout` 10 s backstop;
   `cancelUnstartedWait` 2.5 s keeps the old close of an unstarted cancel): a late `response.created` is accepted and
   plays (live 3.56 s and 9.59 s stalls each lost a turn). The brain: past `slowAfter` (2.5 s) with nothing started, a
-  thinking sound (`slowClip` `.oneSec`, once, nobody talking, nothing of hers playing; trace `.slowResponse`); past
+  thinking sound (`slowClip` `.oneSec`, once, nobody talking, nothing of Dee's playing; trace `.slowResponse`); past
   `stallRetryAfter` (8 s, or the voice's own 8 s speculative timeout), the stalled request is cancelled and the turn
   asked for once more (`retryItem` path, kind `retry`; trace `.stalled(retried:)`) — only if it is still current (no
   newer commit or request of theirs, nobody talking), never twice per turn, never for a carry-on.
 - **Tails and carry-ons (T8-3).** A tail of a burst that was a backchannel whose words are a number, a lone letter,
   nothing or one "go on" word (`TurnPolicy.isNoiseTail`: "10." after "MMHN.") is dropped from the conversation, never
-  answered (trace `.backchannel("tail")`); a tail that asks or stops her is still a turn. A held turn a carry-on took
+  answered (trace `.backchannel("tail")`); a tail that asks or stops Dee is still a turn. A held turn a carry-on took
   over is not restored once that carry-on was asked for (live echo10 c02: the restored "…stop." cut the carry-on at
-  840 ms and a second carry-on played): one carry-on per hold. Early words over her never decide on a partial that
+  840 ms and a second carry-on played): one carry-on per hold. Early words over Dee never decide on a partial that
   breaks off on a comma or an article/conjunction (`TurnPolicy.breaksOff`: "That's like a,"); a partial that asks
   ("Who made", "Can you tell me,") still does.
 - **Thinking aloud, "I heard you", two messages (T8-4 / T8-5, DNA v10).** Thinking aloud is narration in any sentence
   (`thinkingAloudPatterns`: let me think / see / take a moment / settle, give me a second…); in a later sentence of an
-  unheard reply to a question it is taken back and asked again once with `answerFirstNote` (`.thinkingAloud`), else she
+  unheard reply to a question it is taken back and asked again once with `answerFirstNote` (`.thinkingAloud`), else Dee
   stops before it. A sentence opening on hearing them (`TurnPolicy.opensOnHearingThem`: I heard/hear you/your, I can
-  hear you; not when they asked whether she can hear them) is taken back in the first sentence (`noHeardYouNote`,
+  hear you; not when they asked whether Dee can hear them) is taken back in the first sentence (`noHeardYouNote`,
   `.heardYou`) or stopped before later. A second message item of one response is never played (`.secondMessage`,
   `.secondMessageStop`).
 - **Latency.** The gate's quiet run counts from when it began (`confirmWindow` after their last voice, never before the
@@ -362,14 +362,14 @@ exact, higher effort) while nothing of the fast reply was heard.
   silence is a setting (`CloudSettings.vadSilenceMs`, default 300): the live operator A/Bs 250 ms with
   `DEE_VAD_SILENCE_MS=250` (the harness builds its session with `CloudSettings(voice:model:)`; 200–800 accepted).
 
-### Tune 10 (live run 20261010-102105 + solo -111224, `tune9-live.md`)
+### Tune 10 (live run 20261010-102105 + solo -111224)
 
-- **Every "go on" continues her (T9-1).** Live kitchen15 c02: "Don't stop." went on (`continued`, the voice deferring the
+- **Every "go on" continues Dee (T9-1).** Live kitchen15 c02: "Don't stop." went on (`continued`, the voice deferring the
   go-on while they talked), then the server's tail "Keep going." took the tune-9 tail drop and returned without a go-on;
-  the kitchen bed kept the voice's own quiet check false and it cut her at its deadline. `continueHer(items…)` now calls
-  `continueAfterBackchannel()` on every decision that their words were "go on" while she is paused for them: the tail
+  the kitchen bed kept the voice's own quiet check false and it cut Dee at its deadline. `continueHer(items…)` now calls
+  `continueAfterBackchannel()` on every decision that their words were "go on" while Dee is paused for them: the tail
   drop (the tail or its parent in the hold) and full go-on words of an item already taken for a backchannel (a deferred
-  go-on is renewed, never left to the voice's deadline). No hold of that item: nothing (she talks on, or a carry-on was
+  go-on is renewed, never left to the voice's deadline). No hold of that item: nothing (Dee talks on, or a carry-on was
   asked for). The voice half (echo10 c05, `holdAfterWords` after the brain's deferred go-on) is the voice owner's
   tune-10 change: a deferred go-on clears `wordsAt`. Early words use the voice's sound-aware fragment rule
   (`CloudVoice.isMisheardFragment(itemID:text:)`), as `goOnWords` does.
@@ -384,13 +384,13 @@ exact, higher effort) while nothing of the fast reply was heard.
   before the next request, which no longer fails with `conversation_already_has_active_response`. Nothing active: the
   server's `response_cancel_not_active` is ignored.
 - **Thinking aloud and "I heard…" (T9-6 / T9-8).** Thinking aloud counts anywhere in a sentence (`TurnPolicy.thinksAloud`;
-  l06 had "let me think" at words 7–9 of her only sentence): in her first sentence it is a preamble (cut, asked again
-  once). Later sentences are unchanged (a question: taken back; otherwise she stops before it, keeping the answer she
+  l06 had "let me think" at words 7–9 of Dee's only sentence): in Dee's first sentence it is a preamble (cut, asked again
+  once). Later sentences are unchanged (a question: taken back; otherwise Dee stops before it, keeping the answer Dee
   gave, e.g. the k05 laugh). A complete first sentence opening on "I heard…" / "I hear…" of any kind is taken back
-  (`noHeardYouNote`), still not when they asked whether she can hear them; later sentences keep the "I heard you/your"
+  (`noHeardYouNote`), still not when they asked whether Dee can hear them; later sentences keep the "I heard you/your"
   patterns. The unfinished-words aim ("I heard “I couldn't sleep last…” …") keeps its own path.
 
-### Tune 11 (live run 20261010-130349 + solo -134832, `tune10-live.md`)
+### Tune 11 (live run 20261010-130349 + solo -134832)
 
 - **The ASR variants of a trailing "and" (T10-1).** Tunes 7–10 wrote "…call my mom and" as "Ann", "Anne", "and",
   ", and", ", then", ", man", or dropped it. `misheardAnd` takes "anne" like "ann"; `misheardAndAfterPossessive` takes a
@@ -402,18 +402,18 @@ exact, higher effort) while nothing of the fast reply was heard.
   transcript) waits for them at most `wordsWait` (0.25 s) past the moment it would have played, then `settling` decides
   within the same bound. Settled deltas are checked before the gate in each housekeeping tick, so an unfinished turn is
   taken back in the tick its words settle instead of released first. Live: 6 of 177 releases had no words yet.
-- **Early words just after her voice (T10-4, latency).** A turn begun inside `commandWindow` after her voice ended
-  (`waitForPartial`) while she is silent now decides on its early words, as over her voice (same guards; the reply is
+- **Early words just after Dee's voice (T10-4, latency).** A turn begun inside `commandWindow` after Dee's voice ended
+  (`waitForPartial`) while Dee is silent now decides on its early words, as over Dee's voice (same guards; the reply is
   gated) — but its settled words are still checked and the gate still waits for them (review: they take back
-  "…call my mom, and."; only over her voice do the early words mark them checked). Live: 6 such turns waited for
+  "…call my mom, and."; only over Dee's voice do the early words mark them checked). Live: 6 such turns waited for
   settled words (overhead 0.30–0.48 s). The release-gate median (0.02 → 0.08 s) is
   not a tune-10 change: a gate-bound turn's overhead is ≈ 0.68 s − model time (commit − `commitLag` + window + re-check),
   and the model was faster (p50 0.58 vs 0.66 s).
 
-### Tune 12 (live run 20261010-180956, `tune11-live.md`)
+### Tune 12 (live run 20261010-180956)
 
 - **The split-off rest of a continuer (T11-1, fan15 c05; user decision).** "Keep going, I'm listening." came back as two
-  items, "Keep going." | "I'm with some."; the second decided on its early words and she stopped to answer it. One
+  items, "Keep going." | "I'm with some."; the second decided on its early words and Dee stopped to answer it. One
   rule for the voice's hold verdict and the brain (`goOnWords` / `earlyWords` via `CloudVoice.isHoldBackchannel`): an
   item of the same hold that began at most `Backchannel.continuerTailGap` (0.8 s) after the end of the item before it,
   whose words are a recognised continuer (`FloorHold.followsContinuer`), is "go on" when its own words and sound are
@@ -421,21 +421,21 @@ exact, higher effort) while nothing of the fast reply was heard.
   number, a pitch that does not rise; no sound: not a tail). Everything else stays "unsure → stop and answer": "Keep
   going. | Wait, who made you?" and a long statement after "Keep going." are answered. The voice remembers such items
   after the hold (`continuerTailItems`) so their full words agree.
-- **DNA v11 (T11-2).** Asked about her day, small concrete things she did or noticed; never her process (DNA.md).
+- **DNA v11 (T11-2).** Asked about Dee's day, small concrete things Dee did or noticed; never Dee's process (DNA.md).
 
-### Tune 13 (live runs 20261010-201149 / -205810 / -214811, `tune12-live.md`)
+### Tune 13 (live runs 20261010-201149 / -205810 / -214811)
 
-- **Her own stop is no barge-in (T12-2, echo20 c05).** Her sentence cap, a second message, the token limit and a
-  narrated sentence stop her through `stopHerself`, which also clears `continuedThrough`: the cut they bring is never
+- **Dee's own stop is no barge-in (T12-2, echo20 c05).** Dee's sentence cap, a second message, the token limit and a
+  narrated sentence stop Dee through `stopHerself`, which also clears `continuedThrough`: the cut they bring is never
   "cut anyway after keep going", so no carry-on follows (live: the cap 2.58 s after "Keep going." asked for "Oh, okay,
   let's keep going…"). A barge-in's cut still carries on as in tune 8.
-- **A question asked over her is named (q08).** Removed in tune 14 (below).
-- **Her echo is a phrase of hers (T12-6, voice).** `HerWords.isHerEcho`: an item that asks ("?" or a rising sound) is
-  her echo only when all its words are hers, in her order, side by side; a short item (2–4 words) only when its words
-  match a run of hers in order (a word she never said stands for one of hers). Live: "Are you awake?" inside the
-  resume grace was deleted because "are" and "you" were somewhere in her reply.
+- **A question asked over Dee is named (q08).** Removed in tune 14 (below).
+- **Dee's echo is a phrase of Dee's (T12-6, voice).** `HerWords.isHerEcho`: an item that asks ("?" or a rising sound) is
+  Dee's echo only when all its words are Dee's, in Dee's order, side by side; a short item (2–4 words) only when its words
+  match a run of Dee's in order (a word Dee never said stands for one of Dee's). Live: "Are you awake?" inside the
+  resume grace was deleted because "are" and "you" were somewhere in Dee's reply.
 
-### Tune 14 (live run 20261010-224809, `tune13-live.md`)
+### Tune 14 (live run 20261010-224809)
 
 - **The answer-first note is plain again.** The tune-13 named form never fired live (the early-words request is made
   before the "?" delta), and the words at request time were a cut-off prefix in 18 of 44 eligible requests, or misheard:
@@ -465,10 +465,10 @@ ever runs without a DNA** (tested on the wire: `noResponseEverRunsWithoutADNA`,
 **Around a request (what CloudVoice's `respond`/`initiative` did).** CloudVoice has no DNA
 entry point, so the brain calls the session directly and does the rest itself: a reply
 still playing is cut first; no request goes out within `Options.stopGuard` (0.3 s) of a stop
-of her voice made by the brain or the app (`RealtimeBrain.stopVoice()`; CloudVoice's reply
+of Dee's voice made by the brain or the app (`RealtimeBrain.stopVoice()`; CloudVoice's reply
 gate keeps a response starting < 0.25 s after a stop silent, and the stop's cancel must reach
 the session first); the timeline gets `response_create_sent`; initiatives and canned lines
-are refused while `voice.userIsSpeaking`, while her voice plays or within 0.4 s of its end,
+are refused while `voice.userIsSpeaking`, while Dee's voice plays or within 0.4 s of its end,
 and are taken back (`stopVoice`, trace `.yieldedToUser`) if the user starts before their
 first audio. People-layer notes are added only
 outside a minimal DNA and within the 1400-token cap. With "Share memories" off the brain
@@ -501,7 +501,7 @@ unless an item is still playing, 300 s absolute). Initiatives are refused while 
 - `start`: key intake → `prepareClips` (when a key exists; `removeOtherVoices` after a
   voice change) → `RealtimeBrain(voice:host: self, toolbox:)` → `brain.start()`
   (instructions + tools + tool handler) → `voice.start()`.
-- Stops of her voice go through `realtime.stopVoice()` (so the brain's next request waits
+- Stops of Dee's voice go through `realtime.stopVoice()` (so the brain's next request waits
   out the stop).
 - Foreground: key intake, settings (share memories → `setToolbox`; voice/model → notice,
   next launch). Background: `brain.backgrounded()` (corpus and prosody frames cleared).
@@ -521,21 +521,21 @@ unless an item is still playing, 300 s absolute). Initiatives are refused while 
   voice's tune-8 rule: reactions, a cut-off continuer, three words ending like one, "Hang on." / "Goodbye." refused). Keep
   it public and keep its doc as the one rule.
 
-- **DeeVoice (tune 7, T6-3):** apply `scratchpad/tune7-brain-to-voice.patch`: the hold's short-burst rule
+- **DeeVoice (tune 7, T6-3):** the hold's short-burst rule
   (`Backchannel.isBackchannel(_:inHold: true)`) takes a misheard one- or two-word fragment as "go on", so the voice's
   own hold decision and the brain agree ("Put going.", "Grand.", "She.", "Done.").
-- **Voice harness (tune 7, T6-6):** the reply-length gate still counts generated sentences; the brain stops her at the
+- **Voice harness (tune 7, T6-6):** the reply-length gate still counts generated sentences; the brain stops Dee at the
   turn's budget, so count heard sentences too (heard ≤ 3 was 144/145 in tune 6).
 
 - **DeeRealtime (tune 6, T5-2):** done (the `openSpeech` patch is in checkpoint 6ba5e91; the `withKnownIssue`
   wrappers are gone).
 - **DeeVoice (tune 6, T5-3):** an "end the hold, keep the speculation" path (`stopSpeaking` / `cutReply` without
-  `specCut`, the speculative response's gate kept open, only her old items flushed). With it the brain asks for the
+  `specCut`, the speculative response's gate kept open, only Dee's old items flushed). With it the brain asks for the
   answer at the hold's commit (≈ 1.1–1.2 s instead of ≈ 1.5 s).
 
 - **Voice harness (tune 5):** `HarnessHost.bargedIn()` must sense `.bargeInAnswered` (not `.bargeIn`) for app parity;
   with `.bargeIn` the parity stop still cancels the brain's answer. Add content barge-ins (`expect: reply`) and a
-  "Stop." over her (`expect: silent`) to the regression suite.
+  "Stop." over Dee (`expect: silent`) to the regression suite.
 - **Live (tune 5):** watch `.speculationReleased` held time in kitchen15 / tv15 (cap now 1.0 s), `.unfinishedAim`,
   answered barge-ins, and the follow-up position in followup-dentist.
 

@@ -96,7 +96,7 @@ import Testing
     }
 
     @Test func calmDefaultVariesThroughTheDay() {
-        // Hours of quiet company: energy drains, she drifts from content to dreamy
+        // Hours of quiet company: energy drains, Dee drifts from content to dreamy
         // (and later sleepy) — never stuck on one face, never "curious".
         var s = InnerState(updatedAt: Self.t0)
         var seen: [Emotion] = []

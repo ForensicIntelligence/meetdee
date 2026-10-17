@@ -11,13 +11,13 @@ import Testing
 ///   stayed on the voice's quick-committed item (the applied openSpeech patch);
 ///   all 4 live cases (fan15 q05, kitchen15 q06, echo20 q02, echo20 q08).
 @Suite struct Tune7Tests {
-    /// One "question over her reply" from a live trace.
+    /// One "question over Dee's reply" from a live trace.
     struct Window: CustomStringConvertible {
         var name: String
-        /// Her reply that was playing, and where the voice cut it (the live truncate).
+        /// Dee's reply that was playing, and where the voice cut it (the live truncate).
         var herItem: String
         var cutMs: Int
-        /// The question (`speech_started` over her audio, quick-committed by the voice).
+        /// The question (`speech_started` over Dee's audio, quick-committed by the voice).
         var question: String
         var said: String
         /// The server's unannounced tail item of the same burst (`speech_stopped` with no
@@ -84,7 +84,7 @@ import Testing
 
     static let dna = "DEE DNA v7 · reply · response 8\n1 IDENTITY\nYou are Dee."
 
-    /// Her reply playing when the question starts (not finished: still audible).
+    /// Dee's reply playing when the question starts (not finished: still audible).
     func herReplyPlaying(_ h: Harness, _ w: Window) async throws {
         h.push(S.speechStarted("u0", ms: 30_000), S.speechStopped("u0", ms: 32_000), S.committed("u0"),
                S.userTranscript("u0", "I'm trying to plan a little garden."))
@@ -138,8 +138,8 @@ import Testing
         return h
     }
 
-    /// She answers: no `response.cancel`, both audio deltas reach the app, the reply
-    /// completes, and the history holds the question and her whole answer.
+    /// Dee answers: no `response.cancel`, both audio deltas reach the app, the reply
+    /// completes, and the history holds the question and Dee's whole answer.
     func expectAnswered(_ h: Harness, _ w: Window) async {
         #expect(h.sentCount("response.cancel") == 0, "\(w): the answer was cancelled")
         #expect(h.log.count { if case .assistantAudio(w.answerItem, _) = $0 { true } else { false } } == 2, "\(w)")
@@ -298,7 +298,7 @@ import Testing
         #expect(try await h.session.respondToSpeech(dna: Self.dna) == .sent)
         #expect(h.sentCount("input_audio_buffer.commit") == 0)
         #expect(h.sentCount("response.create") == 1)
-        // Her answer is playing; "q2" starts over it (maybe her echo: nothing is preempted).
+        // Dee's answer is playing; "q2" starts over it (maybe Dee's echo: nothing is preempted).
         h.push(S.responseCreated("r1"), S.messageAdded("r1", "a1"), S.audio("r1", "a1", ms: 300), S.speechStarted("q2"))
         await h.sync()
         await #expect(throws: RealtimeSessionError.self) { try await h.session.respondToSpeech(dna: Self.dna) }

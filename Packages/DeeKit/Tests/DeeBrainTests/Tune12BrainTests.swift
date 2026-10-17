@@ -19,7 +19,7 @@ import Testing
     typealias T2 = Tune2BrainTests
     typealias T10 = Tune10BrainTests
 
-    /// "Keep going," over her (a hold), the server ending it (`speech_stopped` + commit) while
+    /// "Keep going," over Dee (a hold), the server ending it (`speech_stopped` + commit) while
     /// they go straight on with the second half under a new item (its start 12 ms before the
     /// first one's end, as live: 49620 vs 49632). Its words come back while they talk.
     static func continuerThenMore(_ rig: BrainRig, second: String, talk: Double) async throws {
@@ -33,7 +33,7 @@ import Testing
         rig.push(Srv.userTranscript("item_k", "Keep going."))
         try await T10.talk(rig, talk - 0.2)
         // Live: our quick commit of the short second burst (50.684), its words all at once
-        // ~0.3 s later (50.98, 4 deltas in 13 ms) while she is still held, the full words 0.2 s
+        // ~0.3 s later (50.98, 4 deltas in 13 ms) while Dee is still held, the full words 0.2 s
         // after. A long burst is left to the server (its speech_stopped and commit).
         for _ in 0..<8 { try rig.quiet(0.05); await rig.settle() }
         if rig.voice.floorHold?.commitAt == nil {
@@ -51,8 +51,8 @@ import Testing
 
     /// Live c05: "Keep going, I'm listening." → "Keep going." (`continued`, deferred while they
     /// talked) | "I'm with some." (3 words the words don't know as a continuer) → `earlyWords`,
-    /// her reply flushed at 51.00 and the misheard words answered ("Oh, thanks! I'm glad you're
-    /// with me."). The second half is the rest of the backchannel: she goes on, nothing is asked.
+    /// Dee's reply flushed at 51.00 and the misheard words answered ("Oh, thanks! I'm glad you're
+    /// with me."). The second half is the rest of the backchannel: Dee goes on, nothing is asked.
     @Test func liveFan15C05TheSplitOffRestOfKeepGoingContinuesHer() async throws {
         let rig = try await BrainRig(tune: { $0.speculative = false })
         try await rig.start()
@@ -60,8 +60,8 @@ import Testing
         // to ~0.5 s early, inside "Keep going": measured 0.84–1.04 s, under the 1.2 s bound).
         try await Self.continuerThenMore(rig, second: "I'm with some.", talk: 0.5)
         #expect(!rig.brain.trace.contains(.earlyWords), "\(rig.brain.trace)")
-        #expect(rig.voice.floorHold == nil, "she went on")
-        #expect(!rig.trail().contains("truncate:item_a1"), "her reply is not cut: \(rig.trail())")
+        #expect(rig.voice.floorHold == nil, "Dee went on")
+        #expect(!rig.trail().contains("truncate:item_a1"), "Dee's reply is not cut: \(rig.trail())")
         #expect(rig.responseCreates().count == 1, "nothing answered: \(rig.trail()) \(rig.brain.trace)")
         rig.shutdown()
     }
@@ -72,7 +72,7 @@ import Testing
         try await rig.start()
         try await Self.continuerThenMore(rig, second: "Wait, who made you?", talk: 0.5)
         #expect(rig.responseCreates().count == 2, "answered: \(rig.trail()) \(rig.brain.trace)")
-        #expect(rig.trail().contains("truncate:item_a1"), "her reply ends where she paused: \(rig.trail())")
+        #expect(rig.trail().contains("truncate:item_a1"), "Dee's reply ends where Dee paused: \(rig.trail())")
         rig.shutdown()
     }
 

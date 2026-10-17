@@ -153,7 +153,7 @@ public enum Redact {
     }
 }
 
-/// Dee narrating her own process instead of just answering: "let me respond", "let me
+/// Dee narrating Dee's own process instead of just answering: "let me respond", "let me
 /// think about how to respond", "let me check what I remember", "I'll note that down"
 /// (DNA §3: no preamble; tools are called silently). Not a leak of the DNA, so it has
 /// its own gate (`narration`). Tune 1 live: 19 of 540 replies, mostly spoken before a

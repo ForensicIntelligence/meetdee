@@ -258,7 +258,7 @@ public struct TurnDetection: Codable, Sendable, Equatable {
     /// `server_vad`: the turn ends after `silenceDurationMs` of silence (API
     /// default 500), with `prefixPaddingMs` of audio kept before the onset (300)
     /// and an activation `threshold` 0…1 (0.5). `idleTimeoutMs` (nil: none) makes
-    /// the server answer by itself after that much silence past her last audio
+    /// the server answer by itself after that much silence past Dee's last audio
     /// (`RealtimeSession` cancels such responses). nil fields are omitted.
     public static func serverVAD(threshold: Double? = nil, prefixPaddingMs: Int? = nil,
                                  silenceDurationMs: Int? = nil, idleTimeoutMs: Int? = nil,

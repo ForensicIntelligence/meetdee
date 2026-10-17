@@ -39,7 +39,7 @@ import Testing
 
     /// fillers-holds-echo30 t03: "I was going to call my mom and" came back as
     /// "…my mom Ann." and was answered across the continuation. The deltas settle
-    /// ~0.2 s before the full transcript and before her first audio: the unheard
+    /// ~0.2 s before the full transcript and before Dee's first audio: the unheard
     /// fast reply is taken back and the continuation answers both.
     @Test func aTrailingAndHeardAsAnnIsHeldFromTheDeltas() async throws {
         let rig = try await BrainRig(tune: { $0.trailingWait = 1.0 })
@@ -63,7 +63,7 @@ import Testing
     }
 
     /// pauses-echo10 p20c: "Let me think. [2 s] Okay, tell me one fact about
-    /// octopuses." The transcript said only "Let me." and she answered in the pause.
+    /// octopuses." The transcript said only "Let me." and Dee answered in the pause.
     @Test func letMeIsAHoldFromTheDeltas() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -97,7 +97,7 @@ import Testing
     }
 
     /// dna-joke / feelings-echo30 j01: "Want to hear a joke? Why did the scarecrow
-    /// win an award?" + pause: she answered at the question and was cut by the
+    /// win an award?" + pause: Dee answered at the question and was cut by the
     /// punchline. A riddle's set-up waits a beat; nothing follows → answered.
     @Test func aRiddleSetUpWaitsABeat() async throws {
         let rig = try await BrainRig(tune: { $0.riddleWait = 0.4 })
@@ -110,12 +110,12 @@ import Testing
         #expect(await rig.until { rig.count("response.cancel") >= 1 })
         rig.push(Srv.responseDone("resp_1", status: "cancelled"))
         rig.push(Srv.userTranscript("item_u1", "Want to hear a joke? Why did the scarecrow win an award?"))
-        #expect(await rig.until { rig.responseCreates().count == 2 }, "no punchline came: she answers")
+        #expect(await rig.until { rig.responseCreates().count == 2 }, "no punchline came: Dee answers")
         rig.shutdown()
     }
 
     /// A command answered fast (it was ordinary turn-taking) is taken back while
-    /// unheard (the old command window waited 0.4 s on every turn after her voice).
+    /// unheard (the old command window waited 0.4 s on every turn after Dee's voice).
     @Test func aCommandsFastReplyIsTakenBack() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -130,8 +130,8 @@ import Testing
 
     // MARK: Backchannels (user decision: "keep going" is not a barge-in)
 
-    /// long-* c05 "Keep going, I'm listening." over her voice: she goes on. No
-    /// reply, no stop of her voice, the turn is released.
+    /// long-* c05 "Keep going, I'm listening." over Dee's voice: Dee goes on. No
+    /// reply, no stop of Dee's voice, the turn is released.
     @Test func keepGoingOverHerVoiceLetsHerGoOn() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -139,7 +139,7 @@ import Testing
         #expect(await rig.until { rig.responseCreates().count == 1 })
         rig.push(Srv.responseCreated("resp_1"), Srv.messageAdded("resp_1", "item_a1"))
         #expect(await rig.until { rig.brain.trace.contains(.responseStarted(kind: "reply")) })
-        for _ in 0..<5 { rig.push(Srv.audio("resp_1", "item_a1", Sig.pcm(ms: 100))) }   // her audio is out
+        for _ in 0..<5 { rig.push(Srv.audio("resp_1", "item_a1", Sig.pcm(ms: 100))) }   // Dee's audio is out
         rig.brain.inject(.sentenceStarted(itemID: "item_a1", index: 0, text: "So the volcano went whoosh."))
         await rig.settle()
         rig.push(Srv.speechStarted("item_u2", ms: 3000))
@@ -152,13 +152,13 @@ import Testing
         #expect(await rig.until { rig.host.heardLog.count == 1 })
         try? await Task.sleep(for: .milliseconds(200))
         #expect(rig.responseCreates().count == 1, "no reply to a backchannel")
-        #expect(rig.count("response.cancel") == 0 && !rig.trail().contains { $0.hasPrefix("truncate:") }, "her voice was not stopped")
+        #expect(rig.count("response.cancel") == 0 && !rig.trail().contains { $0.hasPrefix("truncate:") }, "Dee's voice was not stopped")
         #expect(await rig.until { await rig.session.hasUnansweredUserTurn == false })
         rig.shutdown()
     }
 
-    /// long-echo10 c02 "Don't stop, keep going." after the barge-in already cut her
-    /// (it decides on the sound): she carries on from where she stopped.
+    /// long-echo10 c02 "Don't stop, keep going." after the barge-in already cut Dee
+    /// (it decides on the sound): Dee carries on from where Dee stopped.
     @Test func keepGoingAfterACutCarriesOn() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -185,7 +185,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// Speech over her voice that is a real turn ("Wait, what's a caldera?") is
+    /// Speech over Dee's voice that is a real turn ("Wait, what's a caldera?") is
     /// answered at once from its first words, not after the full transcript.
     @Test func aRealTurnOverHerVoiceIsAnsweredFromItsFirstWords() async throws {
         let rig = try await BrainRig()
@@ -207,7 +207,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// No words in time over her voice: answered fast after `overlapWait`.
+    /// No words in time over Dee's voice: answered fast after `overlapWait`.
     @Test func overlappedSpeechWithoutWordsIsAnsweredAfterTheWait() async throws {
         let rig = try await BrainRig(tune: { $0.overlapWait = 0.3 })
         try await rig.start()
@@ -328,7 +328,7 @@ import Testing
     }
 
     /// Live A/B 20261009-171052 (server_vad 300 ms): the first halves the server
-    /// committed at the pause and she answered.
+    /// committed at the pause and Dee answered.
     @Test func pausedHalvesAreUnfinished() {
         for t in ["So yesterday I went to the.", "The thing is.", "I think the answer is.", "What I really want to know is.",
                   "I'm going to.", "My favorite thing about weekends is", "It was a lot of", "I'll go with",

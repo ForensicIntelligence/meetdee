@@ -12,7 +12,7 @@ import Testing
 @Suite(.serialized) @MainActor struct Tune3BrainTests {
     typealias T2 = Tune2BrainTests
 
-    /// Her reply `resp_1` / `item_a1` is playing (audio out, first sentence started).
+    /// Dee's reply `resp_1` / `item_a1` is playing (audio out, first sentence started).
     static func sheIsTalking(_ rig: BrainRig, _ sentence: String = "So the volcano went whoosh.") async {
         rig.utterance("item_u1")
         _ = await rig.until { rig.responseCreates().count == 1 }
@@ -23,7 +23,7 @@ import Testing
         await rig.settle()
     }
 
-    /// A user item over her voice: started, stopped, committed.
+    /// A user item over Dee's voice: started, stopped, committed.
     static func over(_ rig: BrainRig, _ item: String) async {
         rig.push(Srv.speechStarted(item, ms: 3000))
         await rig.settle()
@@ -80,8 +80,8 @@ import Testing
     // MARK: (2) Backchannels and floor holds
 
     /// F4, t2-backchannel-kitchen15 bc02 ("Mm-hm." heard as "MMHN.") and
-    /// t2-backchannel-echo20 bc02 ("HM."): the voice resumed her both times, then the
-    /// brain's reply cut her. Now both are backchannels: no reply.
+    /// t2-backchannel-echo20 bc02 ("HM."): the voice resumed Dee both times, then the
+    /// brain's reply cut Dee. Now both are backchannels: no reply.
     @Test(arguments: ["MMHN.", "HM.", "Mm.", "Uh-huh."])
     func aHumOverHerVoiceIsNotAnswered(_ hum: String) async throws {
         let rig = try await BrainRig()
@@ -95,7 +95,7 @@ import Testing
         #expect(await rig.until { rig.host.heardLog.count == 1 })
         try? await Task.sleep(for: .milliseconds(200))
         #expect(rig.responseCreates().count == 1, "\(hum): no reply to a hum")
-        #expect(rig.count("response.cancel") == 0, "her voice was not stopped")
+        #expect(rig.count("response.cancel") == 0, "Dee's voice was not stopped")
         rig.shutdown()
     }
 
@@ -135,9 +135,9 @@ import Testing
 
     // MARK: (3) Narration in any sentence
 
-    /// F6, t2-fillers-clean f01 verbatim: the preamble was her second sentence, past
-    /// the old 7-word window, and was heard. Now she stops before it; what she already
-    /// said stands (no retry: she answered).
+    /// F6, t2-fillers-clean f01 verbatim: the preamble was Dee's second sentence, past
+    /// the old 7-word window, and was heard. Now Dee stops before it; what Dee already
+    /// said stands (no retry: Dee answered).
     @Test func narrationInALaterSentenceIsNeverHeard() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -150,7 +150,7 @@ import Testing
         T2.assistantDelta(rig, "resp_1", "item_a1", "Let me think about how to respond. ")
         T2.assistantDelta(rig, "resp_1", "item_a1", "Bummer!")
         #expect(await rig.until { rig.brain.trace.contains(.narrationStop) }, "\(rig.brain.trace)")
-        #expect(!rig.brain.trace.contains(.preamble(cut: true)), "nothing cut while her answer plays")
+        #expect(!rig.brain.trace.contains(.preamble(cut: true)), "nothing cut while Dee's answer plays")
         rig.brain.inject(.sentenceStarted(itemID: "item_a1", index: 0, text: "Oh no, that sounds a bit disappointing."))
         rig.brain.inject(.sentenceFinished(itemID: "item_a1", index: 0, text: "Oh no, that sounds a bit disappointing.", heard: true))
         try? await Task.sleep(for: .milliseconds(100))
@@ -159,7 +159,7 @@ import Testing
         #expect(await rig.until { rig.brain.trace.contains(.preamble(cut: true)) }, "stopped before the narration")
         rig.push(Srv.responseDone("resp_1"))
         try? await Task.sleep(for: .milliseconds(200))
-        #expect(rig.responseCreates().count == 1, "no retry: she had answered")
+        #expect(rig.responseCreates().count == 1, "no retry: Dee had answered")
         rig.shutdown()
     }
 

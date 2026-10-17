@@ -8,10 +8,10 @@ import Foundation
 
 /// How a harness run treats the wake phrase (`--wake`, required on `run`).
 public enum WakeMode: String, Codable, Sendable, CaseIterable {
-    /// The 28 tune2 scenarios' baseline: she is awake for the whole run (never DORMANT),
+    /// The 28 tune2 scenarios' baseline: Dee is awake for the whole run (never DORMANT),
     /// exactly today's behaviour. Asserted: a run that ever goes dormant fails `wake_mode`.
     case alwaysOpen = "always-open"
-    /// She starts DORMANT; only the on-device wake phrase (or a tap) opens a window.
+    /// Dee starts DORMANT; only the on-device wake phrase (or a tap) opens a window.
     case phrase
 }
 
@@ -188,7 +188,7 @@ public enum WakeSuite {
             s("wk-rewake-clean", "Answered, 65 s quiet (the window closes), then a re-wake and a follow-up.", [
                 Step(say: "wq04"), Step(silence: 65, gapAfter: 1), Step(say: "wd07", expect: .any), Step(say: "q01"),
             ]),
-            s("wk-backchannel-echo20", "A backchannel in the first window turn: she keeps talking.",
+            s("wk-backchannel-echo20", "A backchannel in the first window turn: Dee keeps talking.",
               echo: EchoConfig(gainDB: -20, delayMs: 80), aecOff: true, [
                 Step(say: "wd11", expect: .any), Step(say: "l05", bargeIn: .init(say: "c05", atMs: 1500, backchannel: true)),
             ]),
@@ -245,7 +245,7 @@ public struct WakeLiveResult: Codable, Sendable, Equatable {
     public struct Wake: Codable, Sendable, Equatable {
         public var fixture: String
         /// Harness-clock seconds: phrase end of speech; first candidate cue; the hit;
-        /// the window's `eyesWake`; the first socket opened; her first audio after it.
+        /// the window's `eyesWake`; the first socket opened; Dee's first audio after it.
         public var phraseEnd: Double
         public var candidateAt: Double?
         public var hitAt: Double?
@@ -263,7 +263,7 @@ public struct WakeLiveResult: Codable, Sendable, Equatable {
     public var windows: [WakeSuite.Interval] = []
     /// The close a scenario expects to measure (the TV-bed scenario): wake → close.
     public var tvWindowSeconds: Double?
-    /// User utterances answered while she was DORMANT (after a close): must be none.
+    /// User utterances answered while Dee was DORMANT (after a close): must be none.
     public var dormantAnswered: [String] = []
     public init(scenario: String, mode: String) { self.scenario = scenario; self.mode = mode }
 }
@@ -281,7 +281,7 @@ public struct WakeInvariantResult: Codable, Sendable, Equatable {
     public var hitWithNetworkDown: Bool
     /// `eyesWake` came before the first connect attempt.
     public var eyesBeforeConnect: Bool
-    /// A server / LAN transcript saying the phrase woke her (must be false).
+    /// A server / LAN transcript saying the phrase woke Dee (must be false).
     public var serverTranscriptWoke: Bool
     /// Hosts contacted after the wake (W3: no crossover).
     public var hostsAfterWake: [String]

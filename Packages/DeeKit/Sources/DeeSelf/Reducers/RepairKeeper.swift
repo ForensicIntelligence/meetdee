@@ -14,7 +14,7 @@ import Foundation
 /// sentences: playful / mischievous / giddy — answered clearly negative, hostile or
 /// dismissive, or "not funny" after any playful sentence; a neutral reply is no evidence).
 /// `fine → strained` at ≥ 0.5, `strained → fine` below 0.2 with a one-time self-repair
-/// note when Dee caused it (misread, failed joke, or an interruption she has not already
+/// note when Dee caused it (misread, failed joke, or an interruption Dee has not already
 /// apologised for: Beats' `"sorrySaid"` clears that cause).
 ///
 /// **Rupture** (`* → ruptured`) only on a user-caused step (heard, touch, gesture): a
@@ -28,7 +28,7 @@ import Foundation
 /// later user step, or a second bid. Laughter is a bid (and a social step) only within
 /// 15 s of Dee speaking (not a laughing TV). After 10 min of together time with anger
 /// < 0.1 and resentment < 0.2 a rupture ends silently (`→ fine`, no note: a false alarm
-/// must not mute her for days). Reconciled raises the reconciled note (issued at
+/// must not mute Dee for days). Reconciled raises the reconciled note (issued at
 /// most once) and a `contentSquint`, deactivates Dee's own boundary (no sulking), and
 /// returns to fine after 2 min (or at the next conversation). A repair under way
 /// (`repairing`: they already made a bid) ends silently with its conversation, also when
@@ -80,10 +80,10 @@ public struct RepairKeeper: SubReducer {
     /// Playful sentences in one reply that make it a joke (review finding 2).
     public static let jokeSentences = 2
     /// Laughter is a reconciliation bid (and a social step) only this soon after Dee spoke:
-    /// a laughing TV is not making up with her (review finding 13).
+    /// a laughing TV is not making up with Dee (review finding 13).
     public static let laughBidWindow: TimeInterval = 15
     /// A rupture eases silently (no "made up" note) after this much together time with
-    /// her anger and resentment calm (review finding 13).
+    /// Dee's anger and resentment calm (review finding 13).
     public static let calmExit: TimeInterval = 600
 
     public static let hostileAt = 0.5
@@ -214,7 +214,7 @@ public struct RepairKeeper: SubReducer {
         for s in inbox where s.name == "awkwardSilence" { addAwkwardness(Self.silenceAwkwardness, deeCaused: false, &m) }
 
         let laughedNow = inbox.contains { Self.isSignal($0, "laughter") } || Self.isLaughter(p)
-        // Laughter answers Dee only shortly after she spoke (not a laughing TV).
+        // Laughter answers Dee only shortly after Dee spoke (not a laughing TV).
         let laughed = laughedNow && (lastDeeSpoke.map { now.timeIntervalSince($0) <= Self.laughBidWindow } ?? false)
         if laughed { playfulAt = nil; anyPlayfulAt = nil }
         if let at = playfulAt, now.timeIntervalSince(at) > Self.jokeWindow { playfulAt = nil }
@@ -720,7 +720,7 @@ public struct RepairKeeper: SubReducer {
         case .gesture(let g):
             return g.lowercased() == "thumbsup" || g.lowercased() == "thumbs up"
         case .sound:
-            // Only laughter that answers Dee (`laughed`, within 15 s of her speaking).
+            // Only laughter that answers Dee (`laughed`, within 15 s of Dee speaking).
             return laughed && isLaughter(p)
         default:
             return laughed

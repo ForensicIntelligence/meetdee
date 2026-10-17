@@ -11,7 +11,7 @@ import DeeRealtime
 /// `/v1/chat/completions` on the LAN (`CascadeChat`) → `CascadeVoice` (text-to-speech), in
 /// realtime event order:
 /// speech_started/stopped (on its own fed-frame clock) → committed (always before transcripts)
-/// → transcription delta/completed → response.created **at the first chat token** →
+/// → transcription delta/completed; response.created **as soon as response.create arrives** →
 /// output_item.added → per sentence transcript.delta **then** audio.delta → … → response.done.
 ///
 /// It never touches the network itself: every request goes through the parts' `Transport`.
@@ -170,7 +170,11 @@ actor CascadeEngine {
     private var turnItems: [Int: String] = [:]
     private var pendingTranscripts: Set<String> = []
     private var rollingSummary: [String] = []
-    private var lastStable: String?
+    /// History items already in the rolling summary, and the first item kept (`trimHistory`).
+    private var summarized: Set<String> = []
+    private var historyStart: String?
+    /// The stable DNA in the cached prefix (`pin`).
+    private var pinnedStable: String?
 
     // Responses
     final class Run: @unchecked Sendable {
@@ -399,8 +403,21 @@ actor CascadeEngine {
         runToken += 1
         let run = Run(token: runToken, eventID: eventID, params: params)
         current = run
+        // response.created at once, as OpenAI does: the session can cancel this response by id
+        // while it waits for transcripts or a first token (0.6 LAN verify: created only at the
+        // first token left a reply nobody could cancel for 8–17 s, and every response.create
+        // meanwhile failed with conversation_already_has_active_response).
+        ensureCreated(run)
         let outOfBand = params?.conversation == "none"
-        // Debounce: an in-band reply waits for the transcripts it answers (no HTTP before them).
+        // The wait for transcripts runs inside the response's task, never in the client pump: a
+        // pump parked here held back audio appends and the session's cancels for up to
+        // `transcriptWait` (0.6 smoke: late commits, a cancel landing after the next request,
+        // `conversation_already_has_active_response`).
+        run.task = Task { await self.awaitTranscripts(run, outOfBand: outOfBand) }
+    }
+
+    /// Debounce: an in-band reply waits for the transcripts it answers (no HTTP before them).
+    private func awaitTranscripts(_ run: Run, outOfBand: Bool) async {
         if !outOfBand {
             let deadline = Date().addingTimeInterval(options.transcriptWait)
             while !pendingTranscripts.isEmpty, Date() < deadline, !run.cancelled {
@@ -408,8 +425,19 @@ actor CascadeEngine {
             }
             if run.cancelled { return }
         }
-        warmTask = nil   // a running warm-up keeps going (same prefix: it fills the cache this request reuses)
-        run.task = Task { await self.perform(run) }
+        // One request at a time (the lane): a running warm-up of this request's prefix keeps
+        // going and this request waits for it (it fills the cache this one reuses); a warm-up
+        // of another prefix is cancelled, and this request waits until its stream has closed.
+        if let w = warmTask {
+            let dna = items.last(where: { $0.id.hasPrefix("dna_") }).flatMap { item -> String? in
+                if case .system(let t) = item.kind { t } else { nil }
+            }
+            let key = Self.prefixKey(buildRequest(params: run.params, outOfBand: outOfBand,
+                                                  textOnly: run.params?.outputModalities == ["text"], dna: dna))
+            if outOfBand || key != warmedPrefix { w.cancel() }
+            warmTask = nil
+        }
+        await perform(run)
     }
 
     private func cancel(responseID: String?) {
@@ -665,8 +693,15 @@ actor CascadeEngine {
 
     // MARK: Prompt
 
-    /// [system: session instructions + speech style + tool policy] [system: DNA stable, resent only when changed]
-    /// [system: rolling summary] [history ≤ N heard messages, tool calls/results] [user: DNA volatile + notes + transcript].
+    /// Layout (0.6 LAN verify: the cached prefix must be byte-identical between turns):
+    /// `[system: session instructions + speech style + tool policy] [system: stable DNA, pinned (pin)]
+    /// [system: seeds] [system: rolling summary] [history]` — the prefix (`prefixCount`) — then the
+    /// per-turn part: `[user: per-turn DNA (CacheDNASplit.volatile + pinned updates) + notes + THEY JUST SAID …]`.
+    /// Both servers measured move every system message to the top of the prompt (Ollama; lithos-metal
+    /// on port 8000), so the per-turn part is on the user message; only a server known to keep system
+    /// messages in place, with `turnContextAsSystem`, gets it as the last system message before the user turn.
+    /// History is trimmed in steps (`historyTrimStep`), so the summary and the first kept message
+    /// change only every few turns.
     func buildRequest(params: ResponseParams?, outOfBand: Bool, textOnly: Bool, dna: String?, maxTokensOverride: Int? = nil) -> ChatRequest {
         var maxTokens = options.defaultMaxTokens
         if case .limit(let n) = params?.maxOutputTokens { maxTokens = min(n, 1024) }
@@ -689,16 +724,11 @@ actor CascadeEngine {
         sys1 += "\n\n" + CascadePrompt.speechStyle
         if useTools { sys1 += "\n\n" + CascadePrompt.toolPolicy }
         var messages: [ChatMessage] = [.system(sys1)]
-        let split = dna.map { DNASplit($0) }
-        if let stable = split?.stable, !stable.isEmpty {
-            messages.append(.system(stable))
-            lastStable = stable
-        } else if let lastStable {
-            messages.append(.system(lastStable))
-        }
+        let split = dna.map { CacheDNASplit($0) }
+        let stableAt = messages.count
         // Seeds (system items before the first user turn) stay with the prefix; later system items are per-turn notes.
         var notes: [String] = []
-        var history: [ChatMessage] = []
+        var history: [(id: String, message: ChatMessage)] = []
         var seeds: [String] = []
         var sawUser = false
         for item in items where !item.id.hasPrefix("dna_") {
@@ -708,50 +738,135 @@ actor CascadeEngine {
             case .user(let t):
                 sawUser = true
                 notes.removeAll()   // notes before an older user turn were for that turn
-                if let t, !t.isEmpty { history.append(.user(t)) }
+                if let t, !t.isEmpty { history.append((item.id, .user(t))) }
             case .assistant(let a):
                 let t = a.text
-                if !t.isEmpty { history.append(.assistant(t)) }
+                if !t.isEmpty { history.append((item.id, .assistant(t))) }
             case .functionCall(let callID, let name, let args):
-                if let last = history.last, last.role == .assistant, last.toolCalls.isEmpty == false || last.content.isEmpty {
-                    history[history.count - 1].toolCalls.append(ChatToolCall(id: callID, name: name, arguments: args))
+                if let last = history.last, last.message.role == .assistant,
+                   last.message.toolCalls.isEmpty == false || last.message.content.isEmpty {
+                    history[history.count - 1].message.toolCalls.append(ChatToolCall(id: callID, name: name, arguments: args))
                 } else {
-                    history.append(ChatMessage(role: .assistant, content: "",
-                                               toolCalls: [ChatToolCall(id: callID, name: name, arguments: args)]))
+                    history.append((item.id, ChatMessage(role: .assistant, content: "",
+                                                         toolCalls: [ChatToolCall(id: callID, name: name, arguments: args)])))
                 }
             case .functionOutput(let callID, let output):
                 let name = items.lazy.compactMap { i -> String? in
                     if case .functionCall(let c, let n, _) = i.kind, c == callID { n } else { nil }
                 }.first
-                history.append(ChatMessage(role: .tool, content: output, toolCallID: callID, toolName: name))
+                history.append((item.id, ChatMessage(role: .tool, content: output, toolCallID: callID, toolName: name)))
             }
         }
         for s in seeds { messages.append(.system(s)) }
-        // Keep the last N messages; never start on a tool result.
-        if history.count > options.historyLimit {
-            let dropped = history.prefix(history.count - options.historyLimit)
-            for m in dropped where m.role == .user || (m.role == .assistant && !m.content.isEmpty) {
-                rollingSummary.append((m.role == .user ? "They said: " : "You said: ") + String(m.content.prefix(120)))
-            }
-            if rollingSummary.count > 8 { rollingSummary.removeFirst(rollingSummary.count - 8) }
-            history = Array(history.suffix(options.historyLimit))
-            while let first = history.first, first.role == .tool || (first.role == .assistant && !first.toolCalls.isEmpty) {
-                history.removeFirst()
-            }
+        let cutBefore = historyStart
+        history = trimHistory(history)
+        // The stable DNA (pinned: its updates ride with the turn until the prefix changes anyway).
+        var updates = ""
+        if let stable = split?.stable, !stable.isEmpty {
+            let pinned = pin(stable, rebase: historyStart != cutBefore)
+            messages.insert(.system(pinned.prefix), at: stableAt)
+            updates = pinned.updates
+        } else if let pinnedStable {
+            messages.insert(.system(pinnedStable), at: stableAt)
         }
         if !rollingSummary.isEmpty {
             messages.append(.system("EARLIER IN THIS CONVERSATION (summary):\n" + rollingSummary.joined(separator: "\n")))
         }
-        let volatile = split?.volatile ?? ""
-        // The per-turn context rides on the last user message (Ollama hoists every system message).
-        if let lastUser = history.lastIndex(where: { $0.role == .user }), lastUser == history.count - 1 || history[(lastUser + 1)...].allSatisfy({ $0.role == .tool || $0.role == .assistant && $0.content.isEmpty }) {
-            history[lastUser].content = CascadePrompt.userTurn(volatileDNA: volatile, notes: notes, transcript: history[lastUser].content)
-        } else {
-            history.append(.user(CascadePrompt.userTurn(volatileDNA: volatile, notes: notes, transcript: nil)))
+        var turn = history.map(\.message)
+        let volatile = CascadePrompt.insertAfterHeader(updates, into: split?.volatile ?? "")
+        // The newest user turn the reply answers (tool calls and results after it stay after it).
+        let pending: Int? = turn.lastIndex(where: { $0.role == .user }).flatMap { i in
+            i == turn.count - 1 || turn[(i + 1)...].allSatisfy({ $0.role == .tool || $0.role == .assistant && $0.content.isEmpty }) ? i : nil
         }
-        messages += history
-        return ChatRequest(model: options.model, messages: messages,
-                           tools: useTools ? tools.map(ChatTool.init) : [], maxTokens: maxTokens, keepAlive: options.keepAlive)
+        let hoists = !options.turnContextAsSystem || chat.hoistsSystemMessages
+        var tail: [ChatMessage] = []
+        if let i = pending {
+            let transcript = turn[i].content
+            tail = Array(turn[i...])
+            turn.removeSubrange(i...)
+            if hoists {
+                tail[0].content = CascadePrompt.userTurn(volatileDNA: volatile, notes: notes, transcript: transcript)
+            } else {
+                tail[0].content = CascadePrompt.userTurn(volatileDNA: "", notes: [], transcript: transcript)
+                if let context = CascadePrompt.turnContext(volatileDNA: volatile, notes: notes) { tail.insert(.system(context), at: 0) }
+            }
+        } else if hoists {
+            tail = [.user(CascadePrompt.userTurn(volatileDNA: volatile, notes: notes, transcript: nil))]
+        } else {
+            tail = [.user(CascadePrompt.userTurn(volatileDNA: "", notes: [], transcript: nil))]
+            if let context = CascadePrompt.turnContext(volatileDNA: volatile, notes: notes) { tail.insert(.system(context), at: 0) }
+        }
+        messages += turn
+        let prefix = messages.count
+        messages += tail
+        var request = ChatRequest(model: options.model, messages: messages,
+                                  tools: useTools ? tools.map(ChatTool.init) : [], maxTokens: maxTokens, keepAlive: options.keepAlive)
+        request.prefixCount = prefix
+        return request
+    }
+
+    /// Keeps at most `historyLimit` messages; when over, drops down to `historyLimit − historyTrimStep`
+    /// at once (the cut moves every few turns, not every turn). Dropped user / spoken messages go
+    /// to the rolling summary once each. Never starts on a tool result or a bare tool call.
+    private func trimHistory(_ all: [(id: String, message: ChatMessage)]) -> [(id: String, message: ChatMessage)] {
+        var start = historyStart.flatMap { id in all.firstIndex { $0.id == id } } ?? 0
+        if all.count - start > options.historyLimit {
+            start = max(0, all.count - max(1, options.historyLimit - options.historyTrimStep))
+        }
+        while start < all.count, all[start].message.role == .tool
+                || (all[start].message.role == .assistant && !all[start].message.toolCalls.isEmpty) {
+            start += 1
+        }
+        historyStart = start < all.count ? all[start].id : nil
+        for entry in all[..<start] where !summarized.contains(entry.id) {
+            summarized.insert(entry.id)
+            let m = entry.message
+            guard m.role == .user || (m.role == .assistant && !m.content.isEmpty) else { continue }
+            rollingSummary.append((m.role == .user ? "They said: " : "You said: ") + String(m.content.prefix(120)))
+        }
+        if rollingSummary.count > 8 { rollingSummary.removeFirst(rollingSummary.count - 8) }
+        return Array(all[start...])
+    }
+
+    /// The stable DNA for the prefix, and what changed in it since it was pinned.
+    ///
+    /// Measured on port 8000 (lithos-metal, 0.6 LAN verify): a reply whose prompt differs from
+    /// the last one only near its end starts in 0.19 s; any change in a system message costs the
+    /// whole prefill again (8.3–8.6 s for 3.4k tokens), and the "stable" DNA still changes every
+    /// few replies (a temperament byte drifting 191 → 192, a fact just learned). So the prefix
+    /// keeps the stable DNA as first sent; changed or new lines go with the turn, under their
+    /// section's heading marked "(updated)", which the DNA's own rule ("the newest replaces all
+    /// earlier ones") lets win. It is re-pinned when the prefix changes anyway (`rebase`: the
+    /// history cut moved), when who Dee is changes (section 1), when a line went away with
+    /// nothing replacing it, or after `maxPinnedUpdates` updated lines.
+    private func pin(_ stable: String, rebase: Bool) -> (prefix: String, updates: String) {
+        guard let pinned = pinnedStable, !rebase, pinned != stable else {
+            if pinnedStable == nil || rebase { pinnedStable = stable }
+            return (pinnedStable ?? stable, "")
+        }
+        let old = DNASplit.sections(of: pinned)
+        let new = DNASplit.sections(of: stable)
+        var blocks: [String] = []
+        var count = 0
+        var repin = false
+        for n in Set(old.keys).union(new.keys).sorted() {
+            let o = (old[n] ?? "").split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            let w = (new[n] ?? "").split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            if o == w { continue }
+            let oSet = Set(o), wSet = Set(w)
+            let added = w.dropFirst().filter { !oSet.contains($0) && !$0.isEmpty }
+            let removed = o.dropFirst().filter { !wSet.contains($0) && !$0.isEmpty }
+            if n == 1 || o.first != w.first || (added.isEmpty && !removed.isEmpty) { repin = true; break }
+            if !added.isEmpty {
+                blocks.append(([(w.first ?? "\(n)") + " (updated)"] + added).joined(separator: "\n"))
+                count += added.count
+            }
+        }
+        if repin || count > options.maxPinnedUpdates {
+            pinnedStable = stable
+            return (stable, "")
+        }
+        return (pinned, blocks.joined(separator: "\n"))
     }
 
     // MARK: Warm-ups
@@ -762,19 +877,29 @@ actor CascadeEngine {
             if case .system(let t) = item.kind { t } else { nil }
         }
         var request = buildRequest(params: nil, outOfBand: false, textOnly: false, dna: dna, maxTokensOverride: 1)
-        // Prefix only: the per-turn user message is replaced by a dot (the cache keeps everything before it).
-        if let last = request.messages.indices.last, request.messages[last].role == .user {
-            request.messages[last].content = "."
-        }
-        let key = request.messages.dropLast().map { $0.role.rawValue + $0.content }.joined().hashValue
+        // Prefix only, then a dot for the user turn (the cache keeps everything before it).
+        request.messages = Array(request.messages.prefix(request.prefixCount)) + [.user(".")]
+        let key = Self.prefixKey(request)
         guard warmedPrefix != key else { return }
         warmedPrefix = key
-        warmTask?.cancel()
+        warmTask?.cancel()   // a stale warm-up: its stream closes (lane) before this one is sent
         stats.update { $0.warmUps += 1 }
         let chat = self.chat
         warmTask = Task {
             do { for try await _ in chat.stream(request, nativeRoute: false) {} } catch {}
         }
+    }
+
+    /// The cached prefix of `request` (what a warm-up fills).
+    static func prefixKey(_ request: ChatRequest) -> Int {
+        var h = Hasher()
+        for m in request.messages.prefix(request.prefixCount) {
+            h.combine(m.role.rawValue); h.combine(m.content)
+            for c in m.toolCalls { h.combine(c.id); h.combine(c.name); h.combine(c.arguments) }
+            h.combine(m.toolCallID)
+        }
+        h.combine(request.tools.map(\.name))
+        return h.finalize()
     }
 }
 

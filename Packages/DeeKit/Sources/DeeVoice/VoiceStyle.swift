@@ -1,11 +1,11 @@
 import DeeCore
 
-/// How Dee's voice sounds right now, from her mood (`Projector.voice`). The
+/// How Dee's voice sounds right now, from Dee's mood (`Projector.voice`). The
 /// realtime voice can't take pitch or volume per sentence; `sessionSpeed` maps
 /// the rate onto the session's `audio.output.speed` (applied between turns), and
 /// the mood itself reaches the model through the per-turn cue.
 public struct VoiceStyle: Sendable, Equatable {
-    /// Pitch multiplier, 0.5…2 (1 = her natural voice).
+    /// Pitch multiplier, 0.5…2 (1 = Dee's natural voice).
     public var pitch: Float
     /// Speaking rate on a 0…1 scale (0.5 = typical); see `sessionSpeed`.
     public var rate: Float
@@ -32,19 +32,19 @@ public struct VoiceStyle: Sendable, Equatable {
     static let basePitch = 1.35
     static let baseRate = 0.52
     static let pitchRange: ClosedRange<Double> = 0.5...2.0
-    /// Kept well inside 0…1 so she always stays intelligible.
+    /// Kept well inside 0…1 so Dee always stays intelligible.
     static let rateRange: ClosedRange<Double> = 0.36...0.64
     static let volumeRange: ClosedRange<Double> = 0.4...1.0
 
     /// The voice for a feeling.
     ///
-    /// - emotion: what she feels *right now*. Pass the mind's momentary `reflex` when
-    ///   there is one, so a joke still gets a giddy laugh even when her mood is low.
+    /// - emotion: what Dee feels *right now*. Pass the mind's momentary `reflex` when
+    ///   there is one, so a joke still gets a giddy laugh even when Dee's mood is low.
     /// - age: robot-years (nil when age is switched off). Babies are higher, elders a
     ///   little lower and slower.
-    /// - energy: 0…1. Low energy slows and lowers her — but bright, reflexive
+    /// - energy: 0…1. Low energy slows and lowers Dee — but bright, reflexive
     ///   feelings (joy, giddy, excited, playful, happy, surprised) only feel half of
-    ///   that drag, because reflexes sit above mood: she can still light up.
+    ///   that drag, because reflexes sit above mood: Dee can still light up.
     public static func forMood(emotion: Emotion, age: Double?, energy: Double) -> VoiceStyle {
         let e = shape(for: emotion)
         var pitch = basePitch + e.pitch
@@ -150,10 +150,10 @@ public struct VoiceStyle: Sendable, Equatable {
     }
 }
 
-/// Little vocal laughs, so Dee can giggle at a joke whatever her mood.
+/// Little vocal laughs, so Dee can giggle at a joke whatever Dee's mood.
 public enum Laughter {
     /// A short laugh, longer and brighter with intensity (0…1). `variant` picks among
-    /// equivalent phrasings so she never sounds quite the same twice.
+    /// equivalent phrasings so Dee never sounds quite the same twice.
     public static func phrase(intensity: Double, variant: Int) -> String {
         let i = intensity.isFinite ? min(max(intensity, 0), 1) : 0.5
         let options: [String]

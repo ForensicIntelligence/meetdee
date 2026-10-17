@@ -157,13 +157,13 @@ extension RoomSim {
             bed.add(-55 + Double(Int(t * 25) % 5) - 2, duration: 0.04, at: t)
         }
         #expect(bed.ceilingDB.map { $0 <= -52 } ?? false, "\(String(describing: bed.ceilingDB))")
-        // No frames for a long time (she talks): the last ceiling stands.
+        // No frames for a long time (Dee talks): the last ceiling stands.
         bed.advance(to: 40)
         #expect(bed.ceilingDB != nil)
     }
 }
 
-/// Her reply for the scenarios: a long TTS turn from the fixtures at `levelDB`.
+/// Dee's reply for the scenarios: a long TTS turn from the fixtures at `levelDB`.
 func herReply(_ id: String = "l02", levelDB: Double = -20, seconds: Double? = nil) throws -> [Float] {
     let u = try HarnessFixture.utterance(id)
     var x = Array(u.samples[u.onset..<u.end])
@@ -174,11 +174,11 @@ func herReply(_ id: String = "l02", levelDB: Double = -20, seconds: Double? = ni
 
 private func isBargeIn(_ a: EarCore.Action) -> Bool { if case .bargeIn = a { true } else { false } }
 
-// MARK: - (2) Real speech over her reply is never deleted as echo
+// MARK: - (2) Real speech over Dee's reply is never deleted as echo
 
 @Suite(.serialized) struct SoftVoiceOverTheRoomTests {
     /// long-fan15 c05 / long-kitchen15 c05 (live: `item_EXCreyZQ…` deleted as
-    /// echo): the soft "Keep going, I'm listening." (−32 dBFS) 1.5 s into her
+    /// echo): the soft "Keep going, I'm listening." (−32 dBFS) 1.5 s into Dee's
     /// reply over a fan or the kitchen at 15 dB SNR (no echo). The fixed bar 9 dB
     /// over the floor sat above the soft voice; over a known bed it is the bed's
     /// ceiling + 3 dB, and the words are the user's.
@@ -187,7 +187,7 @@ private func isBargeIn(_ a: EarCore.Action) -> Bool { if case .bargeIn = a { tru
         var sim = RoomSim(seconds: 16)
         sim.tag = "soft\(bed)"
         sim.setBed(try HarnessFixture.wav("noise/\(bed).wav"), snrDB: 15)
-        try sim.say("q01", at: 0.5)                                   // the turn she answers
+        try sim.say("q01", at: 0.5)                                   // the turn Dee answers
         let herStart = RoomSim.sample(4.0)
         RoomSim.place(try herReply(seconds: 8), into: &sim.her, at: herStart)
         let c05 = try sim.say("c05", at: 5.5)
@@ -200,7 +200,7 @@ private func isBargeIn(_ a: EarCore.Action) -> Bool { if case .bargeIn = a { tru
         #expect(sim.actions.contains(.bargeIn(itemID: "item_u")) || sim.actions.contains(.acceptOnset(itemID: "item_u")))
     }
 
-    /// The same beds with only her voice: nothing she says is ever taken for the
+    /// The same beds with only Dee's voice: nothing Dee says is ever taken for the
     /// user (the lower bar over a known bed doesn't let the bed through).
     @Test(arguments: ["fan", "kitchen", "tv"])
     func theBedAloneNeverBargesIn(bed: String) throws {
@@ -209,32 +209,32 @@ private func isBargeIn(_ a: EarCore.Action) -> Bool { if case .bargeIn = a { tru
         try sim.say("q01", at: 0.5)
         let herStart = RoomSim.sample(4.0)
         RoomSim.place(try herReply(seconds: 8), into: &sim.her, at: herStart)
-        // The server opens "speech" on the bed twice while she talks (a TV would).
+        // The server opens "speech" on the bed twice while Dee talks (a TV would).
         for (k, at) in [5.0, 8.0].enumerated() {
             let s = RoomSim.sample(at)
             sim.server.append((s + RoomSim.sample(0.3), .start("item_b\(k)", onsetSample: s)))
             sim.server.append((s + RoomSim.sample(1.6), .stop("item_b\(k)", endSample: s + RoomSim.sample(1.2))))
         }
         sim.run()
-        #expect(!sim.actions.contains(where: isBargeIn), "\(bed): she was cut by the room")
+        #expect(!sim.actions.contains(where: isBargeIn), "\(bed): Dee was cut by the room")
         for k in 0..<2 { #expect(sim.actions.contains(.rejectEcho(itemID: "item_b\(k)")), "\(bed) item_b\(k)") }
     }
 }
 
-// MARK: - (2) Real speech over her loud echo (no echo cancellation)
+// MARK: - (2) Real speech over Dee's loud echo (no echo cancellation)
 
 @Suite(.serialized) struct LoudEchoNearEndTests {
     /// long-echo10 c02 / c05 and fillers-holds-echo10 k03 (live: deleted as echo):
-    /// her echo at −10 dB / 80 ms through the room IR with echo cancellation off
-    /// — about as loud as the user — opened a server item on her own voice (0.1 s
-    /// into her reply); the user then spoke inside that same item. The item holds
+    /// Dee's echo at −10 dB / 80 ms through the room IR with echo cancellation off
+    /// — about as loud as the user — opened a server item on Dee's own voice (0.1 s
+    /// into Dee's reply); the user then spoke inside that same item. The item holds
     /// their words: it must never be deleted as echo.
     @Test(arguments: [("c02", 1.5, -10.0), ("c05", 1.5, -10.0), ("k03", 1.0, -10.0), ("c02", 1.5, -20.0)])
     func theUserInsideAnItemHerEchoOpenedIsKept(fixture: String, after: Double, gainDB: Double) throws {
         var sim = RoomSim(seconds: 14, aec: false)
         sim.tag = "loud\(fixture)\(Int(-gainDB))"
         sim.setEcho(gainDB: gainDB, delayMs: 80, ir: try HarnessFixture.wav("ir/room.wav"))
-        // An earlier reply taught her the echo path.
+        // An earlier reply taught Dee the echo path.
         RoomSim.place(try herReply("l01", seconds: 2.5), into: &sim.her, at: RoomSim.sample(0.3))
         let herStart = RoomSim.sample(4.0)
         RoomSim.place(try herReply(seconds: 7), into: &sim.her, at: herStart)
@@ -244,14 +244,14 @@ private func isBargeIn(_ a: EarCore.Action) -> Bool { if case .bargeIn = a { tru
                       (u.end + RoomSim.sample(0.7), .stop("item_x", endSample: u.end + RoomSim.sample(0.6)))]
         sim.run()
         #expect(!sim.actions.contains(.rejectEcho(itemID: "item_x")), "\(fixture) at \(gainDB) dB: the user's words were deleted as echo")
-        // Kept: taken for the user on the sound, or (her echo as loud as them)
+        // Kept: taken for the user on the sound, or (Dee's echo as loud as them)
         // left to its words — never deleted on the sound alone.
         #expect(sim.actions.contains(.bargeIn(itemID: "item_x")) || sim.actions.contains(.acceptOnset(itemID: "item_x"))
                 || sim.actions.contains(.deferToWords(itemID: "item_x", strict: true)) || sim.actions.contains(.deferToWords(itemID: "item_x", strict: false)))
     }
 }
 
-// MARK: - (4) "Keep going" over her voice is a backchannel: she goes on
+// MARK: - (4) "Keep going" over Dee's voice is a backchannel: Dee goes on
 
 @Suite struct BackchannelTests {
     /// The same rule as the brain's floor logic (DeeBrain `TurnPolicy`'s cases).
@@ -269,7 +269,7 @@ private func isBargeIn(_ a: EarCore.Action) -> Bool { if case .bargeIn = a { tru
 }
 
 extension LoopRig {
-    /// A committed turn answered with her reply: `items` (id, ms) in one response.
+    /// A committed turn answered with Dee's reply: `items` (id, ms) in one response.
     func answerWith(_ items: [(String, Int)], text: String? = nil, done: Bool = true) async throws {
         push(Srv.speechStarted("item_u1", ms: 100), Srv.speechStopped("item_u1", ms: 200), Srv.committed("item_u1"))
         _ = await brain.wait { if case .session(.userCommitted) = $0 { true } else { false } }
@@ -291,9 +291,9 @@ extension LoopRig {
 }
 
 @Suite(.serialized) struct FloorHoldLoopTests {
-    /// long-* c02 / c05 (the user's decision: "keep going" while she talks is a
-    /// backchannel, not a barge-in): the barge-in pauses her at once; their words
-    /// are "Keep going, I'm listening." — she goes on from exactly where she
+    /// long-* c02 / c05 (the user's decision: "keep going" while Dee talks is a
+    /// backchannel, not a barge-in): the barge-in pauses Dee at once; their words
+    /// are "Keep going, I'm listening." — Dee goes on from exactly where Dee
     /// paused. Nothing is cut or cancelled, no `.bargeIn`, the item plays whole.
     @Test func keepGoingResumesWhereSheStopped() async throws {
         let rig = try LoopRig()
@@ -309,7 +309,7 @@ extension LoopRig {
         let paused = rig.voice.graph.player.playedMs(utterance: "item_a1")
         let pausedAt = rig.output.count
         try rig.quiet(0.4)
-        #expect(rig.audibleMs(fromSample: pausedAt) < 10, "she kept talking over them")
+        #expect(rig.audibleMs(fromSample: pausedAt) < 10, "Dee kept talking over them")
         #expect(rig.voice.graph.player.playedMs(utterance: "item_a1") - paused <= 6)
         rig.push(Srv.speechStopped("item_u2", ms: rig.uplinkMsNow - 200), Srv.committed("item_u2"),
                  Srv.userTranscript("item_u2", "Keep going, I'm listening."))
@@ -327,7 +327,7 @@ extension LoopRig {
         rig.voice.shutdown()
     }
 
-    /// Live tune 2: "Don't stop, keep going." paused her 4.2 s — the server held
+    /// Live tune 2: "Don't stop, keep going." paused Dee 4.2 s — the server held
     /// its turn 2.3 s past the words. In a hold, once the server has stopped
     /// their speech and they have been quiet for `holdCommitSilence`, the item is
     /// committed at once. Never while they talk. Speech longer than
@@ -360,7 +360,7 @@ extension LoopRig {
 
     /// Live tune 2: what they said came back as two items ("Don't stop." then
     /// "Keep going.") and an empty one: all of it decides together, an empty
-    /// transcript decides nothing, and she goes on.
+    /// transcript decides nothing, and Dee goes on.
     @Test func splitWordsDecideTogether() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -396,7 +396,7 @@ extension LoopRig {
     }
 
     /// The settled first words decide as soon as they are in (~0.15 s), before the
-    /// full transcript: "Mm-hm." — she goes on.
+    /// full transcript: "Mm-hm." — Dee goes on.
     @Test func settledWordsResumeBeforeTheTranscript() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -414,7 +414,7 @@ extension LoopRig {
         try rig.quiet(0.1)
         #expect(rig.voice.floorHold != nil)                  // not settled yet
         try rig.quiet(0.1)
-        #expect(rig.voice.floorHold == nil)                  // settled: she goes on
+        #expect(rig.voice.floorHold == nil)                  // settled: Dee goes on
         let at = rig.output.count
         try rig.quiet(0.3)
         #expect(rig.audibleMs(fromSample: at) > 250)
@@ -427,8 +427,8 @@ extension LoopRig {
     }
 
     /// No words that say "go on" by `holdWordsWait` after their speech stopped:
-    /// her reply ends where she paused, announced as the barge-in it was (timed
-    /// when she paused).
+    /// Dee's reply ends where Dee paused, announced as the barge-in it was (timed
+    /// when Dee paused).
     @Test func aHoldWithoutWordsEndsAsABargeIn() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -454,7 +454,7 @@ extension LoopRig {
     }
 
     /// The brain answers the words (a real turn): `respond` ends the paused reply
-    /// first, exactly where she paused.
+    /// first, exactly where Dee paused.
     @Test func respondingEndsAHold() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -485,11 +485,11 @@ extension LoopRig {
     }
 }
 
-// MARK: - (3) Her next item never starts over the user
+// MARK: - (3) Dee's next item never starts over the user
 
 @Suite(.serialized) struct BoundaryCollisionLoopTests {
     /// long-echo20 c05 (live collision): a two-item response; the user started
-    /// talking near the end of her first item, the onset was still being decided
+    /// talking near the end of Dee's first item, the onset was still being decided
     /// when it ended, and the second item started playing over them (cut 30 ms
     /// later). Now the second item waits at the boundary while an onset with
     /// near-end voice is undecided; the user's "Mm-hm." then lets it play whole.
@@ -503,13 +503,13 @@ extension LoopRig {
         try rig.talk(0.08)
         rig.push(Srv.speechStarted("item_u2", ms: rig.uplinkMsNow - 80))
         await rig.settle()
-        // …and her first item runs out while it is still being decided.
+        // …and Dee's first item runs out while it is still being decided.
         try rig.quiet(0.2)
         #expect(rig.voice.graph.player.playedMs(utterance: "item_a1") == 600)
-        #expect(rig.voice.graph.player.playedMs(utterance: "item_a2") == 0, "her next item started over the user")
+        #expect(rig.voice.graph.player.playedMs(utterance: "item_a2") == 0, "Dee's next item started over the user")
         try rig.talk(0.3)
         #expect(rig.voice.floorHold?.itemID == "item_u2")
-        #expect(rig.voice.graph.player.playedMs(utterance: "item_a2") == 0, "her next item started over the user")
+        #expect(rig.voice.graph.player.playedMs(utterance: "item_a2") == 0, "Dee's next item started over the user")
         rig.push(Srv.speechStopped("item_u2", ms: rig.uplinkMsNow - 100), Srv.committed("item_u2"),
                  Srv.userTranscript("item_u2", "Mm-hm."))
         await rig.settle()
@@ -519,7 +519,7 @@ extension LoopRig {
         rig.voice.shutdown()
     }
 
-    /// An echo-only onset (no near-end voice) at the boundary never delays her.
+    /// An echo-only onset (no near-end voice) at the boundary never delays Dee.
     @Test func herEchoOnsetNeverHoldsTheNextItem() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -534,7 +534,7 @@ extension LoopRig {
     }
 }
 
-// MARK: - (2) An item her loud echo opened is judged by its words
+// MARK: - (2) An item Dee's loud echo opened is judged by its words
 
 @Suite struct HerWordsTests {
     @Test func herOwnWordsComingBackAreHerEcho() {
@@ -543,14 +543,14 @@ extension LoopRig {
         for t in ["Here.", "The kettle sings.", "", "window", "soft rain comes", "Dee."] {
             #expect(w.isHerEcho(t, at: 12), "\(t)")
         }
-        // long-echo10: the user inside items her echo opened.
+        // long-echo10: the user inside items Dee's echo opened.
         for t in ["Don't stop. Keep going.", "Keep going. I'm listening.", "I'm listening.", "Stop.",
                   "tell her about my new job. Do you think she'll be happy?"] {
             #expect(!w.isHerEcho(t, at: 12), "\(t)")
         }
-        // Her words from long ago don't count.
+        // Dee's words from long ago don't count.
         #expect(!w.isHerEcho("the kettle sings", at: 10 + HerWords.window + 1))
-        // Strict (only her echo model's misses hinted at a voice): her echo comes
+        // Strict (only Dee's echo model's misses hinted at a voice): Dee's echo comes
         // back garbled (tune 2 live: "Years old." for "Here's a little thought"):
         // two strange words are not enough, three are.
         #expect(w.isHerEcho("Years old.", at: 12, strict: true))
@@ -561,8 +561,8 @@ extension LoopRig {
 }
 
 @Suite(.serialized) struct WordsDecideLoopTests {
-    /// The item her echo opened holds the user's words: everything held back
-    /// reaches the brain in order, the item is kept; "keep going" lets her go on.
+    /// The item Dee's echo opened holds the user's words: everything held back
+    /// reaches the brain in order, the item is kept; "keep going" lets Dee go on.
     @Test func theUsersWordsKeepTheItem() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -596,11 +596,11 @@ extension LoopRig {
             if case .userTranscript = order[3] {} else { Issue.record("\(order)") }
         }
         #expect(rig.sent("conversation.item.delete").isEmpty)
-        #expect(rig.sent("conversation.item.truncate").isEmpty)   // a backchannel: she goes on
+        #expect(rig.sent("conversation.item.truncate").isEmpty)   // a backchannel: Dee goes on
         rig.voice.shutdown()
     }
 
-    /// Its words are hers: deleted as her echo; the brain never sees any of it.
+    /// Its words are Dee's: deleted as Dee's echo; the brain never sees any of it.
     @Test func herOwnWordsDeleteTheItem() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -624,7 +624,7 @@ extension LoopRig {
         rig.voice.shutdown()
     }
 
-    /// The user's words in it were a real interruption: she stops (late, but she
+    /// The user's words in it were a real interruption: Dee stops (late, but Dee
     /// stops) and the barge-in is announced.
     @Test func aRealInterruptionInItCutsHer() async throws {
         let rig = try LoopRig()
@@ -726,16 +726,16 @@ extension LoopRig {
     }
 }
 
-// MARK: - Her first line never cuts herself (tune 2 live self-trigger)
+// MARK: - Dee's first line never cuts Dee off (tune 2 live self-trigger)
 
 @Suite(.serialized) struct FirstLineEchoTests {
-    /// t2-backchannel-echo10 live (an intermediate tune-2 build): her very first
+    /// t2-backchannel-echo10 live (an intermediate tune-2 build): Dee's very first
     /// line ("Here's a little thought…", echo −10 dB, no echo cancellation) opened
     /// a server item on its own echo; the per-band echo model, barely learned,
-    /// missed her last syllable's reverb, and a pitch it couldn't place counted as
-    /// another voice: she paused for herself, then answered "Years old.". Her
+    /// missed Dee's last syllable's reverb, and a pitch it couldn't place counted as
+    /// another voice: Dee paused for Dee's own voice, then answered "Years old.". Dee's
     /// short first line over every echo the harness uses: never a barge-in, never
-    /// accepted; left to its words only strictly (her garbled echo is not enough).
+    /// accepted; left to its words only strictly (Dee's garbled echo is not enough).
     @Test(arguments: [(-10.0, false), (-20.0, false), (-20.0, true), (-30.0, true)])
     func herFirstShortLineNeverCutsHerself(gainDB: Double, aec: Bool) throws {
         var failures: [String] = []
@@ -761,15 +761,15 @@ extension LoopRig {
     }
 
     /// t2-backchannel-echo20 live: 0.66 s into a later reply the server opened an
-    /// item on her echo and she paused for it — her history held no pitch to
-    /// compare the mic's with, and "no pitch of hers" counted as another voice.
-    /// Only a pitch of hers that is near the mic's says "hers"; none to compare
+    /// item on Dee's echo and Dee paused for it — Dee's history held no pitch to
+    /// compare the mic's with, and "no pitch of Dee's" counted as another voice.
+    /// Only a pitch of Dee's that is near the mic's says "Dee's"; none to compare
     /// with says nothing. (Not reproduced with the fixture voices offline.)
     @Test func noPitchOfHersToCompareIsNotAnotherVoice() {
         #expect(!SpectralEcho.differentVoice(210, from: []))
         #expect(!SpectralEcho.differentVoice(210, from: nil))
         #expect(!SpectralEcho.differentVoice(210, from: [205]))
-        #expect(!SpectralEcho.differentVoice(210, from: [104]))          // her octave below
+        #expect(!SpectralEcho.differentVoice(210, from: [104]))          // Dee's octave below
         #expect(SpectralEcho.differentVoice(130, from: [205, 198]))
     }
 }

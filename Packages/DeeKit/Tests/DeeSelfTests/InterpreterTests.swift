@@ -254,9 +254,9 @@ import Testing
 
     static func voicedGuess(_ value: String) -> Note { Note(.hypothesis, slots: [value], owner: Interpreter.name) }
 
-    /// Review finding 8: a guess she never voiced is zeroed silently (uncertainty, no
+    /// Review finding 8: a guess Dee never voiced is zeroed silently (uncertainty, no
     /// misread note, no misread record); a generic correction owns only a guess voiced in
-    /// her last reply.
+    /// Dee's last reply.
     @Test func unvoicedGuessesAreCorrectedWithoutAnApology() {
         var neg = Self.identified()
         neg.step(Kit.heard("it was a really rough day", Self.distress), at: 1)
@@ -318,7 +318,7 @@ import Testing
         var noReply = Self.identified()
         noReply.step(Kit.heard("what time is it?"), at: 1)
         noReply.step(Kit.heard("what time is it?"), at: 5)
-        #expect(Self.signals(noReply, "correction").isEmpty, "she had not answered yet")
+        #expect(Self.signals(noReply, "correction").isEmpty, "Dee had not answered yet")
 
         var late = Self.identified()
         late.step(Kit.heard("what time is it?"), at: 1)

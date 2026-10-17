@@ -2,7 +2,7 @@
   "scenarios": [
     {
       "name": "smoke-turns",
-      "description": "Plain turns over a fan, no echo: a name, a 1.2 s mid-sentence pause, a long question interrupted 1.2 s into her reply, and a memory probe.",
+      "description": "Plain turns over a fan, no echo: a name, a 1.2 s mid-sentence pause, a long question interrupted 1.2 s into Dee's reply, and a memory probe.",
       "noise": {"bed": "fan", "snrDb": 15},
       "steps": [
         {"say": "n01"},
@@ -13,7 +13,7 @@
     },
     {
       "name": "smoke-echo",
-      "description": "Kitchen noise with her own voice fed back at -20 dB / 80 ms through the room IR: two echo-only lines (must not self-trigger), a filler turn, and a barge-in over her echo.",
+      "description": "Kitchen noise with Dee's own voice fed back at -20 dB / 80 ms through the room IR: two echo-only lines (must not self-trigger), a filler turn, and a barge-in over Dee's echo.",
       "noise": {"bed": "kitchen", "snrDb": 15},
       "echo": {"gainDB": -20, "delayMs": 80, "reverb": true},
       "steps": [

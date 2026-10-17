@@ -11,7 +11,7 @@ public struct SeenThing: Sendable, Equatable {
     }
 }
 
-/// One glance through one camera: what Dee noticed and which of it is new to her.
+/// One glance through one camera: what Dee noticed and which of it is new to Dee.
 public struct SightReport: Sendable, Equatable {
     public var camera: CameraSide
     public var things: [SeenThing]          // top labels this glance
@@ -132,12 +132,12 @@ public struct SightLabels: Sendable {
 
 // MARK: - Novelty
 
-/// Remembers what Dee has seen so she only gets excited about new things. Pure.
+/// Remembers what Dee has seen so Dee only gets excited about new things. Pure.
 ///
 /// A label is *novel* when it hasn't been seen in the last `window` seconds (~20 min)
 /// and the sighting is believable: either confident (≥ `sureConfidence`) or seen
 /// twice within `confirmWithin` (so a single-frame misclassification doesn't make
-/// her ask about a sword that isn't there). Every sighting refreshes the memory,
+/// Dee ask about a sword that isn't there). Every sighting refreshes the memory,
 /// so something that stays in view never becomes novel again.
 public struct NoveltyMemory: Sendable {
     public var window = 20.0 * 60

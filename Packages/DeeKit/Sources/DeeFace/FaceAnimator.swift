@@ -218,7 +218,7 @@ public struct FaceAnimator: Sendable {
     /// pushes the lower lids up into soft smile arcs (toward `happy`); negative raises
     /// the inner brows and draws the eyes in (toward `worried`). Glyph eyes (a live
     /// reflex like a giggle's `∩`) are left alone, eye by eye. Gaze is never touched,
-    /// so mutual gaze holds while she previews.
+    /// so mutual gaze holds while Dee previews.
     static func applyListenPreview(_ t: inout FaceState, valence: Double, intensity: Double) {
         let w = listenPreviewWeight(valence: valence, intensity: intensity)
         guard w != 0 else { return }
@@ -337,7 +337,7 @@ public struct FaceAnimator: Sendable {
             // The Wall-E lens only suits open slab eyes.
             if t.left.glyphAmount < 0.5 { t.left.iris = max(t.left.iris, 0.4) }
             if t.right.glyphAmount < 0.5 { t.right.iris = max(t.right.iris, 0.4) }
-            // Her face starts reacting before the user has finished (SELF.md §7.2).
+            // Dee's face starts reacting before the user has finished (SELF.md §7.2).
             applyListenPreview(&t, valence: inputs.listenValence, intensity: inputs.listenIntensity)
             return t
         case .idle, .speaking:

@@ -29,6 +29,11 @@ public struct TimingProfile: Sendable, Equatable {
     /// Multiplies TurnPolicy's waits for words (1 = today). Longer for LAN speech-to-text
     /// (no deltas: the whole transcript comes at once, later).
     public var wordWaitScale: Double
+    /// `CloudVoice.Configuration.speculativeMax`: a held reply nobody released is
+    /// dropped this long after it was armed. 8 s for gpt-realtime; a LAN model's
+    /// cold first token takes 8.5 s+ (port 8000, measured), so cascaded waits as
+    /// long as its first audio may.
+    public var speculativeMax: Double = 8.0
 
     public init(name: String, responseTimeout: Double, firstAudioTimeout: Double, cancelUnstartedWait: Double,
                 rolloverAfter: Double, forceRolloverAfter: Double, stallRetry: Bool, slowClipOncePerWindow: Bool,
@@ -71,6 +76,13 @@ public struct TimingProfile: Sendable, Equatable {
                       cancelUnstartedWait: 2.5, rolloverAfter: .infinity, forceRolloverAfter: .infinity,
                       stallRetry: false, slowClipOncePerWindow: true,
                       wordWaitScale: stt == .lanREST ? 1.6 : 1)
+            .with(speculativeMax: 90)
+    }
+
+    func with(speculativeMax v: Double) -> TimingProfile {
+        var p = self
+        p.speculativeMax = v
+        return p
     }
 
     /// Writes the session-side values into `c`.

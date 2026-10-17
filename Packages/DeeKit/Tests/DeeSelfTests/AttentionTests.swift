@@ -361,7 +361,7 @@ import Testing
         run.step(.promptSubmitted, at: 0.1)
         run.step(.sight(camera: .back, things: ["guitar"], novel: ["guitar"]), at: 0.7)
         #expect(Self.notes(run).isEmpty, "the cue was already built")
-        #expect(run.m.momentary.focus == .referent(Self.guitar, .back), "but she still looks at it")
+        #expect(run.m.momentary.focus == .referent(Self.guitar, .back), "but Dee still looks at it")
     }
 
     @Test func deixisResolvesAtOnceWhenAlreadyClear() {

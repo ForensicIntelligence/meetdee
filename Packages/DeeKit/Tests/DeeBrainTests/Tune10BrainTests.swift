@@ -58,7 +58,7 @@ import Testing
         }
     }
 
-    /// Her reply `item_a1` playing (non-speculative, so it plays at once), and the voice
+    /// Dee's reply `item_a1` playing (non-speculative, so it plays at once), and the voice
     /// paused for `item` said over it: a real floor hold.
     static func pausedBy(_ rig: BrainRig, _ item: String, talk: Double = 0.45) async throws {
         try rig.quiet(0.3)
@@ -75,18 +75,18 @@ import Testing
         rig.push(Srv.speechStarted(item, ms: max(0, await settledUplinkMs(rig) - 150)))
         await rig.settle()
         try await Self.talk(rig, talk - 0.15)
-        try #require(rig.voice.floorHold?.items.contains(item) == true, "she was not paused")
+        try #require(rig.voice.floorHold?.items.contains(item) == true, "Dee was not paused")
     }
 
-    // MARK: T9-1 — every "go on" decision continues her
+    // MARK: T9-1 — every "go on" decision continues Dee
 
     /// t2-backchannel-kitchen15 c02 (18.9–23.3, reproduced solo): "Don't stop, keep going."
-    /// over her. "Don't stop." → `continued` (20.46; the voice deferred the go-on while they
+    /// over Dee. "Don't stop." → `continued` (20.46; the voice deferred the go-on while they
     /// talked on). The server's tail of the burst "Keep going." (21.75) took the tune-9 tail
-    /// path (`backchannel("tail")`): dropped, and returned without continuing her. The kitchen
+    /// path (`backchannel("tail")`): dropped, and returned without continuing Dee. The kitchen
     /// bed kept the voice's own quiet check false, so it waited out its deadline: "hold ended
-    /// by the voice" 22.51, her reply cut at 1645 ms, a carry-on in its place. A tail dropped
-    /// as "go on" continues her.
+    /// by the voice" 22.51, Dee's reply cut at 1645 ms, a carry-on in its place. A tail dropped
+    /// as "go on" continues Dee.
     @Test func liveKitchen15C02ATailDroppedAsGoOnContinuesHer() async throws {
         let rig = try await BrainRig(tune: { $0.speculative = false })
         try await rig.start()
@@ -109,10 +109,10 @@ import Testing
         rig.push(Srv.userTranscript("item_t", "Keep going."))
         #expect(await rig.until { rig.brain.trace.contains(.backchannel("tail")) }, "\(rig.brain.trace)")
         for _ in 0..<15 { try Self.bed(rig, 0.2, seed: 100); await rig.settle() }
-        #expect(rig.voice.floorHold == nil, "she went on")
+        #expect(rig.voice.floorHold == nil, "Dee went on")
         #expect(rig.brain.trace.contains(.backchannel("resumed-brain")), "\(rig.brain.trace)")
-        #expect(!rig.trail().contains("truncate:item_a1"), "her reply is not cut: \(rig.trail())")
-        #expect(rig.responseCreates().count == 1, "no carry-on in place of her reply: \(rig.trail()) \(rig.brain.trace)")
+        #expect(!rig.trail().contains("truncate:item_a1"), "Dee's reply is not cut: \(rig.trail())")
+        #expect(rig.responseCreates().count == 1, "no carry-on in place of Dee's reply: \(rig.trail()) \(rig.brain.trace)")
         rig.shutdown()
     }
 
@@ -133,18 +133,18 @@ import Testing
         try Self.bed(rig, 0.2, seed: 7)
         rig.push(Srv.userTranscript("item_d", "Don't stop, keep going."))
         for _ in 0..<15 { try Self.bed(rig, 0.2, seed: 100); await rig.settle() }
-        #expect(rig.voice.floorHold == nil, "she went on")
-        #expect(!rig.trail().contains("truncate:item_a1"), "her reply is not cut: \(rig.trail())")
+        #expect(rig.voice.floorHold == nil, "Dee went on")
+        #expect(!rig.trail().contains("truncate:item_a1"), "Dee's reply is not cut: \(rig.trail())")
         #expect(rig.responseCreates().count == 1, "\(rig.trail()) \(rig.brain.trace)")
         rig.shutdown()
     }
 
     /// t2-backchannel-echo10 c05 (54.4–58.7, reproduced solo): "Keep going, I'm listening."
-    /// over her came back as "Be sneaking, going." (its partial set the hold's verdict to
+    /// over Dee came back as "Be sneaking, going." (its partial set the hold's verdict to
     /// "answer": `wordsAt` 56.49) and "I'm listening." (a new item, still being said). The
     /// brain said "go on" at 56.52 (`continued`, deferred while they talked); the voice's
-    /// `holdAfterWords` still fired at 57.49 — "hold ended by the voice", her reply cut at
-    /// 2345 ms, a carry-on in its place. Once the brain said "go on", it never cuts her (the
+    /// `holdAfterWords` still fired at 57.49 — "hold ended by the voice", Dee's reply cut at
+    /// 2345 ms, a carry-on in its place. Once the brain said "go on", it never cuts Dee (the
     /// voice half: tune-10 voice, `continueAfterBackchannel` clears `wordsAt`).
     @Test func liveEcho10C05TheBrainsGoOnOverridesHoldAfterWords() async throws {
         let rig = try await BrainRig(tune: { $0.speculative = false })
@@ -167,19 +167,19 @@ import Testing
         T2.deltas(rig, "item_l", "I'm listening.")
         rig.push(Srv.userTranscript("item_l", "I'm listening."))
         for _ in 0..<10 { try rig.quiet(0.1); await rig.settle() }
-        #expect(rig.voice.floorHold == nil, "she went on")
-        #expect(!rig.trail().contains("truncate:item_a1"), "her reply is not cut: \(rig.trail())")
-        #expect(rig.responseCreates().count == 1, "no carry-on in her place: \(rig.trail()) \(rig.brain.trace)")
+        #expect(rig.voice.floorHold == nil, "Dee went on")
+        #expect(!rig.trail().contains("truncate:item_a1"), "Dee's reply is not cut: \(rig.trail())")
+        #expect(rig.responseCreates().count == 1, "no carry-on in Dee's place: \(rig.trail()) \(rig.brain.trace)")
         rig.shutdown()
     }
 
     // MARK: T9-1 (5) — early words use the voice's sound-aware fragment rule
 
     /// The early-words guard used the words-only fragment rule, where a word the words don't
-    /// know is never a fragment: "Um, uh, bread." over her — a short, flat, backchannel-like
-    /// sound — decided the turn at its first words and cut her. The voice's rule
+    /// know is never a fragment: "Um, uh, bread." over Dee — a short, flat, backchannel-like
+    /// sound — decided the turn at its first words and cut Dee. The voice's rule
     /// (`isMisheardFragment(itemID:text:)`, as in `goOnWords`) hears it as "go on": its
-    /// settled words decide, and she goes on.
+    /// settled words decide, and Dee goes on.
     @Test func earlyWordsNeverDecideOnAFragmentThatSoundedLikeABackchannel() async throws {
         let rig = try await BrainRig(tune: { $0.speculative = false })
         try await rig.start()
@@ -232,17 +232,17 @@ import Testing
     // MARK: T9-6 / T9-8 — thinking aloud and "I heard …"
 
     @Test func thinkingAloudAnywhereInASentenceAndHeardOpeners() {
-        // l06: "let me think" at words 7–9 of her first sentence.
+        // l06: "let me think" at words 7–9 of Dee's first sentence.
         let l06 = "Oh wow, that's a cozy memory\u{2014}let me think about how that recipe feels now."
         #expect(TurnPolicy.metaSentence(in: l06) == 0)
         #expect(TurnPolicy.metaSentence(in: "That's lovely. It reminds me of soup, and let me think about it more.") == 1)
         // A real answer is untouched.
         #expect(TurnPolicy.metaSentence(in: "Mars, the big red planet. It's kinda like a dusty ball.") == nil)
         #expect(TurnPolicy.metaSentence(in: "Let me tell you about my day. It was bright.") == nil)
-        // s02: "I heard <anything>" opening her reply.
+        // s02: "I heard <anything>" opening Dee's reply.
         #expect(TurnPolicy.heardYouSentence(in: "I heard that tough moment, Alex. I'm sorry.", theirs: "I didn't get the job.") == 0)
         #expect(TurnPolicy.heardYouSentence(in: "Oh, I hear that little hum.", theirs: "Mm.") == 0)
-        // Not when they asked whether she can hear them; not a fact later in a reply.
+        // Not when they asked whether Dee can hear them; not a fact later in a reply.
         #expect(TurnPolicy.heardYouSentence(in: "I hear you just fine.", theirs: "Can you hear me okay?") == nil)
         #expect(TurnPolicy.heardYouSentence(in: "Fun fact time. I heard octopuses have three hearts.", theirs: "Tell me a fact.") == nil)
     }
@@ -287,7 +287,7 @@ import Testing
     /// t2-backchannel-kitchen15 l06 (a statement about her grandmother's recipe), 71.36: "Oh
     /// wow, that's a cozy memory—let me think about how that recipe feels now." played (the
     /// first-sentence check looked at 7 words; later-sentence take-backs were for questions
-    /// only). Thinking aloud anywhere in her first sentence is a preamble: taken back, asked
+    /// only). Thinking aloud anywhere in Dee's first sentence is a preamble: taken back, asked
     /// again once.
     @Test func liveKitchen15L06ThinkingAloudInHerFirstSentenceIsAskedAgain() async throws {
         let rig = try await BrainRig()

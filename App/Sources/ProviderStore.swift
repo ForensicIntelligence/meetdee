@@ -12,7 +12,7 @@ import Observation
 ///
 /// Nothing here connects on its own (W2): only the user's "Check key" and "Test
 /// connection" taps make a request, through a recorded `Transport`. Saving a key or an
-/// endpoint never reconnects her or renders clips — the next conversation window
+/// endpoint never reconnects Dee or renders clips — the next conversation window
 /// picks the change up (`DeeModel.applyProvider` rebuilds only while dormant).
 @Observable @MainActor
 final class ProviderStore {
@@ -25,6 +25,10 @@ final class ProviderStore {
     var draft: ProviderConfig
     var wakePhraseText: String
     var speakFirst: Bool
+    /// The persona being chosen (saved with `save()`; `DeeModel.settingsChanged` applies it).
+    private(set) var personaID: String
+    /// A persona was chosen while a hand-picked voice is set: "Use <Name>'s voice?"
+    var voiceQuestion: PersonaPreset?
     /// Per-part status after "Test connection" / "Check key".
     private(set) var statuses: [Part: PartStatus] = [:]
     /// Models the brain server listed (chat models only).
@@ -52,6 +56,75 @@ final class ProviderStore {
         draft = prefs.providerConfig ?? .openAI()
         wakePhraseText = prefs.wakePhrase.text
         speakFirst = prefs.speakFirst
+        personaID = Self.initialPersona(prefs)
+        applyFreshInstallDefaults()
+    }
+
+    /// A fresh install starts as the default persona, its wake phrase and voice included
+    /// (from `init` and `reload`: the splash reloads before onboarding shows).
+    private func applyFreshInstallDefaults() {
+        guard prefs.personaID == nil, personaID != PersonaCatalog.classicID else { return }
+        if !prefs.wakePhraseIsCustom { wakePhraseText = persona.wakePhraseDefault }
+        if !prefs.voiceIsCustom(draft.mode) { applyPersonaVoice(persona) }
+    }
+
+    // MARK: - Persona
+
+    /// The saved persona; with none, a fresh install (onboarding never finished) gets the
+    /// default (Mira) and an existing one stays Classic Dee.
+    static func initialPersona(_ prefs: DeePrefs) -> String {
+        if let id = prefs.personaID { return PersonaCatalog.preset(id: id).id }
+        return prefs.onboardingVersion == 0 ? PersonaCatalog.defaultID : PersonaCatalog.classicID
+    }
+
+    var persona: PersonaPreset { PersonaCatalog.preset(id: personaID) }
+
+    /// The cards to offer (Classic only when it is the current one).
+    var offeredPersonas: [PersonaPreset] {
+        PersonaCatalog.offered(current: prefs.personaID == nil && prefs.onboardingVersion > 0 ? PersonaCatalog.classicID
+                                                                                                : personaID)
+    }
+
+    /// Picks a persona (onboarding card or the settings' Companion sheet): the wake phrase
+    /// follows unless the user typed their own; the voice follows unless hand-picked, in
+    /// which case `voiceQuestion` asks first.
+    func choosePersona(_ id: String) {
+        let old = persona
+        let new = PersonaCatalog.preset(id: id)
+        guard new.id != old.id else { return }
+        let phraseCustom = DeePrefs.fold(wakePhraseText) != DeePrefs.fold(old.wakePhraseDefault)
+        let voiceCustom = isVoiceCustom(for: old)
+        personaID = new.id
+        if !phraseCustom { wakePhraseText = new.wakePhraseDefault }
+        if voiceCustom { voiceQuestion = new } else { applyPersonaVoice(new) }
+    }
+
+    /// The persona's voice for the current mode: its OpenAI voice (modes 1/2), or the best
+    /// matching iPhone voice (mode 3 on this iPhone; "" = best available). A LAN TTS voice
+    /// id is the user's and is left alone.
+    func applyPersonaVoice(_ p: PersonaPreset) {
+        voiceQuestion = nil
+        switch (draft.mode, draft.tts) {
+        case (.openAI, _), (.lanBrainOpenAIVoice, _):
+            draft.voice = CloudSettings.voices.contains(p.openAIVoice) ? p.openAIVoice : p.openAIFallback
+        case (.lanEverything, .onDevice):
+            draft.voice = p.appleVoice.flatMap { PersonaVoicePicker.identifier(rule: $0) } ?? ""
+        case (.lanEverything, _):
+            break
+        }
+    }
+
+    /// The voice in the draft is the user's own pick, not `p`'s recommendation.
+    func isVoiceCustom(for p: PersonaPreset) -> Bool {
+        switch (draft.mode, draft.tts) {
+        case (.openAI, _), (.lanBrainOpenAIVoice, _):
+            return draft.voice != p.openAIVoice && draft.voice != p.openAIFallback
+        case (.lanEverything, .onDevice):
+            guard !draft.voice.isEmpty else { return false }
+            return draft.voice != p.appleVoice.flatMap { PersonaVoicePicker.identifier(rule: $0) }
+        case (.lanEverything, _):
+            return false
+        }
     }
 
     // MARK: - Keys (Keychain only; shown as the last 4 characters)
@@ -144,6 +217,8 @@ final class ProviderStore {
         }
         statuses[.stt] = nil
         statuses[.tts] = nil
+        // The persona's voice for the new mode, unless one was hand-picked for it.
+        if !prefs.voiceIsCustom(mode) { applyPersonaVoice(persona) }
     }
 
     /// Parses an address the user typed ("192.168.1.20:11434", "mac.local:1234").
@@ -172,6 +247,7 @@ final class ProviderStore {
         case .brain: break
         }
         statuses[part == .stt ? .stt : .tts] = nil
+        if part == .tts, choice == .onDevice, !prefs.voiceIsCustom(draft.mode) { applyPersonaVoice(persona) }
     }
 
     func setSpeechAddress(_ part: LANPart, _ text: String, model: String) -> String? {
@@ -292,6 +368,9 @@ final class ProviderStore {
         prefs.providerConfig = draft
         if let p = try? WakePhrase(validating: wakePhraseText) { prefs.wakePhrase = p }
         prefs.speakFirst = speakFirst
+        prefs.personaID = personaID
+        prefs.wakePhraseIsCustom = DeePrefs.fold(wakePhraseText) != DeePrefs.fold(persona.wakePhraseDefault)
+        prefs.setVoiceIsCustom(isVoiceCustom(for: persona), for: draft.mode)
     }
 
     /// Reloads the draft from what is saved (cancel in settings).
@@ -299,6 +378,9 @@ final class ProviderStore {
         draft = prefs.providerConfig ?? .openAI()
         wakePhraseText = prefs.wakePhrase.text
         speakFirst = prefs.speakFirst
+        personaID = Self.initialPersona(prefs)
+        voiceQuestion = nil
+        applyFreshInstallDefaults()
         statuses = [:]
         brainCapabilities = prefs.brainCapabilities
         brainModels = brainCapabilities?.chatModelIDs ?? []

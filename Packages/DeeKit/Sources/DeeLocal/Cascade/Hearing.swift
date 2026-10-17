@@ -40,10 +40,12 @@ public final class OnDeviceSpeechEngine: SpeechEngine, @unchecked Sendable {
 // MARK: - Turn detection (pure)
 
 /// server_vad-equivalent endpointing on local evidence (contract §2, mode 3):
-/// voice = Apple SpeechDetector AND EarCore's bed-proof `voiceActive`. A turn starts after
+/// voice = EarCore's bed-proof `voiceActive` (Apple's SpeechDetector only without an uplink). A turn starts after
 /// `minSpeechMs` of voice (reported `prefixMs` earlier, never before the last commit) and
-/// ends after `silenceMs` without voice (stopped at the last voice + silence, then committed).
-/// No energy VAD.
+/// stops `silenceMs` after its last voice. It is committed only once the quiet has also lasted
+/// `mergeMs` more (`mergeMs + extendMs` while its words so far trail off, `unfinished`): voice
+/// of at least `minSpeechMs` inside that window continues the same turn (no new start, one
+/// commit), like mode 2's merge window. No energy VAD.
 public struct TurnDetectorCore: Sendable, Equatable {
     public enum Event: Sendable, Equatable {
         case started(turn: Int, frame: Int64)
@@ -54,6 +56,10 @@ public struct TurnDetectorCore: Sendable, Equatable {
     public var prefixMs = 300
     public var silenceMs = 300
     public var minSpeechMs = 100
+    /// Extra quiet before a commit, in which a continuation joins the turn (0: commit at `silenceMs`).
+    public var mergeMs = 0
+    /// More of it while the turn's words so far trail off ("…went to the").
+    public var extendMs = 0
 
     private(set) var turn = 0
     private(set) var open = false
@@ -68,31 +74,36 @@ public struct TurnDetectorCore: Sendable, Equatable {
         (Int64(prefixMs * 24), Int64(silenceMs * 24), Int64(minSpeechMs * 24))
     }
 
-    /// Evidence for `[start, end)`: voiced or not. Feed in order without gaps.
-    public mutating func evidence(start: Int64, end: Int64, voice: Bool) -> [Event] {
+    /// Evidence for `[start, end)`: voiced or not. Feed in order without gaps. `unfinished`: the
+    /// open turn's words so far trail off (`TrailingWords`).
+    public mutating func evidence(start: Int64, end: Int64, voice: Bool, unfinished: Bool = false) -> [Event] {
         guard end > start else { return [] }
         var out: [Event] = []
         let f = frames
         if voice {
             if voiceRunStart == nil { voiceRunStart = start }
-            lastVoiceEnd = end
-            if !open, let run = voiceRunStart, end - run >= f.minSpeech {
-                open = true
-                turn += 1
-                turnStart = max(lastCommitEnd, run - f.prefix, 0)
-                out.append(.started(turn: turn, frame: turnStart))
+            if open {
+                // Past its stop (quiet ≥ silenceMs): only real speech (≥ minSpeechMs) continues the turn.
+                let stopped = (voiceRunStart ?? start) - lastVoiceEnd >= f.silence
+                if !stopped || end - (voiceRunStart ?? start) >= f.minSpeech { lastVoiceEnd = end }
+            } else {
+                lastVoiceEnd = end
+                if let run = voiceRunStart, end - run >= f.minSpeech {
+                    open = true
+                    turn += 1
+                    turnStart = max(lastCommitEnd, run - f.prefix, 0)
+                    out.append(.started(turn: turn, frame: turnStart))
+                }
             }
         } else {
-            if !open { voiceRunStart = nil }
-            if open, end - lastVoiceEnd >= f.silence {
+            voiceRunStart = nil
+            let hold = Int64((mergeMs + (unfinished ? extendMs : 0)) * 24)
+            if open, end - lastVoiceEnd >= f.silence + hold {
                 let stop = lastVoiceEnd + f.silence
                 out.append(.stopped(turn: turn, frame: stop))
                 out.append(.committed(turn: turn, startFrame: turnStart, endFrame: stop))
                 open = false
-                voiceRunStart = nil
                 lastCommitEnd = stop
-            } else if !open {
-                voiceRunStart = nil
             }
         }
         return out
@@ -165,6 +176,20 @@ public final class LocalHearing: CascadeHearing, @unchecked Sendable {
     let rewrite: Bool
     /// Seconds a commit waits for its on-device final before completing with what it has.
     public var finalWait: Double = 1.0
+    /// Seconds of fed audio with no voice evidence at all (no EarCore verdict, no detector
+    /// result) before hearing reports `.noVoiceEvidence` instead of staying silent.
+    public var noEvidenceAfter: Double = 8
+    /// Seconds of quiet after a turn's stop before it is committed; speech inside joins the turn
+    /// (`TurnDetectorCore.mergeMs`; mode 2's `OpenAITranscriptionHearing.mergeWindow`, same value).
+    public var mergeWindow: Double {
+        get { state.withLock { Double($0.core.mergeMs) / 1000 } }
+        set { state.withLock { $0.core.mergeMs = Int((newValue * 1000).rounded()) } }
+    }
+    /// The whole window while the words so far trail off (`TrailingWords`), ≥ `mergeWindow`.
+    public var unfinishedWindow: Double {
+        get { state.withLock { Double($0.core.mergeMs + $0.core.extendMs) / 1000 } }
+        set { state.withLock { $0.core.extendMs = max(0, Int((newValue * 1000).rounded()) - $0.core.mergeMs) } }
+    }
 
     private struct State {
         var sink: (@Sendable (HearingEvent) -> Void)?
@@ -177,6 +202,12 @@ public final class LocalHearing: CascadeHearing, @unchecked Sendable {
         var ringStart: Int64 = 0
         var turns: [Int: Turn] = [:]
         var uplinkOffset: Int64?
+        /// Recent (uplink fed − our fed) differences; the offset is their minimum (see `feed`).
+        var offsetSamples: [Int64] = []
+        /// Frames that got a voice verdict (EarCore) / speech-detector results seen.
+        var verdicts = 0
+        var detectorResults = 0
+        var noEvidenceReported = false
         var keywords: [String] = ["Dee"]
         var stopped = false
     }
@@ -195,6 +226,15 @@ public final class LocalHearing: CascadeHearing, @unchecked Sendable {
     public init(stt: LocalSTT, engine: any SpeechEngine = OnDeviceSpeechEngine(), uplink: UplinkActivity? = nil,
                 rewriteName: Bool = true) {
         self.stt = stt; self.engine = engine; self.uplink = uplink; self.rewrite = rewriteName
+        mergeWindow = MergeTiming.window
+        unfinishedWindow = MergeTiming.unfinishedWindow
+    }
+
+    /// The open turn's words so far trail off (on-device text only; LAN STT has none before the commit).
+    private func openTurnTrails(_ s: State) -> Bool {
+        guard s.core.open, let t = s.turns[s.core.turn] else { return false }
+        let finals = t.finals.sorted { $0.start < $1.start }.map(\.text).joined(separator: " ")
+        return TrailingWords.trails([finals, t.volatile].filter { !$0.isEmpty }.joined(separator: " "))
     }
 
     public var timingSTT: TimingProfile.CascadeSTT {
@@ -224,7 +264,8 @@ public final class LocalHearing: CascadeHearing, @unchecked Sendable {
 
     public func feed(_ pcm: Data, atFrame frame: Int64) {
         let samples = pcm.withUnsafeBytes { Array($0.bindMemory(to: Int16.self)) }
-        let out = state.withLock { s -> (samples: [Int16], firstFrame24k: Int64?) in
+        let noEvidenceFrames = Int64(noEvidenceAfter * 24_000)
+        let out = state.withLock { s -> (samples: [Int16], firstFrame24k: Int64?, events: [TurnDetectorCore.Event], silent: Bool) in
             s.fed = frame + Int64(samples.count)
             s.ring.append(pcm)
             let maxBytes = 24_000 * 2 * 30
@@ -233,13 +274,52 @@ public final class LocalHearing: CascadeHearing, @unchecked Sendable {
                 s.ring.removeFirst(drop)
                 s.ringStart += Int64(drop / 2)
             }
+            var events: [TurnDetectorCore.Event] = []
             if let up = uplink {
-                // The session's feed counter is ahead of ours by a fixed origin.
-                s.uplinkOffset = up.latestFedFrame - s.fed
+                // The session's feed counter is ahead of ours by a fixed origin. CloudVoice records a
+                // chunk right after handing it to the session and this feed runs a hop later, so the
+                // difference is the origin or (pump lag) more: the recent minimum is the origin.
+                s.offsetSamples.append(up.latestFedFrame - s.fed)
+                if s.offsetSamples.count > 32 { s.offsetSamples.removeFirst(s.offsetSamples.count - 32) }
+                s.uplinkOffset = s.offsetSamples.min()
+                events = uplinkEvidence(&s, up)
             }
-            return s.down.process(samples, firstFrame24k: frame)
+            // Audio is arriving but nothing ever says whether a voice is in it: say so, once.
+            var silent = false
+            if !s.noEvidenceReported, s.verdicts == 0, s.detectorResults == 0, s.fed >= noEvidenceFrames {
+                s.noEvidenceReported = true
+                silent = true
+            }
+            let d = s.down.process(samples, firstFrame24k: frame)
+            return (d.samples, d.firstFrame24k, events, silent)
         }
         if let first = out.firstFrame24k, !out.samples.isEmpty { engine.feed(out.samples, frame24k: first) }
+        handle(out.events)
+        if out.silent { emit(.failed(.noVoiceEvidence)) }
+    }
+
+    /// Turn evidence from EarCore's per-frame voice (the same bed- and echo-proof signal mode 1's
+    /// local barge-in uses), in 20 ms steps up to the newest frame it has a verdict for. Apple's
+    /// SpeechDetector gives no results at all when it shares the analyzer with the transcriber
+    /// (measured, 0.6 smoke), so with an uplink it is not consulted.
+    private func uplinkEvidence(_ s: inout State, _ up: UplinkActivity) -> [TurnDetectorCore.Event] {
+        guard let off = s.uplinkOffset else { return [] }
+        let recorded = up.latestFedFrame - off
+        let end = min(s.fed, recorded)
+        var start = s.evidenceUntil
+        guard end > start else { return [] }
+        var out: [TurnDetectorCore.Event] = []
+        let step: Int64 = 480
+        let trails = openTurnTrails(s)
+        while start < end {
+            let e = min(end, start + step)
+            let verdict = up.voiceActive(atFedFrame: (start + e) / 2 + off)
+            if verdict != nil { s.verdicts += 1 }
+            out += s.core.evidence(start: start, end: e, voice: verdict ?? false, unfinished: trails)
+            start = e
+        }
+        s.evidenceUntil = end
+        return out
     }
 
     public func commitNow() {
@@ -251,22 +331,21 @@ public final class LocalHearing: CascadeHearing, @unchecked Sendable {
         state.withLock { s in s.core.clear(at: s.fed) }
     }
 
-    /// SpeechDetector result: evidence up to its end, ANDed with EarCore's per-frame voice.
+    /// SpeechDetector result: the turn evidence only when there is no uplink (EarCore's verdicts
+    /// drive turns when there is one: `uplinkEvidence`).
     func activity(_ a: SpeechActivity) {
         let events = state.withLock { s -> [TurnDetectorCore.Event] in
+            s.detectorResults += 1
+            guard uplink == nil else { return [] }
             var out: [TurnDetectorCore.Event] = []
             var start = max(a.startFrame, s.evidenceUntil)
             let end = a.endFrame
             guard end > start else { return [] }
-            // Walk 20 ms steps so EarCore's evidence can veto a bed the detector calls speech.
             let step: Int64 = 480
+            let trails = openTurnTrails(s)
             while start < end {
                 let e = min(end, start + step)
-                var voice = a.speechDetected
-                if voice, let up = uplink, let off = s.uplinkOffset {
-                    voice = up.voiceActive(atFedFrame: (start + e) / 2 + off) ?? true
-                }
-                out += s.core.evidence(start: start, end: e, voice: voice)
+                out += s.core.evidence(start: start, end: e, voice: a.speechDetected, unfinished: trails)
                 start = e
             }
             s.evidenceUntil = end
@@ -421,6 +500,44 @@ public final class LocalHearing: CascadeHearing, @unchecked Sendable {
     }
 }
 
+// MARK: - Merge timing (modes 2 and 3)
+
+/// How long hearing waits after a turn's stop for more of the same utterance (0.6 LAN verify).
+///
+/// Measured on the harness fixtures: pauses inside one utterance are 0.2–0.7 s (l04, l05, c05,
+/// k08); the scripted thinking pause p12a is 1.21 s, after "So yesterday I went to the". Both
+/// modes stop a piece at 300 ms of quiet (mode 1's tuned server_vad), so a window of 0.8 s
+/// covers every pause up to 1.1 s at a cost of 0.8 s on every turn's end; a fixed window long
+/// enough for 1.2 s pauses (≥ 1.0 s, with margin 1.4 s) would add that to every reply. Instead the
+/// window grows to `unfinishedWindow` only while the words so far trail off ("…the", "…and",
+/// "…to", a comma): those turns the brain would hold anyway (`TurnPolicy.trailingWait` 3 s), so
+/// the longer wait costs nothing there and joins the halves into one turn.
+public enum MergeTiming {
+    public static let window = 0.8
+    public static let unfinishedWindow = 1.4
+}
+
+/// Words a finished sentence does not end on (a lenient subset of the brain's `TurnPolicy`
+/// rule: here it only lengthens a merge window).
+public enum TrailingWords {
+    static let words: Set<String> = [
+        "and", "but", "or", "because", "cause", "um", "uh", "er", "erm", "the", "a", "an", "my", "your",
+        "their", "our", "than", "very", "gonna", "wanna", "gotta", "whether", "although", "unless",
+        "of", "for", "at", "from", "about", "into", "onto", "with", "to", "if",
+    ]
+
+    /// `text` ends mid-sentence: a trailing word, comma, dash or ellipsis (a question mark or
+    /// an exclamation ends it).
+    public static func trails(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let lastChar = t.last else { return false }
+        if lastChar == "?" || lastChar == "!" { return false }
+        if t.hasSuffix("…") || t.hasSuffix("...") || lastChar == "," || lastChar == "-" || lastChar == "—" { return true }
+        let last = t.lowercased().split(whereSeparator: { !$0.isLetter && $0 != "'" }).last.map(String.init) ?? ""
+        return words.contains(last)
+    }
+}
+
 // MARK: - WAV
 
 enum WAV {
@@ -449,7 +566,8 @@ extension Error {
 // MARK: - OpenAI realtime transcription (mode 2)
 
 /// Mode 2's hearing: an OpenAI realtime **transcription** session over WebSocket (server VAD
-/// 300/300/0.5, gpt-transcribe, streaming deltas), minted per socket with
+/// 300/300/0.5, gpt-transcribe, streaming deltas; pieces split by short pauses are merged into
+/// one turn, see `mergeWindow`), minted per socket with
 /// `OpenAIAuth(sessionType: .transcription)`. A refused mint (400/404) is a hard
 /// `.transcriptionUnavailable`: there is no direct-key or other fallback.
 public final class OpenAITranscriptionHearing: CascadeHearing, @unchecked Sendable {
@@ -467,18 +585,71 @@ public final class OpenAITranscriptionHearing: CascadeHearing, @unchecked Sendab
         var turns: [String: Int] = [:]
         var nextTurn = 0
         var stopped = false
+        var merged: [Int: MergedTurn] = [:]
+        /// The turn whose last piece just stopped: a speech start within `mergeWindow` continues it.
+        var held: Int?
+        var holdGeneration = 0
+        /// The client asked for a commit (`input_audio_buffer.commit`): the next commit is not held.
+        var manualCommit = false
+        /// Frames fed so far (the socket's clock, which the transcription session's ms follow).
+        var fed: Int64 = 0
+        /// The transcription session's VAD is inside a piece (started, not stopped).
+        var vadOpen = false
+        /// After a manual commit inside a piece: watch our voice evidence for the rest of the burst.
+        var restWatch: (until: Date, commitFrame: Int64)?
+        var restRun: Int64 = 0
+        /// A turn opened for the rest of a burst (`restStart`) that no server item has claimed yet.
+        var rest: Int?
+        var restVoiceAt = Date()
+    }
+    /// One turn as the session sees it: the transcription session's pieces (items) merged.
+    struct MergedTurn {
+        var pieces: [String] = []
+        var committed: Set<String> = []
+        var texts: [String: String] = [:]
+        var failed: [String: String] = [:]
+        var stopFrame: Int64?
+        var holdExpired = false
+        var flushed = false
+        var completedEmitted = false
+        var buffered: [String] = []
+        var deltaStarted: Set<String> = []
+        /// The hold was lengthened once because the words trailed off (`unfinishedWindow`).
+        var extended = false
     }
     private let state = Mutex(State())
     private var reader: Task<Void, Never>?
+    /// Seconds a piece's end is held for a continuation before the turn is committed.
+    ///
+    /// The transcription session ends a piece after 300 ms of silence (mode 1's tuned
+    /// server_vad, kept so its speech starts and barge-ins stay as fast). A thinking pause in
+    /// one sentence is longer than that (0.6 smoke: the next piece started 0.1–0.6 s after the
+    /// commit), and each piece reached the brain as its own turn, cancelling the reply in
+    /// progress. A start within this window joins the same turn: one speech_started, one
+    /// commit, one transcript for the whole utterance. Cost: the turn's end is reported this
+    /// much later (a LAN brain's first token is 0.2–4 s; the merged question is what it must answer).
+    public var mergeWindow: Double = MergeTiming.window
+    /// The whole hold while the turn's words so far trail off (`TrailingWords`, `MergeTiming`).
+    public var unfinishedWindow: Double = MergeTiming.unfinishedWindow
+    /// EarCore's voice evidence (the rest of a burst after a manual commit, `restStart`).
+    let uplink: UplinkActivity?
+    /// Seconds after a manual commit in which our voice evidence opens the rest of the burst.
+    public var restWatchWindow: Double = 1.5
+    /// A rest-of-burst turn no server item claims is closed (empty) this long after our voice ended.
+    public var restGiveUp: Double = 3
 
-    public init(transport: Transport, credential: @escaping Credential, url: URL = OpenAITranscription.url) {
-        self.transport = transport; self.credential = credential; self.url = url
+    public init(transport: Transport, credential: @escaping Credential, url: URL = OpenAITranscription.url,
+                uplink: UplinkActivity? = nil) {
+        self.transport = transport; self.credential = credential; self.url = url; self.uplink = uplink
     }
 
     public var timingSTT: TimingProfile.CascadeSTT { .openAIRealtime }
 
+    /// Where events go (tests drive `server(_:)` directly after this).
+    func attach(_ sink: @escaping @Sendable (HearingEvent) -> Void) { state.withLock { $0.sink = sink } }
+
     public func start(sink: @escaping @Sendable (HearingEvent) -> Void) async throws {
-        state.withLock { $0.sink = sink }
+        attach(sink)
         let cred: RealtimeCredential
         do {
             cred = try await credential()
@@ -555,24 +726,85 @@ public final class OpenAITranscriptionHearing: CascadeHearing, @unchecked Sendab
         socket?.send(text)
     }
 
-    public func feed(_ pcm: Data, atFrame frame: Int64) { send(.inputAudioAppend(audio: pcm.base64EncodedString())) }
-    public func commitNow() { send(.inputAudioCommit()) }
-    public func clear() { send(.inputAudioClear()) }
+    public func feed(_ pcm: Data, atFrame frame: Int64) {
+        send(.inputAudioAppend(audio: pcm.base64EncodedString()))
+        restEvidence(frames: Int64(pcm.count / 2), at: frame)
+    }
+    public func commitNow() {
+        flushHeld()
+        let watch = uplink != nil
+        let window = restWatchWindow
+        state.withLock { s in
+            s.manualCommit = true
+            // Committed inside a piece (CloudVoice's quick commit of a short burst in a hold): if
+            // they go on talking, that is a new item as far as the session is concerned.
+            if watch, s.vadOpen { s.restWatch = (Date().addingTimeInterval(window), s.fed); s.restRun = 0 }
+        }
+        send(.inputAudioCommit())
+    }
+
+    /// The rest of a burst after a manual commit (0.6 LAN verify, c05 over Dee in mode 2):
+    /// CloudVoice commits a short burst early in a hold ("Keep" | "going, I'm listening"); the
+    /// transcription session then keeps the rest in an item it never reports starting (its
+    /// first event is that item's stop, ~3 s later). The session saw words "Cheap." and then
+    /// more sound covered by no item, so the hold ended and the rest became a turn of its own
+    /// (Dee answered "Oh, what's cheap?"). mode 1's server reports such speech as a new item
+    /// at once; so does this: our voice evidence (EarCore, ≥ 100 ms) within `restWatchWindow`
+    /// of the commit opens a turn (speech_started), and the session's own Backchannel rules
+    /// (`FloorHold.followsContinuer`, `isHoldBackchannel`) decide it with its words.
+    private func restEvidence(frames: Int64, at frame: Int64) {
+        guard let up = uplink else { state.withLock { $0.fed = frame + frames }; return }
+        let voice = up.voiceNow
+        let started = state.withLock { s -> (turn: Int, frame: Int64)? in
+            s.fed = frame + frames
+            if voice, s.rest != nil { s.restVoiceAt = Date() }
+            guard let w = s.restWatch else { return nil }
+            if Date() > w.until { s.restWatch = nil; return nil }
+            s.restRun = voice ? s.restRun + frames : 0
+            guard s.restRun >= 2_400 else { return nil }
+            s.restWatch = nil
+            s.nextTurn += 1
+            let t = s.nextTurn
+            s.merged[t] = MergedTurn(pieces: [])
+            s.rest = t
+            s.restVoiceAt = Date()
+            return (t, max(w.commitFrame, s.fed - s.restRun - 7_200))
+        }
+        guard let started else { return }
+        emit(.speechStarted(turn: started.turn, frame: started.frame))
+        let giveUp = restGiveUp
+        Task { [weak self] in
+            while true {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard let self else { return }
+                let (done, close) = self.state.withLock { s -> (Bool, Int64?) in
+                    guard s.rest == started.turn else { return (true, nil) }   // a server item claimed it
+                    guard Date().timeIntervalSince(s.restVoiceAt) >= giveUp else { return (false, nil) }
+                    s.rest = nil
+                    s.merged[started.turn]?.flushed = true
+                    s.merged[started.turn]?.completedEmitted = true
+                    return (true, s.fed)
+                }
+                if let close {
+                    // Nothing came for it: an empty item, which decides nothing (as a word-less tail).
+                    self.emit(.speechStopped(turn: started.turn, frame: close))
+                    self.emit(.committed(turn: started.turn))
+                    self.emit(.transcriptCompleted(turn: started.turn, text: ""))
+                }
+                if done { return }
+            }
+        }
+    }
+    public func clear() {
+        flushHeld()
+        send(.inputAudioClear())
+    }
     public func setKeywords(_ words: [String]) {}   // they ride on the mint (OpenAITranscription.Session.keywords)
 
     public func stop() {
         let socket = state.withLock { s -> (any RealtimeSocket)? in s.stopped = true; s.sink = nil; return s.socket }
         socket?.close(code: 1000, reason: nil)
         reader?.cancel()
-    }
-
-    private func turn(for itemID: String) -> Int {
-        state.withLock { s in
-            if let t = s.turns[itemID] { return t }
-            s.nextTurn += 1
-            s.turns[itemID] = s.nextTurn
-            return s.nextTurn
-        }
     }
 
     private func emit(_ e: HearingEvent) {
@@ -582,13 +814,12 @@ public final class OpenAITranscriptionHearing: CascadeHearing, @unchecked Sendab
 
     func server(_ e: ServerEvent) {
         switch e {
-        case .speechStarted(let x): emit(.speechStarted(turn: turn(for: x.itemID), frame: Int64(x.audioStartMs) * 24))
-        case .speechStopped(let x): emit(.speechStopped(turn: turn(for: x.itemID), frame: Int64(x.audioEndMs) * 24))
-        case .inputAudioCommitted(let x): emit(.committed(turn: turn(for: x.itemID)))
-        case .inputTranscriptionDelta(let x): emit(.transcriptDelta(turn: turn(for: x.itemID), delta: x.delta))
-        case .inputTranscriptionCompleted(let x): emit(.transcriptCompleted(turn: turn(for: x.itemID), text: x.transcript))
-        case .inputTranscriptionFailed(let x):
-            emit(.transcriptFailed(turn: turn(for: x.itemID), message: x.error?.code ?? "transcription failed"))
+        case .speechStarted(let x): pieceStarted(x.itemID, frame: Int64(x.audioStartMs) * 24)
+        case .speechStopped(let x): pieceStopped(x.itemID, frame: Int64(x.audioEndMs) * 24)
+        case .inputAudioCommitted(let x): pieceCommitted(x.itemID)
+        case .inputTranscriptionDelta(let x): pieceDelta(x.itemID, x.delta)
+        case .inputTranscriptionCompleted(let x): pieceDone(x.itemID, text: x.transcript, failure: nil)
+        case .inputTranscriptionFailed(let x): pieceDone(x.itemID, text: nil, failure: x.error?.code ?? "transcription failed")
         case .error(let x):
             let kind = RealtimeIssue.classify(x.error)
             switch kind {
@@ -599,5 +830,187 @@ public final class OpenAITranscriptionHearing: CascadeHearing, @unchecked Sendab
             }
         default: break
         }
+    }
+
+    // MARK: Merging pieces into turns
+
+    private func pieceStarted(_ item: String, frame: Int64) {
+        let fresh = state.withLock { s -> Int? in
+            s.vadOpen = true
+            if s.turns[item] != nil { return nil }
+            if let t = s.rest {
+                // The rest of a burst we already reported starting.
+                s.rest = nil
+                s.turns[item] = t
+                s.merged[t]?.pieces.append(item)
+                return nil
+            }
+            if let t = s.held, var m = s.merged[t], !m.flushed {
+                // A continuation of the held turn: no new speech start for the session.
+                s.turns[item] = t
+                m.pieces.append(item)
+                m.holdExpired = false
+                s.merged[t] = m
+                s.held = nil
+                s.holdGeneration += 1
+                return nil
+            }
+            s.nextTurn += 1
+            let t = s.nextTurn
+            s.turns[item] = t
+            var m = MergedTurn()
+            m.pieces = [item]
+            s.merged[t] = m
+            return t
+        }
+        if let fresh { emit(.speechStarted(turn: fresh, frame: frame)) }
+    }
+
+    private func pieceStopped(_ item: String, frame: Int64) {
+        state.withLock { s in
+            s.vadOpen = false
+            s.restWatch = nil
+            let t = turnLocked(&s, item)
+            s.merged[t]?.stopFrame = frame
+        }
+    }
+
+    private func pieceCommitted(_ item: String) {
+        let (turn, now, generation) = state.withLock { s -> (Int, Bool, Int) in
+            let t = turnLocked(&s, item)
+            s.merged[t]?.committed.insert(item)
+            let manual = s.manualCommit
+            s.manualCommit = false
+            if manual { s.merged[t]?.holdExpired = true }
+            if s.merged[t]?.holdExpired == true { return (t, true, s.holdGeneration) }
+            s.held = t
+            s.holdGeneration += 1
+            return (t, false, s.holdGeneration)
+        }
+        if now { flush(turn); return }
+        let wait = mergeWindow
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(wait))
+            self?.holdExpired(turn, generation: generation)
+        }
+    }
+
+    private func holdExpired(_ turn: Int, generation: Int) {
+        let more = unfinishedWindow - mergeWindow
+        let go = state.withLock { s -> Bool? in
+            guard s.holdGeneration == generation, s.held == turn, var m = s.merged[turn] else { return nil }
+            // The words so far trail off ("So yesterday I went to the"): wait a little longer once.
+            if !m.extended, more > 0, TrailingWords.trails(Self.wordsSoFar(m)) {
+                m.extended = true
+                s.merged[turn] = m
+                return false
+            }
+            s.held = nil
+            s.merged[turn]?.holdExpired = true
+            return true
+        }
+        switch go {
+        case true?: flush(turn)
+        case false?:
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(more))
+                self?.holdExpired(turn, generation: generation)
+            }
+        case nil: break
+        }
+    }
+
+    /// The merged turn's words so far: the pieces' transcripts, else their deltas.
+    static func wordsSoFar(_ m: MergedTurn) -> String {
+        if m.pieces.allSatisfy({ m.texts[$0] != nil }) { return m.pieces.compactMap { m.texts[$0] }.joined(separator: " ") }
+        return m.buffered.joined()
+    }
+
+    /// Commits the held turn now (a manual commit or clear must not wait behind it).
+    private func flushHeld() {
+        let t = state.withLock { s -> Int? in
+            guard let t = s.held else { return nil }
+            s.held = nil
+            s.holdGeneration += 1
+            s.merged[t]?.holdExpired = true
+            return t
+        }
+        if let t { flush(t) }
+    }
+
+    /// The turn's stop + commit (once every piece is committed), its buffered deltas, and its
+    /// transcript when every piece has one.
+    private func flush(_ turn: Int) {
+        let out = state.withLock { s -> [HearingEvent] in
+            guard var m = s.merged[turn], !m.flushed, m.holdExpired, m.pieces.allSatisfy(m.committed.contains) else { return [] }
+            m.flushed = true
+            var events: [HearingEvent] = []
+            if let stop = m.stopFrame { events.append(.speechStopped(turn: turn, frame: stop)) }
+            events.append(.committed(turn: turn))
+            events += m.buffered.map { .transcriptDelta(turn: turn, delta: $0) }
+            m.buffered = []
+            s.merged[turn] = m
+            if let done = completionLocked(&s, turn) { events.append(done) }
+            return events
+        }
+        for e in out { emit(e) }
+    }
+
+    private func pieceDelta(_ item: String, _ delta: String) {
+        let out = state.withLock { s -> HearingEvent? in
+            let t = turnLocked(&s, item)
+            guard var m = s.merged[t] else { return nil }
+            var d = delta
+            if !m.deltaStarted.contains(item) {
+                m.deltaStarted.insert(item)
+                if m.deltaStarted.count > 1 || m.pieces.first != item, !d.hasPrefix(" ") { d = " " + d }
+            }
+            defer { s.merged[t] = m }
+            if m.flushed { return .transcriptDelta(turn: t, delta: d) }
+            m.buffered.append(d)
+            return nil
+        }
+        if let out { emit(out) }
+    }
+
+    private func pieceDone(_ item: String, text: String?, failure: String?) {
+        let out = state.withLock { s -> HearingEvent? in
+            let t = turnLocked(&s, item)
+            if let text { s.merged[t]?.texts[item] = text }
+            if let failure { s.merged[t]?.failed[item] = failure }
+            return completionLocked(&s, t)
+        }
+        if let out { emit(out) }
+    }
+
+    /// The turn's transcript once it is committed and every piece has its own (pieces joined in order).
+    private func completionLocked(_ s: inout State, _ turn: Int) -> HearingEvent? {
+        guard var m = s.merged[turn], m.flushed, !m.completedEmitted,
+              m.pieces.allSatisfy({ m.texts[$0] != nil || m.failed[$0] != nil }) else { return nil }
+        m.completedEmitted = true
+        s.merged[turn] = m
+        let texts = m.pieces.compactMap { m.texts[$0]?.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        if texts.isEmpty, let failure = m.pieces.compactMap({ m.failed[$0] }).first {
+            return .transcriptFailed(turn: turn, message: failure)
+        }
+        return .transcriptCompleted(turn: turn, text: texts.joined(separator: " "))
+    }
+
+    /// The turn of `item`; an item never seen starting (a manual commit of silence) gets its own.
+    private func turnLocked(_ s: inout State, _ item: String) -> Int {
+        if let t = s.turns[item] { return t }
+        if let t = s.rest {
+            // The server's first word of the rest of a burst is its stop or commit: the turn we opened.
+            s.rest = nil
+            s.turns[item] = t
+            s.merged[t]?.pieces.append(item)
+            return t
+        }
+        s.nextTurn += 1
+        s.turns[item] = s.nextTurn
+        var m = MergedTurn()
+        m.pieces = [item]
+        s.merged[s.nextTurn] = m
+        return s.nextTurn
     }
 }

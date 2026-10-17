@@ -1,13 +1,13 @@
 import Foundation
 
-/// Why a wake phrase was refused. `reason` is short and speakable (she says it when
+/// Why a wake phrase was refused. `reason` is short and speakable (Dee says it when
 /// the phrase was changed by voice; settings show it under the field).
 public enum WakePhraseError: Error, Sendable, Equatable {
     case empty
     case tooManyWords(Int)
     case tooLong(Int)
     case invalidCharacters
-    /// The phrase is (or contains only) one of her commands: "stop", "go to sleep" …
+    /// The phrase is (or contains only) one of Dee's commands: "stop", "go to sleep" …
     case isCommand(String)
 
     public var reason: String {
@@ -21,15 +21,15 @@ public enum WakePhraseError: Error, Sendable, Equatable {
     }
 }
 
-/// The phrase that wakes her, heard only on the device.
+/// The phrase that wakes Dee, heard only on the device.
 ///
 /// One to four words of letters (plus `'` and `-`), at most 32 characters, and not one
-/// of her commands. `aliases` are explicit alternative spellings the recogniser writes
+/// of Dee's commands. `aliases` are explicit alternative spellings the recogniser writes
 /// for the phrase (the only tier that may match fewer words than the phrase has).
 public struct WakePhrase: Sendable, Equatable, Hashable, CustomStringConvertible {
     public static let defaultText = "Hey Dee"
     public static let `default` = try! WakePhrase(validating: defaultText)
-    public static let shortPhraseWarning = "Short phrases wake her by accident more often."
+    public static let shortPhraseWarning = "Short phrases cause more accidental wake-ups."
     public static let maxWords = 4
     public static let maxCharacters = 32
 
@@ -91,7 +91,7 @@ public struct WakePhrase: Sendable, Equatable, Hashable, CustomStringConvertible
         "hey robo": ["hey robot", "hey roboh"],
     ]
 
-    /// Her local commands; a wake phrase can't be one (normalised).
+    /// Dee's local commands; a wake phrase can't be one (normalised).
     static let commands: Set<String> = [
         "stop", "stop talking", "stop it", "stop that", "be quiet", "quiet", "shush", "hush", "enough", "thats enough",
         "go to sleep", "goodnight", "good night", "time to sleep", "go to bed", "stop listening", "thats all",

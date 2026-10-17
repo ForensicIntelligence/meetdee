@@ -1,3 +1,4 @@
+import DeeCore
 import Foundation
 
 /// SELF.md §6.4 — the self block for `Persona.selfLines` (frozen per conversation)
@@ -28,8 +29,10 @@ public enum SelfBlock {
         }
     }
 
-    public static func humourPhrase(_ h: HumourStyle) -> String {
-        switch h {
+    /// `adult`: a persona preset (not Classic Dee) — "a small robot in a phone", never "tiny".
+    public static func humourPhrase(_ h: HumourStyle, adult: Bool = false) -> String {
+        if adult, h == .selfDeprecatingRobot { return "jokes about being a small robot in a phone" }
+        return switch h {
         case .wordplay: "puns and wordplay"
         case .deadpan: "deadpan understatement"
         case .absurd: "gently absurd"
@@ -71,11 +74,11 @@ public enum SelfBlock {
     public enum Line: Int, Sendable, CaseIterable { case values, humour, tastes, capability, lesson }
 
     /// The candidate lines, in priority order (values first).
-    public static func lines(_ e: Enduring, person: PersonID?) -> [(line: Line, text: String)] {
+    public static func lines(_ e: Enduring, person: PersonID?, persona: PersonaPreset = PersonaCatalog.classic) -> [(line: Line, text: String)] {
         var out: [(Line, String)] = []
         let values = Value.allCases.sorted { (e.values[$0] ?? 0, $1.rawValue) > (e.values[$1] ?? 0, $0.rawValue) }.prefix(3)
         out.append((.values, "About you: you value \(list(values.map(valueWord)))."))
-        out.append((.humour, "Your humour is \(humourPhrase(e.humour))."))
+        out.append((.humour, "Your humour is \(humourPhrase(e.humour, adult: !persona.isClassic))."))
         let tastes = e.facets
             .filter { $0.kind == .taste && $0.crystallised && $0.revealedAt != nil && !SensitiveSubjects.contains($0.subject) }
             .sorted { (abs($0.polarity) * Double($0.evidence), $1.subject.text) > (abs($1.polarity) * Double($1.evidence), $0.subject.text) }
@@ -117,8 +120,9 @@ public enum SelfBlock {
     /// The self block: one paragraph line (≤ `budget` tokens) plus an optional
     /// boundary line. Drop order: lesson, capability, tastes, humour; values stay.
     public static func render(_ e: Enduring, person: PersonID?, budget: Int = maxTokens,
-                              count: (String) -> Int = CueWriter.estimateTokens) -> [String] {
-        var parts = lines(e, person: person)
+                              count: (String) -> Int = CueWriter.estimateTokens,
+                              persona: PersonaPreset = PersonaCatalog.classic) -> [String] {
+        var parts = lines(e, person: person, persona: persona)
         let dropOrder: [Line] = [.lesson, .capability, .tastes, .humour]
         var i = 0
         while count(parts.map(\.text).joined(separator: " ")) > budget, i < dropOrder.count {

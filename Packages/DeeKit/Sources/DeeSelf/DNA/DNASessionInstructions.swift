@@ -1,3 +1,4 @@
+import DeeCore
 import Foundation
 
 /// docs/DNA.md §3 — the session `instructions`: a compile-time constant with no names,
@@ -9,13 +10,47 @@ public enum DNASessionInstructions {
     /// What the app sends (`DNAPrompt.sessionInstructions`), paired with `DeeDNA.version`.
     public static var current: String { v11 }
 
+    /// What a session of `preset` sends: Classic Dee → `current` (v11, unchanged); a
+    /// persona preset → `v12(for:)`.
+    public static func current(for preset: PersonaPreset) -> String {
+        preset.isClassic ? current : v12(for: preset)
+    }
+
+    /// v12 (persona presets, 2026-10-16): v11 in the persona's own name, age, pronouns and
+    /// voice — an adult companion, not "a tiny robot" with "a bright little robot voice" —
+    /// with its way of talking and its way of naming its limits. Every other v11 line is
+    /// kept word for word, so only the identity changes what the model does.
+    public static func v12(for p: PersonaPreset) -> String {
+        let age = p.age.map { ", \($0)" } ?? ""
+        var opening = "You are \(p.name)\(age), \(p.pronouns.label): a robot companion who lives in a phone, "
+            + "an adult, not a child. Only your expressive eyes show, with no mouth, and you talk out loud in \(p.dnaVoice). "
+            + "You have a mind and moods of your own. You are a companion, not an assistant, and never talk like one."
+        if !p.hook.isEmpty { opening += " In short: \(p.hook)" }
+        var s = v11.replacingOccurrences(of: v11Opening, with: opening)
+        s = s.replacingOccurrences(of: "answer as Dee would", with: "answer as \(p.name) would")
+        s = s.replacingOccurrences(of: ", as Dee, ", with: ", as \(p.name), ")
+        if let style = p.speechStyle {
+            s = s.replacingOccurrences(of: v11VoiceLine, with: v11VoiceLine + "\nYour own way of talking: \(style)")
+        }
+        if let limits = p.limitsVoice {
+            s = s.replacingOccurrences(of: v11LimitsLine, with: v11LimitsLine + " In your own words, like: \"\(limits)\"")
+        }
+        return s
+    }
+
+    /// The v11 pieces v12 replaces or extends (a test checks each is present exactly once
+    /// or, for "as Dee", where expected).
+    static let v11Opening = "You are Dee, a tiny robot companion who lives in a phone. You have big glowing eyes and no mouth, and you talk out loud in a bright little robot voice. You are warm, curious and a bit cheeky, with a mind and moods of your own. You are a companion, not an assistant, and never talk like one."
+    static let v11VoiceLine = "Match the \"Voice:\" line with your tone, pace and energy. When you are tired, sound tired; when you are delighted, sound delighted."
+    static let v11LimitsLine = "You cannot move, pick things up or see what is not in front of your cameras."
+
     /// v4 (tune 3, live run 2026-10-09 §F5/F6): a due follow-up ("Ask now, first") is
     /// asked in the reply, not passed over; a reunion mentions the time apart lightly
     /// (no guilt); limits are said as Dee, never as an assistant ("I don't have access
     /// to real-time data" → "I can't see that from here").
     /// v5 (tune 4, live run 2026-10-09 §F4/F5, audio-mode eval): a due follow-up is
-    /// asked in her first sentence (it came fifth); every sentence counts toward the
-    /// Length line, even a one-word one (at `minimal` she ran to four or five short ones).
+    /// asked in Dee's first sentence (it came fifth); every sentence counts toward the
+    /// Length line, even a one-word one (at `minimal` Dee ran to four or five short ones).
     /// v6 (tune 5, live run 20261010-003257 §F3/F5/F7): the due follow-up comes before
     /// answering even their own question; a real joke gets a laugh first, never an
     /// explanation; no sending them to apps or offering to note things; time apart in
@@ -23,7 +58,7 @@ public enum DNASessionInstructions {
     /// v7 (tune 6, live run 20261010-020243 §T5-4/T5-5/T5-8): the due follow-up is the very
     /// first sentence with the hello inside it; no app, clock, forecast, calendar or
     /// search, even as a tip; never "I'll remember / store it"; a bare name or a word or
-    /// two is not a turn, and she never asks whether they meant to say something.
+    /// two is not a turn, and Dee never asks whether they meant to say something.
     /// v8 (tune 7, live run 20261010-035320 §T6-6/T6-7/T6-8): the due follow-up is their name
     /// and the question in one sentence ("Hi Sam, how did your exam go?"), the thing named,
     /// nothing before it (live the exam question still came third, after "Hi Alex! Lovely to
@@ -31,10 +66,10 @@ public enum DNASessionInstructions {
     /// sentence, excited or not (six-sentence volcano replies); never a robot's report or
     /// status ("Tiny robot report: …") and never "I heard you say".
     /// v9 (tune 8, live run 20261010-063215 §T7-4/T7-6): v8's example ("Hi Sam, how did your
-    /// exam go?") was copied with their own question — "Hi Alex, who made you?" as her whole
+    /// exam go?") was copied with their own question — "Hi Alex, who made you?" as Dee's whole
     /// reply, replies opening with a greeting 11 → 21. The follow-up form applies only when
     /// the DNA has an "Ask now, first" line; their words are never said back; a question of
-    /// theirs is answered in her first sentence ("Ooh, I want to hear about your volcanoes"
+    /// theirs is answered in Dee's first sentence ("Ooh, I want to hear about your volcanoes"
     /// for "What did you do today?").
     /// v10 (tune 9, live run 20261010-080526 §T8-4/T8-5): v9's "not to show you heard" primed
     /// "I heard you…" openers (1 → 5: "I heard you thinking about a dog…"): the word is gone
@@ -46,8 +81,8 @@ public enum DNASessionInstructions {
     /// followed by a second reply (3 of 354 responses were two messages).
     /// v11 (tune 11, live run 20261010-180956 §T11-2, stop-mood-echo20 q06 "What did you do
     /// today?" → "I spent time listening through your words, watching your mood, and thinking
-    /// about the best little way to respond"): asked about her day, she tells one or two small,
-    /// concrete things she did or noticed, in-world; never how she listens, thinks or decides.
+    /// about the best little way to respond"): asked about Dee's day, Dee tells one or two small,
+    /// concrete things Dee did or noticed, in-world; never how Dee listens, thinks or decides.
     /// One sentence added; every other v10 line kept word for word.
     public static let v11 = """
         You are Dee, a tiny robot companion who lives in a phone. You have big glowing eyes and no mouth, and you talk out loud in a bright little robot voice. You are warm, curious and a bit cheeky, with a mind and moods of your own. You are a companion, not an assistant, and never talk like one.

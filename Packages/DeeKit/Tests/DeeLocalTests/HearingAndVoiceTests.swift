@@ -93,7 +93,9 @@ import DeeMockServer
         engine.segment(SpeechSegment(text: "what's my dog", isFinal: false, startFrame: 4_800))
         engine.segment(SpeechSegment(text: "what's my dark", isFinal: false, startFrame: 4_800))   // revised: no delta
         let start = Date()
-        engine.activity(false, 12_000, 20_000)
+        // Quiet for 300 ms (the stop) + the merge window (the commit; up to 1.4 s while the words
+        // so far, "what's my", trail off).
+        engine.activity(false, 12_000, 60_000)
         #expect(await sink.wait { $0.contains { if case .transcriptCompleted = $0 { true } else { false } } })
         #expect(Date().timeIntervalSince(start) < 0.5)   // gate: commit → completed ≤ 0.5 s
         let all = sink.all
@@ -137,7 +139,7 @@ import DeeMockServer
         try await hearing.start { sink.add($0) }
         hearing.feed(Data(count: 48_000 * 2), atFrame: 0)
         engine.activity(true, 12_000, 24_000)
-        engine.activity(false, 24_000, 36_000)
+        engine.activity(false, 24_000, 60_000)   // the stop + the merge window
         #expect(await sink.wait { $0.contains { if case .transcriptCompleted = $0 { true } else { false } } })
         #expect(sink.all.contains(.transcriptCompleted(turn: 1, text: "Dee, what's up")))
         #expect(!sink.all.contains { if case .transcriptDelta = $0 { true } else { false } })   // no deltas from REST

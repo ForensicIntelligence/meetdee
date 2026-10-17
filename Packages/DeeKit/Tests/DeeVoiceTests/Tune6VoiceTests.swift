@@ -10,15 +10,15 @@ import Testing
 // an item it never announces (no speech_started) and stops / commits that one. The
 // open speech must end there — in the voice (`userIsSpeaking`) and in the session
 // (its "never start over someone" gate cancelled every answer at its first delta).
-// (2) "I'm listening." starting just after she went on from "Keep going." never
-// pauses her again: its words decide.
+// (2) "I'm listening." starting just after Dee went on from "Keep going." never
+// pauses Dee again: its words decide.
 
 @Suite(.serialized) struct QuickCommitTailTests {
     /// t2-interrupt-clean q02 "Are you awake?" (live, 39.4–42.3 s): speech_started
-    /// item_q over her reply → hold → our commit (40.37) → committed item_q (40.44)
+    /// item_q over Dee's reply → hold → our commit (40.37) → committed item_q (40.44)
     /// → speech_stopped + committed of the unannounced tail (40.60) → transcripts
     /// "Are you awake?" / "" → the brain answers (41.06) → its first delta (41.61)
-    /// came with a `response.cancel` in the same ms, and so did the retry's. She
+    /// came with a `response.cancel` in the same ms, and so did the retry's. Dee
     /// never answered. Now: their speech is over at the tail's stop, the answer plays.
     @Test func theUnannouncedTailEndsTheirSpeechAndTheAnswerPlays() async throws {
         let rig = try LoopRig()
@@ -42,7 +42,7 @@ import Testing
         #expect(!rig.voice.userIsSpeaking, "their speech still open after the tail's stop")
         #expect(rig.voice.floorHold?.wordsAt != nil || rig.voice.floorHold == nil)
 
-        // The brain answers (cutting her where she paused).
+        // The brain answers (cutting Dee where Dee paused).
         _ = try await rig.voice.respond()
         #expect(await rig.waitSent("response.create"))
         let cancelsBefore = rig.sent("response.cancel").count
@@ -87,7 +87,7 @@ import Testing
 }
 
 @Suite(.serialized) struct AfterResumeTests {
-    /// Her reply paused by "Keep going." and gone on from its words; then.
+    /// Dee's reply paused by "Keep going." and gone on from its words; then.
     private func resumedByKeepGoing(_ rig: LoopRig) async throws {
         try await rig.start()
         try await rig.pausedBy("item_u2", talk: 0.6)
@@ -100,9 +100,9 @@ import Testing
         try #require(resumed != nil, "never went on")
     }
 
-    /// t2-backchannel-fan15 / kitchen15 c05 (live): "Keep going." resumed her; "I'm
-    /// listening." began 0.04–0.3 s later, over her again. Before: its onset paused
-    /// her once more (tune5-voice.md, open item). Now she talks on; its words make
+    /// t2-backchannel-fan15 / kitchen15 c05 (live): "Keep going." resumed Dee; "I'm
+    /// listening." began 0.04–0.3 s later, over Dee again. Before: its onset paused
+    /// Dee once more (tune5-voice.md, open item). Now Dee talks on; its words make
     /// it a backchannel; nothing is cut.
     @Test func imListeningJustAfterSheWentOnNeverPausesHer() async throws {
         let rig = try LoopRig()
@@ -115,21 +115,21 @@ import Testing
         await rig.settle()
         try rig.talk(0.65)
         await rig.settle()
-        #expect(rig.voice.floorHold == nil, "\"I'm listening.\" paused her again")
-        // She talked through it (her tone, not silence, while they spoke).
-        #expect(rig.audibleMs(fromSample: onset) > 600, "she went quiet: \(rig.audibleMs(fromSample: onset)) ms")
+        #expect(rig.voice.floorHold == nil, "\"I'm listening.\" paused Dee again")
+        // Dee talked through it (Dee's tone, not silence, while they spoke).
+        #expect(rig.audibleMs(fromSample: onset) > 600, "Dee went quiet: \(rig.audibleMs(fromSample: onset)) ms")
         try rig.quiet(0.12)
         rig.push(Srv.speechStopped("item_u3", ms: rig.uplinkMsNow - 120), Srv.committed("item_u3"))
         // First words that settle on their own ("I'm still"): not a turn yet.
         rig.deltas("item_u3", ["I'm", " still"])
         try rig.quiet(0.25)
-        #expect(rig.voice.floorHold == nil, "the settled \"I'm still\" paused her")
+        #expect(rig.voice.floorHold == nil, "the settled \"I'm still\" paused Dee")
         rig.deltas("item_u3", [" listening", "."])
         try rig.quiet(0.1)
         rig.push(Srv.userTranscript("item_u3", "I'm still listening."))
         try rig.quiet(0.3)
         await rig.settle()
-        #expect(rig.voice.floorHold == nil, "\"I'm still listening.\" paused her")
+        #expect(rig.voice.floorHold == nil, "\"I'm still listening.\" paused Dee")
         #expect(rig.voice.wasBackchannel(itemID: "item_u3"))
         #expect(holds.all.contains(.resumed(itemIDs: ["item_u3"], text: "I'm still listening.", why: "after-resume")), "\(holds.all)")
         #expect(rig.sent("conversation.item.truncate").isEmpty)
@@ -137,7 +137,7 @@ import Testing
         rig.voice.shutdown()
     }
 
-    /// A real turn right after she went on is still heard: its words pause her and
+    /// A real turn right after Dee went on is still heard: its words pause Dee and
     /// the brain answers it.
     @Test func aQuestionJustAfterSheWentOnPausesHerByItsWords() async throws {
         let rig = try LoopRig()
@@ -151,12 +151,12 @@ import Testing
         rig.push(Srv.speechStopped("item_u3", ms: rig.uplinkMsNow - 120), Srv.committed("item_u3"))
         rig.deltas("item_u3", ["Wait", ",", " what", " time", " is", " it", "?"])
         let paused = try await rig.stepUntil(0.6) { rig.voice.floorHold != nil }
-        #expect(paused != nil, "a question over her never paused her")
+        #expect(paused != nil, "a question over Dee never paused Dee")
         #expect(!rig.voice.wasBackchannel(itemID: "item_u3"))
         rig.voice.shutdown()
     }
 
-    /// Long after she went on, an onset pauses her on its sound as always.
+    /// Long after Dee went on, an onset pauses Dee on its sound as always.
     @Test func anOnsetLongAfterTheResumePausesHerAsAlways() async throws {
         let rig = try LoopRig()
         try await resumedByKeepGoing(rig)

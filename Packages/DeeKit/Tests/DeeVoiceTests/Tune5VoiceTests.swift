@@ -11,7 +11,7 @@ import Testing
 // still one backchannel; (3) F2: in kitchen / TV beds `userIsSpeaking` stayed on
 // 0.8–2.8 s after they stopped and held ready replies (live 0.6–1.26 s).
 
-/// The user alone in a room bed (no her, no server), EarCore frame by frame:
+/// The user alone in a room bed (no Dee, no server), EarCore frame by frame:
 /// per frame, `userIsSpeaking` and `voiceActive`.
 struct BedProbe {
     var sim: RoomSim
@@ -192,9 +192,9 @@ private let f2Lines = ["f01", "f02", "f03", "f04", "f05", "t03", "k03", "t04", "
 @Suite(.serialized) struct SplitBackchannelTests {
     /// t2-backchannel-kitchen15 c05 (live): item 1 "Keep going" heard as "Sheep going."
     /// (speech_stopped + commit), item 2 "I'm listening." started 0.26 s later; the
-    /// brain answered "Sheep going", which cut her (2.06 s), then answered "I'm
+    /// brain answered "Sheep going", which cut Dee (2.06 s), then answered "I'm
     /// listening." as a turn. Now: "Sheep going." is "go on"; the brain's go-on
-    /// waits while item 2 is still being said; she goes on once its words say
+    /// waits while item 2 is still being said; Dee goes on once its words say
     /// "go on" too, and both items are backchannels.
     @Test func sheepGoingThenImListeningIsOneBackchannel() async throws {
         let rig = try LoopRig()
@@ -213,8 +213,8 @@ private let f2Lines = ["f01", "f02", "f03", "f04", "f05", "t03", "k03", "t04", "
         let during = rig.output.count
         try rig.talk(0.55)
         await rig.settle()
-        #expect(rig.voice.floorHold != nil, "she went on over \"I'm listening\"")
-        #expect(rig.audibleMs(fromSample: during) == 0, "she talked over them")
+        #expect(rig.voice.floorHold != nil, "Dee went on over \"I'm listening\"")
+        #expect(rig.audibleMs(fromSample: during) == 0, "Dee talked over them")
         #expect(rig.voice.floorHold?.wordsAt == nil, "\"Sheep going.\" was taken as a turn")
         // One long burst (live: the server's own stop and commit, 0.16 s after the words).
         try rig.quiet(0.16)
@@ -236,7 +236,7 @@ private let f2Lines = ["f01", "f02", "f03", "f04", "f05", "t03", "k03", "t04", "
 
     /// t2-backchannel-echo20 c05 (live): our quick commit of "Keep going", heard as
     /// "She's not going."; "I'm listening." started 0.33 s after. A short burst in
-    /// a hold: a continuer — she waits for item 2 and goes on; the brain's check
+    /// a hold: a continuer — Dee waits for item 2 and goes on; the brain's check
     /// (`isHoldBackchannel`) agrees.
     @Test func shesNotGoingInAShortBurstIsAContinuer() async throws {
         let rig = try LoopRig()
@@ -266,7 +266,7 @@ private let f2Lines = ["f01", "f02", "f03", "f04", "f05", "t03", "k03", "t04", "
         rig.voice.shutdown()
     }
 
-    /// The same words said at length (a real answer over her): a turn.
+    /// The same words said at length (a real answer over Dee): a turn.
     @Test func shesNotGoingSaidAtLengthIsATurn() async throws {
         let rig = try LoopRig()
         try await rig.start()

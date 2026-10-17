@@ -9,11 +9,11 @@ import Testing
 struct Tune6DNATests {
     typealias C = Tune3CharacterTests
 
-    // MARK: T5-8 — no apps, clocks or forecasts: a hard limit of hers
+    // MARK: T5-8 — no apps, clocks or forecasts: a hard limit of Dee's
 
     /// latency-clean q07 / two03 / q03, length-clean q07: "…you can check a weather app or a
     /// forecast.", "Or open the weather app…", "You can check your phone's clock…". The
-    /// limit is now in who she is (the identity line, never trimmed) and in the Always line.
+    /// limit is now in who Dee is (the identity line, never trimmed) and in the Always line.
     @Test func everyDNASaysSheHasNoAppsOrClock() {
         for a in DNAKit.all {
             let t = DNAPrompt.build(a.inputs).text
@@ -52,8 +52,8 @@ struct Tune6DNATests {
 
     // MARK: T5-5 — the name as a sentence
 
-    /// fallback-rollover-speech m01: the DNA said "4 TOWARD THIS PERSON / Priya." and she
-    /// said she hadn't learned their name. A known name now reads as a sentence.
+    /// fallback-rollover-speech m01: the DNA said "4 TOWARD THIS PERSON / Priya." and Dee
+    /// said Dee hadn't learned their name. A known name now reads as a sentence.
     @Test func aKnownNameIsASentence() {
         let t = DNAPrompt.build(DNAKit.reunion9Days().inputs).text
         #expect(t.contains("\n4 TOWARD THIS PERSON\nTheir name is Maya (also May).\n"), "\(t)")

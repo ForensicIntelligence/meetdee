@@ -5,20 +5,20 @@ import Testing
 
 // Tune 10 (scratchpad/tune9-live.md; reports Tools/voice-harness/Reports/20261010-102105,
 // -111224; traces Tools/voice-harness/Traces/<same>):
-// (T9-2) "Are you awake?" 0.47 s after her reply ended was deleted as her echo (strict words).
-// (T9-3) "Mm-hm." heard as "NNHN." over her was a turn (a hum needed an "m").
-// (T9-7) her echo heard as "Me." (no echo cancellation) cut her 4.8 s into her reply.
-// (T9-1) the brain's go-on waited while they talked on, and `holdAfterWords` cut her anyway.
+// (T9-2) "Are you awake?" 0.47 s after Dee's reply ended was deleted as Dee's echo (strict words).
+// (T9-3) "Mm-hm." heard as "NNHN." over Dee was a turn (a hum needed an "m").
+// (T9-7) Dee's echo heard as "Me." (no echo cancellation) cut Dee 4.8 s into Dee's reply.
+// (T9-1) the brain's go-on waited while they talked on, and `holdAfterWords` cut Dee anyway.
 
-// MARK: - T9-2: voice after her playback is never judged as her garbled echo
+// MARK: - T9-2: voice after Dee's playback is never judged as Dee's garbled echo
 
 @Suite(.serialized) struct VoiceAfterHerIsNotStrictTests {
-    /// Live t2-fallback-rollover-speech q02 (main run 20261010-102105, 22.94–25.15): her
+    /// Live t2-fallback-rollover-speech q02 (main run 20261010-102105, 22.94–25.15): Dee's
     /// reply ended at 22.94; "Are you awake?" began 23.41 (server onset 23124 ms, start
     /// event 23.608, stop 24.707 with its end 0.39 s after the words). The voice left the
-    /// item to its words *strictly* and deleted it (`dee_del_16`): "you" was in her line
-    /// 19 s before, so only two of its words were new. Their voice came after her playback
-    /// and its tail — hers can't be there — so the words are judged as words.
+    /// item to its words *strictly* and deleted it (`dee_del_16`): "you" was in Dee's line
+    /// 19 s before, so only two of its words were new. Their voice came after Dee's playback
+    /// and its tail — Dee's can't be there — so the words are judged as words.
     @Test(arguments: [false, true])
     func aQuestionRightAfterHerIsJudgedAsWords(aec: Bool) throws {
         var sim = RoomSim(seconds: 16, aec: aec)
@@ -35,11 +35,11 @@ import Testing
         sim.run()
         #expect(!sim.actions.contains(.rejectEcho(itemID: "item_q")), "the question was deleted on its sound")
         #expect(!sim.actions.contains(.deferToWords(itemID: "item_q", strict: true)),
-                "voice after her playback was left to her-echo words (strict)")
+                "voice after Dee's playback was left to Dee-echo words (strict)")
         #expect(sim.actions.contains(.deferToWords(itemID: "item_q", strict: false))
                 || sim.actions.contains(.acceptOnset(itemID: "item_q")))
 
-        // Her live words before it: the question is theirs by its words.
+        // Dee's live words before it: the question is theirs by its words.
         var w = HerWords()
         w.add("Hi Priya, nice to meet you. I\u{2019}m Dee, a tiny phone friend with big curiosity.", at: 6.341)
         w.add("I don\u{2019}t really have a favorite color, but I\u{2019}m drawn to bright, playful colors. "
@@ -47,7 +47,7 @@ import Testing
         #expect(!w.isHerEcho("Are you awake?", at: 25.146))
     }
 
-    /// Her own garbled echo under her playing voice is still judged strictly (tune 2 live:
+    /// Dee's own garbled echo under Dee's playing voice is still judged strictly (tune 2 live:
     /// "Years old." for "Here's a little thought"): nothing changed there.
     @Test func herGarbledEchoUnderHerVoiceStaysStrict() {
         var w = HerWords()
@@ -75,11 +75,11 @@ import Testing
     }
 }
 
-// MARK: - T9-7: one word of her echo with no echo cancellation never cuts her
+// MARK: - T9-7: one word of Dee's echo with no echo cancellation never cuts Dee
 
 @Suite(.serialized) struct EchoOneWordNoAECTests {
-    /// Her reply playing (no echo cancellation), her words known; an onset `at` s into it
-    /// pauses her; the item's partial words are `words`.
+    /// Dee's reply playing (no echo cancellation), Dee's words known; an onset `at` s into it
+    /// pauses Dee; the item's partial words are `words`.
     private func pausedOverHer(_ rig: LoopRig, aec: Bool, words: [String]) async throws {
         _ = rig.graph.setManualFacts(aecActive: aec, outputLatency: 0)
         try await rig.start()
@@ -97,7 +97,7 @@ import Testing
             await rig.settle()
             talked += 0.02
         }
-        try #require(rig.voice.floorHold?.itemID == "item_u2", "she was not paused")
+        try #require(rig.voice.floorHold?.itemID == "item_u2", "Dee was not paused")
         try rig.quiet(0.1)
         rig.push(Srv.speechStopped("item_u2", ms: rig.uplinkMsNow - 100), Srv.committed("item_u2"))
         rig.deltas("item_u2", words)
@@ -105,15 +105,15 @@ import Testing
     }
 
     /// Live t2-backchannel-echo20 (20261010-102105, 65.14–66.28; AEC off, echo −20 dB): 2.6 s
-    /// after she went on, her echo opened an item heard as "Me."; the brain answered it and
-    /// cut her at 4790 ms ("Hi, Alex. I'm listening too…"). The brain asks the voice
-    /// (`isMisheardFragment(itemID:text:)`): one word over her voice with no echo
-    /// cancellation, that no word or sound says is a person, is her echo — she goes on.
+    /// after Dee went on, Dee's echo opened an item heard as "Me."; the brain answered it and
+    /// cut Dee at 4790 ms ("Hi, Alex. I'm listening too…"). The brain asks the voice
+    /// (`isMisheardFragment(itemID:text:)`): one word over Dee's voice with no echo
+    /// cancellation, that no word or sound says is a person, is Dee's echo — Dee goes on.
     @Test func liveMeOverHerWithNoEchoCancellationGoesOn() async throws {
         let rig = try LoopRig()
         try await pausedOverHer(rig, aec: false, words: ["Me", "."])
         #expect(rig.voice.isMisheardFragment(itemID: "item_u2", text: "Me."))
-        // A word a person says alone, or a question, still stops her.
+        // A word a person says alone, or a question, still stops Dee.
         #expect(!rig.voice.isMisheardFragment(itemID: "item_u2", text: "Stop."))
         #expect(!rig.voice.isMisheardFragment(itemID: "item_u2", text: "No."))
         #expect(!rig.voice.isMisheardFragment(itemID: "item_u2", text: "Why?"))
@@ -122,8 +122,8 @@ import Testing
     }
 
     /// Review (tune 10): a one-word barge-in a person says alone ("Enough.", "Dee.",
-    /// "Pause.", "Quiet.", "Nope.") over her with no echo cancellation is theirs: it
-    /// stops her. `Backchannel.notFragments` says so; the echo rule must not override it.
+    /// "Pause.", "Quiet.", "Nope.") over Dee with no echo cancellation is theirs: it
+    /// stops Dee. `Backchannel.notFragments` says so; the echo rule must not override it.
     @Test func aLoneWordBargeInIsNeverHerEcho() async throws {
         let rig = try LoopRig()
         try await pausedOverHer(rig, aec: false, words: ["Enough", "."])
@@ -134,7 +134,7 @@ import Testing
         rig.voice.shutdown()
     }
 
-    /// With echo cancellation on, "Me." over her is theirs (unchanged).
+    /// With echo cancellation on, "Me." over Dee is theirs (unchanged).
     @Test func withEchoCancellationMeIsATurn() async throws {
         let rig = try LoopRig()
         try await pausedOverHer(rig, aec: true, words: ["Me", "."])
@@ -149,8 +149,8 @@ import Testing
     /// Live t2-backchannel-echo10 c05 "Keep going, I'm listening." (20261010-102105 and
     /// -111224, 54.4–58.7): the partial "Be sneaking," made the hold's verdict `.answer`
     /// (56.49); the brain said "go on" at 56.52 while they were still talking (deferred);
-    /// `holdAfterWords` still cut her at 57.49 while "I'm listening." was being said. The
-    /// brain's go-on cancels that deadline: she goes on once their words are in.
+    /// `holdAfterWords` still cut Dee at 57.49 while "I'm listening." was being said. The
+    /// brain's go-on cancels that deadline: Dee goes on once their words are in.
     @Test func aDeferredGoOnIsNotCutByHoldAfterWords() async throws {
         let rig = try LoopRig()
         let holds = Collector(rig.voice.holdEvents)
@@ -176,9 +176,9 @@ import Testing
         try rig.talk(CloudVoice.holdAfterWords - 0.2)
         await rig.settle()
         #expect(rig.voice.floorHold != nil, "the hold ended while the brain's go-on waited")
-        #expect(rig.sent("conversation.item.truncate").isEmpty, "her reply was cut")
+        #expect(rig.sent("conversation.item.truncate").isEmpty, "Dee's reply was cut")
         #expect(!holds.all.contains { if case .ended = $0 { true } else { false } }, "\(holds.all)")
-        // Their words are in: she goes on.
+        // Their words are in: Dee goes on.
         rig.push(Srv.speechStopped("item_u3", ms: rig.uplinkMsNow - 100), Srv.committed("item_u3"))
         rig.deltas("item_u3", [" listening", "."])
         rig.push(Srv.userTranscript("item_u3", "I'm listening."))

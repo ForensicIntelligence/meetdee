@@ -24,6 +24,8 @@ public struct ProviderRuntime: Sendable {
     public var stats: CascadeStats?
     /// Speech-to-text the TurnPolicy word waits should assume.
     public var stt: TimingProfile.CascadeSTT?
+    /// The base speech style the cascaded voice is given (nil in mode 1 / LAN realtime).
+    public var voiceStyle: String? = nil
 }
 
 /// Builds runtimes. Never contacts the network itself (W2: building one while DORMANT is free);
@@ -42,12 +44,16 @@ public enum ProviderFactory {
     ///     but model and voice (byte-for-byte today's session.update).
     ///   - capabilities: the last probe of the brain server (tools / vendor / realtime); nil = assume tools, other vendor.
     ///   - phrase: the wake phrase (a keyword for hearing; name rewriting).
-    ///   - uplink: EarCore's per-frame voice evidence (mode 3 turn detection), shared with CloudVoice.
+    ///   - uplink: EarCore's per-frame voice evidence (mode 3 turn detection; mode 2 rest-of-burst starts), shared with CloudVoice.
     ///   - speechEngine: on-device recogniser for mode 3 (tests inject a fake).
+    ///   - voiceStyle: the persona's base speech style for the cascaded voice (`PersonaPreset.ttsStyle`);
+    ///     nil keeps Classic Dee's (`CascadeOptions.voiceStyle`).
+    ///   - appleVoice: the persona's on-device voice rule (mode 3 on this iPhone: base pitch and rate of
+    ///     the live voice and the clips); nil uses `OnDeviceVoice.personaRule` (nil there = Classic Dee).
     public static func make(_ c: ProviderConfig, secrets: any SecretReader, transport: Transport,
                             base: RealtimeSessionConfig = RealtimeSessionConfig(),
                             capabilities: ServerCapabilities? = nil, phrase: WakePhrase = .default,
-                            uplink: UplinkActivity? = nil,
+                            uplink: UplinkActivity? = nil, voiceStyle: String? = nil, appleVoice: AppleVoiceRule? = nil,
                             speechEngine: (@Sendable () -> any SpeechEngine)? = nil,
                             resolver: any HostResolver = SystemResolver()) throws(ProviderIssue) -> ProviderRuntime {
         if let first = c.validate(secrets: secrets).first { throw first }
@@ -89,7 +95,7 @@ public enum ProviderFactory {
                 let key = brainKey ?? ""
                 return ProviderRuntime(mode: c.mode, sessionConfig: config, credentials: { _ in .direct(key) },
                                        socketFactory: transport.socketFactory, transport: transport,
-                                       clipRenderer: try lanRenderer(c, secrets: secrets, transport: transport),
+                                       clipRenderer: try lanRenderer(c, secrets: secrets, transport: transport, appleVoice: appleVoice),
                                        timing: .lanRealtime, label: .lan(host: brain.hostLabel),
                                        problems: AsyncStream { $0.finish() }, stats: nil, stt: nil)
             }
@@ -97,6 +103,7 @@ public enum ProviderFactory {
             var options = CascadeOptions(model: brain.model)
             options.toolsSupported = capabilities?.tools ?? true
             options.keepAlive = vendor == .ollama ? c.keepAlive : nil
+            if let voiceStyle, !voiceStyle.isEmpty { options.voiceStyle = voiceStyle }
 
             // Hearing.
             let makeHearing: @Sendable () -> any CascadeHearing
@@ -107,7 +114,8 @@ public enum ProviderFactory {
                 session.keywords = keywords
                 let auth = OpenAIAuth(keyStore: keyStore, sessionType: .transcription, transcription: session,
                                       transport: transport.fetch)
-                makeHearing = { OpenAITranscriptionHearing(transport: transport, credential: { try await auth.credential(model: OpenAITranscription.model) }) }
+                makeHearing = { OpenAITranscriptionHearing(transport: transport, credential: { try await auth.credential(model: OpenAITranscription.model) },
+                                                             uplink: uplink) }
                 stt = .openAIRealtime
             case (.lanEverything, .lan(let e)):
                 let key = e.keyAccount.flatMap { secrets.secret(account: $0) }
@@ -136,7 +144,7 @@ public enum ProviderFactory {
                 let client = CompatClient(base: e.baseURL, key: key, transport: transport, resolver: resolver)
                 voice = LANSpeechVoice(client: client, model: (e.baseURL == brain.baseURL ? capabilities?.speechModel : nil) ?? e.model, voice: c.voice.isEmpty ? "af_heart" : c.voice)
             case (.lanEverything, .onDevice):
-                voice = OnDeviceVoice(voiceIdentifier: c.voice)
+                voice = OnDeviceVoice(voiceIdentifier: c.voice, persona: appleVoice)
             default:
                 throw .partNotAllowed(.voice, c.mode)
             }
@@ -158,17 +166,18 @@ public enum ProviderFactory {
             }
             let renderer: any ClipRenderer = c.mode == .lanBrainOpenAIVoice
                 ? SpeechEndpointRenderer(configuration: .openAI(voice: .named(c.voice)), key: openAIKey, fetch: transport.fetch)
-                : try lanRenderer(c, secrets: secrets, transport: transport,
+                : try lanRenderer(c, secrets: secrets, transport: transport, appleVoice: appleVoice,
                                   capabilities: { if case .lan(let e) = c.tts, e.baseURL == brain.baseURL { return capabilities }; return nil }())
             return ProviderRuntime(mode: c.mode, sessionConfig: config, credentials: { _ in .direct("") },
                                    socketFactory: factory, transport: transport, clipRenderer: renderer, timing: timing,
-                                   label: .lan(host: brain.hostLabel), problems: hub.stream, stats: stats, stt: stt)
+                                   label: .lan(host: brain.hostLabel), problems: hub.stream, stats: stats, stt: stt,
+                                   voiceStyle: options.voiceStyle)
         }
     }
 
     /// Mode 3's clip renderer: the LAN speech server, or this iPhone. Never OpenAI.
     static func lanRenderer(_ c: ProviderConfig, secrets: any SecretReader, transport: Transport,
-                            capabilities: ServerCapabilities? = nil) throws(ProviderIssue) -> any ClipRenderer {
+                            appleVoice: AppleVoiceRule? = nil, capabilities: ServerCapabilities? = nil) throws(ProviderIssue) -> any ClipRenderer {
         switch c.tts {
         case .lan(let e):
             let key = e.keyAccount.flatMap { secrets.secret(account: $0) }
@@ -176,7 +185,10 @@ public enum ProviderFactory {
                                                               voice: c.voice.isEmpty ? "af_heart" : c.voice),
                                           key: { key }, keyRequired: false, fetch: transport.fetch)
         case .onDevice:
-            return OnDeviceClipRenderer(voiceIdentifier: c.voice.isEmpty ? nil : c.voice)
+            // The persona's base pitch and rate, like the live voice.
+            let shape = OnDeviceVoice(voiceIdentifier: c.voice.isEmpty ? nil : c.voice, persona: appleVoice)
+            return OnDeviceClipRenderer(voiceIdentifier: c.voice.isEmpty ? nil : c.voice,
+                                        rate: shape.baseRate, pitch: shape.basePitch)
         default:
             throw .partNotAllowed(.voice, c.mode)
         }

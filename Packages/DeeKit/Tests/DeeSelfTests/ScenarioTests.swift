@@ -445,7 +445,7 @@ func report(_ scenario: String, _ line: String) { print("scenario \(scenario): \
         await dee.step(.sight(camera: .back, things: ["vase"], novel: ["vase"]))
         let cue = await dee.say("look what I made, a vase", gap: 1, reply: "[excited] Wow, a vase! Why blue?")
         let beats = dee.beats
-        #expect(beats.first == .examine, "examines what she is shown: \(beats) focus \(dee.cortex.moment.momentary.focus)")
+        #expect(beats.first == .examine, "examines what Dee is shown: \(beats) focus \(dee.cortex.moment.momentary.focus)")
         _ = cue
         await dee.say("I painted it blue because it's my favourite colour", reply: "[happy] It's beautiful.")
         await dee.say("thanks!", reply: "[happy] Thanks for showing me.")
@@ -515,7 +515,7 @@ func report(_ scenario: String, _ line: String) { print("scenario \(scenario): \
         await dee.say("so what's new", reply: "[curious] Not much!")
         #expect(dee.notes(.reconciled) == 1, "reconciled note exactly once: \(dee.cues)")
         _ = cue
-        // No grovelling: no note ever asks her to apologise, plead or dwell; no reproach.
+        // No grovelling: no note ever asks Dee to apologise, plead or dwell; no reproach.
         let notes = dee.cues.map(Self.notesOnly).joined(separator: " ").lowercased()
         for w in ["apologi", "sorry", "beg", "please forgive"] + CueWriter.reproachWords { #expect(!notes.contains(w), "\(w) in \(notes)") }
 
@@ -664,7 +664,7 @@ func report(_ scenario: String, _ line: String) { print("scenario \(scenario): \
         }
         #expect(mannerisms.filter { [.nod, .contentSquint, .giggle].contains($0) }.isEmpty, "no nod for 1 s: \(mannerisms)")
         #expect((lids.max() ?? 0) > 0, "lids softened")
-        #expect(!fx.contains { if case .say = $0 { true } else if case .initiative = $0 { true } else { false } }, "she waits through 'um'")
+        #expect(!fx.contains { if case .say = $0 { true } else if case .initiative = $0 { true } else { false } }, "Dee waits through 'um'")
         if case .userPaused = dee.cortex.moment.momentary.floor {} else {
             Issue.record("the floor stays the user's: \(dee.cortex.moment.momentary.floor)")
         }
@@ -681,7 +681,7 @@ func report(_ scenario: String, _ line: String) { print("scenario \(scenario): \
                                   preview.valence, nod?.rawValue ?? "-", lids.max() ?? 0))
     }
 
-    // MARK: 5. Remains recognisably herself (60 days, 3 people)
+    // MARK: 5. Remains recognisably Dee (60 days, 3 people)
 
     @Test func identityIsStableOverSixtyDays() async throws {
         let people = [Kit.john, Kit.ann, UUID(uuidString: "00000000-0000-4000-8000-00000000000C")!]
@@ -713,8 +713,8 @@ func report(_ scenario: String, _ line: String) { print("scenario \(scenario): \
         }
         let stored = try await dee.store.loadEnduring(personality: Personality(), seed: 1, at: dee.now)
         #expect(stored.values == e0.values && stored.humour == e0.humour && stored.signature == e0.signature)
-        // Her self (the person-free block: values, humour, revealed tastes, capability) day to
-        // day, and each person's block (plus what she learnt about *them*): both ≥ 0.7, as
+        // Dee's self (the person-free block: values, humour, revealed tastes, capability) day to
+        // day, and each person's block (plus what Dee learnt about *them*): both ≥ 0.7, as
         // §12.4 asks (the person block reached it once tastes stopped forming from every
         // topic word; review finding 1).
         func minimum(_ list: [String]) -> Double { zip(list, list.dropFirst()).map { Self.jaccard($0, $1) }.min() ?? 1 }
@@ -723,7 +723,7 @@ func report(_ scenario: String, _ line: String) { print("scenario \(scenario): \
         let grew = blocks.last != blocks.first || people.contains { theirs[$0]?.last != theirs[$0]?.first }
         #expect(minJaccard >= 0.7, "self block day to day ≥ 0.7 Jaccard, got \(minJaccard)")
         #expect(minTheirs >= 0.7, "per-person block day to day ≥ 0.7 Jaccard, got \(minTheirs)")
-        #expect(grew, "she did learn something over 60 days (tastes / lessons reach the block)")
+        #expect(grew, "Dee did learn something over 60 days (tastes / lessons reach the block)")
         #expect(blocks.last!.hasPrefix(blocks.first!.components(separatedBy: ".").first!), "values line constant")
         for f in stored.facets where f.kind == .taste && f.crystallised {
             #expect(f.contrary < Learner.flipAfter || f.polarity.sign == f.learned.sign, "no flip without 3 contrary: \(f)")

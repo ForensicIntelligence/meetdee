@@ -1,16 +1,16 @@
 import Foundation
 
-/// Tune 9 (T8-1): what one short item said over her voice *sounded* like — its
+/// Tune 9 (T8-1): what one short item said over Dee's voice *sounded* like — its
 /// voiced length, how many syllable-ish energy peaks it had and how its pitch ended.
 ///
-/// Words alone are unreliable over her voice: live tune 8, "Who made you?" came back
+/// Words alone are unreliable over Dee's voice: live tune 8, "Who made you?" came back
 /// as **"Movie."** and was taken for a misheard "go on". A one-word fragment the words
 /// don't know (`Backchannel.isKnownFragmentWord`) is a backchannel only when it also
 /// *sounds* like one (`backchannelLike`: short, at most two syllables, not rising);
-/// anything that sounds like a question (`questionLike`) pauses her for the brain.
+/// anything that sounds like a question (`questionLike`) pauses Dee for the brain.
 ///
 /// Measured by `EarCore.itemSound` from the logged microphone frames of the server
-/// item (its onset to its end), on the user's near-end voice only (never her echo).
+/// item (its onset to its end), on the user's near-end voice only (never Dee's echo).
 public struct FragmentSound: Sendable, Equatable {
     /// How the pitch moved over the item's last voiced stretch.
     public enum PitchEnd: String, Sendable, Equatable {
@@ -64,7 +64,7 @@ public struct FragmentSound: Sendable, Equatable {
         public var t: Double
         public var dt: Double
         public var db: Double
-        /// Near-end sound of theirs (not her echo).
+        /// Near-end sound of theirs (not Dee's echo).
         public var near: Bool
         /// …and pitched voice.
         public var pitched: Bool

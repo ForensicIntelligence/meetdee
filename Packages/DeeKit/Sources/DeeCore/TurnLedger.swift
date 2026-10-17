@@ -14,11 +14,11 @@ public struct TurnLedger: Sendable {
         case reply
         /// Something non-verbal (a wave, a long stroke): "(The user waves at you.)".
         case event
-        /// Her own initiative.
+        /// Dee's own initiative.
         case initiative
 
         /// Never starts over the user (audit C3): gated before the model runs and at
-        /// every word until her voice starts, gives way to their first partial, and
+        /// every word until Dee's voice starts, gives way to their first partial, and
         /// is held by the voice while they talk. Only an answer to their words may
         /// end their turn.
         public var givesWay: Bool { self != .reply }
@@ -29,11 +29,11 @@ public struct TurnLedger: Sendable {
     public struct Reply: Sendable, Equatable {
         public let id: Int
         public let kind: Kind
-        /// Her speaking rate for this reply (estimates how much of it was heard).
+        /// Dee's speaking rate for this reply (estimates how much of it was heard).
         public let rate: Double
         /// The conversation it belongs to (`TurnLedger.conversation`).
         public let conversation: Int
-        /// The user's words it answers, exactly as sent to the model (nil: her
+        /// The user's words it answers, exactly as sent to the model (nil: Dee's
         /// initiative, or an event).
         public internal(set) var userText: String?
         public internal(set) var spoken = SpokenReply()
@@ -42,14 +42,14 @@ public struct TurnLedger: Sendable {
         /// The model was asked: its history holds this turn.
         public internal(set) var inHistory = false
         public internal(set) var audioEverStarted = false
-        /// When her voice started playing this reply; in the future when it was
+        /// When Dee's voice started playing this reply; in the future when it was
         /// queued behind an aside (a laugh, a canned line) still playing.
         var audioStartedAt: Date?
         var playedBefore: TimeInterval = 0
         var voiced = VoicedTime()
         /// Streamed while an aside was waiting to start: it plays after the aside.
         var queuedBehindAside = false
-        /// Characters streamed when her voice last went quiet on this reply.
+        /// Characters streamed when Dee's voice last went quiet on this reply.
         var charsAtLastFinish: Int?
         public internal(set) var audioFinished = false
         public internal(set) var stoppedAt: Date?
@@ -58,8 +58,8 @@ public struct TurnLedger: Sendable {
         public internal(set) var hushed = false
         public internal(set) var settled = false
 
-        /// How long her voice said this reply (until it was stopped). Wall time while it plays,
-        /// capped by the time her output level was actually voiced once any level
+        /// How long Dee's voice said this reply (until it was stopped). Wall time while it plays,
+        /// capped by the time Dee's output level was actually voiced once any level
         /// was seen: a wait for the model between sentences is not speech (L2).
         public func played(at now: Date) -> TimeInterval {
             if let playedAtStop { return playedAtStop }
@@ -135,21 +135,21 @@ public struct TurnLedger: Sendable {
         return c.text
     }
 
-    /// A reply she must not start now: it gives way, has not reached her voice, and
+    /// A reply Dee must not start now: it gives way, has not reached Dee's voice, and
     /// the user holds the floor.
     public func mustGiveWay(userHoldsFloor: Bool) -> Bool {
         guard userHoldsFloor, let r = reply, r.kind.givesWay else { return false }
         return !r.settled && r.stoppedAt == nil && !r.audioEverStarted
     }
 
-    /// The reply is written but her voice has not started it (still synthesising,
+    /// The reply is written but Dee's voice has not started it (still synthesising,
     /// or holding an initiative until the user is quiet).
     public var awaitingVoice: Bool {
         guard let r = reply else { return false }
         return !r.settled && !r.generating && !r.audioEverStarted && r.stoppedAt == nil && !r.spoken.text.isEmpty
     }
 
-    /// A finished reply her voice never started, for `silentReplyTimeout`: withdraw it.
+    /// A finished reply Dee's voice never started, for `silentReplyTimeout`: withdraw it.
     public func isSilentTooLong(at now: Date) -> Bool {
         guard awaitingVoice, let ended = reply?.generationEndedAt else { return false }
         return now.timeIntervalSince(ended) > Self.silentReplyTimeout
@@ -157,7 +157,7 @@ public struct TurnLedger: Sendable {
 
     /// The model finished the reply's turn. Returns the reply if it was stopped and
     /// now needs settling.
-    /// - Parameter voiceSpeaking: her voice is playing something right now.
+    /// - Parameter voiceSpeaking: Dee's voice is playing something right now.
     public mutating func generationEnded(_ id: Int, voiceSpeaking: Bool, at now: Date) -> Reply? {
         guard var r = reply, r.id == id else { return nil }
         r.generating = false
@@ -167,7 +167,7 @@ public struct TurnLedger: Sendable {
                 // Nothing to say (a tool-only turn): history is exactly what was generated.
                 r.settled = true
             } else if r.audioEverStarted, r.audioStartedAt == nil, !voiceSpeaking, r.charsAtLastFinish == r.spoken.text.count {
-                // Her voice caught up and went quiet while the model was still busy
+                // Dee's voice caught up and went quiet while the model was still busy
                 // (a long tool round): every word was played.
                 r.audioFinished = true
                 r.settled = true
@@ -180,7 +180,7 @@ public struct TurnLedger: Sendable {
     // MARK: Stopping
 
     /// Stops the current reply where it is.
-    /// - Parameter hush: the user asked for quiet (palm, "stop"): what she was
+    /// - Parameter hush: the user asked for quiet (palm, "stop"): what Dee was
     ///   answering is not carried over to their next words — also when the reply was
     ///   already stopped by their barge-in a moment before (M1).
     public mutating func stop(hush: Bool, at now: Date) -> StopOutcome {
@@ -192,7 +192,7 @@ public struct TurnLedger: Sendable {
         r.stoppedAt = now
         r.playedAtStop = r.played(at: now)
         if r.audioStartedAt == nil, r.audioEverStarted, r.charsAtLastFinish == r.spoken.text.count {
-            // Her voice had caught up and gone quiet (the model was in a tool round):
+            // Dee's voice had caught up and gone quiet (the model was in a tool round):
             // everything streamed so far was heard, however long it took to say.
             let whole = Double(r.spoken.text.count) / SpokenReply.charactersPerSecond(rate: r.rate) + 1
             r.playedAtStop = max(r.playedAtStop ?? 0, whole)
@@ -241,20 +241,20 @@ public struct TurnLedger: Sendable {
         hushedIDs.removeAll()
     }
 
-    // MARK: Her voice (what was actually played, C9)
+    // MARK: Dee's voice (what was actually played, C9)
 
-    /// The app asked her voice for an aside (a laugh, a canned line), which plays
+    /// The app asked Dee's voice for an aside (a laugh, a canned line), which plays
     /// before anything streamed after it. Its audio is not the reply's (L2).
     /// - Parameters:
     ///   - duration: a generous estimate of how long it plays.
-    ///   - voiceSpeaking: her voice is already playing (the aside joins it).
+    ///   - voiceSpeaking: Dee's voice is already playing (the aside joins it).
     public mutating func asideRequested(duration: TimeInterval, voiceSpeaking: Bool, at now: Date) {
         guard !voiceSpeaking else { return }
         aside = Aside(requestedAt: now, duration: max(0, duration))
     }
 
-    /// A fragment of the reply went to her voice.
-    /// - Parameter voiceSpeaking: her voice is already playing (an aside): the
+    /// A fragment of the reply went to Dee's voice.
+    /// - Parameter voiceSpeaking: Dee's voice is already playing (an aside): the
     ///   reply joins it without a new `speakingStarted`, after the aside.
     public mutating func streamed(_ fragment: String, id: Int, voiceSpeaking: Bool, at now: Date) {
         guard var r = reply, r.id == id, r.stoppedAt == nil, !r.settled else { return }
@@ -272,7 +272,7 @@ public struct TurnLedger: Sendable {
         reply = r
     }
 
-    /// Her voice started playing. An aside waiting to start is what started; a
+    /// Dee's voice started playing. An aside waiting to start is what started; a
     /// reply queued behind it starts when the aside should be over.
     public mutating func speakingStarted(at now: Date) {
         if var a = aside, a.startedAt == nil, now.timeIntervalSince(a.requestedAt) < Self.asideStartTimeout {
@@ -291,14 +291,14 @@ public struct TurnLedger: Sendable {
         reply = r
     }
 
-    /// Her output level (~30 Hz while she speaks).
+    /// Dee's output level (~30 Hz while Dee speaks).
     public mutating func speechLevel(_ level: Double, at now: Date) {
         guard var r = reply, r.stoppedAt == nil, !r.settled, let start = r.audioStartedAt, now >= start else { return }
         r.voiced.sample(level, at: now)
         reply = r
     }
 
-    /// Her voice went quiet: everything queued has played (or was stopped).
+    /// Dee's voice went quiet: everything queued has played (or was stopped).
     public mutating func speakingFinished(at now: Date) {
         aside = nil
         guard var r = reply, r.stoppedAt == nil, !r.settled else { return }
@@ -314,7 +314,7 @@ public struct TurnLedger: Sendable {
     }
 }
 
-/// Time her output level was voiced: a word, or a short gap inside a sentence. Long
+/// Time Dee's output level was voiced: a word, or a short gap inside a sentence. Long
 /// silences (waiting for the model or the synthesiser) don't count.
 struct VoicedTime: Sendable, Equatable {
     /// Level above which a sample is speech (the meter reads 0 at -50 dB).
@@ -341,7 +341,7 @@ struct VoicedTime: Sendable, Equatable {
         total += min(Self.maxStep, max(0, now.timeIntervalSince(last)))
     }
 
-    /// Her voice stopped: the next sample starts a new stretch.
+    /// Dee's voice stopped: the next sample starts a new stretch.
     mutating func pause() {
         lastSampleAt = nil
         lastVoicedAt = nil
@@ -351,11 +351,11 @@ struct VoicedTime: Sendable, Equatable {
 /// Whether the user holds the floor, so Dee's own sounds (initiatives, events,
 /// laughs, canned lines) must wait (audit C3).
 ///
-/// - Raw voice activity counts only while someone is engaged with her: a TV in an
-///   empty room must not keep her awake forever or block everything (M4).
+/// - Raw voice activity counts only while someone is engaged with Dee: a TV in an
+///   empty room must not keep Dee awake forever or block everything (M4).
 /// - The Cortex's view of the floor counts only while the user's words are still
 ///   coming: once an utterance has arrived — answered, a command, or not addressed
-///   to her — a floor left at "user speaking" (no `.heard` reached the Cortex) is
+///   to Dee — a floor left at "user speaking" (no `.heard` reached the Cortex) is
 ///   stale (M2).
 public struct UserFloor: Sendable, Equatable {
     /// A partial this recent: they are mid-sentence.
@@ -367,7 +367,7 @@ public struct UserFloor: Sendable, Equatable {
 
     public init() {}
 
-    /// Live words she is attending to.
+    /// Live words Dee is attending to.
     public mutating func partial(at now: Date) {
         lastPartialAt = now
         lastActivityAt = now
@@ -384,7 +384,7 @@ public struct UserFloor: Sendable, Equatable {
 
     /// - Parameters:
     ///   - voiceActive: the voice hears someone talking right now (any voice).
-    ///   - engaged: someone is with Dee (in view, or spoke to her recently).
+    ///   - engaged: someone is with Dee (in view, or spoke to Dee recently).
     ///   - cortexUserTurn: the Cortex's floor is the user's (speaking or paused).
     ///   - cortexYielding: Dee is yielding the floor after a barge-in.
     public func holds(at now: Date, voiceActive: Bool, engaged: Bool, cortexUserTurn: Bool, cortexYielding: Bool) -> Bool {

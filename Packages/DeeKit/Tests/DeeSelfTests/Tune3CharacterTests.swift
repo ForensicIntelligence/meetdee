@@ -79,7 +79,7 @@ struct Tune3CharacterTests {
         let r2 = Self.reply(&cx, at: back.addingTimeInterval(9.2), mind: mind)
         #expect(r2.contains(Self.named), "\(r2)")
         #expect(r2.contains("They're back"), "\(r2)")
-        // She asks; the next turn is the outcome.
+        // Dee asks; the next turn is the outcome.
         _ = cx.step(.deeSaid(tag: nil, sentence: "Hi Alex! How did the dentist go?"), mind: mind, at: back.addingTimeInterval(10))
         _ = cx.step(.deeTurnFinished(text: ""), mind: mind, at: back.addingTimeInterval(10.5))
         #expect(cx.moment.ongoing.expectations.first?.status == .asked)
@@ -144,11 +144,11 @@ struct Tune3CharacterTests {
         _ = cx.step(Kit.heard("Hi Dee. How was your day?"), mind: mind, at: back.addingTimeInterval(5.6))
         _ = cx.step(.deeSaid(tag: nil, sentence: "Lovely! How did your exam go?"), mind: mind, at: back.addingTimeInterval(6.5))
         _ = cx.step(.deeTurnFinished(text: ""), mind: mind, at: back.addingTimeInterval(7))
-        #expect(cx.moment.ongoing.expectations.first?.status == .asked, "follow-through reads her heard sentences")
+        #expect(cx.moment.ongoing.expectations.first?.status == .asked, "follow-through reads Dee's heard sentences")
     }
 
     /// The pre-raised aim never outlives the reply it was raised for: a `.promptSubmitted`
-    /// with no cue (a Cortex initiative's DNA) leaves nothing behind for her initiative.
+    /// with no cue (a Cortex initiative's DNA) leaves nothing behind for Dee's initiative.
     @Test func aPreRaisedFollowUpIsWithdrawnWithoutACue() {
         let mind = Kit.snap()
         var a = Appraisal()
@@ -218,7 +218,7 @@ struct Tune3CharacterTests {
         #expect(cx.lastContactBeforeConversation(Kit.john) == nil)
     }
 
-    /// A reply she actually said spends the reunion note (no "they're back" on turn 2).
+    /// A reply Dee actually said spends the reunion note (no "they're back" on turn 2).
     @Test func aDeliveredReplySpendsTheReunion() {
         let mind = Kit.snap()
         var cx = Self.firstConversation("What's your favorite color?", at: Kit.t0, mind: mind)

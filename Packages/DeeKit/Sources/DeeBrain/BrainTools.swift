@@ -22,7 +22,7 @@ public struct BrainToolbox: Sendable {
     }
 
     /// `remember` at the end of a spoken turn needs no follow-up; `recall` and the
-    /// device look-ups are spoken; `forget` is acknowledged only when she said nothing.
+    /// device look-ups are spoken; `forget` is acknowledged only when Dee said nothing.
     public static let defaultFollowUps: [String: RealtimeToolResult.FollowUp] = [
         "remember": .ifSilent, "recall": .always, "forget": .ifSilent,
     ]
@@ -30,7 +30,7 @@ public struct BrainToolbox: Sendable {
     /// How each memory tool is used, said where the model reads it (tune 2 F-LEAK: 22
     /// of 529 live replies narrated a call — "Got it, let me think about how to respond
     /// to that.", "Quick save for your name, then I'll respond." — and a narrated
-    /// `remember` gets no follow-up, so she never answered). Calls are silent.
+    /// `remember` gets no follow-up, so Dee never answered). Calls are silent.
     public static let memoryDescriptions: [String: String] = [
         "remember": "Save a lasting fact about the current person. Answer them normally, then call this last, silently; never say you are saving, noting, tucking away or remembering it.",
         "recall": "Look up what you know about the current person, only when the DNA does not already say it. Call it as your very first action, with no words before it, and answer from its result.",

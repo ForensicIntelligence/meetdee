@@ -146,7 +146,7 @@ public actor Mind {
     /// How long a reflex stays on snapshots after its stimulus.
     public static let reflexDuration: TimeInterval = 4
 
-    static let schemaVersion = 1
+    static let schemaVersion = 2
     /// Ticks write at most this often…
     public static let tickPersistInterval: TimeInterval = 30
     /// …unless some parameter moved by at least this many byte steps (0.25) since
@@ -291,7 +291,7 @@ public actor Mind {
 
     /// Applies an appraisal and records the reflex it provokes (or clears it).
     private func absorb(_ appraisal: Appraisal, at now: Date) {
-        // "Was she upset?" is judged on feelings brought up to this moment.
+        // "Was Dee upset?" is judged on feelings brought up to this moment.
         let before = now.timeIntervalSince(state.updatedAt) > EmotionEngine.maxPresentGap
             ? EmotionEngine.catchUp(state, to: now)
             : EmotionEngine.advance(state, to: now, circumstances: .init(userPresent: appraisal.social, asleep: false))
@@ -327,9 +327,26 @@ public actor Mind {
         persist(at: now)
     }
 
-    /// Factory reset: a brand-new Dee.
+    /// Applies a persona preset (persona spec §11.2): its age (on, ageing off), its set
+    /// points, then its stored traits and resting feelings via `restore` (relationship
+    /// counters kept; mood and the short-term history cleared). Classic keeps the
+    /// current age settings. Learned trait drift is discarded on purpose.
+    public func apply(_ preset: PersonaPreset, at now: Date = Date()) {
+        if let age = preset.ageSettings(at: now) { state.age = age }
+        state.setPoints = preset.setPoints
+        state.personaID = preset.id
+        restore(preset.code, at: now)
+    }
+
+    /// The current persona preset's id ("classic" for installs from before the presets).
+    public var personaID: String { state.personaID }
+
+    /// Factory reset: a brand-new Dee of the current persona (its set points, its age).
     public func reset(at now: Date = Date()) {
-        state = InnerState(age: state.age, updatedAt: now)
+        var fresh = InnerState(personality: state.setPoints, age: state.age, updatedAt: now)
+        fresh.setPoints = state.setPoints
+        fresh.personaID = state.personaID
+        state = fresh
         appraiser = Appraiser()
         outstandingPreviews.removeAll()
         lastReflex = nil
@@ -416,7 +433,13 @@ public actor Mind {
                         hostile INTEGER NOT NULL, regard_sum REAL NOT NULL, code TEXT NOT NULL);
                     """)
             }
-            // Future: `if stored < 2 { … }`, each step idempotent.
+            // 2 (persona presets): an install from before them is Classic Dee with today's
+            // set points. Append-only and idempotent: existing keys are never overwritten.
+            if stored < 2 {
+                try db.query("INSERT OR IGNORE INTO meta(key, value) VALUES('persona', ?)", [.text(PersonaCatalog.classicID)])
+                try db.query("INSERT OR IGNORE INTO meta(key, value) VALUES('set_points', ?)", [.text(Self.setPointsHex(Personality()))])
+            }
+            // Future: `if stored < 3 { … }`, each step idempotent.
             try db.query("INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version', ?)", [.text(String(schemaVersion))])
         }
     }
@@ -450,6 +473,8 @@ public actor Mind {
                 ("last_apology_at", s.lastApologyAt.map { String($0.timeIntervalSince1970) } ?? ""),
                 ("trust_gain_recent", String(s.trustGainRecent)),
                 ("voice_baseline", String(decoding: try encoder.encode(baseline), as: UTF8.self)),
+                ("persona", s.personaID),
+                ("set_points", setPointsHex(s.setPoints)),
             ]
             for (k, v) in meta {
                 try db.query("INSERT OR REPLACE INTO meta(key, value) VALUES(?, ?)", [.text(k), .text(v)])
@@ -462,6 +487,24 @@ public actor Mind {
                     """, [.text(d.day), .int(d.kind ? 1 : 0), .int(d.hostile ? 1 : 0), .real(d.regard), .text(code.hex)])
             }
         }
+    }
+
+    /// The 13 set points as hex bytes, in `Trait.allCases` order (the MindCode trait layout).
+    static func setPointsHex(_ p: Personality) -> String {
+        Trait.allCases.map { String(format: "%02X", MindCode.quantize(p[$0])) }.joined()
+    }
+
+    static func setPoints(hex: String) -> Personality? {
+        guard hex.count == Trait.allCases.count * 2, hex.allSatisfy(\.isHexDigit) else { return nil }
+        var p = Personality()
+        var i = hex.startIndex
+        for t in Trait.allCases {
+            let j = hex.index(i, offsetBy: 2)
+            guard let b = UInt8(hex[i..<j], radix: 16) else { return nil }
+            p[t] = Double(b) / 255
+            i = j
+        }
+        return p
     }
 
     /// Full-precision parameter rows win; if they're incomplete (an older or newer
@@ -496,6 +539,8 @@ public actor Mind {
         s.hostileRecent = meta["hostile_recent"].flatMap(Double.init) ?? 0
         s.lastApologyAt = meta["last_apology_at"].flatMap(Double.init).map(Date.init(timeIntervalSince1970:))
         s.trustGainRecent = meta["trust_gain_recent"].flatMap(Double.init) ?? 0
+        s.personaID = meta["persona"].flatMap { $0.isEmpty ? nil : $0 } ?? PersonaCatalog.classicID
+        s.setPoints = meta["set_points"].flatMap(setPoints(hex:)) ?? Personality()
         let baseline = meta["voice_baseline"].flatMap { try? decoder.decode(Appraiser.VoiceBaseline.self, from: Data($0.utf8)) } ?? .init()
         return (s, baseline)
     }

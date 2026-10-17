@@ -100,7 +100,7 @@ public enum LocalProviders {
             return HarnessProvider(sessionConfig: runtime.sessionConfig, credentials: runtime.credentials,
                                    socketFactory: runtime.socketFactory, uplink: uplink,
                                    stats: stats.map { s -> @Sendable () async -> [String: Double] in { @Sendable in Self.dictionary(s.snapshot) } },
-                                   problems: problems)
+                                   problems: problems, timing: runtime.timing)
         }
     }
 

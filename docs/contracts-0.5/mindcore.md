@@ -108,7 +108,7 @@ transcript:
 
 ```swift
 public enum CueLeak: Sendable, Equatable, Hashable {
-    case stateTag               // "dee_state" anywhere in what she said
+    case stateTag               // "dee_state" anywhere in what Dee said
     case moodSentence           // "Toward your human:"
     case note(String)           // a watched note repeated verbatim (carries the note as given)
     public static let minimumNoteLength: Int   // 12 (shorter note bodies are ignored)

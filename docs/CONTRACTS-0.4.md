@@ -1,4 +1,4 @@
-# v0.4 module contracts — "She's alive"
+# v0.4 module contracts — "Dee's alive"
 
 **Developer:** Forensic Intelligence
 
@@ -7,15 +7,15 @@ signatures at the same time. **Implement them exactly** (names, parameter labels
 types). Adding extra API is fine; renaming or removing is not.
 
 Product rules for this round (from John, the user):
-- Dee ("she") is **eyes only**, but far more expressive: many more expressions,
+- Dee is **eyes only**, but far more expressive: many more expressions,
   glyph-shaped eyes, little performances, never looking quite the same twice.
-- Dee is **very interactive, no matter what**: curious idle behaviour; she asks about
-  things she sees through **either camera** and about **unexpected sounds**.
+- Dee is **very interactive, no matter what**: curious idle behaviour; Dee asks about
+  things Dee sees through **either camera** and about **unexpected sounds**.
 - Dee **talks and listens** hands-free. Microphone permission must be requested.
 - **Touch** on the screen counts: gentle, kind, caring touch raises positive feelings
   and personality traits; rough touch lowers them.
-- Dee must **feel alive**: she can still laugh at a joke or light up at a kind word
-  even when her mood is bad (reflexes sit above mood).
+- Dee must **feel alive**: Dee can still laugh at a joke or light up at a kind word
+  even when Dee's mood is bad (reflexes sit above mood).
 - The perpetual "?" bug: at rest, "curious" must not be the permanent expression.
 
 ---
@@ -85,7 +85,7 @@ public final class VoiceService: @unchecked Sendable {
 }
 ```
 Behaviour: half-duplex by default — recognition pauses while Dee speaks and resumes
-~0.4 s after; `.bargeIn` when the user clearly talks over her (voice-processing echo
+~0.4 s after; `.bargeIn` when the user clearly talks over Dee (voice-processing echo
 cancellation on). Strip `[tags]`, markdown and emoji before speaking. End of
 utterance ≈ final result + ~0.8 s without new text, gated by an energy VAD.
 

@@ -27,7 +27,7 @@ private extension RunBuilder {
                                             "first_audio_played: \(item)"]))
     }
 
-    /// A backchannel ("keep going") said over her reply `replyItem`.
+    /// A backchannel ("keep going") said over Dee's reply `replyItem`.
     mutating func backchannel(_ fixture: String, onset: Double, eos: Double, replyItem: String,
                               outcome: RunRecord.BargeOutcome) {
         utterance(fixture, onset, eos, text: "Keep going.", role: .bargeIn, expect: .any)

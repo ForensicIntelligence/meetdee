@@ -1,19 +1,19 @@
 import Foundation
 
-/// Something wrong with Dee's ears or voice that the person in front of her must be
+/// Something wrong with Dee's ears or voice that the person in front of Dee must be
 /// able to see (audit C11). Before, a denied permission, a speech model still
 /// downloading or a failing recognizer only reached the hidden debug transcript:
 /// the phone looked like it was listening, and it was not.
 public enum VoiceProblem: Sendable, Equatable {
-    /// Microphone permission is off: she cannot hear at all.
+    /// Microphone permission is off: Dee cannot hear at all.
     case microphoneOff
-    /// Speech-recognition permission is off: she hears sounds, not words.
+    /// Speech-recognition permission is off: Dee hears sounds, not words.
     case speechRecognitionOff
-    /// Her ears are still starting (first launch: the speech model is downloading).
+    /// Dee's ears are still starting (first launch: the speech model is downloading).
     case preparingEars
     /// Speech recognition failed and is retrying.
     case earsUnavailable(String)
-    /// This device has no on-device speech recognition for her language; retrying
+    /// This device has no on-device speech recognition for Dee's language; retrying
     /// will not help.
     case speechUnsupported(String)
     /// The audio session or engine failed and is retrying.
@@ -77,9 +77,9 @@ public struct VoiceHealth: Sendable, Equatable {
     public private(set) var failure: VoiceProblem?
     /// The cloud voice's problem, if any (`cloudVoice(_:)`).
     public private(set) var cloudFailure: VoiceProblem?
-    /// Her ears are on-device speech recognition. False while the cloud voice hears
-    /// for her: speech-recognition permission, recognizer failures and the speech
-    /// model download then don't stop her understanding, and are not shown.
+    /// Dee's ears are on-device speech recognition. False while the cloud voice hears
+    /// for Dee: speech-recognition permission, recognizer failures and the speech
+    /// model download then don't stop Dee understanding, and are not shown.
     public var onDeviceSpeech = true
 
     public init() {}

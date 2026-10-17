@@ -31,13 +31,13 @@ public struct Pricing: Codable, Sendable, Equatable {
         return total / 1_000_000
     }
 
-    /// Conservative projection before a run: per reply ≈ 12 s of her audio out, the
+    /// Conservative projection before a run: per reply ≈ 12 s of Dee's audio out, the
     /// whole conversation so far re-billed as (mostly cached) input, plus transcription.
     public func projected(replies: Int, userSeconds: Double) -> Double {
         var total = 0.0
         var contextAudioTokens = 0.0
         for _ in 0..<max(replies, 0) {
-            let out = 12.0 * 20             // 20 audio tokens / s of her speech
+            let out = 12.0 * 20             // 20 audio tokens / s of Dee's speech
             let freshIn = 6.0 * 10          // ~6 s of user speech per turn at 10 tokens / s
             total += (out * audioOut + freshIn * audioIn + contextAudioTokens * audioInCached
                       + 1500 * textIn + 200 * textOut) / 1_000_000

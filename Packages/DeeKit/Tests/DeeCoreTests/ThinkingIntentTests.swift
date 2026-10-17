@@ -22,7 +22,7 @@ import Testing
 ///   about dinner" (planning out loud), while "let's think it through" does.
 /// - Review M3: "think about it" and "take your time" are mostly rhetoric and
 ///   politeness. "Think about it" enables only on its own, with a question, or with
-///   her name; never after "and / but / then / well / you know", nor before a
+///   Dee's name; never after "and / but / then / well / you know", nor before a
 ///   statement. "Take your time" only with a question, or joined to "and think".
 ///   "Sleep on it" means "decide later", not "think now".
 @Suite("ThinkingIntent classification")

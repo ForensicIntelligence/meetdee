@@ -265,6 +265,8 @@ import Testing
             "guidance.rules": .notRendered("rendered as guidance.doLines / avoidLines"),
             "guidance.doLines": .rendered { $0.guidance.doLines = ["zz"] },
             "guidance.avoidLines": .rendered { $0.guidance.avoidLines = ["zz"] },
+            // The persona preset: its identity line, pronouns and age (Classic → Mira).
+            "persona": .rendered { $0.persona = PersonaCatalog.mira },
         ]
     }
 

@@ -1,3 +1,4 @@
+import DeeCore
 import DeeMemory
 import DeeMind
 import Foundation
@@ -209,7 +210,11 @@ public actor SelfStore {
     /// once a seed is stored, `newSeed` is never used again. If a stored piece (values,
     /// humour, signature) no longer decodes, only that piece is re-derived from the
     /// **stored** seed and rewritten; facets and everything learnt are untouched.
-    public func loadEnduring(personality: Personality, seed newSeed: UInt64, at now: Date) throws -> Enduring {
+    ///
+    /// `preset` (a persona preset, first use only): the self is seeded from the preset
+    /// instead (`SelfSeeder.seed(preset:)`: its fixed seed, humour pins and tastes).
+    public func loadEnduring(personality: Personality, seed newSeed: UInt64, at now: Date,
+                             preset: PersonaPreset? = nil) throws -> Enduring {
         let dec = JSONDecoder()
         if let seedText = try meta("seed"), let seed = UInt64(seedText) {
             var reseeded: Enduring?
@@ -251,10 +256,47 @@ public actor SelfStore {
             e.episodeIndex = try episodeIndex(limit: Enduring.maxEpisodeIndex)
             return e
         }
+        if let preset, !preset.isClassic {
+            let e = SelfSeeder.seed(preset: preset, fallbackSeed: newSeed, at: now)
+            try saveSeeded(e)
+            try setMeta("persona", preset.id)
+            return e
+        }
         let e = SelfSeeder.seed(personality: personality, seed: newSeed, at: now)
         try saveSeeded(e)
         return e
     }
+
+    /// A persona switch (persona spec §11.3/§11.8): the seeded self (seed, values, humour,
+    /// signature and the seeded tastes) is replaced by the preset's; capability facets,
+    /// learned tastes, episodes, profiles, lessons, boundaries, gags and rituals are kept,
+    /// because they belong to the user, not the character. Returns the new enduring self.
+    @discardableResult
+    public func reseed(for preset: PersonaPreset, fallbackSeed: UInt64, at now: Date) throws -> Enduring {
+        let e = SelfSeeder.seed(preset: preset, fallbackSeed: fallbackSeed, at: now)
+        guard try meta("seed") != nil else {
+            // Never seeded (a fresh install): the whole seeded self, capabilities included.
+            try saveSeeded(e)
+            try setMeta("persona", preset.id)
+            return try loadEnduring(personality: preset.storedTraits(), seed: e.seed, at: now)
+        }
+        let enc = JSONEncoder()
+        enc.outputFormatting = .sortedKeys
+        try db.transaction {
+            try db.query("DELETE FROM facet WHERE kind = 'taste' AND source = 'seed'")
+            try setMeta("seed", String(e.seed))
+            try setMeta("values", String(decoding: try enc.encode(e.values), as: UTF8.self))
+            try setMeta("humour", e.humour.rawValue)
+            try setMeta("humour2", e.humourSecondary.rawValue)
+            try setMeta("signature", String(decoding: try enc.encode(e.signature), as: UTF8.self))
+            try setMeta("persona", preset.id)
+            for f in e.facets where f.kind == .taste { try write(.facet(f)) }
+        }
+        return try loadEnduring(personality: preset.storedTraits(), seed: e.seed, at: now)
+    }
+
+    /// The persona the seeded self belongs to (nil: seeded before the presets = Classic).
+    public func seededPersona() throws -> String? { try meta("persona") }
 
     func saveSeeded(_ e: Enduring) throws {
         let enc = JSONEncoder()
@@ -733,7 +775,7 @@ public actor SelfStore {
             try db.execute("DELETE FROM facet WHERE source IS NOT 'seed';")
             try db.execute("UPDATE facet SET learned = 0, polarity = innate, evidence = 0, contrary = 0, revealed_at = NULL, reason = NULL;")
             try db.execute("""
-                DELETE FROM self_meta WHERE key NOT IN ('schema_version', 'seed', 'values', 'humour', 'humour2', 'signature', 'session');
+                DELETE FROM self_meta WHERE key NOT IN ('schema_version', 'seed', 'values', 'humour', 'humour2', 'signature', 'session', 'persona');
                 """)
         }
         try db.checkpoint()

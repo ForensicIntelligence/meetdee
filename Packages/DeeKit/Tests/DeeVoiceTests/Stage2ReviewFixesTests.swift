@@ -6,7 +6,7 @@ import Testing
 // Regression tests for the stage-2 review of CloudVoice / EarCore / ClipCache
 // (findings numbered as in the review).
 
-/// 1. A quick, short answer right after she stops is the user, not her echo.
+/// 1. A quick, short answer right after Dee stops is the user, not Dee's echo.
 @Suite struct QuickAnswerAfterHerTests {
     @Test(arguments: [(0.3, 0.22), (0.02, 0.4), (0.05, 0.3)])
     func quickShortAnswerAfterHerQuestionIsTheUser(_ amplitude: Double, _ seconds: Double) {
@@ -32,11 +32,11 @@ import Testing
     @Test func aLouderEchoTailIsStillHerEcho() {
         var h = EarHarness()
         h.startPlayback()
-        h.voice(1.0, amplitude: 0.03, hz: 300)        // her echo, −38 dBFS: under the bar while she plays
+        h.voice(1.0, amplitude: 0.03, hz: 300)        // Dee's echo, −38 dBFS: under the bar while Dee plays
         h.stopPlayback()
         h.clear()
         h.serverStart("item_e")
-        h.voice(0.35, amplitude: 0.03, hz: 300)       // the room tail of her last words
+        h.voice(0.35, amplitude: 0.03, hz: 300)       // the room tail of Dee's last words
         h.quiet(0.2)
         h.serverStop("item_e")
         #expect(h.decisions == [.rejectEcho(itemID: "item_e")])
@@ -47,7 +47,7 @@ import Testing
         h.startPlayback()
         h.echo(0.8)
         h.stopPlayback()
-        h.serverStart("item_u")                      // the server's onset (with its padding) lands in her tail
+        h.serverStart("item_u")                      // the server's onset (with its padding) lands in Dee's tail
         h.quiet(0.15)
         h.clear()
         h.voice(0.15)
@@ -62,7 +62,7 @@ import Testing
         var h = EarHarness()
         h.startPlayback()
         h.echo(0.4)
-        h.voice(0.3)                                  // a cough / "mm" while she talks
+        h.voice(0.3)                                  // a cough / "mm" while Dee talks
         h.quiet(1.5)
         h.clear()
         h.voice(0.04)                                 // one frame above the bar
@@ -125,7 +125,7 @@ import Testing
     }
 }
 
-/// 9. Her echo being decided is not "the user talking".
+/// 9. Dee's echo being decided is not "the user talking".
 @Suite struct EchoDecisionFloorTests {
     @Test func userIsNotSpeakingWhileHerEchoIsDecided() {
         var h = EarHarness()
@@ -142,7 +142,7 @@ import Testing
     }
 }
 
-/// 8. The gate on her audio after a stop.
+/// 8. The gate on Dee's audio after a stop.
 @Suite struct ReplyGateTests {
     @Test func aStopBeforeTheResponseWasSeenKeepsThatResponseSilent() {
         var g = ReplyGate()

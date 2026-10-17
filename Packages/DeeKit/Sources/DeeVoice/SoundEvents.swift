@@ -98,7 +98,7 @@ public enum SoundCatalog {
 ///   a margin, and not heard in the last ~10 minutes.
 /// - Social sounds (laughter, crying, applause) are always reported — rate-limited
 ///   and with `isUnexpected == false` — so Dee can laugh along with you whatever
-///   her mood. That's what makes her feel alive.
+///   Dee's mood. That's what makes Dee feel alive.
 public struct UnexpectedSoundFilter: Sendable {
     public var minConfidence: Double = 0.6
     public var minAboveAmbientDB: Double = 8

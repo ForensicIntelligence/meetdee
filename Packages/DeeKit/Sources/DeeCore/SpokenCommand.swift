@@ -1,29 +1,29 @@
 import Foundation
 
-/// The few spoken commands Dee handles herself, without the language model.
+/// The few spoken commands Dee handles directly, without the language model.
 ///
 /// A command is the *whole* utterance (audit C8). Only a name, a greeting word or
 /// "please" may come before or after it: "stop", "Dee, stop", "please stop now" are
 /// commands; "don't stop", "it's so quiet", "stop it, that tickles", "let's not start
 /// over" are conversation and go to the model like anything else. Matching a phrase
-/// as a prefix or suffix used to silence her mid-conversation, or wipe the history
+/// as a prefix or suffix used to silence Dee mid-conversation, or wipe the history
 /// on "…and then we had a new conversation".
 public enum SpokenCommand: Sendable, Equatable {
     /// Hush: stop talking now.
     case stop
     /// Forget this conversation and start a fresh one.
     case newConversation
-    /// Go to sleep (closes the conversation window, and her body sleeps).
+    /// Go to sleep (closes the conversation window, and Dee's body sleeps).
     case sleep
     /// "Stop listening" / "that's all": close the conversation window now (v0.6; the
     /// body stays awake — only the microphone stops leaving the phone).
     case stopListening
     /// "Change your wake phrase to X" (v0.6). The text is the proposed phrase, in
-    /// title case, not yet validated (`WakePhrase(validating:)` does that); she repeats
+    /// title case, not yet validated (`WakePhrase(validating:)` does that); Dee repeats
     /// it and asks to confirm before anything is saved.
     case changeWakePhrase(to: String)
 
-    /// Commands that close the conversation window at once (after her local goodbye).
+    /// Commands that close the conversation window at once (after Dee's local goodbye).
     public var closesWindow: Bool {
         switch self {
         case .sleep, .stopListening: true
@@ -35,15 +35,17 @@ public enum SpokenCommand: Sendable, Equatable {
     /// - Parameter deeIsTalking: Dee is speaking, preparing a reply, or has only just
     ///   stopped. "Stop" and "quiet" only mean "be quiet" then; said to a silent Dee
     ///   they are conversation ("Stop!" after a tickle, "Quiet." describing a room),
-    ///   and she answers them instead of ignoring the user.
+    ///   and Dee answers them instead of ignoring the user.
     /// - Parameter stripLeading: removes the current wake phrase from the front
     ///   (`WakeMatcher.stripLeading`), so "Computer, go to sleep" is `.sleep` with a
     ///   custom phrase. nil: only the built-in name forms ("hey Dee") are stripped.
+    /// - Parameter names: the persona's addressing words ("mira", "meera"): "Mira, stop"
+    ///   and "stop, Mira" are commands like "Dee, stop". Empty: Dee's built-in forms only.
     public static func match(_ utterance: String, deeIsTalking: Bool,
-                             stripLeading: ((String) -> String)? = nil) -> SpokenCommand? {
+                             stripLeading: ((String) -> String)? = nil, names: [String] = []) -> SpokenCommand? {
         let text = stripLeading.map { $0(utterance) } ?? utterance
         if let phrase = wakePhraseChange(text) { return .changeWakePhrase(to: phrase) }
-        let c = core(of: text)
+        let c = core(of: text, names: names)
         guard !c.isEmpty else { return nil }
         if newConversationPhrases.contains(c) { return .newConversation }
         if sleepPhrases.contains(c) { return .sleep }
@@ -52,7 +54,7 @@ public enum SpokenCommand: Sendable, Equatable {
         return nil
     }
 
-    /// A yes / no answer to her confirmation question ("My wake phrase will be …. Is
+    /// A yes / no answer to Dee's confirmation question ("My wake phrase will be …. Is
     /// that right?"), or nil when the utterance is neither.
     public static func confirmation(_ utterance: String) -> Bool? {
         let c = core(of: utterance)
@@ -122,15 +124,15 @@ public enum SpokenCommand: Sendable, Equatable {
     ].sorted { $0.count > $1.count }
 
     /// Whether the utterance is spoken *to* Dee by name ("Dee, are you awake?",
-    /// "hey Dee"), or asks her to wake up. Used while nobody is in view or she
+    /// "hey Dee"), or asks Dee to wake up. Used while nobody is in view or Dee
     /// sleeps, when speech in the room (a TV, people talking to each other) must not
-    /// be answered, but her name should still get her attention.
+    /// be answered, but Dee's name should still get Dee's attention.
     ///
-    /// "Dee" counts anywhere (recognition writes it only for her name). The letter
-    /// "D" and the wake phrases count only where they address her: opening the
+    /// "Dee" counts anywhere (recognition writes it only for Dee's name). The letter
+    /// "D" and the wake phrases count only where they address Dee: opening the
     /// utterance ("D, come here", "Wake up!", "Hey, are you awake?"), or "D" after a
     /// greeting or set off by a comma at the end ("Thanks, D"). "Vitamin D is good",
-    /// "I got a D on my test", "Did he wake up?" are a TV or a conversation, not her
+    /// "I got a D on my test", "Did he wake up?" are a TV or a conversation, not Dee's
     /// name, and must not open a minute of answering everything the room says.
     public static func addressesDee(_ utterance: String) -> Bool {
         let words = tokens(utterance)
@@ -144,6 +146,25 @@ public enum SpokenCommand: Sendable, Equatable {
             if i > 0, i == start, greetings.contains(words[i - 1].word) { return true }
             if i == words.count - 1, i > 0, words[i - 1].pausedAfter { return true }   // "Thanks, D"
         }
+        let rest = words[start...].map(\.word).joined(separator: " ") + " "
+        return wakePhrases.contains { rest.hasPrefix($0 + " ") }
+    }
+
+    /// Whether the utterance addresses a persona preset by name (`PersonaPreset.addressingWords`):
+    /// the name anywhere ("Mira, are you awake?", "what do you think, Vera"), or a wake
+    /// phrase opening it. Only whole words count, so "haven't", "at last", "Leo" or "Noah"
+    /// never address Haven, Atlas, Rio or Nova. Classic Dee: `addressesDee`.
+    public static func addresses(_ utterance: String, words names: [String]) -> Bool {
+        let words = tokens(utterance)
+        guard !words.isEmpty else { return false }
+        let single = Set(names.map { $0.lowercased() }.filter { !$0.contains(" ") })
+        if words.contains(where: { single.contains($0.word) || ($0.word.hasSuffix("'s") && single.contains(String($0.word.dropLast(2)))) }) {
+            return true
+        }
+        let flat = " " + words.map(\.word).joined(separator: " ") + " "
+        if names.contains(where: { $0.contains(" ") && flat.contains(" \($0.lowercased()) ") }) { return true }
+        var start = 0
+        while start < words.count, greetings.contains(words[start].word) { start += 1 }
         let rest = words[start...].map(\.word).joined(separator: " ") + " "
         return wakePhrases.contains { rest.hasPrefix($0 + " ") }
     }
@@ -165,7 +186,7 @@ public enum SpokenCommand: Sendable, Equatable {
         return result
     }
 
-    /// Words that may open an address before her name or a wake phrase.
+    /// Words that may open an address before Dee's name or a wake phrase.
     static let greetings: Set<String> = ["hey", "hi", "hello", "okay", "ok", "oh", "um", "uh", "yo", "please"]
 
     // MARK: - Normalising
@@ -182,8 +203,12 @@ public enum SpokenCommand: Sendable, Equatable {
     /// The utterance without the address, politeness and fillers around it
     /// ("okay Dee, stop please" → "stop"), and a repeated word said once
     /// ("stop stop stop" → "stop").
-    static func core(of utterance: String) -> String {
+    static func core(of utterance: String, names: [String] = []) -> String {
         var words = normalize(utterance).split(separator: " ").map(String.init)
+        let named = names.map { $0.lowercased().split(separator: " ").map(String.init) }.filter { !$0.isEmpty }
+        let leading = named.isEmpty ? Self.leading
+            : (Self.leading + named.flatMap { n in [n] + ["hey", "okay", "ok", "oh"].map { [$0] + n } }).sorted { $0.count > $1.count }
+        let trailing = named.isEmpty ? Self.trailing : (Self.trailing + named).sorted { $0.count > $1.count }
         var changed = true
         while changed, !words.isEmpty {
             changed = false
@@ -207,7 +232,7 @@ public enum SpokenCommand: Sendable, Equatable {
         ["hey", "dee"], ["okay", "dee"], ["ok", "dee"], ["oh", "dee"], ["dee"], ["hey"], ["okay"], ["ok"],
         ["alright"], ["all", "right"], ["please"], ["just"], ["um"], ["uh"], ["oh"], ["so"], ["now"],
         // Tune 2: "Wait, stop talking for a second" / "hold on, be quiet" / "can you stop"
-        // are the stop command when she is talking (live they went to the model and were
+        // are the stop command when Dee is talking (live they went to the model and were
         // appraised as a brush-off). Alone, "wait" / "hold on" stay conversation.
         ["wait"], ["hold", "on"], ["hang", "on"], ["sorry"], ["can", "you"], ["could", "you"], ["would", "you"],
     ].sorted { $0.count > $1.count }
@@ -246,6 +271,6 @@ public enum SpokenCommand: Sendable, Equatable {
         "never mind", "nevermind", "forget it", "keep it", "keep the old one", "don't", "no don't", "no thanks", "no thank you",
     ]
 
-    /// Must open the utterance (after greetings) to count as waking her.
+    /// Must open the utterance (after greetings) to count as waking Dee.
     static let wakePhrases = ["wake up", "are you awake", "you awake"]
 }

@@ -25,7 +25,11 @@ final class SelfDriver {
     }
 
     /// Opens the self store (inside DeeMemory's database file) and builds the Cortex.
-    static func open(memory: MemoryStore?, snapshot: MindSnapshot) async -> SelfDriver? {
+    /// `preset`: the persona the self belongs to (seeded from it on first use);
+    /// `reseed`: the persona just changed — its seeded self (values, humour, mannerisms,
+    /// tastes) replaces the old one; everything learnt about people is kept.
+    static func open(memory: MemoryStore?, snapshot: MindSnapshot, preset: PersonaPreset = PersonaCatalog.classic,
+                     reseed: Bool = false) async -> SelfDriver? {
         do {
             let store = try SelfStore.open()
             if let memory {
@@ -33,12 +37,14 @@ final class SelfDriver {
                 _ = try await store.forgetPeople(notIn: known)
             }
             let now = Date()
+            if reseed { try await store.reseed(for: preset, fallbackSeed: UInt64.random(in: .min ... .max), at: now) }
             let enduring = try await store.loadEnduring(personality: snapshot.code.personality,
-                                                        seed: UInt64.random(in: .min ... .max), at: now)
+                                                        seed: UInt64.random(in: .min ... .max), at: now, preset: preset)
             let carried = try await store.loadCarried(at: now)
             let session = try await store.nextSession()
-            let cortex = Cortex(enduring: enduring, mind: snapshot, at: now, carried: carried, session: session,
+            var cortex = Cortex(enduring: enduring, mind: snapshot, at: now, carried: carried, session: session,
                                 utcOffset: TimeInterval(TimeZone.current.secondsFromGMT(for: now)))
+            cortex.identity = preset
             return SelfDriver(cortex: cortex, store: store)
         } catch {
             log.error("DeeSelf unavailable: \(String(describing: error), privacy: .public)")

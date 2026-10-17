@@ -5,7 +5,7 @@ import Foundation
 public struct UsageDay: Codable, Sendable, Equatable {
     /// Seconds of microphone audio that left the phone (uplink open).
     public var streamedSeconds: Double = 0
-    /// Responses she produced (replies, initiatives, greetings).
+    /// Responses Dee produced (replies, initiatives, greetings).
     public var responses: Int = 0
     /// Windows that closed with no accepted turn (likely false wakes).
     public var falseWakes: Int = 0

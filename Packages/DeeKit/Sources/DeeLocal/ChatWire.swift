@@ -84,6 +84,9 @@ public struct ChatRequest: Sendable, Equatable {
     public var temperature: Double?
     /// Ollama `keep_alive` (nil: not sent).
     public var keepAlive: String?
+    /// The leading messages meant to be byte-identical from one turn to the next (the server's
+    /// prompt cache reuses them); never sent.
+    public var prefixCount = 0
 
     public init(model: String, messages: [ChatMessage], tools: [ChatTool] = [], maxTokens: Int? = nil,
                 temperature: Double? = nil, keepAlive: String? = nil) {

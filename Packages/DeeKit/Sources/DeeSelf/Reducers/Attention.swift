@@ -41,7 +41,7 @@ import Foundation
 /// decays (half-life 3 s since its last evidence; a referent incumbent is re-scored from
 /// its live salience). A challenger wins only by ≥ 0.15 over that and only once the
 /// incumbent is ≥ 1.5 s old; speech and touch preempt at once, and so does a resolved
-/// deixis (the user told her what to look at).
+/// deixis (the user told Dee what to look at).
 ///
 /// Approximations (no percept exists yet): "held up" uses "a new non-person front label
 /// while the face was lost < 2 s ago, or while a hand is present" (face-box shrink needs
@@ -66,7 +66,7 @@ public struct Attention: SubReducer {
     public static let heldUpBump = 0.5
     public static let lookDownBump = 0.2
     public static let pointBump = 0.2
-    /// A novel label found by a requested glance (the user directed her look).
+    /// A novel label found by a requested glance (the user directed Dee's look).
     public static let glanceBump = 0.2
     public static let lookDownPitch = -15.0
     public static let lookDownHold: TimeInterval = 1
@@ -236,7 +236,7 @@ public struct Attention: SubReducer {
             sight(camera: camera, things: things, novel: novel, &m)
             if let g = m.momentary.pendingGlance?.live(at: now), g == camera {
                 m.momentary.pendingGlance = nil
-                // What the requested glance found new is what they asked her to look at.
+                // What the requested glance found new is what they asked Dee to look at.
                 for t in novel { bump(t, camera: camera, by: Self.glanceBump, source: camera == .front ? .sawFront : .sawBack, &m) }
                 if deixisPending != nil { fx += finishPendingDeixis(&m) }
             }
@@ -600,7 +600,7 @@ public struct Attention: SubReducer {
             } else if dt < Self.triadUser {
                 m.momentary.requestGaze(.user, hold: Self.triadUser - dt, priority: .jointAttention, by: Self.name)
             } else if dt < Self.triadUser + Self.triadReferent {
-                // Never look away from someone mid-turn (theirs or hers): the referent
+                // Never look away from someone mid-turn (theirs or Dee's): the referent
                 // glance waits out the floor, the return to the user does not.
                 if !busyFloor {
                     let target: GazeIntent.Target = t.camera == .back ? .examineBack : .point(Self.frontReferentPoint)

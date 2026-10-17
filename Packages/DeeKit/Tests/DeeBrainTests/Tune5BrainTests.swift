@@ -28,10 +28,10 @@ import Testing
         }
     }
 
-    // MARK: F1 — a question asked over her is answered
+    // MARK: F1 — a question asked over Dee is answered
 
     /// Probe t4-probe-content-bargein q01 (app parity, 20261010-011423): "What's your
-    /// favorite color?" over her dog reply. The brain asked for the answer at 19.44 and
+    /// favorite color?" over Dee's dog reply. The brain asked for the answer at 19.44 and
     /// the hold ended with it (`bargedIn`); the app sensed `.bargeIn`, the Cortex said
     /// `.stopSpeaking`, `stop()` cancelled the answer at 19.62: silence (0 of 3 answered).
     /// Now the app senses `.bargeInAnswered`: the floor bookkeeping, no stop.
@@ -50,18 +50,18 @@ import Testing
         rig.brain.injectHold(.ended(itemIDs: ["item_u2"], byVoice: false))
         #expect(await rig.until { rig.host.bargeIns == 1 })
         try? await Task.sleep(for: .milliseconds(250))                    // past 19.62
-        #expect(rig.host.stops == 0, "nothing stops her answer")
+        #expect(rig.host.stops == 0, "nothing stops Dee's answer")
         #expect(rig.count("response.cancel") == cancelsBefore, "the answer is not cancelled: \(rig.trail())")
         #expect(rig.host.cortex.moment.ongoing.cutOff, "the barge-in is still sensed (cut off)")
-        // The answer arrives and is hers to say.
+        // The answer arrives and is Dee's to say.
         rig.reply("resp_2", "item_a2", ms: 600, text: "Ooh, a bright teal.")
-        #expect(await rig.until { rig.host.replies.count == 2 }, "her answer reached the host")
+        #expect(await rig.until { rig.host.replies.count == 2 }, "Dee's answer reached the host")
         #expect(rig.count("response.cancel") == cancelsBefore)
         rig.shutdown()
     }
 
     /// The tune-4 app path, reproduced (the mutation the fix removes): sensing `.bargeIn`
-    /// at that moment makes the Cortex stop her, and the stop cancels the answer.
+    /// at that moment makes the Cortex stop Dee, and the stop cancels the answer.
     @Test func theOldBargeInPerceptCancelledTheAnswer() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -74,7 +74,7 @@ import Testing
         rig.push(Srv.responseCreated("resp_2"))
         let cancelsBefore = rig.count("response.cancel")
         let fx = rig.host.sense(.bargeIn)
-        #expect(fx.contains(.stopSpeaking), "`.bargeIn` still stops her (the voice's own barge-in)")
+        #expect(fx.contains(.stopSpeaking), "`.bargeIn` still stops Dee (the voice's own barge-in)")
         for e in fx where e == .stopSpeaking { rig.host.stopSpeaking(hush: false) }
         #expect(await rig.until { rig.count("response.cancel") > cancelsBefore }, "the stop cancels the answer: \(rig.trail())")
         // And the answered percept never asks for that stop.
@@ -82,7 +82,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// A pure "Stop." over her still stops her, and nothing answers it.
+    /// A pure "Stop." over Dee still stops Dee, and nothing answers it.
     @Test func stopOverHerIsSilent() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -128,7 +128,7 @@ import Testing
         try rig.quiet(0.3)
         #expect(!rig.brain.trace.contains(.held("trailing")), "\(rig.brain.trace)")
         #expect(!rig.brain.trace.contains(.speculationDropped("taken back")))
-        let first = try #require(T4.firstAudio(rig, from: end), "she answered")
+        let first = try #require(T4.firstAudio(rig, from: end), "Dee answered")
         #expect(Double(first - end) / BrainRig.rate < 1.3, "not 4.67 s")
         rig.shutdown()
     }
@@ -139,7 +139,7 @@ import Testing
     /// commit 37.24, they went on at 37.67 ("I kept going over…"), the gate released at
     /// 37.82 (quiet 830 ms, the latched flag still false), the server's speech_started
     /// came at 38.00: 665 ms over them. Now EarCore's fast last voice time restarts the
-    /// window and the release is re-checked `releaseRecheck` later: she never plays.
+    /// window and the release is re-checked `releaseRecheck` later: Dee never plays.
     /// `resume`: 0.59 s after the end (live), and 0.76 s — the onset lands just after the
     /// window's edge, where only the re-check can catch it.
     @Test(arguments: [0.59, 0.76])
@@ -156,7 +156,7 @@ import Testing
         rig.push(Srv.speechStarted("item_u2", ms: 2700))
         #expect(await rig.until { rig.brain.trace.contains(.speculationDropped("speech")) }, "\(rig.brain.trace)")
         try rig.talk(1.0)
-        #expect(T4.peak(rig, from: start) < 0.05, "not a sample of her reply over them")
+        #expect(T4.peak(rig, from: start) < 0.05, "not a sample of Dee's reply over them")
         #expect(!rig.brain.trace.contains { if case .speculationReleased = $0 { true } else { false } })
         rig.shutdown()
     }
@@ -183,7 +183,7 @@ import Testing
     // MARK: F2 — the release gate is not held by the room
 
     /// kitchen15 p20c / k08, tv15 p06c / k04 (tune 4 live: held 860–1,260 ms, end → audio
-    /// 2.1–2.2 s): words that keep settling (a noisy transcript) no longer hold her to the
+    /// 2.1–2.2 s): words that keep settling (a noisy transcript) no longer hold Dee to the
     /// old 1.6 s cap; at most `confirmMax` (1.0 s) after the commit.
     @Test func unsettledWordsHoldHerAtMostOneSecond() async throws {
         #expect(TurnPolicy.confirmMax <= 1.0)
@@ -208,7 +208,7 @@ import Testing
     }
 
     /// The commit and the final, complete words agree: a stray delta still settling never
-    /// holds her past the window.
+    /// holds Dee past the window.
     @Test func finalCompleteWordsReleaseAtTheWindow() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -253,7 +253,7 @@ import Testing
         #expect(await rig.until { rig.responseCreates().count == 2 }, "\(rig.trail())")
         let dnaID = try #require(rig.trail().last { $0.hasPrefix("dna:") }).dropFirst(4)
         #expect(rig.dnaText(String(dnaID))?.contains("never quote their words back or ask them to finish") == true)
-        // The same aim again: taken back, and she stays quiet.
+        // The same aim again: taken back, and Dee stays quiet.
         rig.push(Srv.responseCreated("resp_2"), Srv.messageAdded("resp_2", "item_a2"), Srv.itemAdded("item_a2", role: "assistant"))
         T2.assistantDelta(rig, "resp_2", "item_a2", "Want to finish the sentence?")
         #expect(await rig.until { rig.brain.trace.filter { $0 == .unfinishedAim(takenBack: true) }.count == 2 })
@@ -263,11 +263,11 @@ import Testing
         rig.shutdown()
     }
 
-    // MARK: F6 — continuers over her
+    // MARK: F6 — continuers over Dee
 
     /// kitchen15 c05 / echo20 c05: "Keep going, I'm listening." split by server_vad and
     /// misheard "Sheep going." / "She's not going."; the brain answered it (the hold
-    /// ended, she was flushed) and then answered "I'm listening." as a turn.
+    /// ended, Dee was flushed) and then answered "I'm listening." as a turn.
     @Test(arguments: ["Sheep going.", "I'm listening."])
     func aMisheardContinuerOverHerIsNotAnswered(_ words: String) async throws {
         let rig = try await BrainRig()
@@ -280,7 +280,7 @@ import Testing
         #expect(await rig.until { rig.host.heardLog.count == 1 })
         try? await Task.sleep(for: .milliseconds(300))
         #expect(rig.responseCreates().count == 1, "\(words): not answered: \(rig.trail())")
-        #expect(rig.count("response.cancel") == 0, "her voice goes on: \(rig.trail()) \(rig.brain.trace)")
+        #expect(rig.count("response.cancel") == 0, "Dee's voice goes on: \(rig.trail()) \(rig.brain.trace)")
         rig.shutdown()
     }
 
@@ -305,10 +305,10 @@ import Testing
             rig.push(Srv.userTranscript("item_k\(i)", line))
             #expect(await rig.until { rig.host.heardLog.count == i + 1 })
             rig.reply("resp_k\(i)", "item_ak\(i)", ms: 200, text: i == 0 ? "Who's there?" : "Lettuce who?")
-            // Tune 9: her line plays out and their turns are voiced. (The rig's `quiet` steps the
+            // Tune 9: Dee's line plays out and their turns are voiced. (The rig's `quiet` steps the
             // microphone without letting the brain run; since the gate's quiet run counts from
             // when it began, the held line is released right after — before, it was never
-            // released here at all — and a turn with no voice of theirs after it is her echo.)
+            // released here at all — and a turn with no voice of theirs after it is Dee's echo.)
             try await T4.stepUntil(rig, 2.0) { false }
         }
         try await T4.turn(rig, "item_k2", talk: 0.6)

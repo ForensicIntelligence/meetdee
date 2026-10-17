@@ -205,7 +205,7 @@ public struct WakeMatcher: Sendable {
 
     // MARK: - Name variants (on-device STT)
 
-    /// Her name's recogniser spellings in *address* position rewritten to "Dee", for the
+    /// Dee's name's recogniser spellings in *address* position rewritten to "Dee", for the
     /// on-device speech-to-text backend: "Heidi, what's up?" → "Hey Dee, what's up?",
     /// "Hey D, look" → "Hey Dee, look", "Thanks, KD." → "Thanks, Dee." A variant inside
     /// a sentence ("Heidi Klum was on TV", "vitamin D") is left alone.

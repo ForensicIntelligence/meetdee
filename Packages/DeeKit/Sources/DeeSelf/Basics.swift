@@ -166,7 +166,7 @@ public enum Laughter {
     }
 }
 
-/// Subjects Dee must never form a taste about, reveal an opinion on, or set herself a
+/// Subjects Dee must never form a taste about, reveal an opinion on, or set Dee a
 /// learn / share goal about (review findings 1 and 21): people and relationships,
 /// health, death and grief, and a few heavy life events. Whole-word, plural-tolerant.
 public enum SensitiveSubjects {

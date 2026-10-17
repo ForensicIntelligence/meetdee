@@ -1,13 +1,13 @@
 import Foundation
 
-/// Detects the user clearly talking over Dee while she speaks.
+/// Detects the user clearly talking over Dee while Dee speaks.
 ///
-/// Only meaningful with voice-processing echo cancellation on; without it her own
+/// Only meaningful with voice-processing echo cancellation on; without it Dee's own
 /// voice would trip it, so `aecActive == false` never fires (`EarCore` passes
 /// true and raises the bar by `EarCore.noAECMarginDB` instead). Needs sustained,
-/// loud, voiced input; the bar rises with how loud Dee herself is right now, so
+/// loud, voiced input; the bar rises with how loud Dee is right now, so
 /// residual echo doesn't count. `EarCore` uses it as the local evidence that a
-/// server speech onset during her playback is the user, not her echo.
+/// server speech onset during Dee's playback is the user, not Dee's echo.
 public struct BargeInDetector: Sendable {
     public var minAboveFloorDB: Double = 16
     public var minDB: Double = -40

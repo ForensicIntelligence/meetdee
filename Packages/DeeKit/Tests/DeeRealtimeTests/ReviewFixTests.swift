@@ -48,7 +48,7 @@ import Testing
         #expect(h.log.count { $0 == .rolloverStarted(forced: true) } == 1)
     }
 
-    /// R4: never while her audio is still playing; a barge-in in that tail still truncates.
+    /// R4: never while Dee's audio is still playing; a barge-in in that tail still truncates.
     @Test func forcedRolloverWaitsForPlayback() async throws {
         var config = Harness.defaultConfig()
         config.rolloverSummary = .none
@@ -136,7 +136,7 @@ import Testing
 
     // MARK: R3 / R11 — echo
 
-    /// R3: her echo during playback does not preempt the tool follow-up.
+    /// R3: Dee's echo during playback does not preempt the tool follow-up.
     @Test func echoDuringPlaybackDoesNotPreemptFollowUp() async throws {
         let h = try await Harness.connected()
         await h.session.setToolHandler { _ in RealtimeToolResult(output: "{}", followUp: .always) }

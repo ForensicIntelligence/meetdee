@@ -27,7 +27,7 @@ import Testing
         #expect(Learner.tasteable(Self.s("cat"), sensed: false), "an animal topic")
         #expect(Learner.tasteable(Self.s("rain"), sensed: false))
         #expect(!Learner.tasteable(Self.s("job"), sensed: false), "a topic outside the taste categories")
-        #expect(Learner.tasteable(Self.s("lamp"), sensed: true), "something she saw")
+        #expect(Learner.tasteable(Self.s("lamp"), sensed: true), "something Dee saw")
         for w in ["sister", "funeral", "boss", "ex", "chemo", "sarah", "mum's surgery", "grandma"] {
             #expect(!Learner.tasteable(Self.s(w), sensed: false), "\(w)")
         }
@@ -37,7 +37,7 @@ import Testing
     }
 
     /// Three warm conversations about a topic: a taste only for a tasteable one, and
-    /// never from a distress turn (their grief is not her dislike).
+    /// never from a distress turn (their grief is not Dee's dislike).
     @Test func tastesNeverFromPeopleGriefOrDistress() {
         func conversations(_ topic: String, _ a: Appraisal) -> ReducerRun<Learner> {
             var run = ReducerRun(Learner())
@@ -338,7 +338,7 @@ import Testing
         #expect(run.m.ongoing.repair == .strained)
         run.step(.tick, at: 600)
         #expect(run.m.ongoing.repair == .fine)
-        #expect(!run.m.ongoing.noteCandidates.contains { $0.kind == .awkwardRepair }, "she already said sorry")
+        #expect(!run.m.ongoing.noteCandidates.contains { $0.kind == .awkwardRepair }, "Dee already said sorry")
 
         var unsaid = ReducerRun(RepairKeeper())
         for k in 0..<3 { unsaid.step(.partial("so"), at: Double(k), events: [.deeInterrupted]) }
@@ -452,7 +452,7 @@ import Testing
             yesNo.step(.deeTurnFinished(text: "Fun! Do you want to hear another one?"), at: t)
             yesNo.step(Kit.heard("yeah"), at: t + 2)
         }
-        #expect(!yesNo.m.ongoing.hypotheses.contains { $0.kind == .busy }, "answers to her yes/no questions")
+        #expect(!yesNo.m.ongoing.hypotheses.contains { $0.kind == .busy }, "answers to Dee's yes/no questions")
         var curt = ReducerRun(Interpreter())
         for k in 0..<3 {
             let t = Double(k) * 10

@@ -30,7 +30,7 @@ public enum Trait: String, CaseIterable, Codable, Sendable {
     case sensitivity
     /// Enjoyment of wordplay; responds to the user's laughter.
     case humor
-    /// Willingness to push back, disagree, or stand up for itself.
+    /// Willingness to push back, disagree, or stand up for Dee.
     case assertiveness
     /// How fast grudges fade and how much an apology helps.
     case forgiveness

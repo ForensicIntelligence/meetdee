@@ -7,13 +7,16 @@ public enum OnboardingStep: String, CaseIterable, Sendable, Codable {
     case meet
     /// The wake phrase, "go to sleep", interrupting, "keep going", keep the app open.
     case talking
-    /// What she sees: presence, faces — all on the phone.
+    /// What Dee sees: presence, faces — all on the phone.
     case seeing
     /// What is sent where for each mode, and what it costs.
     case privacy
     case micPermission, speechPermission, cameraPermission, localNetworkPermission
     /// Mode choice, key / server entry, Test connection.
     case provider
+    /// "Choose your companion": the persona preset (after the provider, before the wake
+    /// phrase, so the wake phrase step already says "Hey <Name>").
+    case persona
     case wakePhrase, voice, speakFirst
     case done
 
@@ -50,7 +53,7 @@ public enum PermissionState: String, Sendable, Codable { case undetermined, gran
 /// - The speech card shows only if the device needs it (`speechCardNeeded`); the
 ///   local-network card is offered before the provider (it explains the home-server
 ///   option) and again after it when the chosen mode needs the LAN.
-/// - After provider → wake phrase → voice → speak first, every permission card still
+/// - After provider → companion (persona) → wake phrase → voice → speak first, every permission card still
 ///   undetermined is shown once more, then Done.
 /// - Done (`canFinish`) needs a ready provider (`ProviderConfig.validate()` empty and
 ///   every tested part OK — the app computes `providerReady`).
@@ -87,7 +90,7 @@ public struct OnboardingFlow: Sendable, Equatable {
         return s
     }
 
-    public static let setupSteps: [OnboardingStep] = [.provider, .wakePhrase, .voice, .speakFirst]
+    public static let setupSteps: [OnboardingStep] = [.provider, .persona, .wakePhrase, .voice, .speakFirst]
 
     /// Permission cards still to show after the setup steps.
     public var pendingPermissions: [PermissionKind] {

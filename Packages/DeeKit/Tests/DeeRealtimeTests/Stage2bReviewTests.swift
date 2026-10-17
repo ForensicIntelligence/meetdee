@@ -12,7 +12,7 @@ import Testing
 
     /// Fix 1: a tool follow-up (a2) is generating while a1 still plays; the app's
     /// player has not seen a2 yet, so the cuts list only a1. a2 is truncated at 0
-    /// all the same: the server and her history keep none of it.
+    /// all the same: the server and Dee's history keep none of it.
     @Test func bargeInTruncatesTheGeneratingItemItWasNotTold() async throws {
         let h = try await Harness.connected()
         await userTurn(h, "u1")

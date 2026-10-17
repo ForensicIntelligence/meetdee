@@ -3,10 +3,10 @@ import Testing
 @testable import HarnessCore
 
 // Tune 6 (scope: the harness). Tune-5 live T5-7 (Reports/20261010-020243, t2-reunion-evening):
-// her reply item_EXNvWzIAyYVxoPoFTvdwO was cut at 6460 ms (3 of 4 sentences heard), then the
+// Dee's reply item_EXNvWzIAyYVxoPoFTvdwO was cut at 6460 ms (3 of 4 sentences heard), then the
 // "+50 h, new conversation" step's resetConversation deleted it on purpose (dee_del_7, 15.933).
 // The harness read the history at teardown, found it empty, and failed the truncation gate;
-// the wire recorder also listed her own reply as an echo rejection.
+// the wire recorder also listed Dee's own reply as an echo rejection.
 
 @Suite("Tune 6 harness")
 struct Tune6HarnessTests {
@@ -17,7 +17,7 @@ struct Tune6HarnessTests {
         _ = rec.frame(connection: 1, outgoing: out, text: json, at: t, events: true, record: &run)
     }
 
-    /// Live frames (trace lines 186, 205, 625, 854): a reset's delete of her reply is not echo.
+    /// Live frames (trace lines 186, 205, 625, 854): a reset's delete of Dee's reply is not echo.
     @Test mutating func aResetDeletingHerReplyIsNotAnEchoRejection() {
         rec.opened(connection: 1, at: 0, record: &run)
         send(#"{"type":"response.created","response":{"id":"resp_EXNvWOvnj22Zjy1lYVyvW","metadata":{"dee_turn":"1"}}}"#, at: 4.5, out: false)

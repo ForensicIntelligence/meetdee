@@ -20,7 +20,7 @@ import Testing
         rig.brain.trace.compactMap { if case .backchannel(let why) = $0 { why } else { nil } }
     }
 
-    /// Her reply is playing (`item_a1`) and `item` is said over it; the voice pauses her
+    /// Dee's reply is playing (`item_a1`) and `item` is said over it; the voice pauses Dee
     /// for it (`.paused`) and commits it early, as live.
     static func overHer(_ rig: BrainRig, _ item: String) async {
         await T3.sheIsTalking(rig, "That's a tiny little mental replay loop, isn't it?")
@@ -30,14 +30,14 @@ import Testing
         _ = await rig.until { rig.brain.trace.contains(.committed(plan: "waitForPartial")) }
     }
 
-    /// Nothing of hers was cut and nothing was asked for since her reply.
+    /// Nothing of Dee's was cut and nothing was asked for since Dee's reply.
     static func sheWentOn(_ rig: BrainRig, _ label: String) {
         #expect(rig.responseCreates().count == 1, "\(label): never answered: \(rig.trail()) \(rig.brain.trace)")
-        #expect(!rig.trail().contains("truncate:item_a1"), "\(label): her reply is not cut: \(rig.trail())")
+        #expect(!rig.trail().contains("truncate:item_a1"), "\(label): Dee's reply is not cut: \(rig.trail())")
         #expect(!rig.brain.trace.contains(.earlyWords), "\(label): \(rig.brain.trace)")
     }
 
-    // MARK: T6-3 — misheard short fragments while she talks are backchannels
+    // MARK: T6-3 — misheard short fragments while Dee talks are backchannels
 
     @Test func misheardFragmentsAreBackchannelsButStopsAndQuestionsAreNot() {
         // Tune 8 (T7-1): the voice's one rule — "Thank you." is no longer a misheard "go on".
@@ -52,10 +52,10 @@ import Testing
         }
     }
 
-    /// t2-backchannel-echo10 c05 (62.72–65.31): "Keep going, I'm listening." over her came
+    /// t2-backchannel-echo10 c05 (62.72–65.31): "Keep going, I'm listening." over Dee came
     /// back as "Put going." + "I'm listening.". Its partial "Put going" decided the turn at
-    /// once (`earlyWords` 64.44): the answer was asked for and her reply truncated at
-    /// 2345 ms; "I'm listening." then only brought a carry-on. Now she goes on.
+    /// once (`earlyWords` 64.44): the answer was asked for and Dee's reply truncated at
+    /// 2345 ms; "I'm listening." then only brought a carry-on. Now Dee goes on.
     @Test func liveEcho10C05PutGoingDoesNotStopHer() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -63,7 +63,7 @@ import Testing
         T2.delta(rig, "item_k", "Put")
         T2.delta(rig, "item_k", " going")
         try? await Task.sleep(for: .milliseconds(80))
-        #expect(!rig.brain.trace.contains(.earlyWords), "two words never decide over her: \(rig.brain.trace)")
+        #expect(!rig.brain.trace.contains(.earlyWords), "two words never decide over Dee: \(rig.brain.trace)")
         T2.delta(rig, "item_k", ".")
         #expect(await rig.until { !Self.backchannels(rig).isEmpty }, "\(rig.brain.trace)")
         rig.push(Srv.userTranscript("item_k", "Put going."))
@@ -79,8 +79,8 @@ import Testing
     }
 
     /// t2-backchannel-echo10 bc01 (82.44–83.02): "Go on." came back as "Grand."; its
-    /// settled words were taken as a turn: the answer was asked for, her reply cut at
-    /// 2005 ms and the answer then cancelled — she just stopped.
+    /// settled words were taken as a turn: the answer was asked for, Dee's reply cut at
+    /// 2005 ms and the answer then cancelled — Dee just stopped.
     @Test func liveEcho10Bc01GrandDoesNotStopHer() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -97,8 +97,8 @@ import Testing
 
     /// t2-backchannel-fan15 c05 (49.44–52.03): "Keep going, I'm listening." came back as
     /// "She." (committed 51.12) while the rest was still being said (`speech_started`
-    /// 51.44): "She." was held as a turn (`held("speech")`), and the next commit cut her
-    /// (52.65) to answer it. Now "She." is a backchannel and she goes on.
+    /// 51.44): "She." was held as a turn (`held("speech")`), and the next commit cut Dee
+    /// (52.65) to answer it. Now "She." is a backchannel and Dee goes on.
     @Test func liveFan15C05SheDoesNotStopHer() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -120,9 +120,9 @@ import Testing
         rig.shutdown()
     }
 
-    /// t2-backchannel-fan15 bc02 (99.42–100.31): "Mm-hm." came back as "MMHN." (she went
+    /// t2-backchannel-fan15 bc02 (99.42–100.31): "Mm-hm." came back as "MMHN." (Dee went
     /// on: `backchannel("resumed-words")`) and the server's tail of the burst (no speech
-    /// start, committed 100.81) as "Done.": answered in exact mode, her reply cut at 2725 ms.
+    /// start, committed 100.81) as "Done.": answered in exact mode, Dee's reply cut at 2725 ms.
     @Test func liveFan15Bc02TheTailDoneDoesNotStopHer() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -140,7 +140,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// The other side: a clear stop or a short question over her is still words for her.
+    /// The other side: a clear stop or a short question over Dee is still words for Dee.
     @Test func aShortQuestionOverHerIsStillAnswered() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -183,7 +183,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// The same burst, with the tail taken for her own echo (or any other drop of it): the
+    /// The same burst, with the tail taken for Dee's own echo (or any other drop of it): the
     /// answer is the question's, so it is never touched (keyed to the tail, it was cancelled
     /// and preempted).
     @Test func takingTheTailAwayNeverTouchesTheAnswerToTheQuestion() async throws {
@@ -198,7 +198,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// "Are you awake?" over her, its tail committed before the answer is asked for, the
+    /// "Are you awake?" over Dee, its tail committed before the answer is asked for, the
     /// answer's `response.created` in.
     static func questionWithTail(_ rig: BrainRig) async throws {
         await T3.sheIsTalking(rig, "Sun is a big deal, tomatoes love lots of it.")
@@ -225,7 +225,7 @@ import Testing
         return rig.dnaText(String(id))?.components(separatedBy: "\n").first { $0.hasPrefix("Length: ") }
     }
 
-    /// Her reply `resp_1` / `item_a1` to a plain turn has started (not speculative).
+    /// Dee's reply `resp_1` / `item_a1` to a plain turn has started (not speculative).
     static func replying(_ rig: BrainRig) async {
         rig.utterance("item_u1")
         _ = await rig.until { rig.responseCreates().count == 1 }
@@ -236,7 +236,7 @@ import Testing
     /// t2-interrupt-clean l03 (60.34): "Oh, wow. That sounds amazing. Biggest volcano in
     /// class? Nice. I'm a bit jealous, honestly. It's like a mini triumph…" — six short
     /// sentences under a two-sentence Length; the fixed cap of three let "Biggest volcano
-    /// in class?" play. She now stops before the sentence past the turn's budget.
+    /// in class?" play. Dee now stops before the sentence past the turn's budget.
     @Test func liveCleanL03StopsAtTheTurnsOwnBudget() async throws {
         let rig = try await BrainRig(tune: { $0.speculative = false })
         try await rig.start()
@@ -274,7 +274,7 @@ import Testing
 
     /// t2-interrupt-fan15 l02 (the judge's leak): "Wow, that sounds like a classic Friday
     /// curveball—so understandable to feel that way. Tiny robot report: it feels like a lot
-    /// of effort…". A later sentence: she stops before it.
+    /// of effort…". A later sentence: Dee stops before it.
     @Test func liveFan15L02StopsBeforeTheRobotReport() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -290,7 +290,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// In her first sentence: taken back unheard and asked again once, with the note.
+    /// In Dee's first sentence: taken back unheard and asked again once, with the note.
     @Test func aRobotReportFirstIsNeverHeard() async throws {
         let rig = try await BrainRig()
         try await rig.start()

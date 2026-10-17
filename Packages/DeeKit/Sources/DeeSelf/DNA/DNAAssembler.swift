@@ -26,7 +26,7 @@ public enum DNAAssembler {
             let byte = Int(code[t])
             let eff = quantize(effective[t])
             let level = TraitLevel(byte: eff)
-            let meaning = DNATables.meaning(t, level)
+            let meaning = DNATables.meaning(t, level, pronouns: inputs.persona.pronouns)
             return TraitReading(trait: t, byte: byte, effectiveByte: eff, level: level, meaning: meaning,
                                 compactMeaning: DNATables.compact(meaning), ageShifted: abs(eff - byte) >= 13)
         }
@@ -112,7 +112,7 @@ public enum DNAAssembler {
             rudeCount: inputs.inner.hostileInteractions, kindCount: inputs.inner.kindInteractions,
             apologiesCountLess: inputs.inner.apologyFatigue >= 0.5)
 
-        // §1.6 What she knows.
+        // §1.6 What Dee knows.
         let unknown = inputs.person == nil || inputs.person?.isPlaceholder == true
         let share = inputs.shareMemories
         var facts: [String] = []
@@ -145,7 +145,7 @@ public enum DNAAssembler {
         let knowledge = KnowledgeReading(facts: facts, episodes: episodes, followUps: followUps, upcoming: upcoming,
                                          interests: interests, shareMemories: share, unknownPerson: unknown)
 
-        // §1.7 Who she is.
+        // §1.7 Who Dee is.
         // Running jokes only while things are fine and nobody is upset (NotePicker's gag gates).
         let jokesOK = og.repair == .fine && !og.distressLive(at: now)
         let selfModel = selfReading(m.enduring, person: personID, gagsAllowed: jokesOK, lessonPick: lessonPick, now: now,
@@ -193,18 +193,19 @@ public enum DNAAssembler {
             conversationMinutes: max(0, Int(now.timeIntervalSince(og.conversationStarted) / 60)), reunion: og.reunionTurn)
 
         // On the reunion turn loneliness never leads (it must not read as guilt); "happy" only
-        // when her mood is actually pleasant (review finding 7).
+        // when Dee's mood is actually pleasant (review finding 7).
         let resting = og.reunionTurn && mind.emotion == .lonely ? (mind.valence >= 0 ? Emotion.happy : .neutral) : mind.emotion
         let blend = DNATables.blend(code: code, omit: og.reunionTurn ? ["lonely"] : []).filter { $0 != resting.rawValue }
         var dna = DeeDNA(
-            turn: inputs.turn, name: "Dee", localTime: local, partOfDay: local.partOfDay, age: mind.age, stage: mind.stage,
+            turn: inputs.turn, name: inputs.persona.name, localTime: local, partOfDay: local.partOfDay, age: mind.age, stage: mind.stage,
             aging: inputs.aging, mindCode: code, traits: traits, feelings: feelings, valence: mind.valence, arousal: mind.arousal,
-            // On the reunion turn her loneliness never leads the line (it must not read as guilt).
+            // On the reunion turn Dee's loneliness never leads the line (it must not read as guilt).
             restingExpression: resting, blend: blend, reflex: reflex, moodBand: EmotionBand(mood: mind), mood: mind.mood,
             urgeToTalk: mind.urgeToTalk, inner: inputs.inner, relationship: relationship, knowledge: knowledge,
             selfModel: selfModel, now: nowReading, appraisal: inputs.appraisal,
             guidance: Guidance(length: "", energyLevel: 0, energyWord: "", warmth: 0, warmthWord: "", playfulness: 0,
                                playfulnessWord: "", voiceEmotion: .neutral, voice: "", rules: [], doLines: [], avoidLines: []))
+        dna.persona = inputs.persona
         dna.guidance = guidance(dna, stance: inputs.stance, mind: mind, baselines: baselines)
         return dna
     }
@@ -259,7 +260,8 @@ public enum DNAAssembler {
         // "lively" never rides on a quiet, hurt or worried delivery (it would contradict it).
         if energyWord == "low" { voice.append("low energy") }
         else if energyWord == "high", EmotionBand(e) != .negLow { voice.append("lively") }
-        voice.append("a tiny robot's bright little voice")
+        // The persona's voice phrase (Classic: "a tiny robot's bright little voice").
+        voice.append(d.persona.dnaVoice)
 
         // Do / Avoid.
         let unknown: Bool = { if case .named = r.who { return false } else { return true } }()
@@ -269,7 +271,7 @@ public enum DNAAssembler {
         if g3 { rules.append(.g3) }
         if unknown && !g3 { rules.append(.g4) }   // asking their name yields to distress (live eval R8)
         // The greeting after time apart: the reunion turn, or the first turn after a day or more.
-        // "First" means before any reply of hers was heard (tune 4): a reply cancelled or never
+        // "First" means before any reply of Dee's was heard (tune 4): a reply cancelled or never
         // heard does not use the greeting up. Without the brain's count, the turn count decides.
         let notGreetedYet = d.turn.heardReplies.map { $0 == 0 } ?? (d.now.turnsThisConversation == 0)
         if d.now.reunion || ((r.sinceLastTalk ?? 0) >= 86_400 && notGreetedYet) { rules.append(.g5) }
@@ -297,7 +299,7 @@ public enum DNAAssembler {
         for rule in rules {
             let t = DNATables.rule(rule)
             switch rule {
-            case .g8: doLines.append("A little play is welcome, in your \(SelfBlock.humourPhrase(d.selfModel.humour)) style")
+            case .g8: doLines.append("A little play is welcome, in your \(SelfBlock.humourPhrase(d.selfModel.humour, adult: !d.persona.isClassic)) style")
             case .g5 where askFirst: break
             case .g5: doLines.append(DNATables.reunionDo(r.sinceLastTalk))
             case .g12 where askFirst, .g15 where askFirst: break
@@ -344,7 +346,7 @@ public enum DNAAssembler {
     }
 
     /// Notes that yield to an apology, a joke or distress heard this turn (live eval R3):
-    /// her pending boundary, ask-after notes, intentions, gags and awkward-repair openers.
+    /// Dee's pending boundary, ask-after notes, intentions, gags and awkward-repair openers.
     static func yieldsToTurn(_ k: Note.Kind) -> Bool {
         switch k {
         case .deeBoundary, .followUp, .followUpGentle, .intention, .gagCallback, .awkwardRepair, .tasteReveal, .recall: true

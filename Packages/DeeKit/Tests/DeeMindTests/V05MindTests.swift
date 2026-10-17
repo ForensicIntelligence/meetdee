@@ -135,7 +135,7 @@ import Testing
             t += 1
             _ = d.nextPrompt(at: Self.t0 + t, snapshot: Self.calm, userPresent: true, busy: false)
         }
-        // (A touch would reset the back-off: touching her is engaging with her.)
+        // (A touch would reset the back-off: touching Dee is engaging with Dee.)
         d.note(.saw(["owl"], camera: "front"), at: Self.t0 + t + 10)
         let list = Self.ask(&d, t + 11)
         #expect(list.map(\.kind) == [.sight], "\(list.map(\.subject))")

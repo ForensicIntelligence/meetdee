@@ -85,7 +85,7 @@ public struct EnergyVAD: Sendable {
     public init() {}
 
     /// `allowRise: false` holds the floor where it is through sound that is known
-    /// not to be the room (her own echo); it can still fall.
+    /// not to be the room (Dee's own echo); it can still fall.
     public mutating func process(frameDB db: Double, frameDuration dt: Double, allowRise: Bool = true) -> Bool {
         let level = db.isFinite ? max(db, -160) : -160
         if !primed {

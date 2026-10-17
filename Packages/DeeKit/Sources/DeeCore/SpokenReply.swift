@@ -4,12 +4,12 @@ import Foundation
 /// actually heard (audit C9).
 ///
 /// The language model writes far faster (10–15 words/s) than Dee speaks (~2.5
-/// words/s), so by the time someone talks over her the whole reply is usually
-/// written and in her history. That history must only hold what she said out loud;
-/// otherwise she "remembers" telling them things they never heard. Without word
-/// timings from the voice, the heard part is estimated from how long she has been
+/// words/s), so by the time someone talks over Dee the whole reply is usually
+/// written and in Dee's history. That history must only hold what Dee said out loud;
+/// otherwise Dee "remembers" telling them things they never heard. Without word
+/// timings from the voice, the heard part is estimated from how long Dee has been
 /// speaking, conservatively (whole words only; a cut sentence ends in "—", which
-/// also tells the model she was cut off).
+/// also tells the model Dee was cut off).
 public struct SpokenReply: Sendable, Equatable {
     /// Everything streamed to the voice for this reply, in order.
     public private(set) var text = ""
@@ -18,13 +18,13 @@ public struct SpokenReply: Sendable, Equatable {
 
     public mutating func append(_ fragment: String) { text += fragment }
 
-    /// Her speaking speed at an `AVSpeechUtterance`-style `rate` (0…1, default 0.5),
-    /// on the slow side so the estimate never credits her with unheard words.
+    /// Dee's speaking speed at an `AVSpeechUtterance`-style `rate` (0…1, default 0.5),
+    /// on the slow side so the estimate never credits Dee with unheard words.
     public static func charactersPerSecond(rate: Double) -> Double {
         13 * max(0.2, min(1, rate)) / 0.5
     }
 
-    /// What a listener has heard after `seconds` of her speaking this reply.
+    /// What a listener has heard after `seconds` of Dee speaking this reply.
     public func heard(afterSeconds seconds: Double, charactersPerSecond: Double) -> String {
         guard seconds.isFinite, seconds > 0 else { return "" }
         return Self.prefix(of: text, characters: Int((seconds * charactersPerSecond).rounded(.down)))
@@ -53,9 +53,9 @@ public struct SpokenReply: Sendable, Equatable {
 }
 
 /// What happens to a reply's place in the model's history once Dee is stopped (by a
-/// barge-in, a hush, a "stop", or the user saying something new before she spoke).
+/// barge-in, a hush, a "stop", or the user saying something new before Dee spoke).
 public enum ReplySettlement: Sendable, Equatable {
-    /// Everything she wrote was heard: history stays as it is.
+    /// Everything Dee wrote was heard: history stays as it is.
     case keep
     /// Only this much was heard: the reply in history becomes this.
     case truncate(String)
@@ -64,8 +64,8 @@ public enum ReplySettlement: Sendable, Equatable {
 
     /// - Parameters:
     ///   - streamed: the reply text sent to the voice.
-    ///   - audioStarted / audioFinished: her voice for this reply started / played out.
-    ///   - playedSeconds: how long she had been speaking it when she was stopped.
+    ///   - audioStarted / audioFinished: Dee's voice for this reply started / played out.
+    ///   - playedSeconds: how long Dee had been speaking it when Dee was stopped.
     public static func decide(streamed: String, audioStarted: Bool, audioFinished: Bool,
                               playedSeconds: Double, charactersPerSecond: Double) -> ReplySettlement {
         if audioFinished { return .keep }

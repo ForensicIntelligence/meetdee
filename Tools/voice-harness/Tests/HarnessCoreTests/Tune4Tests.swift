@@ -23,7 +23,7 @@ struct Tune4Tests {
     }
 
     /// Brain live A/B 20261009-235323 t2-latency-clean: 4 sentences generated, the
-    /// sentence cap stopped her before the 4th, 3 heard. The gate keeps counting the
+    /// sentence cap stopped Dee before the 4th, 3 heard. The gate keeps counting the
     /// generated text; the heard count is reported beside it.
     @Test func theSentenceCapIsReportedAsHeard() {
         var b = RunBuilder()

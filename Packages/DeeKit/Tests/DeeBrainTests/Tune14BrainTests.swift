@@ -19,7 +19,7 @@ import Testing
     /// The "let's" form is thinking aloud in any sentence position; invitations and advice
     /// with the same words are not.
     @Test func letsThinkThisThroughIsThinkingAloud() {
-        // Live fillers-echo10 k08 (A 96.42): her first sentence, before "Let me think about what".
+        // Live fillers-echo10 k08 (A 96.42): Dee's first sentence, before "Let me think about what".
         #expect(TurnPolicy.isMetaPreamble("Okay, let's think this through."))
         #expect(TurnPolicy.metaSentence(in: "Okay, let\u{2019}s think this through. Let me think about what") == 0)
         #expect(TurnPolicy.metaSentence(in: "That's a big one. Let's think about how to make it easier.") == 1)
@@ -31,7 +31,7 @@ import Testing
     }
 
     /// fillers-echo10 k08 "…What should I make with it?" → "Okay, let's think this through." as
-    /// her whole first sentence: unheard, it is taken back and the turn asked again once (live, a
+    /// Dee's whole first sentence: unheard, it is taken back and the turn asked again once (live, a
     /// second sentence of narration happened to catch it; alone, it was heard).
     @Test func liveFillersEcho10K08LetsThinkFirstIsTakenBack() async throws {
         let rig = try await BrainRig()
@@ -49,7 +49,7 @@ import Testing
     }
 
     /// After a laugh (no question, the joke-k05 shape), the "let's" form in a later sentence
-    /// is stopped before; what she said stands and nothing is asked again.
+    /// is stopped before; what Dee said stands and nothing is asked again.
     @Test func letsThinkLaterIsStoppedBefore() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -67,13 +67,13 @@ import Testing
         #expect(await rig.until { rig.brain.trace.contains(.preamble(cut: true)) }, "stopped before it: \(rig.brain.trace)")
         rig.push(Srv.responseDone("resp_1"))
         try? await Task.sleep(for: .milliseconds(200))
-        #expect(rig.responseCreates().count == 1, "no retry: she had answered")
+        #expect(rig.responseCreates().count == 1, "no retry: Dee had answered")
         rig.shutdown()
     }
 
     // MARK: (2) The answer-first note never carries their words
 
-    /// interrupt-echo20 q08 "Who made you?" over her (solo 20261010-214811 54.07: all four deltas
+    /// interrupt-echo20 q08 "Who made you?" over Dee (solo 20261010-214811 54.07: all four deltas
     /// in before the request). The tune-13 note named it ("in words like “Who made you?”"), but
     /// on the early-words path it named nothing live (0 of 39) and, made reachable without the
     /// "?", it would name a cut-off prefix 18 times in 44 ("Do you like", "Who made"). The note

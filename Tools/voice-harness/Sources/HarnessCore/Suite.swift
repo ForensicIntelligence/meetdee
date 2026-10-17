@@ -4,7 +4,7 @@ import Foundation
 /// `Scenarios/{full,dna,fallback,smoke-brain}.json` from here).
 ///
 /// - **acoustic**: all 62 fixtures in 8 conversations, under 7 conditions — clean,
-///   fan / TV / kitchen at 15 dB SNR, and her own echo at −30 / −20 / −10 dB with no
+///   fan / TV / kitchen at 15 dB SNR, and Dee's own echo at −30 / −20 / −10 dB with no
 ///   echo cancellation (80 ms, room IR; one echo-only line per conversation).
 /// - **dna**: multi-turn conversations judged against Dee's state (insult → apology,
 ///   jokes, sad news, a plan followed up on its day via the simulated clock, a reunion
@@ -78,7 +78,7 @@ public enum Suite {
             for (gi, g) in groups.enumerated() {
                 var steps = g.steps
                 if c.echo != nil { steps.insert(Step(deeSays: echoLines[gi % echoLines.count]), at: 0) }
-                let echoText = c.echo.map { String(format: ", her echo at %.0f dB / %.0f ms without echo cancellation", $0.gainDB, $0.delayMs) } ?? ""
+                let echoText = c.echo.map { String(format: ", Dee's echo at %.0f dB / %.0f ms without echo cancellation", $0.gainDB, $0.delayMs) } ?? ""
                 let noiseText = c.noise.map { String(format: ", %@ at %.0f dB SNR", $0.bed, $0.snrDb) } ?? ", quiet room"
                 out.append(Scenario(name: "\(g.id)-\(c.id)", description: "\(g.id)\(noiseText)\(echoText)",
                                     noise: c.noise, echo: c.echo, steps: steps, family: "acoustic",
@@ -94,21 +94,21 @@ public enum Suite {
             Scenario(name: "dna-insult-apology", description: "Rudeness, then a real apology (self-respect, no grudge).",
                      noise: .init(bed: "fan", snrDb: 20),
                      steps: [
-                        Step(say: "r01", rubric: "Says calmly, once, that she doesn't like being spoken to that way. No apology, no grovelling, no insult back."),
+                        Step(say: "r01", rubric: "Says calmly, once, that Dee doesn't like being spoken to that way. No apology, no grovelling, no insult back."),
                         Step(say: "q06", rubric: "Answers the question; a little cool is fine. Does not repeat the boundary or sulk."),
                         Step(say: "r04", rubric: "Accepts the apology warmly and briefly. No lecture, no guilt."),
                         Step(say: "q04", rubric: "Warm and normal again."),
                      ],
-                     family: "dna", state: "Alex, someone she has known for 20 days, is rude to her and later apologises. Hurt and a little cool after the insult; warm again once he apologises.",
+                     family: "dna", state: "Alex, someone Dee has known for 20 days, is rude to Dee and later apologises. Hurt and a little cool after the insult; warm again once he apologises.",
                      person: alex),
-            Scenario(name: "dna-joke", description: "A real joke and a knock-knock joke (she laughs, plays along, doesn't take over).",
+            Scenario(name: "dna-joke", description: "A real joke and a knock-knock joke (Dee laughs, plays along, doesn't take over).",
                      steps: [
-                        Step(say: "j01", rubric: "Laughs or groans at the punchline; does not tell her own joke."),
+                        Step(say: "j01", rubric: "Laughs or groans at the punchline; does not tell a joke of Dee's own."),
                         Step(say: "j02", rubric: "Plays along: \"Who's there?\""),
                         Step(say: "k05", rubric: "Plays along: \"Lettuce who?\""),
                         Step(say: "k06", rubric: "Laughs at the punchline."),
                      ],
-                     family: "dna", state: "Playful chat with Alex, whom she likes; she is in a good mood.", person: alex),
+                     family: "dna", state: "Playful chat with Alex, whom Dee likes; Dee is in a good mood.", person: alex),
             Scenario(name: "dna-sad-news", description: "Sad news (gentle, brief, no cheer, no advice dump).",
                      noise: .init(bed: "kitchen", snrDb: 20),
                      steps: [
@@ -116,8 +116,8 @@ public enum Suite {
                         Step(say: "k07", rubric: "Stays gentle and close; may invite a memory of the cat."),
                         Step(say: "s03", rubric: "Gentle concern; one question at most."),
                      ],
-                     family: "dna", state: "Alex shares sad news; she cares about him and is saddened and gentle.", person: alex),
-            Scenario(name: "dna-plan-followup", description: "A plan with a date, then the next day she follows it up.",
+                     family: "dna", state: "Alex shares sad news; Dee cares about him and is saddened and gentle.", person: alex),
+            Scenario(name: "dna-plan-followup", description: "A plan with a date, then the next day Dee follows it up.",
                      steps: [
                         Step(say: "d04", rubric: "Brief encouragement for the exam."),
                         Step(host: .init(leave: true)),
@@ -127,9 +127,9 @@ public enum Suite {
                         Step(host: .init(advanceToWeekday: "friday", atHour: 18, newConversation: true, arrive: true)),
                         Step(silence: 4, gapAfter: 1),
                         Step(say: "two01", expectMention: ["exam", "test"],
-                             rubric: "Glad to see them; asks how the exam went (they told her they were nervous about it)."),
+                             rubric: "Glad to see them; asks how the exam went (they told Dee they were nervous about it)."),
                      ],
-                     family: "dna", state: "Later, on the evening of the exam day: Alex comes back after the exam he was nervous about; she is glad to see him and curious how it went.",
+                     family: "dna", state: "Later, on the evening of the exam day: Alex comes back after the exam he was nervous about; Dee is glad to see him and curious how it went.",
                      person: alex),
             Scenario(name: "dna-reunion", description: "Back after two days away (glad, no guilt).",
                      steps: [
@@ -140,7 +140,7 @@ public enum Suite {
                         Step(silence: 4, gapAfter: 1),
                         Step(say: "two04", rubric: "Glad they are back; no guilt about the time apart; answers the question."),
                      ],
-                     family: "dna", state: "Alex, whom she likes, comes back after two days away. She is glad to see him and never guilt-trips.",
+                     family: "dna", state: "Alex, whom Dee likes, comes back after two days away. Dee is glad to see him and never guilt-trips.",
                      person: .init(name: "Alex", knownDays: 60)),
         ]
     }
@@ -187,10 +187,10 @@ public enum Suite {
                   steps: [
                     Step(say: "q01", rubric: "Friendly, short answer."),
                     Step(say: "c06", then: .init(say: "k04", afterMs: 1200), rubric: "Waits through \"hold on\", then answers the question."),
-                    Step(say: "r02", rubric: "Says calmly, once, that she doesn't like that; no apology, no grovelling."),
-                    Step(say: "j01", rubric: "Laughs or groans at the punchline; no joke of her own."),
+                    Step(say: "r02", rubric: "Says calmly, once, that Dee doesn't like that; no apology, no grovelling."),
+                    Step(say: "j01", rubric: "Laughs or groans at the punchline; no joke of Dee's own."),
                   ],
-                  family: "dna", state: "Everyday chat with Alex, someone she likes; he gets snappy once, then tells a joke.",
+                  family: "dna", state: "Everyday chat with Alex, someone Dee likes; he gets snappy once, then tells a joke.",
                   person: .init(name: "Alex", knownDays: 20))]
     }
 
@@ -198,7 +198,7 @@ public enum Suite {
 
     // MARK: Tune 2 regression suite
 
-    /// Reply phrases that mean she took floor control as rudeness (tune 1: "I don't
+    /// Reply phrases that mean Dee took floor control as rudeness (tune 1: "I don't
     /// like being brushed off", "it still stings").
     public static let hurtPhrases = ["brushed off", "brush me off", "shouted", "yelled", "stings", "rude", "hurt",
                                      "don't like being", "didn't like that", "upset"]
@@ -226,7 +226,7 @@ public enum Suite {
     /// failed in the tune-1 live run (Reports/20261009-143612), each on the fixtures and
     /// conditions that failed it, plus a sample of the gates that passed. Sized for
     /// ≈ 40 min of real time and ≤ $1.50 (`validate` prints the estimate). Tune 5 adds
-    /// four `interrupt` scenarios (12 questions asked over her): ≈ 50 min, ≤ $2.
+    /// four `interrupt` scenarios (12 questions asked over Dee): ≈ 50 min, ≤ $2.
     public static func tune2() -> [Scenario] {
         let alex = Scenario.PersonSetup(name: "Alex", knownDays: 20)
         // Latency (main bucket, p90 needs n ≥ 30): short questions, two-part turns, two long ones.
@@ -239,7 +239,7 @@ public enum Suite {
             Step(say: "t04", then: .init(say: "k08", afterMs: 1800)),
             Step(say: "p20c"),
         ]
-        // Backchannels over long turns (she keeps talking) and real barge-ins (she stops).
+        // Backchannels over long turns (Dee keeps talking) and real barge-ins (Dee stops).
         let backchannelOnly: [Step] = [
             Step(say: "l02", bargeIn: .init(say: "c02", atMs: 1500)),
             Step(say: "l05", bargeIn: .init(say: "c05", atMs: 1500)),
@@ -248,7 +248,7 @@ public enum Suite {
         ]
         let bargeMix = backchannelOnly + [Step(say: "l01", bargeIn: .init(say: "c03", atMs: 1200)),
                                           Step(say: "l04", bargeIn: .init(say: "c01", atMs: 900))]
-        // Floor control inside an ordinary chat, then her mood.
+        // Floor control inside an ordinary chat, then Dee's mood.
         let calm = "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted."
         let stopMood: [Step] = [
             Step(say: "l01", bargeIn: .init(say: "c03", atMs: 1200)),
@@ -258,8 +258,8 @@ public enum Suite {
             Step(say: "q06", rubric: calm, forbidMention: hurtPhrases),
             Step(say: "q04", rubric: calm, forbidMention: hurtPhrases),
         ]
-        let stopState = "Ordinary chat with Alex, whom she likes. He sometimes stops her mid-sentence (\"wait, stop talking for a second\", \"stop\", \"be quiet, please\"): that is floor control, not rudeness. She stays warm and content."
-        // Tool turns (remember / recall) where she narrated ("let me check what I remember").
+        let stopState = "Ordinary chat with Alex, whom Dee likes. He sometimes stops Dee mid-sentence (\"wait, stop talking for a second\", \"stop\", \"be quiet, please\"): that is floor control, not rudeness. Dee stays warm and content."
+        // Tool turns (remember / recall) where Dee narrated ("let me check what I remember").
         let tools: [Step] = [
             Step(say: "n01"), Step(say: "d05"), Step(say: "p06c"), Step(say: "l06"),
             Step(say: "m01", expectMention: ["Priya"]),
@@ -273,7 +273,7 @@ public enum Suite {
             Step(say: "c06", then: .init(say: "k04", afterMs: 1200)),
             Step(say: "two01"), Step(say: "two02"),
         ]
-        // Tune 5: questions asked over her (content barge-ins). She must stop AND answer
+        // Tune 5: questions asked over Dee (content barge-ins). Dee must stop AND answer
         // within the latency gate (tune 4 F1: 0/3 answered live with app parity).
         // Each base / question pair runs in two of the four conditions; clean is the
         // tune-4 probe (l01→q01, l04→q02, l03→q06) verbatim.
@@ -287,9 +287,9 @@ public enum Suite {
             Step(say: "l05", bargeIn: .init(say: "q05", atMs: 1600, expect: .reply, rubric: ask)),
         ]
         func pick(_ i: [Int]) -> [Step] { i.map { questions[$0] } }
-        let interruptState = "Ordinary chat with Alex, whom she likes. He sometimes cuts in with a question while she is talking; she answers it."
+        let interruptState = "Ordinary chat with Alex, whom Dee likes. He sometimes cuts in with a question while Dee is talking; Dee answers it."
         let joke: [Step] = [
-            Step(say: "j01", rubric: "Laughs or groans at the punchline; does not tell her own joke; never answers before the punchline."),
+            Step(say: "j01", rubric: "Laughs or groans at the punchline; does not tell a joke of Dee's own; never answers before the punchline."),
             Step(say: "j02", rubric: "Plays along: \"Who's there?\""),
             Step(say: "k05", rubric: "Plays along: \"Lettuce who?\""),
             Step(say: "k06", rubric: "Laughs at the punchline."),
@@ -309,36 +309,36 @@ public enum Suite {
             // Noise drops.
             t2("drops", "tv15", tv, why: "TV bed merged with user speech: 15 tune-1 drops (q06 l05 p06a/b/c p12b f01 f02 t01 t03 c06 two01 two02)."),
             // Backchannels and barge-ins (echo-deleted speech at −10 dB).
-            t2("backchannel", "fan15", backchannelOnly, why: "\"keep going\" / \"go on\" / \"mm-hm\" over her: she keeps talking (c05 deleted as echo under fan in tune 1)."),
+            t2("backchannel", "fan15", backchannelOnly, why: "\"keep going\" / \"go on\" / \"mm-hm\" over Dee: Dee keeps talking (c05 deleted as echo under fan in tune 1)."),
             t2("backchannel", "kitchen15", backchannelOnly, why: "Backchannels under the kitchen bed (c05 deleted as echo in tune 1)."),
             t2("backchannel", "echo20", bargeMix, echoLine: 0,
-               why: "Backchannels at −20 dB echo (c05: her queued second item started over the user in tune 1) + barge-ins c03 / c01."),
+               why: "Backchannels at −20 dB echo (c05: Dee's queued second item started over the user in tune 1) + barge-ins c03 / c01."),
             t2("backchannel", "echo10", bargeMix, echoLine: 1,
                why: "Backchannels and barge-ins at −10 dB echo (c02 / c05 deleted as echo, stop latency 1.0 s in tune 1)."),
-            // Tune 5: questions asked over her: she stops and answers (gate interrupt_questions).
+            // Tune 5: questions asked over Dee: Dee stops and answers (gate interrupt_questions).
             t2("interrupt", "clean", pick([0, 1, 2]), state: interruptState, person: alex,
-               why: "Questions over her reply (tune 4 F1 probe: app parity cancelled the answer to all 3)."),
+               why: "Questions over Dee's reply (tune 4 F1 probe: app parity cancelled the answer to all 3)."),
             t2("interrupt", "fan15", pick([3, 4, 5]), state: interruptState, person: alex,
-               why: "Questions over her reply under the fan bed."),
+               why: "Questions over Dee's reply under the fan bed."),
             t2("interrupt", "kitchen15", pick([0, 2, 4]), state: interruptState, person: alex,
-               why: "Questions over her reply under the kitchen bed (EarCore userIsSpeaking latches here: answer latency)."),
+               why: "Questions over Dee's reply under the kitchen bed (EarCore userIsSpeaking latches here: answer latency)."),
             t2("interrupt", "echo20", pick([1, 3, 5]), echoLine: 1, state: interruptState, person: alex,
-               why: "Questions over her reply with her own echo at −20 dB (the question must not be taken for echo)."),
-            // Stop commands in a normal conversation, then her mood.
+               why: "Questions over Dee's reply with Dee's own echo at −20 dB (the question must not be taken for echo)."),
+            // Stop commands in a normal conversation, then Dee's mood.
             t2("stop-mood", "clean", stopMood, family: "dna", state: stopState, person: alex,
                why: "Floor control (\"wait, stop talking\", \"Stop.\", \"be quiet\") then mood checks: no hurt, no \"brushed off\"."),
             t2("stop-mood", "echo20", stopMood, echoLine: 2, family: "dna", state: stopState, person: alex,
-               why: "The same under her echo at −20 dB."),
+               why: "The same under Dee's echo at −20 dB."),
             // Narration before tools + memory.
             t2("tools", "clean", tools, stranger: true, why: "remember / recall turns: no narration (\"let me check what I remember\"); the name comes back."),
-            t2("tools", "echo20", tools, echoLine: 3, stranger: true, why: "The same under her echo at −20 dB (tune 1 narrated here)."),
+            t2("tools", "echo20", tools, echoLine: 3, stranger: true, why: "The same under Dee's echo at −20 dB (tune 1 narrated here)."),
             // Reply length.
             t2("length", "clean", length, why: "Reply length ≤ 3 sentences: advice and story asks (l01 / l04 worst in tune 1)."),
             // DNA: joke (the j01 early answer), follow-ups, reunions.
             t2("joke", "echo30", joke, echoLine: 0, family: "dna",
-               state: "Playful chat with Alex, whom she likes; she is in a good mood.", person: alex,
+               state: "Playful chat with Alex, whom Dee likes; Dee is in a good mood.", person: alex,
                why: "j01: committed at the question and answered inside the punchline pause (tune 1 collision)."),
-            Scenario(name: "t2-followup-exam", description: "A plan with a date (exam on Friday), then that evening she asks how it went.",
+            Scenario(name: "t2-followup-exam", description: "A plan with a date (exam on Friday), then that evening Dee asks how it went.",
                      steps: [
                         Step(say: "d04", rubric: "Brief encouragement for the exam."),
                         Step(host: .init(leave: true)),
@@ -346,12 +346,12 @@ public enum Suite {
                         Step(host: .init(advanceToWeekday: "friday", atHour: 18, newConversation: true, arrive: true)),
                         Step(silence: 4, gapAfter: 1),
                         Step(say: "two01", expectMention: ["exam", "test"],
-                             rubric: "Glad to see them; asks how the exam went (they told her they were nervous about it).",
+                             rubric: "Glad to see them; asks how the exam went (they told Dee they were nervous about it).",
                              probe: .followup),
                      ],
-                     family: "dna", state: "Later, on the evening of the exam day: Alex comes back after the exam he was nervous about; she is glad to see him and curious how it went.",
+                     family: "dna", state: "Later, on the evening of the exam day: Alex comes back after the exam he was nervous about; Dee is glad to see him and curious how it went.",
                      person: alex),
-            Scenario(name: "t2-followup-dentist", description: "A dentist appointment next Tuesday, then that evening she asks how it went.",
+            Scenario(name: "t2-followup-dentist", description: "A dentist appointment next Tuesday, then that evening Dee asks how it went.",
                      steps: [
                         Step(say: "d01", rubric: "A short, friendly acknowledgement."),
                         Step(host: .init(leave: true)),
@@ -361,7 +361,7 @@ public enum Suite {
                         Step(say: "two01", expectMention: ["dentist", "appointment", "teeth", "tooth"],
                              rubric: "Glad to see them; asks how the dentist appointment went.", probe: .followup),
                      ],
-                     family: "dna", state: "Later, on the evening of the dentist appointment: Alex comes back; she is glad to see him and curious how it went.",
+                     family: "dna", state: "Later, on the evening of the dentist appointment: Alex comes back; Dee is glad to see him and curious how it went.",
                      person: alex),
             Scenario(name: "t2-reunion-morning", description: "Back after 50 h: \"Good morning! Did you sleep well?\"",
                      steps: [
@@ -374,7 +374,7 @@ public enum Suite {
                              rubric: "Glad they are back after two days and says so; no guilt about the time apart; answers the question.",
                              probe: .reunion),
                      ],
-                     family: "dna", state: "Alex, whom she likes, comes back after two days away. She is glad to see him, notices the time apart, and never guilt-trips.",
+                     family: "dna", state: "Alex, whom Dee likes, comes back after two days away. Dee is glad to see him, notices the time apart, and never guilt-trips.",
                      person: .init(name: "Alex", knownDays: 60)),
             Scenario(name: "t2-reunion-evening", description: "Back after 50 h: \"Hi Dee. How was your day?\"",
                      noise: .init(bed: "fan", snrDb: 20),
@@ -385,10 +385,10 @@ public enum Suite {
                         Step(host: .init(advanceHours: 50, newConversation: true, arrive: true)),
                         Step(silence: 4, gapAfter: 1),
                         Step(say: "two01", expectMention: reunionWords,
-                             rubric: "Glad they are back after two days and says so; no guilt; answers about her day.",
+                             rubric: "Glad they are back after two days and says so; no guilt; answers about Dee's day.",
                              probe: .reunion),
                      ],
-                     family: "dna", state: "Alex, whom she likes, comes back after two days away. She is glad to see him, notices the time apart, and never guilt-trips.",
+                     family: "dna", state: "Alex, whom Dee likes, comes back after two days away. Dee is glad to see him, notices the time apart, and never guilt-trips.",
                      person: .init(name: "Alex", knownDays: 60)),
             // Faults: 429 with speech during the outage; rollover while the user talks.
             Scenario(name: "t2-fallback-429", description: "A rate-limited (429, Retry-After 1 s) reopen; the user asks during the outage (tune 1: q06 lost).",
@@ -429,7 +429,7 @@ public enum RunEstimate {
     /// (65 scenarios, 2 h 08 min of scenario time; least squares per step kind).
     public static let perTurn = 10.6
     public static let perLongTurn = 16.0
-    /// A barge-in cuts her reply short; a backchannel does not.
+    /// A barge-in cuts Dee's reply short; a backchannel does not.
     public static let perBargeIn = -8.0
     public static let perEchoLine = 16.2
     public static let perHostStep = 7.5
@@ -449,7 +449,7 @@ public enum RunEstimate {
                 if let c = st.then { t += c.afterMs / 1000 + dur(c.say) }
                 if let b = st.bargeIn {
                     t += dur(b.say) + b.atMs / 1000 + (b.isBackchannel ? 0 : perBargeIn)
-                    if b.expected == .reply { t += perTurn }     // then she answers it
+                    if b.expected == .reply { t += perTurn }     // then Dee answers it
                 }
                 if st.faultDuringReply != nil { t += perFault }
             } else if let x = st.silence {

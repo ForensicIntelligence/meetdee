@@ -14,10 +14,10 @@ import Testing
 
 @Suite(.serialized) struct OpenItemAfterHerTests {
     /// t2-drops-tv15 p06a (live: `item_EXILDihKJHgWbQ33dPYP9`). The TV opened a
-    /// server item 1.34 s before the end of her reply (speech_started 0.62 s
-    /// later); she ended; 1.18 s after her end the user said "I was going to say
+    /// server item 1.34 s before the end of Dee's reply (speech_started 0.62 s
+    /// later); Dee ended; 1.18 s after Dee's end the user said "I was going to say
     /// that the movie was better than the book." inside that same open item. Live,
-    /// the item was given up as her echo at the decision timeout (0.18 s before
+    /// the item was given up as Dee's echo at the decision timeout (0.18 s before
     /// they spoke) and deleted at its commit; its transcript came 0.4 s later.
     @Test func theUserTalkingIntoAnOpenItemAfterSheStoppedIsKept() throws {
         var sim = RoomSim(seconds: 22)
@@ -37,7 +37,7 @@ import Testing
     }
 
     /// The same open item with nobody talking into it: still never kept for ever —
-    /// given up `openItemAfterTail` after her echo left the room, or at its stop.
+    /// given up `openItemAfterTail` after Dee's echo left the room, or at its stop.
     @Test func anOpenItemNobodyTalksIntoIsStillGivenUp() throws {
         var sim = RoomSim(seconds: 22)
         sim.setBed(try HarnessFixture.wav("noise/tv.wav"), snrDB: 15)
@@ -48,11 +48,11 @@ import Testing
         let tvOnset = herEnd - RoomSim.sample(1.34)
         sim.server = [(tvOnset + RoomSim.sample(0.62), .start("item_t", onsetSample: tvOnset))]
         sim.run()
-        // Given up on the sound, or — the TV's voice after her tail is no echo of
-        // hers — left to its words (CloudVoice deletes it when no words of someone
+        // Given up on the sound, or — the TV's voice after Dee's tail is no echo of
+        // Dee's — left to its words (CloudVoice deletes it when no words of someone
         // else come: the uplink gate keeps the TV's words from the server). Never
-        // taken for the user on the sound. (Tune 10, T9-2: voice after her playback
-        // and its tail is judged as words, not strictly as her garbled echo — the
+        // taken for the user on the sound. (Tune 10, T9-2: voice after Dee's playback
+        // and its tail is judged as words, not strictly as Dee's garbled echo — the
         // same sound was "Are you awake?" live.)
         let decided = try #require(sim.firstTime {
             $0 == .rejectEcho(itemID: "item_t") || $0 == .deferToWords(itemID: "item_t", strict: true)
@@ -65,7 +65,7 @@ import Testing
     }
 
     /// t2-fallback-rollover-speech q02 (kitchen, 20 dB): an item opened at the very
-    /// end of her reply; "Are you awake?" 0.47 s later; speech_stopped 0.75 s after
+    /// end of Dee's reply; "Are you awake?" 0.47 s later; speech_stopped 0.75 s after
     /// the words. The words are the user's.
     @Test func aQuestionRightAfterHerInAnItemHerTailOpenedIsKept() throws {
         var sim = RoomSim(seconds: 16)
@@ -83,20 +83,20 @@ import Testing
     }
 }
 
-// MARK: - (3) "Stop." inside an item her loud echo holds open (a documented limit)
+// MARK: - (3) "Stop." inside an item Dee's loud echo holds open (a documented limit)
 
 @Suite(.serialized) struct StopUnderLoudEchoTests {
-    /// t2-backchannel-echo10 c01 (live: "Stop." 0.9 s into her reply, her echo at
-    /// −10 dB with echo cancellation off; her echo had opened the server item
+    /// t2-backchannel-echo10 c01 (live: "Stop." 0.9 s into Dee's reply, Dee's echo at
+    /// −10 dB with echo cancellation off; Dee's echo had opened the server item
     /// 0.42 s into the reply and held it open; "Stop." was caught only by its
     /// words when the item stopped, 2.08 s after the onset).
     ///
     /// Offline, with the fixture voices, "Stop." under −10 dB leaves 40 ms of
-    /// pitch that isn't hers: the sound alone can't tell it from her own echo's
-    /// unexplained bands (which come and go all through her reply), so it is
+    /// pitch that isn't Dee's: the sound alone can't tell it from Dee's own echo's
+    /// unexplained bands (which come and go all through Dee's reply), so it is
     /// never acted on before its words — the 0 self-trigger gate. It is never
     /// deleted, and its settled words now decide it ~0.2 s before the transcript
-    /// (`SettledWordsDecideLoopTests`). At −20 dB the sound stops her on the word.
+    /// (`SettledWordsDecideLoopTests`). At −20 dB the sound stops Dee on the word.
     /// (Echo cancellation is on in the app.)
     @Test(arguments: [-10.0, -20.0])
     func aShortStopInsideHerOpenEchoItemIsNeverLost(gainDB: Double) throws {
@@ -124,7 +124,7 @@ import Testing
     }
 }
 
-// MARK: - (1) A backchannel pauses her for well under a second
+// MARK: - (1) A backchannel pauses Dee for well under a second
 
 extension LoopRig {
     /// Steps 20 ms at a time (letting events through) until `done`, at most
@@ -147,8 +147,8 @@ extension LoopRig {
         for w in words { push(.inputTranscriptionDelta(.init(itemID: item, delta: w))) }
     }
 
-    /// Her reply playing, then the user's onset over it and the server's item for
-    /// it: she is paused (`floorHold`). `talk` s of their voice in all.
+    /// Dee's reply playing, then the user's onset over it and the server's item for
+    /// it: Dee is paused (`floorHold`). `talk` s of their voice in all.
     func pausedBy(_ item: String, talk: Double, replyMs: Int = 6000) async throws {
         try quiet(0.3)
         try await answerWith([("item_a1", replyMs)])
@@ -157,16 +157,16 @@ extension LoopRig {
         push(Srv.speechStarted(item, ms: uplinkMsNow - 150))
         await settle()
         try self.talk(talk - 0.15)
-        try #require(voice.floorHold?.itemID == item, "she was not paused")
+        try #require(voice.floorHold?.itemID == item, "Dee was not paused")
     }
 }
 
 @Suite(.serialized) struct FloorHoldQuickTests {
-    /// t2-backchannel-fan15 / kitchen15 bc01 "Go on." and bc02 "Mm-hm." (live: she
+    /// t2-backchannel-fan15 / kitchen15 bc01 "Go on." and bc02 "Mm-hm." (live: Dee
     /// resumed 1.0–1.4 s after the words — the server's semantic VAD sent
     /// speech_stopped with its commit 0.7 s after them, the deltas came 0.11 s
     /// after that, settled 0.15 s later). Now the voice commits the short burst
-    /// itself once they have been quiet `holdCommitSilence`, and she goes on
+    /// itself once they have been quiet `holdCommitSilence`, and Dee goes on
     /// within 0.6 s of their last sound — without the server's speech_stopped.
     @Test(arguments: [("Go on.", ["Go", " on", "."], 0.58), ("Mm-hm.", ["Mm", "-hm", "."], 0.89)])
     func aShortBackchannelResumesHerWithinSixTenthsOfASecond(text: String, words: [String], seconds: Double) async throws {
@@ -184,7 +184,7 @@ extension LoopRig {
         rig.deltas("item_u2", words)
         let resumed = try #require(try await rig.stepUntil(0.6) { rig.voice.floorHold == nil }, "never resumed")
         let pause = commit + 0.12 + resumed
-        #expect(pause <= 0.6, "she resumed \(pause) s after their words (live: 1.0–1.4 s)")
+        #expect(pause <= 0.6, "Dee resumed \(pause) s after their words (live: 1.0–1.4 s)")
         let at = rig.output.count
         try rig.quiet(0.3)
         #expect(rig.audibleMs(fromSample: at) > 250)
@@ -196,14 +196,14 @@ extension LoopRig {
         #expect(rig.sent("conversation.item.truncate").isEmpty)
         #expect(rig.sent("response.cancel").isEmpty)
         #expect(!rig.voiceEvents.contains(.bargeIn))
-        // For the brain: what she went on through.
+        // For the brain: what Dee went on through.
         #expect(rig.voice.wasBackchannel(itemID: "item_u2"))
         #expect(holds.all.first == .paused(itemID: "item_u2"))
         #expect(holds.all.contains(.resumed(itemIDs: ["item_u2"], text: words.joined(), why: "words")), "\(holds.all)")
         rig.voice.shutdown()
     }
 
-    /// "Stop." is committed as quickly — and is no backchannel: she stays paused
+    /// "Stop." is committed as quickly — and is no backchannel: Dee stays paused
     /// and the brain answers it (`holdAfterWords` ends the reply if it doesn't).
     @Test func aShortStopIsCommittedAsQuicklyAndNeverResumes() async throws {
         let rig = try LoopRig()
@@ -233,8 +233,8 @@ extension LoopRig {
 
     /// t2-backchannel c02 "Don't stop, … keep going." (0.77 s, a 0.47 s gap, 0.61 s):
     /// the first burst is committed in the gap and its words ("Don't stop.") come
-    /// while they talk on — she never resumes over them. The second burst gets its
-    /// own item and its own quick commit; she goes on within 0.6 s of the end.
+    /// while they talk on — Dee never resumes over them. The second burst gets its
+    /// own item and its own quick commit; Dee goes on within 0.6 s of the end.
     @Test func twoBurstsDecideTogetherAndSheNeverResumesOverThem() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -250,7 +250,7 @@ extension LoopRig {
         rig.push(Srv.speechStarted("item_u3", ms: rig.uplinkMsNow - 300))
         await rig.settle()
         try rig.talk(0.31)
-        #expect(rig.voice.floorHold != nil, "she resumed while they were talking")
+        #expect(rig.voice.floorHold != nil, "Dee resumed while they were talking")
         #expect(rig.voice.floorHold?.items == ["item_u2", "item_u3"])
         let commit2 = try #require(try await rig.stepUntil(0.6) { rig.sent("input_audio_buffer.commit").count >= 2 },
                                    "the second burst was never committed")
@@ -266,8 +266,8 @@ extension LoopRig {
     }
 
     /// "Mm, … what about the moon?": "Mm." is committed in the pause and its words
-    /// say "go on" — but they talked on, and no item holds that yet. She waits
-    /// for it (`holdUncoveredWait`); its words are a real turn: she never resumes.
+    /// say "go on" — but they talked on, and no item holds that yet. Dee waits
+    /// for it (`holdUncoveredWait`); its words are a real turn: Dee never resumes.
     @Test func moreWordsAfterAQuickCommitAreWaitedFor() async throws {
         let rig = try LoopRig()
         let holds = Collector(rig.voice.holdEvents)
@@ -281,7 +281,7 @@ extension LoopRig {
         await rig.settle()
         try rig.quiet(0.35)
         await rig.settle()
-        #expect(rig.voice.floorHold != nil, "she resumed over words no item held yet")
+        #expect(rig.voice.floorHold != nil, "Dee resumed over words no item held yet")
         rig.push(Srv.speechStarted("item_u3", ms: rig.uplinkMsNow - 1200))
         await rig.settle()
         try rig.quiet(0.1)
@@ -298,12 +298,12 @@ extension LoopRig {
     }
 }
 
-// MARK: - (3) Words she never said decide an item as soon as they settle
+// MARK: - (3) Words Dee never said decide an item as soon as they settle
 
 @Suite(.serialized) struct SettledWordsDecideLoopTests {
-    /// An item her loud echo opened, left to its words: "Stop." (not hers) holds
-    /// her as soon as its deltas settle — not ~0.2 s later at the transcript.
-    /// Her own words still wait for the transcript (more may come).
+    /// An item Dee's loud echo opened, left to its words: "Stop." (not Dee's) holds
+    /// Dee as soon as its deltas settle — not ~0.2 s later at the transcript.
+    /// Dee's own words still wait for the transcript (more may come).
     @Test func settledWordsSheNeverSaidHoldHerBeforeTheTranscript() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -320,7 +320,7 @@ extension LoopRig {
         try rig.quiet(CloudVoice.holdSettle + 0.06)
         await rig.settle()
         #expect(rig.voice.itemsAwaitingWords.isEmpty, "the settled words did not decide")
-        #expect(rig.voice.floorHold?.itemID == "item_x", "she kept talking over \"Stop.\"")
+        #expect(rig.voice.floorHold?.itemID == "item_x", "Dee kept talking over \"Stop.\"")
         #expect(rig.brainSession { if case .userCommitted("item_x", _) = $0 { true } else { false } }.count == 1)
         rig.voice.shutdown()
     }
@@ -354,7 +354,7 @@ extension LoopRig {
 
 @Suite struct StaleStopOffsetTests {
     /// t2-fallback-rollover-speech q02 / q05 (live: an item opened at the end of
-    /// her reply; "Are you awake?" in it; deleted as echo at its stop during a
+    /// Dee's reply; "Are you awake?" in it; deleted as echo at its stop during a
     /// rollover). The same scene with the live trace's offsets keeps the words
     /// offline (`aQuestionRightAfterHerInAnItemHerTailOpenedIsKept`); what a
     /// rollover can add is a stop whose offset maps onto the new session's
@@ -366,9 +366,9 @@ extension LoopRig {
         h.stopPlayback()
         h.clear()
         let onset = h.t
-        h.serverStart("item_q", onset: onset)            // in her echo tail
+        h.serverStart("item_q", onset: onset)            // in Dee's echo tail
         h.quiet(EarCore.echoTail + 0.1)
-        h.voice(0.18)                                     // a short "Yes." after her tail
+        h.voice(0.18)                                     // a short "Yes." after Dee's tail
         h.quiet(0.3)
         h.serverStop("item_q", end: onset - 8)            // mapped on the wrong timeline
         #expect(!h.decisions.contains(.rejectEcho(itemID: "item_q")), "\(h.decisions)")

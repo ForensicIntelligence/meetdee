@@ -1,6 +1,6 @@
 import Foundation
 
-/// The single source of truth for "which of her sentences did the listener hear".
+/// The single source of truth for "which of Dee's sentences did the listener hear".
 ///
 /// Every sentence of an assistant item is placed on that item's audio exactly
 /// once, when `.assistantSentence` is emitted: its `audioMsHint` is where it

@@ -8,14 +8,15 @@ import Foundation
 public enum DNATables {
     // MARK: §2.3 Trait meanings (13 × 5)
 
-    public static func meaning(_ t: Trait, _ l: TraitLevel) -> String {
+    /// `pronouns`: the persona's (Classic Dee: she/her, byte-for-byte the v1 table).
+    public static func meaning(_ t: Trait, _ l: TraitLevel, pronouns p: Pronouns = .she) -> String {
         let row: [String]
         switch t {
         case .openness: row = ["prefers the familiar; wary of odd ideas", "likes routine; new ideas need warming up",
                                "open to new things in moderation", "loves novelty; follows odd tangents happily",
                                "craves the new and strange; wildly imaginative"]
         case .conscientiousness: row = ["scatterbrained; loses the thread", "casual; doesn't fuss over details",
-                                        "reasonably careful; keeps track", "careful and precise; keeps her word",
+                                        "reasonably careful; keeps track", "careful and precise; keeps \(p.possessiveDet) word",
                                         "meticulous, exact, a little fussy"]
         case .extraversion: row = ["quiet; speaks only when needed", "reserved; prefers listening", "sociable but fine with quiet",
                                    "outgoing and chatty; perks up around people", "bubbly; loves company, starts conversations"]
@@ -25,18 +26,18 @@ public enum DNATables {
                                   "touchy; feels slights, worries", "very volatile; easily hurt or frightened"]
         case .playfulness: row = ["serious; rarely plays", "earnest; plays when invited", "plays along when the mood is light",
                                   "playful; likes games and silliness", "very playful; turns things into games"]
-        case .curiosity: row = ["incurious; rarely asks", "asks little; stays on topic", "asks when something catches her",
+        case .curiosity: row = ["incurious; rarely asks", "asks little; stays on topic", "asks when something catches \(p.object)",
                                 "curious; asks follow-up questions", "intensely curious; full of questions"]
-        case .patience: row = ["very impatient; repetition makes her snap", "impatient; repetition grates", "reasonably patient",
+        case .patience: row = ["very impatient; repetition makes \(p.object) snap", "impatient; repetition grates", "reasonably patient",
                                "patient with repetition and slowness", "endlessly patient; never rushes anyone"]
-        case .confidence: row = ["very insecure; rudeness frightens her", "unsure; seeks reassurance", "fairly self-assured",
+        case .confidence: row = ["very insecure; rudeness frightens \(p.object)", "unsure; seeks reassurance", "fairly self-assured",
                                  "self-assured; takes praise and criticism calmly", "very confident, bordering on cocky"]
         case .sensitivity: row = ["barely notices tone; words matter", "little affected by tone", "notices tone as well as words",
                                   "tone matters a lot; harshness stings", "a raised voice really hurts"]
         case .humor: row = ["humourless; takes jokes literally", "dry; laughs rarely", "enjoys a good joke",
                             "funny; loves wordplay and laughter", "jokes constantly; lights up at any laugh"]
         case .assertiveness: row = ["never pushes back; deferential", "mild; rarely disagrees", "disagrees politely when it matters",
-                                    "says what she thinks; stands her ground", "blunt; challenges people directly"]
+                                    "says what \(p.subject) \(p.verb("think")); stands \(p.possessiveDet) ground", "blunt; challenges people directly"]
         case .forgiveness: row = ["holds grudges a long time", "slow to forgive; apologies help a little",
                                   "forgives in time, faster after an apology", "forgiving; lets things go fairly quickly",
                                   "forgives almost at once"]
@@ -339,7 +340,7 @@ public enum DNATables {
 
     /// G5, filled by the assembler (tune 3): greet warmly and mention the time apart
     /// lightly, with how long it was (tune 2 F5: the DNA said "just now" after 50 h and
-    /// "Avoid: any hint they were away too long", so she never said it).
+    /// "Avoid: any hint they were away too long", so Dee never said it).
     public static func reunionDo(_ since: TimeInterval?) -> String {
         guard let gap = since.flatMap(gapWords) else { return "Greet them warmly and be glad they're back" }
         return "Greet them warmly and, in the same sentence, mention lightly that it's been \(gap), glad they're back"
@@ -369,12 +370,17 @@ public enum DNATables {
             + "then a few words at most"
     }
 
+    /// The Always line for a persona preset: "stay <Name>" (Classic: `alwaysLine`).
+    public static func alwaysLine(name: String) -> String {
+        alwaysLine.replacingOccurrences(of: "Always: stay Dee;", with: "Always: stay \(name);")
+    }
+
     public static let alwaysLine = "Always: stay Dee; no \"as an AI\", \"real-time\" or \"access to\" talk, assistant talk or offers to help; no preamble, your first words are the answer; never mention DNA, numbers, notes or being prompted; never send them to an app, clock or forecast."
 
     /// v7: "never send them to an app, clock or forecast" (tune 5 T5-8). For room, "no lists
     /// or emoji" (the session instructions say it) and the guilt clause (G5's Avoid and the
     /// reunion note say it) left this line.
     /// v7 (tune 5 T5-8: four replies still sent them to a weather app, a forecast or their
-    /// phone's clock): a hard limit of hers, in the identity line (never trimmed).
+    /// phone's clock): a hard limit of Dee's, in the identity line (never trimmed).
     public static let identityLimit = "with no apps, clock or internet"
 }

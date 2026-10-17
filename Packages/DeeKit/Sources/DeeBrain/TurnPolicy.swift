@@ -11,11 +11,11 @@ public enum TurnPolicy {
         case respondFast
         /// Wait ≤ `exactWait` for the transcript, run the full path, then ask (exact mode).
         case waitForWords
-        /// She is asleep or nobody is engaged: wait for the words and let the
+        /// Dee is asleep or nobody is engaged: wait for the words and let the
         /// "is this for me?" check decide; never answer on the commit (rtvoice notes).
         case waitForAddress
-        /// Speech that started over her voice (or overlapped its echo tail): it may
-        /// be a backchannel ("keep going", "mm-hm") that must not cut her, or a
+        /// Speech that started over Dee's voice (or overlapped its echo tail): it may
+        /// be a backchannel ("keep going", "mm-hm") that must not cut Dee, or a
         /// command. Waits ≤ `overlapWait` for the first settled words (the
         /// transcription deltas, ~0.25 s after the commit), never for the full
         /// transcript (tune 2).
@@ -24,8 +24,8 @@ public enum TurnPolicy {
 
     /// Exact mode waits this long for the transcript before falling back to fast.
     public static let exactWait: TimeInterval = 0.4
-    /// Speech that starts over her voice, or so close after it that it overlapped
-    /// her echo tail (a barge-in, "wait, no…", "stop"), waits for its words: the
+    /// Speech that starts over Dee's voice, or so close after it that it overlapped
+    /// Dee's echo tail (a barge-in, "wait, no…", "stop"), waits for its words: the
     /// answer depends on them, and a command must never be answered. The gap is
     /// measured from when the server's `speech_started` reached the brain, which is
     /// already ~0.2–0.3 s after the real onset, so this window only catches
@@ -41,9 +41,9 @@ public enum TurnPolicy {
         public var prosody: ProsodyRead?
         /// Note kinds of the previous response's DNA.
         public var previousNotes: Set<Note.Kind>
-        /// Seconds between the end of her voice (or a cut) and this utterance's start
-        /// (as the brain saw it); nil when she never spoke, negative when they
-        /// talked over her.
+        /// Seconds between the end of Dee's voice (or a cut) and this utterance's start
+        /// (as the brain saw it); nil when Dee never spoke, negative when they
+        /// talked over Dee.
         public var sinceHerVoice: TimeInterval?
         public var thinkingRequestedBefore: Bool
 
@@ -72,11 +72,11 @@ public enum TurnPolicy {
     /// Transcription deltas count as the turn's (provisional) words once none has
     /// come for this long. Live tune 1: the longest gap inside one item's delta
     /// burst was 0.17 s (p99 0.11 s); the burst ends p50 0.25 s after the commit,
-    /// 0.22 s before the full transcript, well before her first audio (~0.7 s).
+    /// 0.22 s before the full transcript, well before Dee's first audio (~0.7 s).
     public static let partialSettle: TimeInterval = 0.15
 
     /// docs/DNA.md §4.3: the cases where the words change the right answer (only
-    /// those: everything else is fast, tune 2). Speech over her voice is not one of
+    /// those: everything else is fast, tune 2). Speech over Dee's voice is not one of
     /// them any more: it waits for its first words (`waitForPartial`), not the
     /// full transcript.
     ///
@@ -97,14 +97,14 @@ public enum TurnPolicy {
 
     // MARK: Speculative replies (tune 4)
 
-    /// Total quiet since the user's last voiced frame before her speculative reply
+    /// Total quiet since the user's last voiced frame before Dee's speculative reply
     /// may be heard. server_vad commits after 0.3 s of silence (live tune 3: speech
     /// end → commit 0.19 s as the brain saw it; commit → first audio p50 ~0.5 s), so
     /// a window ≤ ~0.7 s costs nothing on most turns. Live tune 3, the resumes that
     /// collided came 0.59 s (l05) and ~0.7 s (j01) after the first part ended.
     ///
     /// Tune 4 A/B (500 / 650 / 800 ms live, then the same windows replayed on every
-    /// turn of the tune-3 run and the three A/B runs, 309 turns): her first audio
+    /// turn of the tune-3 run and the three A/B runs, 309 turns): Dee's first audio
     /// arrives ≥ ~1.0 s after the end of speech on nearly every turn, so any window up
     /// to 1.0 s left end → first audio p50 / p90 unchanged (1.17 / 1.53 s tune 3); the
     /// collisions fell 10 → 4 at 500 ms, 3 at 650, 2 at 800 (2 at 1.0 s too; 1.2 s
@@ -117,14 +117,14 @@ public enum TurnPolicy {
     /// Tune 5 F2 (live tune 4 p90 1.63 s): kitchen and TV beds kept the latched
     /// `userIsSpeaking` on after they were done, so ready audio waited to the 1.6 s cap
     /// (5 turns at 2.1–2.2 s). The gate now reads EarCore's bed-proof `voiceActive`, and
-    /// anything else (unsettled words) holds her at most 1.0 s after the commit.
+    /// anything else (unsettled words) holds Dee at most 1.0 s after the commit.
     public static let confirmMax: TimeInterval = 1.0
-    /// Their own voice (EarCore `voiceActive`) may hold her this much past `confirmMax`
+    /// Their own voice (EarCore `voiceActive`) may hold Dee this much past `confirmMax`
     /// (1.6 s after the commit in all, the tune-4 cap).
     public static let voiceHoldExtra: TimeInterval = 0.6
     /// Tune 5 F3 (fan15 l05: released 0.15 s after they resumed, 665 ms over them):
-    /// the gate passes twice, this far apart, before her held audio plays. Free on most
-    /// turns: the gate passes from 0.8 s while her audio arrives ≥ ~1.0 s after the end.
+    /// the gate passes twice, this far apart, before Dee's held audio plays. Free on most
+    /// turns: the gate passes from 0.8 s while Dee's audio arrives ≥ ~1.0 s after the end.
     public static let releaseRecheck: TimeInterval = 0.12
     /// A turn whose held reply was dropped because they went on waits this long for
     /// their next commit (which answers both parts), then is answered anyway.
@@ -141,7 +141,7 @@ public enum TurnPolicy {
     /// waits for them at most this much past when it would have played (live, the words
     /// came after that point on 6 of 177 replies; the latest needed 0.19 s to settle).
     public static let wordsWait: TimeInterval = 0.25
-    /// She stops before sentence 4 of an ordinary reply (tune 4: live tune 3 at
+    /// Dee stops before sentence 4 of an ordinary reply (tune 4: live tune 3 at
     /// `minimal`, 16 of 152 replies ran to 4–5 sentences, 11 of them under a
     /// "two sentences" Length line).
     public static let sentenceCap = 3
@@ -159,7 +159,7 @@ public enum TurnPolicy {
 
     /// A user utterance waiting for the "is this for me?" check (asleep, nobody
     /// engaged) is given up after this if no transcript comes (it never blocks
-    /// her initiatives for longer).
+    /// Dee's initiatives for longer).
     public static let addressWait: TimeInterval = 6
 
     // MARK: Unfinished turns
@@ -176,7 +176,7 @@ public enum TurnPolicy {
         /// within `trailingWait`.
         case trailing
         /// A joke's set-up question ("Why did the scarecrow win an award?"): the
-        /// teller usually gives the punchline after a beat. Answered (she guesses
+        /// teller usually gives the punchline after a beat. Answered (Dee guesses
         /// or asks "why?") only if nothing follows within `riddleWait` (tune 2, j01).
         case riddle
     }
@@ -191,7 +191,7 @@ public enum TurnPolicy {
         kind == .riddle ? riddleWait : trailingWait
     }
 
-    /// Whole-utterance requests to wait (after fillers and her name are removed).
+    /// Whole-utterance requests to wait (after fillers and Dee's name are removed).
     static let holdPhrases: Set<String> = [
         "hold on", "hang on", "wait", "wait a sec", "wait a second", "wait a minute", "wait a moment",
         "one sec", "one second", "one moment", "just a sec", "just a second", "just a moment", "just a minute",
@@ -242,10 +242,10 @@ public enum TurnPolicy {
         let words = Self.words(trimmed)
         guard !words.isEmpty else { return nil }
         // Tune 6 (T5-4, echo20 l03): the server split "D." off "Dee, guess what, at school
-        // today…". A fragment of one or two letters, or nothing but her name, is not a
+        // today…". A fragment of one or two letters, or nothing but Dee's name, is not a
         // turn: they are still starting. "Dee?" (a question) and "No." / "OK." are turns.
         if !trimmed.hasSuffix("?"), !trimmed.hasSuffix("!"), isFragmentOrAddress(words) { return .trailing }
-        // "Hold on, hold on." — the whole utterance asks her to wait.
+        // "Hold on, hold on." — the whole utterance asks Dee to wait.
         let core = words.filter { !holdFiller.contains($0) }
         if !core.isEmpty, core.count <= 8, Self.coveredByHoldPhrases(core) { return .holdOn }
         // A trailing ellipsis or dash: they trailed off.
@@ -278,11 +278,11 @@ public enum TurnPolicy {
     static let shortTurns: Set<String> = [
         "no", "ok", "k", "hi", "yo", "ya", "ye", "oh", "ah", "aw", "eh", "mm", "hm", "me", "us", "go", "ha", "wo", "ow",
     ]
-    /// Her name as the transcriber writes it, and what stands around it in a bare call.
+    /// Dee's name as the transcriber writes it, and what stands around it in a bare call.
     static let addressWords: Set<String> = ["dee", "d", "dee's", "di", "dea"]
     static let addressFiller: Set<String> = ["hey", "hi", "oh", "um", "uh", "so", "okay", "ok", "and", "well"]
 
-    /// A bare call of her name or a fragment waits this long for the rest, then is answered.
+    /// A bare call of Dee's name or a fragment waits this long for the rest, then is answered.
     public static let fragmentWait: TimeInterval = 1.5
 
     /// `isFragmentOrAddress` on a transcript (a question or an exclamation never is).
@@ -293,7 +293,7 @@ public enum TurnPolicy {
         return !w.isEmpty && isFragmentOrAddress(w)
     }
 
-    /// A one- or two-letter fragment ("D.", "I.", "A.") or a bare call of her name
+    /// A one- or two-letter fragment ("D.", "I.", "A.") or a bare call of Dee's name
     /// ("Dee.", "Hey, Dee.", "So, Dee,"): the start of a turn, never all of it.
     static func isFragmentOrAddress(_ words: [String]) -> Bool {
         if words.count == 1, let w = words.first, w.count <= 2, !shortTurns.contains(w), !w.contains(where: \.isNumber) {
@@ -338,7 +338,7 @@ public enum TurnPolicy {
     }
 
     /// A last word that is a mis-heard trailing "and": "an" never ends a sentence;
-    /// "Ann" after a clause almost never does in what people say to her (a name is
+    /// "Ann" after a clause almost never does in what people say to Dee (a name is
     /// introduced with "is"/"called"/"named"); "end" only after an article ("the end").
     static func misheardAnd(last: String, before: String) -> Bool {
         switch last {
@@ -367,7 +367,7 @@ public enum TurnPolicy {
 
     /// Whether the last sentence of `text` is a joke's set-up question that the
     /// teller answers themselves ("Why did the chicken cross the road?"). "Why did
-    /// you…" is a question for her, never a riddle; "knock knock" wants "who's there"
+    /// you…" is a question for Dee, never a riddle; "knock knock" wants "who's there"
     /// at once.
     ///
     /// Tune 4: `after` is their previous turn (if recent). server_vad 300 ms commits "Want
@@ -394,7 +394,7 @@ public enum TurnPolicy {
         let announced = all.contains { jokeWords.contains($0) } && sentences.count >= 2
         guard announced || announcedBefore, let opener = w.first,
               ["why", "what", "what's", "how", "where", "who", "when"].contains(opener) else { return false }
-        // "Why do you like jokes?": a question about her or them.
+        // "Why do you like jokes?": a question about Dee or them.
         let personal: Set<String> = ["you", "your", "you're", "i", "i'm", "me", "my", "we", "us", "our"]
         return !w.dropFirst().prefix(3).contains { personal.contains($0) }
     }
@@ -425,7 +425,7 @@ public enum TurnPolicy {
     /// Their previous turn counts for `held(_:after:)` this long (tune 4).
     public static let previousTurnWindow: TimeInterval = 20
 
-    // MARK: Backchannels (tune 2: user decision — "keep going" while she talks is not a barge-in)
+    // MARK: Backchannels (tune 2: user decision — "keep going" while Dee talks is not a barge-in)
 
     /// Whether `text` is only a backchannel ("Keep going, I'm listening.", "Mm-hm.",
     /// "MMHN.", "HM.", "Don't stop, keep going."): DeeVoice's `Backchannel.isBackchannel`,
@@ -435,13 +435,13 @@ public enum TurnPolicy {
         Backchannel.isBackchannel(text)
     }
 
-    // MARK: Misheard fragments over her voice (tune 7, T6-3; one rule since tune 8, T7-1)
+    // MARK: Misheard fragments over Dee's voice (tune 7, T6-3; one rule since tune 8, T7-1)
 
-    /// Over her voice, a misheard backchannel fragment ("Put going.", "Grand.", "She.",
+    /// Over Dee's voice, a misheard backchannel fragment ("Put going.", "Grand.", "She.",
     /// "Done."): DeeVoice's `Backchannel.isMisheardFragment`, the one rule the voice's
     /// floor hold uses too. Tune 8 (T7-1, live interrupt-fan15 q08): the brain's own,
-    /// looser copy took "Too late." ("Who made you?" said over her) as a backchannel —
-    /// she talked on and the question was never answered; the voice's rule refuses it
+    /// looser copy took "Too late." ("Who made you?" said over Dee) as a backchannel —
+    /// Dee talked on and the question was never answered; the voice's rule refuses it
     /// (two words count only when the second is how a continuer ends: going, on, …).
     /// The voice's rule also takes a continuer cut off in its last word ("I'm listen.",
     /// T7-2) and three words ending like one ("Sheupr and going.").
@@ -449,7 +449,7 @@ public enum TurnPolicy {
         Backchannel.isMisheardFragment(text)
     }
 
-    /// Tune 8 (T7-2): the last word of a partial over her voice that a continuer ends
+    /// Tune 8 (T7-2): the last word of a partial over Dee's voice that a continuer ends
     /// on ("Sheupr and going" was "Keep going"; "…I'm listen" is "I'm listening" cut off):
     /// early words never decide on it — the full words say whether it was one.
     static let continuerEnds: Set<String> = ["going", "goin", "on", "listening", "listen", "listenin", "ahead"]
@@ -462,7 +462,7 @@ public enum TurnPolicy {
 
     /// Tune 9 (T8-3, live backchannel-echo10 c02, AEC off): early words never decide on a
     /// partial that breaks off on a comma or a word that cannot end anything ("That's like
-    /// a," for "Don't stop, keep going": it cut her at 1945 ms): its settled words decide,
+    /// a," for "Don't stop, keep going": it cut Dee at 1945 ms): its settled words decide,
     /// a moment later. A partial that already asks ("Who made", "Are you") is not held.
     static let breakOffWords: Set<String> = ["a", "an", "the", "and", "or", "but", "like", "so", "um", "uh"]
 
@@ -488,11 +488,11 @@ public enum TurnPolicy {
 
     // MARK: Their question echoed back (tune 8, T7-4 / T7-6)
 
-    /// Tune 8 (T7-4): her first sentence only says their own question back, a hello and
-    /// their name at most before it — live "Hi Alex, who made you?" (her whole reply to
+    /// Tune 8 (T7-4): Dee's first sentence only says their own question back, a hello and
+    /// their name at most before it — live "Hi Alex, who made you?" (Dee's whole reply to
     /// "Who made you?"), "Hi Alex, can you hear me okay?", "Hi Alex, how was your day?".
-    /// `theirs` is their words, a question; her sentence asks it back: at least two of their
-    /// words, all of them, at her sentence's end, with no more than three words (a hello, a
+    /// `theirs` is their words, a question; Dee's sentence asks it back: at least two of their
+    /// words, all of them, at Dee's sentence's end, with no more than three words (a hello, a
     /// name) before them.
     public static func echoesTheirWords(_ sentence: String, theirs: String) -> Bool {
         let drop: Set<String> = ["hi", "hey", "hello", "dee", "d", "oh", "so", "um", "uh", "and"]
@@ -508,8 +508,8 @@ public enum TurnPolicy {
         return Array(hers.suffix(their.count)) == their
     }
 
-    /// The retry's note after her first sentence only repeated their question, and the
-    /// note on an answer to a question asked over her voice (tune 8, T7-6: live kitchen15
+    /// The retry's note after Dee's first sentence only repeated their question, and the
+    /// note on an answer to a question asked over Dee's voice (tune 8, T7-6: live kitchen15
     /// q06 "What did you do today?" → "Ooh, I want to hear what happened with your
     /// volcanoes today! As for me, …").
     public static let answerFirstNote =
@@ -519,7 +519,7 @@ public enum TurnPolicy {
     /// gone. Its "?" never arrives before the early-words request (0 of 39 live notes named a
     /// question), and the words at that moment are a cut-off prefix in 18 of 44 eligible
     /// requests ("Do you like", "Who made", "Can you hear", "What did you") or misheard ("Who
-    /// hate you"): naming those over her voice would hand the model the wrong question.
+    /// hate you"): naming those over Dee's voice would hand the model the wrong question.
 
     /// Words that ask: a "?" or a question word first ("Who made you", "Are you awake").
     public static func asks(_ text: String) -> Bool {
@@ -533,12 +533,12 @@ public enum TurnPolicy {
     public static let lookedUpNote = "You already looked up what you know about them, no need to call recall: "
     public static let lookedUpMax = 320
 
-    /// The note that turns a "keep going" after her voice was cut into "carry on".
+    /// The note that turns a "keep going" after Dee's voice was cut into "carry on".
     public static let carryOnNote = "They want you to go on: carry on from where you stopped, without starting over or repeating yourself"
 
     // MARK: Spoken preambles (tune 2 F-LEAK: "Got it, let me think about how to respond to that.")
 
-    /// Meta narration at the start of her reply: talking about answering instead of
+    /// Meta narration at the start of Dee's reply: talking about answering instead of
     /// answering (often spoken before a tool call). Checked on the first words only.
     static let preamblePatterns: [[String]] = [
         ["let", "me", "think"], ["let", "me", "respond"], ["let", "me", "answer"], ["let", "me", "check"],
@@ -637,7 +637,7 @@ public enum TurnPolicy {
         return nil
     }
 
-    /// Narration about her own answering, look-ups or memory, anywhere in a reply.
+    /// Narration about Dee's own answering, look-ups or memory, anywhere in a reply.
     static let narrationPatterns: [[String]] = [
         ["let", "me", "think", "about", "how"], ["let", "me", "think", "about", "what"], ["let", "me", "think", "how"],
         ["how", "to", "respond"], ["how", "i", "should", "respond"], ["how", "to", "answer"],
@@ -664,7 +664,7 @@ public enum TurnPolicy {
 
     /// Words that are no turn as the rest of a backchannel's burst: numbers ("10.", live
     /// fan noise after "MMHN."), lone letters ("D."), no word at all, or one word that is a
-    /// misheard "go on" (the voice's rule). A tail that asks or stops her ("Why?", "Stop.",
+    /// misheard "go on" (the voice's rule). A tail that asks or stops Dee ("Why?", "Stop.",
     /// "Mm-hm, but why?") is still a turn.
     public static func isNoiseTail(_ text: String) -> Bool {
         guard !text.contains("?") else { return false }
@@ -676,23 +676,23 @@ public enum TurnPolicy {
 
     // MARK: "I heard you…" (tune 9, T8-5)
 
-    /// Tune 9 (T8-5): a sentence of hers that opens on having heard them — live 5 openers
+    /// Tune 9 (T8-5): a sentence of Dee's that opens on having heard them — live 5 openers
     /// after DNA v9 ("I heard you thinking about a dog…", "I heard you're thinking about a
     /// dog…", "I heard you. I think it's normal…", "Hi, Priya! I heard your name, so I'm
     /// saying hi.", "Today was quiet but nice. I heard you better…"). Within its first
     /// three words (an "Oh," or a name before it): "I heard you/your", "I hear you/your",
-    /// "I can hear you", "I could hear you". Not when they asked whether she can hear them
+    /// "I can hear you", "I could hear you". Not when they asked whether Dee can hear them
     /// ("Can you hear me okay?" → "Yes, I can hear you clearly." is the answer).
     static let heardYouPatterns: [[String]] = [
         ["i", "heard", "you"], ["i", "heard", "your"], ["i", "heard", "you're"], ["i", "hear", "you"], ["i", "hear", "your"],
         ["i", "hear", "you're"], ["i", "can", "hear", "you"], ["i", "could", "hear", "you"],
     ]
 
-    /// The retry's note after her first sentence told them she heard them.
+    /// The retry's note after Dee's first sentence told them Dee heard them.
     public static let noHeardYouNote =
         "Answer them straight away; never tell them you were listening, and never repeat what they said"
 
-    /// Tune 10 (T9-8): her first sentence opening on "I heard …" / "I hear …" of any kind
+    /// Tune 10 (T9-8): Dee's first sentence opening on "I heard …" / "I hear …" of any kind
     /// (live length-clean s02 "I heard that tough moment, Alex."; earlier "I heard that.",
     /// "I heard a start of a story there.", "I hear that little hum."). Later sentences keep
     /// `heardYouPatterns` ("I heard octopuses have three hearts" can be a fact).
@@ -719,7 +719,7 @@ public enum TurnPolicy {
 
     // MARK: The unfinished-words aim, spoken (tune 5 F3)
 
-    /// Her reply pointing at their unfinished words instead of waiting for the rest:
+    /// Dee's reply pointing at their unfinished words instead of waiting for the rest:
     /// "I heard “I couldn’t sleep last…” and I’m curious what happened next. Want to
     /// finish the sentence?" (live tune 4, fan15 l05). Never heard: an unfinished turn
     /// is waited out in silence (decision, tune 5).
@@ -732,9 +732,9 @@ public enum TurnPolicy {
     ]
 
     /// Tune 6 (T5-4, echo20 l03 "D."): the same aim in other words — "Hmm, did you want
-    /// to say something, or just check if I was waiting?". By meaning: she asks whether
-    /// they meant to say (more), remarks that they only said her name or stopped, or
-    /// asks whether she is waiting / listening / still there. Matched on words, so the
+    /// to say something, or just check if I was waiting?". By meaning: Dee asks whether
+    /// they meant to say (more), remarks that they only said Dee's name or stopped, or
+    /// asks whether Dee is waiting / listening / still there. Matched on words, so the
     /// spelling and punctuation of the transcript never matter.
     static let unfinishedAimMeanings: [[String]] = [
         // Did they mean to say (more)?
@@ -747,12 +747,12 @@ public enum TurnPolicy {
         ["something", "you", "were", "going", "to"], ["wanted", "to", "say", "something"], ["want", "to", "say", "something"],
         ["meant", "to", "say", "more"], ["more", "you", "wanted", "to", "say"],
         ["did", "you", "say", "something"], ["were", "you", "saying", "something"],
-        // Is she waiting / listening / there?
+        // Is Dee waiting / listening / there?
         ["check", "if", "i"], ["check", "whether", "i"], ["checking", "if", "i"], ["checking", "whether", "i"],
         ["checking", "i'm"], ["check", "i'm"], ["see", "if", "i", "was"], ["see", "if", "i'm"],
         ["if", "i", "was", "waiting"], ["if", "i'm", "waiting"], ["if", "i", "was", "listening"], ["if", "i'm", "listening"],
         ["if", "i", "was", "still"], ["if", "i'm", "still"], ["whether", "i", "was"], ["are", "you", "still", "there"],
-        // Only her name, or they stopped.
+        // Only Dee's name, or they stopped.
         ["just", "my", "name"], ["only", "my", "name"], ["just", "said", "my", "name"], ["you", "said", "my", "name"],
         ["called", "my", "name"], ["calling", "my", "name"], ["mid", "sentence"], ["midsentence"], ["half", "a", "sentence"],
     ]
@@ -760,7 +760,7 @@ public enum TurnPolicy {
     /// to say *to* your brother?"), never about their own unfinished words.
     static let aimElsewhere: Set<String> = ["to", "about", "at", "when", "if", "in", "on"]
 
-    /// Whether a sentence of hers voices the unfinished-words aim.
+    /// Whether a sentence of Dee's voices the unfinished-words aim.
     public static func isUnfinishedAim(_ sentence: String) -> Bool {
         let t = sentence.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
         if unfinishedAimPhrases.contains(where: { t.contains($0) }) { return true }
@@ -788,7 +788,7 @@ public enum TurnPolicy {
     /// two sentences p90 312 / p98 360, three p50 270 / p90 359, four p50 323), so
     /// it is a backstop over the DNA wording, sized one sentence above the limit:
     /// a reply that runs past it ends at its last complete sentence (the brain stops
-    /// her voice there; never mid-word). Thinking turns get room (nil: the session's
+    /// Dee's voice there; never mid-word). Thinking turns get room (nil: the session's
     /// runaway guard).
     ///
     /// Tune 4: tighter at `minimal` (its reasoning is ~30 tokens, not ~50–100):
@@ -815,7 +815,7 @@ public enum TurnPolicy {
                 " step by step ", " the whole thing "].contains { t.contains($0) }
     }
 
-    /// Whether a sentence of her transcript is complete (the last one of a reply
+    /// Whether a sentence of Dee's transcript is complete (the last one of a reply
     /// cut by the token limit is not).
     public static func isCompleteSentence(_ text: String) -> Bool {
         var t = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -839,7 +839,7 @@ public enum TurnPolicy {
 
     // MARK: Apps, clocks and forecasts (tune 6, T5-8)
 
-    /// She has no apps, clock, calendar or internet to send anyone to; live tune 5 four
+    /// Dee has no apps, clock, calendar or internet to send anyone to; live tune 5 four
     /// replies still did ("…you can check a weather app or a forecast.", "You can check
     /// your phone's clock…"). A sentence that does is never heard.
     static let appReferralPatterns: [[String]] = [
@@ -852,10 +852,10 @@ public enum TurnPolicy {
         ["look", "it", "up"], ["look", "that", "up"], ["search", "online"], ["search", "for", "it"], ["a", "quick", "search"],
         ["google"], ["online"], ["the", "internet"], ["a", "website"], ["the", "website"],
     ]
-    /// Offers to set something for them: never hers to make.
+    /// Offers to set something for them: never Dee's to make.
     static let setOffers: [[String]] = [["set", "a", "reminder"], ["set", "an", "alarm"], ["set", "a", "timer"], ["set", "you", "a"]]
-    /// Who the sentence sends: them ("you can check…") — a limit of hers ("I can't see
-    /// the forecast from here") is how she should say it.
+    /// Who the sentence sends: them ("you can check…") — a limit of Dee's ("I can't see
+    /// the forecast from here") is how Dee should say it.
     static let you: Set<String> = ["you", "you'd", "you'll", "you've", "your", "ya"]
     /// Verbs that make it a referral ("you can check…", "try…", "open…"); a pattern with
     /// none of these near it ("I don't have a clock app") is a limit said as Dee.
@@ -863,7 +863,7 @@ public enum TurnPolicy {
         "check", "checking", "open", "try", "use", "look", "search", "ask", "see", "glance", "peek", "set", "pull", "google",
     ]
 
-    /// Whether a sentence of hers sends them to an app, a clock, a forecast, a calendar
+    /// Whether a sentence of Dee's sends them to an app, a clock, a forecast, a calendar
     /// or a search (or offers to set something for them).
     public static func isAppReferral(_ sentence: String) -> Bool {
         let w = words(sentence)
@@ -882,15 +882,15 @@ public enum TurnPolicy {
         return nil
     }
 
-    /// The note on a turn answered again after her first sentence sent them to an app.
+    /// The note on a turn answered again after Dee's first sentence sent them to an app.
     public static let noAppNote =
         "You have no apps, clock, forecast or calendar to send them to: answer as Dee in a few words, from what you know or feel"
 
     // MARK: The reply's sentence budget (tune 7, T6-6)
 
-    /// Sentences she may say for a DNA `Length:` value, counting every sentence the voice
+    /// Sentences Dee may say for a DNA `Length:` value, counting every sentence the voice
     /// plays (a short exclamation too: "Oh, wow." "Nice."): "at most three" → 3, "at most
-    /// two" → 2, "one short sentence" → 2 (a one-word opener must not leave her with
+    /// two" → 2, "one short sentence" → 2 (a one-word opener must not leave Dee with
     /// nothing). Live tune 6, excited replies ran to six short sentences under a two-
     /// sentence Length ("Oh, wow. That sounds amazing. Biggest volcano in class? Nice. …")
     /// and the fixed cap of three let the third play.
@@ -900,7 +900,7 @@ public enum TurnPolicy {
 
     // MARK: Self-narrated status reports (tune 7, T6-7)
 
-    /// Her talking about herself as a machine giving a status read-out ("Tiny robot report:
+    /// Dee talking about being a machine giving a status read-out ("Tiny robot report:
     /// it feels like a lot of effort…", live tune 6 interrupt-fan15 l02; the judge read it
     /// as machinery): never heard.
     static let reportNouns: Set<String> = [
@@ -914,7 +914,7 @@ public enum TurnPolicy {
         ["processing", "complete"], ["beep", "boop"], ["self", "report"],
     ]
 
-    /// A sentence that frames her own words as a robot's report or status ("Tiny robot
+    /// A sentence that frames Dee's own words as a robot's report or status ("Tiny robot
     /// report:", "Dee update:", "Status report:", "Mood report: sunny").
     public static func isSelfReport(_ sentence: String) -> Bool {
         let head = sentence.split(separator: ":", maxSplits: 1, omittingEmptySubsequences: false)
@@ -935,7 +935,7 @@ public enum TurnPolicy {
         return nil
     }
 
-    /// The note on a turn answered again after her first sentence was a status report.
+    /// The note on a turn answered again after Dee's first sentence was a status report.
     public static let noReportNote =
         "Talk like yourself, a little companion, never a robot giving a report or a status: answer in plain, warm words"
 

@@ -113,6 +113,19 @@ public struct Cortex: Sendable {
     /// Budget and counter for cues Cortex builds itself (initiative) and the default for
     /// `cue(at:)`. The counter is the worst-case estimate; there is no local tokenizer.
     public var cueBudget = CueWriter.maxTokens
+    /// The persona preset this Cortex speaks as (its name, pronouns, age and voice reach
+    /// the DNA and the prompt). Set by the host; Classic Dee by default.
+    public var identity: PersonaPreset = PersonaCatalog.classic {
+        didSet {
+            var lines: [Ritual.Trigger: String] = [:]
+            if let r = identity.rituals {
+                lines[.firstSightOfDay] = r.firstSightOfDay
+                lines[.goodnight] = r.goodnight
+                lines[.returnHome] = r.returnHome
+            }
+            learner.presetRituals = lines
+        }
+    }
     public var tokenCounter: @Sendable (String) -> Int = CueWriter.estimateTokens
 
     // The fixed pipeline (order is part of the contract; see §4.2).
@@ -242,7 +255,7 @@ public struct Cortex: Sendable {
     }
 
     mutating func issue(aim: Note?, budget: Int, count: @Sendable (String) -> Int) -> (cue: String, effects: [Effect]) {
-        // On the reunion turn her own loneliness stays out of the mood sentence: it must
+        // On the reunion turn Dee's own loneliness stays out of the mood sentence: it must
         // never read as guilt for being away (§9; review finding 3).
         let reunion = moment.ongoing.reunionTurn || moment.ongoing.noteCandidates.contains { $0.kind == .reunion }
         let mind = moment.ongoing.mind
@@ -263,7 +276,7 @@ public struct Cortex: Sendable {
     /// at the last `.conversationStarted`: identical on every call in a conversation.
     /// Measured with `tokenCounter` (the app's real tokenizer), like the cue.
     public func selfLines(person: PersonID?, at now: Date) -> [String] {
-        SelfBlock.render(frozenEnduring, person: person, count: tokenCounter)
+        SelfBlock.render(frozenEnduring, person: person, count: tokenCounter, persona: identity)
     }
 
     /// The fixed rule lines for `Persona.ruleLines`.
@@ -277,6 +290,12 @@ public struct Cortex: Sendable {
         moment.ongoing.promptPerson = person
         moment.ongoing.promptRendered = true
         var p = base
+        if !identity.isClassic || base.presetID != PersonaCatalog.classicID {
+            p.name = identity.name
+            p.pronouns = identity.pronouns
+            p.presetID = identity.id
+            p.age = identity.age
+        }
         p.selfLines = selfLines(person: person, at: now)
         p.ruleLines = Self.ruleLines
         return p
@@ -284,7 +303,7 @@ public struct Cortex: Sendable {
 
     /// When Dee last had contact with `person` (the identified speaker when nil) before
     /// the current conversation started: the stored contact (`Carried.lastContact`) or
-    /// this launch's last sighting, whichever is later. Nil when she has none (a first
+    /// this launch's last sighting, whichever is later. Nil when Dee has none (a first
     /// meeting). For the DNA's "last talked …" line: unlike `PersonInputs.lastSeen` or
     /// the current turn's time, it is not refreshed by this conversation, so a reunion
     /// after two days still reads "two days ago" on every turn of it (tune 2 F5).

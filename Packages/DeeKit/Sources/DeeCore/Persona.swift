@@ -1,7 +1,8 @@
 import Foundation
 
-/// Who Dee is. The system prompt is kept short on purpose: it is sent with every
-/// session, and a short, stable prompt keeps her in character and caches well.
+/// Who Dee is talking as (the persona: name, pronouns, age) and to whom. The legacy
+/// system prompt below is kept short on purpose: it is sent with every session, and a
+/// short, stable prompt stays in character and caches well.
 public struct Persona: Sendable, Equatable {
     public var name: String
     public var userName: String?
@@ -14,9 +15,19 @@ public struct Persona: Sendable, Equatable {
     /// v0.5 fixed rule lines (how to treat the bracketed notes in `<dee_state>`).
     /// Inserted after `selfLines`. Empty (the default) leaves the prompt unchanged.
     public var ruleLines: [String]
+    /// The persona's pronouns (model- and user-facing text). Classic Dee: she/her.
+    public var pronouns: Pronouns
+    /// The persona preset (`PersonaCatalog`): "classic" for Classic Dee.
+    public var presetID: String
+    /// Robot-years; nil = ageless.
+    public var age: Int?
 
     public init(name: String = "Dee", userName: String? = nil, memories: [String] = [],
-                selfLines: [String] = [], ruleLines: [String] = []) {
+                selfLines: [String] = [], ruleLines: [String] = [], pronouns: Pronouns = .she,
+                presetID: String = PersonaCatalog.classicID, age: Int? = nil) {
+        self.pronouns = pronouns
+        self.presetID = presetID
+        self.age = age
         self.name = name
         self.userName = userName
         self.memories = memories
@@ -57,4 +68,14 @@ public struct Persona: Sendable, Equatable {
         }
         return lines.joined(separator: "\n")
     }
+}
+
+extension Persona {
+    /// The persona fields of `preset` (name, pronouns, id, age); the rest unchanged.
+    public init(preset: PersonaPreset) {
+        self.init(name: preset.name, pronouns: preset.pronouns, presetID: preset.id, age: preset.age)
+    }
+
+    /// The preset this persona names (an unknown id is Classic).
+    public var preset: PersonaPreset { PersonaCatalog.preset(id: presetID) }
 }

@@ -2,8 +2,8 @@ import Foundation
 
 /// Decides whether a user utterance is asking Dee to think harder.
 ///
-/// Thinking is off by default (fast, chatty replies). Asking her to — "think hard",
-/// "take your time and think", "could you think it through?" — makes her think for
+/// Thinking is off by default (fast, chatty replies). Asking Dee to — "think hard",
+/// "take your time and think", "could you think it through?" — makes Dee think for
 /// *that* reply only (`.enable`); the next turn is fast again. Only an explicit
 /// switch ("turn on thinking mode") keeps it on for the rest of the conversation
 /// (`.enableMode`), and a new conversation turns that off again. The detector is
@@ -154,7 +154,7 @@ public enum ThinkingIntent: Sendable, Equatable {
 
     /// "think about / on / over / through …": a request only as an imperative, never
     /// after "let's" (that is planning out loud, not asking Dee to deliberate), and
-    /// only with a question, her name, or on its own (`isWeakRequest`).
+    /// only with a question, Dee's name, or on its own (`isWeakRequest`).
     static let jointlessPhrase = #"think (about|on|over|through)"#
 
     /// "take your time": usually politeness ("oh, take your time"); a request to think

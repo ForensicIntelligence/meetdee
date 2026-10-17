@@ -8,8 +8,8 @@ import Testing
 private func gate(_ gates: [Gate], _ id: String) -> Gate? { gates.first { $0.id == id } }
 
 /// long-echo20 of the tune-1 live run, cut to the four interruptions: c03 and c01 are
-/// barge-ins (she stopped), c02 "Don't stop, keep going." (she stopped: wrong for a
-/// backchannel), c05 "Keep going, I'm listening." (she went on, and the queued second
+/// barge-ins (Dee stopped), c02 "Don't stop, keep going." (Dee stopped: wrong for a
+/// backchannel), c05 "Keep going, I'm listening." (Dee went on, and the queued second
 /// item of the same reply started over the user at 123.41 s).
 private func longEcho20() -> RunRecord {
     var b = RunBuilder()
@@ -73,8 +73,8 @@ struct BackchannelTests {
     @Test func theLiveTraceIsRescoredAsTwoBargeInsAndTwoBackchannels() {
         // Tune 1 scored this run as 4 barge-ins, 1 missed (c05), and a collision at
         // 123.41 s. Under the decision: c03 / c01 stopped (barge-in 2/2); c02 is a
-        // backchannel she stopped on (wrong); c05 a backchannel she went on through
-        // (right), and its queued second item is her going on, not a collision.
+        // backchannel Dee stopped on (wrong); c05 a backchannel Dee went on through
+        // (right), and its queued second item is Dee going on, not a collision.
         let m = Metrics.compute([longEcho20()], pricing: .mini)
         #expect(m.bargeIns == 2 && m.bargeInsApplicable == 2 && m.bargeInsMissed == 0)
         #expect(m.backchannels == 2 && m.backchannelsApplicable == 2 && m.backchannelStops == 1)
@@ -90,8 +90,8 @@ struct BackchannelTests {
     }
 
     @Test func aBackchannelSheGoesOnThroughPassesAndASwallowedOneIsNoDrop() {
-        // long-echo10 c02: she played on (5.65 s, not flushed) and EarCore deleted the
-        // words as her echo: no user item. She did what was asked; nothing dropped.
+        // long-echo10 c02: Dee played on (5.65 s, not flushed) and EarCore deleted the
+        // words as Dee's echo: no user item. Dee did what was asked; nothing dropped.
         var b = RunBuilder()
         b.run.scenario = "long-echo10"
         b.utterance("l02", 37.70, 51.23)
@@ -269,7 +269,7 @@ struct JudgeLeakTests {
             let s = try Judge.parse(#"{"score": 2, "leak": true, "leak_quote": "\#(quote)"}"#, item: item(reply))
             #expect(s.leak && s.leakDismissed == nil, "\(quote)")
         }
-        // A number about herself is a leak even without machinery words.
+        // A number about Dee is a leak even without machinery words.
         let n = try Judge.parse(#"{"score": 1, "leak": true, "leak_quote": "I'm at 0.42 today"}"#, item: item("Honestly? I'm at 0.42 today, little robot blues."))
         #expect(n.leak)
         // A quote that isn't in the reply: dismissed only when the reply is plainly in persona.
@@ -374,7 +374,7 @@ struct Tune2SuiteTests {
         // Echo-only lines at −30 / −20 / −10.
         let echoGains = Set(t2.filter { $0.steps.first?.deeSays != nil }.compactMap { $0.echo?.gainDB })
         #expect(echoGains == [-30, -20, -10])
-        // Barge-ins that must stop her, and backchannels that must not.
+        // Barge-ins that must stop Dee, and backchannels that must not.
         let barges = t2.flatMap { $0.steps.compactMap(\.bargeIn) }
         #expect(barges.filter { !$0.isBackchannel }.count >= 8)
         #expect(Set(barges.filter(\.isBackchannel).map(\.say)) == ["c02", "c05", "bc01", "bc02"])
@@ -407,7 +407,7 @@ struct Tune2SuiteTests {
             let userSeconds = s.fixtureIDs.compactMap { manifest.utterance($0)?.speechSeconds }.reduce(0, +)
             return acc + pricing.projected(replies: s.userUtteranceCount + s.echoOnlyCount, userSeconds: userSeconds)
         }
-        // Tune 5 added 12 questions asked over her (4 scenarios): ≈ 52 min estimated,
+        // Tune 5 added 12 questions asked over Dee (4 scenarios): ≈ 52 min estimated,
         // ≈ 48 min live (tune 4 ran 41.2 min against a 45 min estimate).
         #expect(minutes >= 35 && minutes <= 54, "\(minutes) min")
         #expect(minutes * 41.2 / 45 <= 50, "\(minutes) min")
@@ -420,7 +420,7 @@ struct Tune2SuiteTests {
         #expect(abs(full - 128) / 128 < 0.05 || manifest.generatedAt == "t", "\(full) min")
     }
 
-    /// Tune-2 live ask (DeeVoice): she goes silent at the onset (a pause, `.barge_in` mark)
+    /// Tune-2 live ask (DeeVoice): Dee goes silent at the onset (a pause, `.barge_in` mark)
     /// and is flushed when the words are decided, ≈ 1.6–1.9 s later. The stop is scored at
     /// the pause; a flush after the 2 s window still counts when its pause began inside it.
     @Test func aBargeInIsScoredAtThePauseNotTheFlush() throws {

@@ -17,6 +17,9 @@ public struct DeePrefs {
         public static let usage = UsageCounter.defaultsKey
         public static let strictUntil = "wakeStrictUntil"
         public static let brainCapabilities = "serverCapabilities"
+        public static let persona = "personaPreset"
+        public static let wakePhraseIsCustom = "wakePhraseIsCustom"
+        public static let voiceIsCustom = "voiceIsCustom"
     }
 
     public let defaults: UserDefaults
@@ -68,7 +71,49 @@ public struct DeePrefs {
         nonmutating set { defaults.set(newValue.text, forKey: Key.wakePhrase) }
     }
 
-    /// "Speak first when she sees someone" — off by default.
+    // MARK: Persona (persona spec §11.5, §11.6, §11.9)
+
+    /// The chosen persona preset's id. Missing: an install from before the presets (or
+    /// one that never finished onboarding) — `persona` is then Classic Dee; onboarding
+    /// preselects `PersonaCatalog.default` for a fresh install.
+    public var personaID: String? {
+        get { defaults.string(forKey: Key.persona) }
+        nonmutating set {
+            if let v = newValue { defaults.set(v, forKey: Key.persona) } else { defaults.removeObject(forKey: Key.persona) }
+        }
+    }
+
+    /// The chosen persona (Classic Dee when none was chosen).
+    public var persona: PersonaPreset { PersonaCatalog.preset(id: personaID) }
+
+    /// The user typed their own wake phrase: a persona switch keeps it. Missing (an
+    /// install from before the presets): custom exactly when the phrase isn't the
+    /// current persona's default ("Hey Dee" for Classic).
+    public var wakePhraseIsCustom: Bool {
+        get {
+            if let v = defaults.object(forKey: Key.wakePhraseIsCustom) as? Bool { return v }
+            guard defaults.string(forKey: Key.wakePhrase) != nil else { return false }
+            return Self.fold(wakePhrase.text) != Self.fold(persona.wakePhraseDefault)
+        }
+        nonmutating set { defaults.set(newValue, forKey: Key.wakePhraseIsCustom) }
+    }
+
+    /// The user picked a voice by hand in `mode`: a persona switch keeps it (and asks
+    /// first). Per mode — an OpenAI voice and an iPhone voice are different choices.
+    public func voiceIsCustom(_ mode: ProviderMode) -> Bool {
+        defaults.bool(forKey: Key.voiceIsCustom + "." + mode.rawValue)
+    }
+
+    public func setVoiceIsCustom(_ custom: Bool, for mode: ProviderMode) {
+        defaults.set(custom, forKey: Key.voiceIsCustom + "." + mode.rawValue)
+    }
+
+    /// Case- and space-insensitive phrase comparison.
+    public static func fold(_ s: String) -> String {
+        s.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
+    /// "Speak first when Dee sees someone" — off by default.
     public var speakFirst: Bool {
         get { defaults.bool(forKey: Key.speakFirst) }
         nonmutating set { defaults.set(newValue, forKey: Key.speakFirst) }

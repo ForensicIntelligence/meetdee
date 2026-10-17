@@ -165,8 +165,8 @@ extension Appraisal {
         return a
     }
 
-    /// Dee's own internal event (v0.5): `relief` (0…1) when an expectation she
-    /// was nervous about resolved well, `pride` (0…1) when she completed one of her
+    /// Dee's own internal event (v0.5): `relief` (0…1) when an expectation Dee
+    /// was nervous about resolved well, `pride` (0…1) when Dee completed one of Dee's
     /// intentions. Not social: it moves joy, fear, sadness and interest, never the
     /// bond, loneliness, the relationship counters or personality. No startle, no
     /// novelty. Values are clamped to 0…1.

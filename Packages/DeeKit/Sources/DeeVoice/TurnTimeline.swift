@@ -46,7 +46,7 @@ public final class TurnTimeline: Sendable {
         /// `response.done`.
         case responseDone = "response_done"
         // Barge-in.
-        /// Server `speech_started` while she was playing.
+        /// Server `speech_started` while Dee was playing.
         case bargeInSpeechStarted = "barge_in_speech_started"
         /// Local barge-in decision (`.bargeIn`).
         case bargeIn = "barge_in"

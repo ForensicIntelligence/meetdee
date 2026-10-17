@@ -200,7 +200,7 @@ import Testing
         #expect(new.feelings[.boredom] < s0.feelings[.boredom])
     }
 
-    // MARK: She can laugh when upset
+    // MARK: Dee can laugh when upset
 
     @Test func humorSoftensAnger() {
         var angry = Self.fresh()

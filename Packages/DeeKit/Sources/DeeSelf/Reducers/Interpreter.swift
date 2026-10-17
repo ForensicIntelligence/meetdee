@@ -48,16 +48,16 @@ import Foundation
 /// tired guess), "no, I meant", "I was joking", "that's not what I said", "you
 /// misunderstood", or the same question asked again within 60 s after Dee answered it.
 /// The matching hypothesis goes to confidence 0, uncertainty 0.8 is requested until Dee
-/// finishes her next reply (≤ 20 s), and — for a mood guess (`moodGuess`) or a joke taken
+/// finishes Dee's next reply (≤ 20 s), and — for a mood guess (`moodGuess`) or a joke taken
 /// literally (`tookLiterally`, "not serious") — a misread note is raised and
 /// `misreadThisTurn` is set (Learner records and persists it and applies gain × 0.85;
 /// RepairKeeper adds awkwardness). A stated mood that merely differs from a guess
 /// counts as a misread only when the guess was voiced (its note issued). Attention's
 /// `"misread"` signal (`wrongReferent`) is recorded as `misreadThisTurn` too. Review
 /// finding 8: every mood misread needs the guess to have been voiced (its hypothesis note
-/// issued; for "no, I meant…" in her last reply); an unvoiced guess is zeroed silently,
+/// issued; for "no, I meant…" in Dee's last reply); an unvoiced guess is zeroed silently,
 /// with the uncertainty but no misread note or record. "Happy" never gets a note, and a
-/// short answer to her own yes/no question does not count toward busy.
+/// short answer to Dee's own yes/no question does not count toward busy.
 ///
 /// **turnDistress:** a user turn appraised at distress ≥ 0.3 sets `Ongoing.turnDistress`
 /// (until their next turn, ≤ 10 min), so `distressLive` gates play and topical notes from
@@ -361,7 +361,7 @@ public struct Interpreter: SubReducer {
 
         // Busy from short replies; engagement clears the inferred busy / quiet.
         let wc = u.words.count
-        // A short answer to her own yes/no question ("yeah", "nope") is not busy (finding 20).
+        // A short answer to Dee's own yes/no question ("yeah", "nope") is not busy (finding 20).
         if !(answeredYesNo && wc < Self.shortReplyWords) {
             shortStreak = wc < Self.shortReplyWords ? shortStreak + 1 : 0
         }
@@ -401,7 +401,7 @@ public struct Interpreter: SubReducer {
     /// Stated feelings and mood corrections. Returns true when the mood was handled
     /// (stated, or a mood guess corrected) so nothing is inferred this turn.
     /// A wrong guess is owned (misread note, misread record) only when Dee voiced it
-    /// (its hypothesis note was issued): she cannot apologise for a guess she never
+    /// (its hypothesis note was issued): Dee cannot apologise for a guess Dee never
     /// said (review finding 8). An unvoiced one is zeroed silently, with the uncertainty.
     mutating func correctAndState(_ r: Reading, voiced: String?, _ m: inout Moment, _ rng: inout Rand) -> Bool {
         let inferred = m.ongoing.hypotheses.first { $0.kind == .mood && !$0.stated && $0.confidence > 0 }
@@ -439,7 +439,7 @@ public struct Interpreter: SubReducer {
                 misread(.moodGuess, wrongGuess: h.value, &m, &rng)
                 correctionSide(label: "mood", &m)
             } else if explicitFine {
-                // Against a guess she never said: not inferred again for a while, no apology.
+                // Against a guess Dee never said: not inferred again for a while, no apology.
                 corrected.append(Timed(h.value, until: m.now.addingTimeInterval(Self.correctedHold)))
                 correctionSide(label: "mood", &m)
             }
@@ -580,7 +580,7 @@ public struct Interpreter: SubReducer {
     static let yesNoStarts: Set<String> = ["do", "does", "did", "are", "is", "was", "were", "can", "could", "will", "would",
                                            "should", "have", "has", "had", "shall", "may", "want", "wanna"]
 
-    /// Her reply's last sentence is a yes/no question ("…. Are you busy?").
+    /// Dee's reply's last sentence is a yes/no question ("…. Are you busy?").
     static func endsWithYesNoQuestion(_ text: String) -> Bool {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard t.hasSuffix("?") else { return false }

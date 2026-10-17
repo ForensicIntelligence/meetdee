@@ -9,7 +9,7 @@ import Testing
 struct Tune5DNATests {
     typealias C = Tune3CharacterTests
 
-    // MARK: F1 — a barge-in the brain is answering never stops her
+    // MARK: F1 — a barge-in the brain is answering never stops Dee
 
     /// Probe t4-probe-content-bargein (20261010-011423): the brain's answer ended the hold,
     /// the app sensed `.bargeIn`, FloorKeeper said `.stopSpeaking`, and the app's stop
@@ -25,12 +25,12 @@ struct Tune5DNATests {
         #expect(r.m.ongoing.cutOff)
         #expect(r.m.momentary.floorEvents == [.cutOff])
         #expect(r.m.ongoing.noteCandidates.map(\.kind) == [.cutOff])
-        // Within a second of her start it is still "Dee interrupted them".
+        // Within a second of Dee start it is still "Dee interrupted them".
         var q = FloorKeeperTests.Run()
         q.step(.speakingStarted, at: 1)
         #expect(q.step(.bargeInAnswered, at: 1.6).isEmpty)
         #expect(q.m.momentary.floorEvents == [.deeInterrupted, .cutOff])
-        // The voice's own barge-in still stops her.
+        // The voice's own barge-in still stops Dee.
         var s = FloorKeeperTests.Run()
         s.step(.speakingStarted, at: 1)
         #expect(s.step(.bargeIn, at: 3) == [.stopSpeaking])
@@ -57,7 +57,7 @@ struct Tune5DNATests {
 
     /// t2-followup-dentist (tune 4 live): reply 1 to "Hi, Dee." ("Hi Alex! It's been three
     /// days—how") was taken back unheard, and its turn finished only after reply 2's
-    /// notes were picked; reply 2's DNA had the follow-up as "On your mind", and she
+    /// notes were picked; reply 2's DNA had the follow-up as "On your mind", and Dee
     /// asked it fourth. The superseded reply's aims now go back at the newer prompt.
     @Test func liveDentistFollowUpSurvivesASupersededReply() throws {
         let mind = Kit.snap()

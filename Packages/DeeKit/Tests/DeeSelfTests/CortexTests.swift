@@ -130,7 +130,7 @@ import Testing
 
     @Test func deterministicReplay() {
         #expect(Self.run(seed: 1, cortexSeed: 7) == Self.run(seed: 1, cortexSeed: 7))
-        #expect(Self.run(seed: 1, cortexSeed: 7) != Self.run(seed: 1, cortexSeed: 8), "a different seed changes her")
+        #expect(Self.run(seed: 1, cortexSeed: 7) != Self.run(seed: 1, cortexSeed: 8), "a different seed changes Dee")
     }
 
     // MARK: Random streams (review findings 2e, 16)

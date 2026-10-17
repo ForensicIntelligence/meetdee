@@ -252,7 +252,7 @@ import Testing
     }
 
     @Test func laughWhileUpsetIsKept() {
-        // A joke made her giggle (positive reflex) while she is angry: the joyful tag stays.
+        // A joke made Dee giggle (positive reflex) while Dee is angry: the joyful tag stays.
         let r = TagReconciler.reconcile(.joy, mind: Kit.angry, liveReflex: .giddy)
         #expect(r == (.joy, .exemptReflex))
         // A reflex in another band does not exempt.

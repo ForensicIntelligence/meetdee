@@ -128,7 +128,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// Speech not for her leaves the session's history too (no later seed has it).
+    /// Speech not for Dee leaves the session's history too (no later seed has it).
     @Test func droppedSpeechLeavesTheHistory() async throws {
         let rig = try await BrainRig(engaged: false)
         try await rig.start()
@@ -186,7 +186,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// A request never goes out within `stopGuard` of a stop of her voice: the
+    /// A request never goes out within `stopGuard` of a stop of Dee's voice: the
     /// stop's cancel reaches the session first, and CloudVoice's reply gate (which
     /// keeps a response starting within 0.25 s of a stop silent) is past.
     @Test func aRequestWaitsOutARecentStop() async throws {
@@ -211,7 +211,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// Her initiative is refused while the user talks, and taken back when they
+    /// Dee's initiative is refused while the user talks, and taken back when they
     /// start before its first audio (CloudVoice's own initiative gate, kept).
     @Test func anInitiativeGivesWayToTheUser() async throws {
         let rig = try await BrainRig()
@@ -294,7 +294,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// A reply she is already saying out loud is not taken back.
+    /// A reply Dee is already saying out loud is not taken back.
     @Test func anAudibleReplyIsNotTakenBack() async throws {
         let rig = try await BrainRig()
         try await rig.start()

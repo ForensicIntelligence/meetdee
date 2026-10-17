@@ -121,7 +121,7 @@ import Testing
     }
 
     /// Asleep (or nobody engaged): the TV is never answered — and since v0.6 (W1) not
-    /// her name in a server transcript either: only the on-device wake ear wakes her.
+    /// Dee's name in a server transcript either: only the on-device wake ear wakes Dee.
     @Test func speechNotForHerIsNotAnswered() async throws {
         let rig = try await BrainRig(engaged: false)
         try await rig.start()
@@ -138,7 +138,7 @@ import Testing
         rig.push(Srv.userTranscript("item_u2", "Dee, are you awake?"))
         #expect(await rig.until { rig.host.heardLog.count == 2 })
         await rig.settle()
-        #expect(rig.responseCreates().isEmpty, "a server transcript with her name never wakes her (W1)")
+        #expect(rig.responseCreates().isEmpty, "a server transcript with Dee's name never wakes Dee (W1)")
         #expect(rig.host.heardLog.last?.verdict == .ignored)
         #expect(rig.host.asleep && !rig.host.engaged, "nothing in a server transcript changes engagement")
         rig.shutdown()
@@ -234,8 +234,8 @@ import Testing
         rig.shutdown()
     }
 
-    /// Her sentences reach the host as playback passes them (deeSaid), and the
-    /// reply's channel ends after her audio played out.
+    /// Dee's sentences reach the host as playback passes them (deeSaid), and the
+    /// reply's channel ends after Dee's audio played out.
     @Test func deeSaidFollowsPlayback() async throws {
         let rig = try await BrainRig()
         try await rig.start()

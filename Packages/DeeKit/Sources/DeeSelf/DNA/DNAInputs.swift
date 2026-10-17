@@ -27,7 +27,7 @@ public struct TurnContext: Sendable, Equatable {
     /// candidate's template. Lexicon-safe; never user text.
     public var initiative: String?
     public var mode: CueMode
-    /// Her replies actually heard this conversation (audio played), from the brain;
+    /// Dee's replies actually heard this conversation (audio played), from the brain;
     /// nil when unknown. The greeting after time apart (G5) stays until one was
     /// heard, so a reply cancelled or never heard does not use it up (tune 4: live,
     /// "Good morning." / "Did you sleep well?" split, reply 1 cancelled, and reply 2
@@ -444,13 +444,18 @@ public struct DNAInputs: Sendable, Equatable {
     public var userTextCorpus: [String]
     /// RAM only: the session's 5-gram set, kept incrementally by the app (§2.7).
     public var guardCorpus: DNAGuardCorpus
+    /// Who is speaking: the persona preset (name, pronouns, age, voice). Classic Dee by
+    /// default, which renders byte-for-byte as before the presets.
+    public var persona: PersonaPreset
 
     public init(now: Date, utcOffset: TimeInterval = 0, turn: TurnContext = TurnContext(), mind: MindSnapshot,
                 aging: AgingInputs = AgingInputs(), inner: InnerStateCounters = InnerStateCounters(),
                 moodHistory: [DNAHistorySample] = [], causes: [CauseEntry] = [], moment: Moment, stance: Stance,
                 episodes: [EpisodeLine] = [], person: PersonInputs? = nil, body: BodyInputs = BodyInputs(),
                 appraisal: TurnAppraisal = TurnAppraisal(), daily: [DNADay] = [], shareMemories: Bool = true,
-                userTextCorpus: [String] = [], guardCorpus: DNAGuardCorpus = DNAGuardCorpus()) {
+                userTextCorpus: [String] = [], guardCorpus: DNAGuardCorpus = DNAGuardCorpus(),
+                persona: PersonaPreset = PersonaCatalog.classic) {
+        self.persona = persona
         self.now = now
         self.utcOffset = utcOffset
         self.turn = turn

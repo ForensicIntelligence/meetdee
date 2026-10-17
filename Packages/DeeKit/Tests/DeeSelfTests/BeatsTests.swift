@@ -88,7 +88,7 @@ struct BeatsStage: SubReducer {
         #expect(b.kind == .examine)
         #expect(b.steps.first?.overlay == .curious)
         let thinking = run.m.enduring.signature.repertoire[.thinking]?.map(\.mannerism) ?? []
-        #expect(b.steps.first?.mannerism.map { thinking.contains($0) } == true, "her own thinking glance")
+        #expect(b.steps.first?.mannerism.map { thinking.contains($0) } == true, "Dee's own thinking glance")
         #expect(run.m.momentary.gazeRequests.map(\.target) == [.examineBack], "eyes drop toward the back camera")
         #expect(run.m.momentary.mannerismRequests.map(\.rank) == [.beat])
     }
@@ -132,7 +132,7 @@ struct BeatsStage: SubReducer {
         var t = 0.5
         while t <= 12 {
             run.step(.tick, at: t)
-            if t <= 7.5 { #expect(Self.kind(run.m) == .examine, "still examining while she prepares a reply (t=\(t))") }
+            if t <= 7.5 { #expect(Self.kind(run.m) == .examine, "still examining while Dee prepares a reply (t=\(t))") }
             t += 0.5
         }
         #expect(run.m.momentary.beat == nil, "held at most \(Beats.maxHeld) s")
@@ -227,10 +227,10 @@ struct BeatsStage: SubReducer {
         #expect(run.m.momentary.mannerismRequests.map(\.what) == [.mannerism(.nod)], "a go-on nod")
     }
 
-    /// Review finding 14: while the user already has the floor she does not talk over them
+    /// Review finding 14: while the user already has the floor Dee does not talk over them
     /// again to apologise: the sheepish look and the nod only. Idle floor: the line, and
     /// `"sorrySaid"` so RepairKeeper does not ask for a second apology later. Audit C3:
-    /// `.yielding` is not free — she yields *because* they are talking — so the line waits
+    /// `.yielding` is not free — Dee yields *because* they are talking — so the line waits
     /// for the floor to go idle (see VoiceLoopFixTests for the waiting rules).
     @Test func sorryLineOnlyWhenTheFloorIsFree() {
         var talking = ReducerRun(Beats())

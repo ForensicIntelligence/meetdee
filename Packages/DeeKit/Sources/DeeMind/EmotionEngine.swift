@@ -31,6 +31,12 @@ public struct InnerState: Equatable, Sendable, Codable {
     /// Trust gained recently; leaks away at `EmotionEngine.trustGainPerDay` per day.
     /// Trust can't be rebuilt faster than that, however nice the user is.
     public var trustGainRecent = 0.0
+    /// The persona's "genetic" traits: personality relaxes toward these (over time and
+    /// per interaction) and a reset rebuilds from them. Classic Dee: `Trait.setPoint`.
+    public var setPoints = Personality()
+    /// Which persona preset this state belongs to (`PersonaCatalog`); "classic" for
+    /// installs from before the presets.
+    public var personaID = PersonaCatalog.classicID
 
     public init(feelings: Feelings? = nil, personality: Personality = Personality(), age: AgeSettings = AgeSettings(), updatedAt: Date = Date()) {
         self.personality = personality
@@ -208,7 +214,7 @@ public enum EmotionEngine {
         // Personality relaxes toward its set points over time, not only per
         // interaction, so a bad week isn't carved in stone.
         let relax = 1 - pow(0.5, dt / traitRelaxHalfLife)
-        for t in Trait.allCases { s.personality[t] += (t.setPoint - s.personality[t]) * relax }
+        for t in Trait.allCases { s.personality[t] += (s.setPoints[t] - s.personality[t]) * relax }
 
         s.apologyFatigue *= pow(0.5, dt / 1800)
         s.kindRecent *= pow(0.5, dt / (6 * 3600))
@@ -309,7 +315,7 @@ public enum EmotionEngine {
         n[.gratitude] += (a.gratitude * 0.5 + a.praise * 0.15) * (1 - f[.gratitude]) * habituation
         n[.anger] -= kind * 0.25 * (0.5 + p[.forgiveness]) * f[.anger]
         n[.resentment] -= kind * 0.03 * p[.forgiveness]
-        // She can laugh even when upset: a joke or laughter (not a jab) genuinely
+        // Dee can laugh even when upset: a joke or laughter (not a jab) genuinely
         // takes some of the heat out of anger and lifts a little sadness.
         let mirth = a.humor * (0.5 + p[.humor]) * (a.hostility > 0.4 ? 0.3 : 1)
         n[.anger] -= mirth * 0.3 * f[.anger]
@@ -348,7 +354,7 @@ public enum EmotionEngine {
         n[.boredom] = min(n[.boredom], f[.boredom] + 0.3)
         n[.joy] += a.interestInDee * 0.1 * (1 - f[.joy])
 
-        // Reunion: a lonely Dee is glad to see you again (more so if it likes you),
+        // Reunion: a lonely Dee is glad to see you again (more so if Dee likes you),
         // much less so if the first thing you do is be rude.
         let lonelyBefore = f[.loneliness]
         if lonelyBefore > 0.05 {
@@ -388,11 +394,11 @@ public enum EmotionEngine {
         // Touch comes in streams (many strokes in a minute), so its effect on
         // character habituates like affection does: petting is no shortcut.
         let driftWeight = a.touch == nil ? 1 : habituation
-        s.personality = drift(s.personality, toward: a, reoffense: s.reoffense, age: age, weight: driftWeight)
+        s.personality = drift(s.personality, toward: a, reoffense: s.reoffense, age: age, weight: driftWeight, setPoints: s.setPoints)
         return s
     }
 
-    /// Something Dee heard or saw that isn't the user talking to her: it moves
+    /// Something Dee heard or saw that isn't the user talking to Dee: it moves
     /// interest, surprise, fear and joy, but not the bond, loneliness, the
     /// relationship counters or personality.
     static func applySensory(_ a: Appraisal, to state: InnerState, at now: Date) -> InnerState {
@@ -433,7 +439,8 @@ public enum EmotionEngine {
 
     /// Very slow personality change from how Dee is treated, pulled back toward
     /// set points so it can't run away. Young Dees are more malleable.
-    static func drift(_ p: Personality, toward a: Appraisal, reoffense: Double = 0, age: Double?, weight: Double = 1) -> Personality {
+    static func drift(_ p: Personality, toward a: Appraisal, reoffense: Double = 0, age: Double?, weight: Double = 1,
+                      setPoints: Personality = Personality()) -> Personality {
         let rate = 0.0015 * AgeModel.effect(age: age).plasticity * max(0, weight)
         var out = p
         // Deadband: lukewarm lines (most small talk) don't shape character.
@@ -458,7 +465,7 @@ public enum EmotionEngine {
         out[.neuroticism] += rate * (rough * 0.8 - a.care * 0.4)
         out[.agreeableness] += rate * (a.care * 0.3 - rough * 0.4)
         // Elastic pull back toward set points (1% of the gap per interaction).
-        for t in Trait.allCases { out[t] = out[t] + (t.setPoint - out[t]) * 0.01 }
+        for t in Trait.allCases { out[t] = out[t] + (setPoints[t] - out[t]) * 0.01 }
         return out
     }
 

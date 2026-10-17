@@ -8,13 +8,13 @@ import Foundation
 /// What it decides:
 /// - **Barge-in vs. echo.** The server's VAD hears everything the microphone
 ///   picks up, including what is left of Dee's own voice after echo
-///   cancellation. A server `speech_started` while she plays (or within her echo
+///   cancellation. A server `speech_started` while Dee plays (or within Dee's echo
 ///   tail: the route's output latency plus `echoTail`) is only taken as the user
 ///   when there is local evidence: `BargeInDetector` (sustained voice above a bar
-///   that rises with her own level), or the user still sounding after her audio
-///   has left the room. Evidence → `.bargeIn` (flush, cancel, truncate); her
+///   that rises with Dee's own level), or the user still sounding after Dee's audio
+///   has left the room. Evidence → `.bargeIn` (flush, cancel, truncate); Dee's
 ///   audio ended and the user carried on → `.acceptOnset` (a quick "Yes!" right
-///   after her question counts: voice clearly above the echo she left, once her
+///   after Dee's question counts: voice clearly above the echo Dee left, once Dee's
 ///   direct sound is gone); no evidence by the server's `speech_stopped` (or
 ///   `decisionTimeout`) → `.rejectEcho`. Long, continuous, pitched local voice
 ///   the server has not reported barges in on its own (`localOnlyRun`), never
@@ -22,24 +22,24 @@ import Foundation
 ///   stopped giving expires. Over an aside (a laugh clip) the user talking is not a
 ///   barge-in: the clip stops quietly (`.yieldAside`), and an aside never deletes
 ///   the words of a user who held the floor when it started.
-/// - **Echo reference and the noise floor.** Her rendered output (`reference`)
+/// - **Echo reference and the noise floor.** Dee's rendered output (`reference`)
 ///   and the microphone go into `EchoReference`, which learns the echo path
 ///   (delay-searched envelope correlation) and predicts how much of every frame
-///   is her. Once it knows, the barge-in bar is relative to the room, not fixed:
-///   `nearAboveFloorDB` over the noise floor (which does not creep up on her own
-///   echo) and `echoMarginDB` over the echo she explains, and only *pitched,
+///   is Dee. Once it knows, the barge-in bar is relative to the room, not fixed:
+///   `nearAboveFloorDB` over the noise floor (which does not creep up on Dee's own
+///   echo) and `echoMarginDB` over the echo Dee explains, and only *pitched,
 ///   voice-band* frames count (`voiceLike`): a fan, a tap or clinking dishes are
-///   never the user. Until it knows (the first moments of her first reply, or no
+///   never the user. Until it knows (the first moments of Dee's first reply, or no
 ///   reference at all), the old conservative bar holds.
-/// - **Near-end voice keeps an item.** An onset over her playback that reaches its
+/// - **Near-end voice keeps an item.** An onset over Dee's playback that reaches its
 ///   `speech_stopped` (or the decision timeout) without the sustained evidence is
 ///   still the user — never deleted as echo — when `nearEndEvidence` of pitched
-///   voice her playback doesn't explain lies in its window.
+///   voice Dee's playback doesn't explain lies in its window.
 /// - **Initiatives.** Local voice from the user before an initiative's first
 ///   audio cancels it (`.cancelInitiative`), ahead of the server's own VAD.
 /// - **The face.** `.micLevel` (20 Hz while listening), `.pause` from
 ///   `TurnPredictor` (prosody only: there are no live partials), `.speakingStarted`
-///   / `.speechLevel` (~30 Hz while she plays, gaps between words included, 0
+///   / `.speechLevel` (~30 Hz while Dee plays, gaps between words included, 0
 ///   before `.speakingFinished`) / `.speakingFinished`, `.bargeIn`, `.sound`.
 /// - **`.heard`** when the server's transcript of a user item lands: the text plus
 ///   prosody measured locally over that item's audio window (mapped from the
@@ -52,7 +52,7 @@ import Foundation
 public struct EarCore: Sendable {
     public enum Action: Sendable, Equatable {
         case emit(VoiceEvent)
-        /// The user really talked over her reply: flush the player, then tell the
+        /// The user really talked over Dee's reply: flush the player, then tell the
         /// server what was played (`bargeIn(playedMs:)`). `itemID`: the user item
         /// the server opened for it (nil when only local evidence exists so far).
         /// The `.bargeIn` event follows as its own action.
@@ -60,26 +60,26 @@ public struct EarCore: Sendable {
         /// The user is talking over an aside (a clip): stop it quietly. Not a
         /// barge-in: no event, nothing to tell the server.
         case yieldAside(itemID: String?)
-        /// A server onset during her playback or echo tail was the user after all
-        /// (her audio had ended, or they held the floor through an aside).
+        /// A server onset during Dee's playback or echo tail was the user after all
+        /// (Dee's audio had ended, or they held the floor through an aside).
         case acceptOnset(itemID: String)
         /// A server onset was Dee's own voice: delete that user item.
         case rejectEcho(itemID: String)
-        /// A server onset over her voice that the local evidence can't settle
-        /// (a voice under her echo as loud as the user): its words decide
+        /// A server onset over Dee's voice that the local evidence can't settle
+        /// (a voice under Dee's echo as loud as the user): its words decide
         /// (`HerWords`). Neither accepted nor deleted yet. `strict`: the only hint
-        /// was sound her echo model didn't explain (no other voice's pitch, no voice
-        /// after her playback and its tail) — the words must be clearly not hers.
+        /// was sound Dee's echo model didn't explain (no other voice's pitch, no voice
+        /// after Dee's playback and its tail) — the words must be clearly not Dee's.
         case deferToWords(itemID: String, strict: Bool)
-        /// Tune 7 (T6-4): without echo cancellation (her echo as loud as the user),
-        /// an onset over her voice is still undecided, but there is a
-        /// voice in its window her echo model doesn't explain: pause her now and
-        /// listen in her silence (her loud echo masks the user; without it their
+        /// Tune 7 (T6-4): without echo cancellation (Dee's echo as loud as the user),
+        /// an onset over Dee's voice is still undecided, but there is a
+        /// voice in its window Dee's echo model doesn't explain: pause Dee now and
+        /// listen in Dee's silence (Dee's loud echo masks the user; without it their
         /// voice shows at once). Neither accepted nor deleted: the decision follows
         /// as usual (`.bargeIn` once the evidence is there). Once per item.
         case probe(itemID: String)
-        /// Tune 7: the probe heard nobody (quiet `probeQuiet` once her echo had
-        /// cleared, or `probeMax`): she goes on from where she paused. A probe the
+        /// Tune 7: the probe heard nobody (quiet `probeQuiet` once Dee's echo had
+        /// cleared, or `probeMax`): Dee goes on from where Dee paused. A probe the
         /// user's voice confirms ends with `.bargeIn` instead.
         case probeEnded
         /// The user started talking before an initiative's first audio.
@@ -93,24 +93,24 @@ public struct EarCore: Sendable {
 
     // MARK: Tunables
 
-    /// Her voice's room tail after the last sample leaves the speaker.
+    /// Dee's voice's room tail after the last sample leaves the speaker.
     public static let echoTail = 0.5
-    /// Tune 7 (T6-4): a probe (`.probe`) ends once nobody made a sound into her
+    /// Tune 7 (T6-4): a probe (`.probe`) ends once nobody made a sound into Dee's
     /// silence for this long — longer than the gap in "Wait, … stop talking" — …
     public static let probeQuiet = 0.7
-    /// …counted from when her echo has left the room after the pause…
+    /// …counted from when Dee's echo has left the room after the pause…
     public static let probeEchoClear = 0.15
     /// …and never lasts longer than this.
     public static let probeMax = 1.5
-    /// Longest wait for evidence on a server onset while she keeps playing.
+    /// Longest wait for evidence on a server onset while Dee keeps playing.
     public static let decisionTimeout = 1.5
-    /// Tune 3: an onset the server still holds open after she stopped is given up
-    /// (her echo) only this long after her echo left the room — the user may yet
+    /// Tune 3: an onset the server still holds open after Dee stopped is given up
+    /// (Dee's echo) only this long after Dee's echo left the room — the user may yet
     /// talk into it (tune-2 live, tv15 p06a: the TV opened it, the user spoke
-    /// 0.7 s after her tail, and it was deleted at the timeout). Its stop decides
+    /// 0.7 s after Dee's tail, and it was deleted at the timeout). Its stop decides
     /// it sooner.
     public static let openItemAfterTail = 4.0
-    /// Tune 3: voice that is not hers (out of her playback and its tail) this long
+    /// Tune 3: voice that is not Dee's (out of Dee's playback and its tail) this long
     /// in an onset's window, without the evidence to accept it, sends it to its
     /// words instead of deleting it on the sound.
     public static let voiceAfterHer = 0.15
@@ -118,7 +118,7 @@ public struct EarCore: Sendable {
     public static let evidenceLookback = 1.0
     /// Continuous voice above the bar (gaps up to `runGap`) this long, with no
     /// server onset: barge in anyway. Long, so a laugh or a burst of applause at
-    /// her joke doesn't cut her off; the server's onset is the usual path.
+    /// Dee's joke doesn't cut Dee off; the server's onset is the usual path.
     public static let localOnlyRun = 1.0
     /// Longest gap inside one continuous run of voice above the bar.
     public static let runGap = 0.12
@@ -126,17 +126,17 @@ public struct EarCore: Sendable {
     public static let localOnlyPitched = 0.6
     /// No local-only barge-in this long after a laugh / applause was classified.
     public static let socialSuppress = 2.0
-    /// Her direct sound has left the room this long after the output latency;
-    /// what follows is only her decaying echo.
+    /// Dee's direct sound has left the room this long after the output latency;
+    /// what follows is only Dee's decaying echo.
     public static let directEchoGuard = 0.1
-    /// After she stopped: voice this much above the loudest echo she left in the
+    /// After Dee stopped: voice this much above the loudest echo Dee left in the
     /// microphone counts as the user.
     public static let postEchoMarginDB = 5.0
-    /// That much of it accepts an onset in her echo tail at once (a short "Yes!").
+    /// That much of it accepts an onset in Dee's echo tail at once (a short "Yes!").
     public static let quickAnswer = 0.12
-    /// Her echo level estimate decays this fast (dB/s) to follow her recent peak.
+    /// Dee's echo level estimate decays this fast (dB/s) to follow Dee's recent peak.
     static let echoPeakDecayDBPerSecond = 6.0
-    /// Sounding voice after her echo tail that proves an onset was the user.
+    /// Sounding voice after Dee's echo tail that proves an onset was the user.
     public static let userAfterTail = 0.25
     /// User voice that cancels a pending initiative.
     public static let initiativeOnset = 0.15
@@ -156,22 +156,22 @@ public struct EarCore: Sendable {
     public static let speechLevelInterval = 1.0 / 30
     /// A player level older than this reads as 0 (an underrun or a gap between items).
     public static let levelStale = 0.07
-    /// Without echo cancellation her voice reaches the mic almost unattenuated:
+    /// Without echo cancellation Dee's voice reaches the mic almost unattenuated:
     /// the user must be this much louder again to count.
     public static let noAECMarginDB = 14.0
     /// Seconds of frame statistics kept for prosody windows.
     public static let frameLogSeconds = 40.0
     /// Pad around a server audio window when measuring prosody.
     public static let windowPad = 0.15
-    /// Ignore classifier results this long after she stops when the result's audio
+    /// Ignore classifier results this long after Dee stops when the result's audio
     /// window is unknown (one 1.5 s window plus the worst analysis delay).
     public static let ownVoiceTail = 1.5 + 0.4
-    /// With a known window: windows reaching within this of her playback are hers.
+    /// With a known window: windows reaching within this of Dee's playback are Dee's.
     public static let ownVoiceGuard = 0.3
     /// With a learned echo path: the user's voice must be this far above the noise
     /// floor (AEC off: `noAECNearExtraDB` more)…
     public static let nearAboveFloorDB = 9.0
-    /// …and this far above the echo her playback explains (AEC off: `noAECEchoMarginDB`)…
+    /// …and this far above the echo Dee's playback explains (AEC off: `noAECEchoMarginDB`)…
     public static let echoMarginDB = 6.0
     public static let noAECEchoMarginDB = 9.0
     public static let noAECNearExtraDB = 5.0
@@ -182,17 +182,17 @@ public struct EarCore: Sendable {
     /// Voice-like near-end sound (`voiceHint`) in an onset's window that, without
     /// the evidence to accept it, sends it to `deferToWords` instead of deleting it.
     public static let wordsHint = 0.08
-    /// …or this much unexplained voice-shaped sound (then the words must be clearly not hers).
+    /// …or this much unexplained voice-shaped sound (then the words must be clearly not Dee's).
     public static let wordsHintUnexplained = 0.12
-    /// Near-end voice in an undecided onset's window that holds her next item back.
+    /// Near-end voice in an undecided onset's window that holds Dee's next item back.
     public static let boundaryEvidence = 0.06
     /// Near-end voice that, with the server's onset, barges in at once.
     public static let corroboratedEvidence = 0.12
-    /// Her echo's first moments in a stretch (after the longest echo delay) are
+    /// Dee's echo's first moments in a stretch (after the longest echo delay) are
     /// never near-end evidence: the reverb is still building and the echo's
     /// level is least predictable there.
     public static let onsetGuard = 0.25
-    /// Her echo gain assumed until it is learned (energy ratio): −20 dB with echo
+    /// Dee's echo gain assumed until it is learned (energy ratio): −20 dB with echo
     /// cancellation, 0 dB without.
     public static let echoPriorAEC = 0.01
     public static let echoPriorNoAEC = 1.0
@@ -206,7 +206,7 @@ public struct EarCore: Sendable {
     static let voiceBandHz = 1_000.0
     /// YIN dip that counts as "periodic" for voicing (the f0 for prosody uses 0.15).
     public static let voicingThreshold = 0.35
-    /// Laughter / applause while she plays must beat the barge-in bar by this.
+    /// Laughter / applause while Dee plays must beat the barge-in bar by this.
     public static let socialOverSpeechMarginDB = 4.0
     public static let soundLoudnessWindow = 1.6
     /// The uplink gate opens this far above the room bed's ceiling (`RoomBed`)…
@@ -217,7 +217,7 @@ public struct EarCore: Sendable {
     public static let uplinkMaxDB = -28.0
     /// Frames this far above the bed's ceiling are not learned as the bed.
     static let bedLearnHeadroomDB = 2.0
-    /// With a known bed, the user's bar (with her voice in the room) is this far
+    /// With a known bed, the user's bar (with Dee's voice in the room) is this far
     /// above its ceiling and `bedFloorMarginDB` above its floor: a steady fan or
     /// tap never reaches its ceiling + 3 dB, so a soft voice over it still counts.
     /// Never stricter than the fixed `nearAboveFloorDB` (which holds until the
@@ -242,7 +242,7 @@ public struct EarCore: Sendable {
             if aecActive != oldValue { echo.reset(); spectral.reset() }   // a new echo path
         }
     }
-    /// Route output latency (s): her voice is still in the room this long after rendering.
+    /// Route output latency (s): Dee's voice is still in the room this long after rendering.
     public var outputLatency = 0.0 {
         didSet {
             outputLatency = outputLatency.isFinite ? min(max(outputLatency, 0), 0.5) : 0
@@ -263,9 +263,9 @@ public struct EarCore: Sendable {
     public private(set) var bed = RoomBed()
     /// The uplink gate as seen at 40 ms (frames it would pass are not the bed).
     private var gateOpenUntil = -Double.infinity
-    /// Her echo path, learned from her rendered output against the microphone.
+    /// Dee's echo path, learned from Dee's rendered output against the microphone.
     public private(set) var echo = EchoReference()
-    /// …and per frequency band, for a voice under her loud echo.
+    /// …and per frequency band, for a voice under Dee's loud echo.
     private var spectral = SpectralEcho()
     private var lastFrameAbove = false
     private var barge = BargeInDetector()
@@ -274,7 +274,7 @@ public struct EarCore: Sendable {
     private var filter = UnexpectedSoundFilter()
     private var lastPauseEvent: (start: Double, turnEnd: Double, hesitation: Double)?
 
-    /// Her audio is playing (from the first rendered sample until the player is idle).
+    /// Dee's audio is playing (from the first rendered sample until the player is idle).
     public private(set) var speaking = false
     /// The stretch playing now holds only asides (clips), no reply audio.
     public private(set) var asideOnly = false
@@ -294,11 +294,11 @@ public struct EarCore: Sendable {
     private var aboveRunPitched = 0
     private var lastSocialSoundAt = -Double.infinity
     private var soundingAfterTail = 0.0
-    /// Her echo in the microphone during this stretch (recent peak, dBFS).
+    /// Dee's echo in the microphone during this stretch (recent peak, dBFS).
     private var echoPeakDB = -Double.infinity
-    /// Frozen when she stops: the echo she leaves behind is at most this loud.
+    /// Frozen when Dee stops: the echo Dee leaves behind is at most this loud.
     private var endEchoDB = -Double.infinity
-    /// Voice clearly above her leftover echo since her direct sound left the room.
+    /// Voice clearly above Dee's leftover echo since Dee's direct sound left the room.
     private var postRun = 0.0
 
     private struct Pending: Sendable, Equatable {
@@ -308,10 +308,10 @@ public struct EarCore: Sendable {
     private var pending: [Pending] = []
     /// Tune 7: onsets a `.probe` was sent for (newest 16).
     private var probed: [String] = []
-    /// Tune 7: when the current probe paused her (nil: none).
+    /// Tune 7: when the current probe paused Dee (nil: none).
     private var probeSince: Double?
     /// Items left to their words while the probe is on: it waits for them (their
-    /// words may be the user's "Stop." that her echo hid), up to `probeMax`.
+    /// words may be the user's "Stop." that Dee's echo hid), up to `probeMax`.
     private var probeWaits: Set<String> = []
     /// The user's speech item the server has open (and that is not echo).
     public private(set) var serverOpen: String?
@@ -350,7 +350,7 @@ public struct EarCore: Sendable {
     private var wakeUntil = -Double.infinity
     private var uplinkReported = false
     private var localSpeechReported = false
-    /// She went on after a hold here: what the user said before it was decided
+    /// Dee went on after a hold here: what the user said before it was decided
     /// already (a backchannel) and is no evidence for a new onset.
     private var resumedAt = -Double.infinity
 
@@ -370,54 +370,54 @@ public struct EarCore: Sendable {
         var db: Double
         var user: Bool
         var f0: Double?
-        /// Her voice was in the room.
+        /// Dee's voice was in the room.
         var her: Bool
         /// Voiced by the energy VAD, or clearly above a known bed (a soft voice).
         var rawVoiced: Bool
         /// Pitched, voice-band.
         var voiceLike: Bool
-        /// The user's sound (not her echo), above the room's floor.
+        /// The user's sound (not Dee's echo), above the room's floor.
         var sounding: Bool
         /// The user's speech (sound in a run with pitched voice: `userIsSpeaking`).
         var speech = false
-        /// Her envelope that could reach this frame (before the echo gain; nil:
+        /// Dee's envelope that could reach this frame (before the echo gain; nil:
         /// no reference). Kept so the frame can be judged again with the echo
         /// path learned later: near-end evidence always uses the best model.
         var reach: Double?
         var floorDB: Double
-        /// The room's part of the user's bar (floor, minimum, her echo tail).
+        /// The room's part of the user's bar (floor, minimum, Dee's echo tail).
         var minBar: Double
-        /// dB over her predicted echo the user's voice needs.
+        /// dB over Dee's predicted echo the user's voice needs.
         var margin: Double
         /// The echo gain the frame was judged with live (learned, or the prior).
         var gainThen: Double?
-        /// In the first moments of a stretch of hers, while her echo (and its
+        /// In the first moments of a stretch of Dee's, while Dee's echo (and its
         /// reverb) is still building up: never near-end with a reference.
         var herOnset = false
         /// Above the conservative fixed bar (used when there is no reference).
         var fallbackAbove: Bool
-        /// Per band, a voice her echo doesn't explain, above the room's bar (`SpectralEcho`).
+        /// Per band, a voice Dee's echo doesn't explain, above the room's bar (`SpectralEcho`).
         var spectralNear = false
-        /// …and the frame's pitch is not hers (another voice is in it).
+        /// …and the frame's pitch is not Dee's (another voice is in it).
         var spectralPitched = false
-        /// Tune 11: the share of the frame's energy her echo model doesn't explain (nil: no model yet).
+        /// Tune 11: the share of the frame's energy Dee's echo model doesn't explain (nil: no model yet).
         var spectralShare: Double?
     }
 
     /// The user's bar for a logged frame under the echo path known now (before
     /// it is learned: the prior); nil without a reference.
     private func userBar(_ f: FrameStat) -> Double? {
-        // Judged again only ever more strictly: a frame her echo explained stays hers.
+        // Judged again only ever more strictly: a frame Dee's echo explained stays Dee's.
         guard let r = f.reach, let now = echo.gain ?? echo.prior else { return nil }
         let g = max(now, f.gainThen ?? 0)
         return max(f.minBar, Level.powerDB(g * r + pow(10, f.floorDB / 10)) + f.margin)
     }
 
     /// Near-end sound in a logged frame (above the user's bar, not explained by
-    /// her playback), and whether it was pitched voice. Judged with the echo path
+    /// Dee's playback), and whether it was pitched voice. Judged with the echo path
     /// known *now*: frames from before it was learned are judged again with it.
     private func judge(_ f: FrameStat, onsetGuard: Bool = true) -> (near: Bool, pitched: Bool) {
-        // Out of her playback: the user's speech, by the same test as `userIsSpeaking`
+        // Out of Dee's playback: the user's speech, by the same test as `userIsSpeaking`
         // (a running tap or a clatter never is).
         guard f.her else { return (f.speech, f.speech && f.voiceLike) }
         guard let bar = userBar(f) else { return (f.fallbackAbove, f.fallbackAbove && f.voiceLike) }
@@ -457,7 +457,7 @@ public struct EarCore: Sendable {
         return min(c + Self.uplinkMarginDB, (bed.floorDB ?? roomFloorDB) + Self.uplinkMaxAboveFloorDB, Self.uplinkMaxDB)
     }
 
-    /// The room's part of the user's bar while her voice is in the room: over a
+    /// The room's part of the user's bar while Dee's voice is in the room: over a
     /// known bed, above its ceiling (and clearly above its floor); before that,
     /// the fixed margin over the floor.
     private func roomBar(extra: Double) -> Double {
@@ -476,7 +476,7 @@ public struct EarCore: Sendable {
     public func isDeciding(_ itemID: String) -> Bool { pending.contains { $0.itemID == itemID } }
 
     /// An onset being decided already has near-end voice in its window (it may
-    /// well be the user): her next item waits at the boundary until it is decided.
+    /// well be the user): Dee's next item waits at the boundary until it is decided.
     public func pendingMayBeUser(at t: Double) -> Bool {
         pending.contains { p in
             let from = max((items[p.itemID]?.onset ?? p.arrivedAt - 0.3) - 0.3, resumedAt)
@@ -527,27 +527,27 @@ public struct EarCore: Sendable {
         }
         let db = Level.powerDB(energy / Double(samples.count))
         let her = herTime(at: t)
-        // The floor never creeps up on her own echo (it may still fall).
+        // The floor never creeps up on Dee's own echo (it may still fall).
         let rawVoiced = vad.process(frameDB: db, frameDuration: dt, allowRise: !her)
         if rawVoiced { lastVoiced = t }
         let knewEcho = echo.gain != nil
         feedEcho(samples, at: t, duration: dt)
         if !knewEcho, let g = echo.gain, g > (echo.prior ?? 0) {
-            // Her echo is louder than the prior assumed: evidence built on it is void.
+            // Dee's echo is louder than the prior assumed: evidence built on it is void.
             evidenceAt = nil
             barge.reset()
             lastAboveBar = -Double.infinity
         }
-        // What of this frame her playback can explain (before the echo gain).
+        // What of this frame Dee's playback can explain (before the echo gain).
         let reach = echo.hasReference(at: t) ? echo.reach(from: t - dt, to: t) : nil
-        // Per band: a voice under her loud echo still shows where she is quiet.
+        // Per band: a voice under Dee's loud echo still shows where Dee is quiet.
         let spec = spectral.analyze(samples, rate: sampleRate, endingAt: t, delay: echo.delay,
                                     broadbandGain: echo.gain ?? echo.prior,
                                     learn: her && speaking && !bargedIn && echo.confident && !lastFrameAbove)
-        // The room's own floor, learned while her voice is out of the room (what
-        // is left while she talks may be the user talking over her).
+        // The room's own floor, learned while Dee's voice is out of the room (what
+        // is left while Dee talks may be the user talking over Dee).
         if !her { room.add(db, at: t) }
-        // The bed: frames neither hers nor (as far as the uplink gate can tell) the
+        // The bed: frames neither Dee's nor (as far as the uplink gate can tell) the
         // user's. Sound clearly above the bed's ceiling but under the gate's bar may
         // be a soft voice: it never teaches the bed to be louder.
         if let bar = uplinkBarDB, db >= bar { gateOpenUntil = t + UplinkGate.hangover }
@@ -560,8 +560,8 @@ public struct EarCore: Sendable {
         let level = ownLevelNow(at: t)
         // Without any reference: the conservative fixed bar.
         var fallbackBar = barge.bar(floorDB: roomFloorDB, ownSpeechLevel: level)
-        // In her echo tail her level reads 0: the user must also be clearly above
-        // the echo she left behind.
+        // In Dee's echo tail Dee's level reads 0: the user must also be clearly above
+        // the echo Dee left behind.
         let tailBar = her && !speaking ? postBar : -Double.infinity
         fallbackBar = max(fallbackBar, tailBar)
         // Pitched, voice-band sound: speech, not a fan, a tap or a clink.
@@ -596,12 +596,12 @@ public struct EarCore: Sendable {
         stat.spectralNear = spec.map { $0.isVoice && $0.nearDB >= stat.minBar } ?? false
         stat.spectralShare = spec?.fraction
         if stat.spectralNear, let f = f0 ?? looseF0 {
-            // Under her echo the frame is pitched anyway: only a pitch that isn't
-            // hers says the sound she doesn't explain is a voice.
+            // Under Dee's echo the frame is pitched anyway: only a pitch that isn't
+            // Dee's says the sound Dee doesn't explain is a voice.
             stat.spectralPitched = SpectralEcho.differentVoice(f, from: spectral.herPitches(at: t, delay: echo.delay))
         }
         debugSpec = spec
-        // Above the user's bar: sound her playback doesn't explain.
+        // Above the user's bar: sound Dee's playback doesn't explain.
         // (Over a laugh clip — all onset — talking still makes it give way.)
         let judged: (near: Bool, pitched: Bool) = her ? judge(stat, onsetGuard: !asideOnly)
             : (stat.fallbackAbove, stat.fallbackAbove && voiceLike)
@@ -613,15 +613,15 @@ public struct EarCore: Sendable {
                 evidenceAt = t
             }
         }
-        // Her own echo level while she plays (frames that are not the user).
+        // Dee's own echo level while Dee plays (frames that are not the user).
         if speaking && !above {
             echoPeakDB = max(db, echoPeakDB - Self.echoPeakDecayDBPerSecond * dt)
         }
-        // After she stopped: voice clearly above the echo she left is the user.
+        // After Dee stopped: voice clearly above the echo Dee left is the user.
         let afterDirect = !speaking && t >= playbackEnd + outputLatency + Self.directEchoGuard
         let postAbove = afterDirect && t < tailEnd && rawVoiced && db >= postBar && voiceLike
         if !speaking { postRun = postAbove ? postRun + dt : max(0, postRun - dt) }
-        // While her voice is in the room, voiced frames below the bar are her echo.
+        // While Dee's voice is in the room, voiced frames below the bar are Dee's echo.
         let userVoiced = rawVoiced && (!her || bargedIn || above || postAbove)
         let sounding = userVoiced && db > roomFloorDB + vad.thresholdAboveFloor && db > vad.absoluteMinDB
         if userVoiced { lastUserVoiced = t }
@@ -645,7 +645,7 @@ public struct EarCore: Sendable {
         if userVoiced, speechRunNow.reached(Self.speechRun), t - lastVoiceFrame <= Self.speechBridge + 1e-9 {
             lastUserSpeech = t
         }
-        if !userVoiced { f0 = nil }                       // her echo's pitch is not the user's
+        if !userVoiced { f0 = nil }                       // Dee's echo's pitch is not the user's
         if above {
             if t - lastAboveBar > Self.runGap + dt + 1e-9 {
                 aboveRunStart = t - dt
@@ -669,7 +669,7 @@ public struct EarCore: Sendable {
         if !speaking, t >= tailEnd, speechFrame { soundingAfterTail += dt }
 
         var actions: [Action] = []
-        // The user beat her initiative's first audio.
+        // The user beat Dee's initiative's first audio.
         if initiativePending, !speaking {
             initiativeRun.update(sounding: sounding, pitched: speechFrame, dt: dt)
             if initiativeRun.reached(Self.initiativeOnset) {
@@ -726,7 +726,7 @@ public struct EarCore: Sendable {
         return [.localSpeech(on)]
     }
 
-    // MARK: Her playback
+    // MARK: Dee's playback
 
     /// An utterance's first sample played (`aside`: a clip, not reply audio).
     public mutating func playbackStarted(at t: Double, aside: Bool) -> [Action] {
@@ -751,9 +751,9 @@ public struct EarCore: Sendable {
         return [.emit(.speakingStarted)]
     }
 
-    /// Her paused reply goes on (the words over it were a backchannel, or the
-    /// onset was her echo): a fresh stretch of hers. Her echo builds up again
-    /// (onset guard), and a new onset over her is decided like any other.
+    /// Dee's paused reply goes on (the words over it were a backchannel, or the
+    /// onset was Dee's echo): a fresh stretch of Dee's. Dee's echo builds up again
+    /// (onset guard), and a new onset over Dee is decided like any other.
     public mutating func playbackResumed(at t: Double) -> [Action] {
         latest = max(latest, t)
         guard speaking else { return [] }
@@ -775,7 +775,7 @@ public struct EarCore: Sendable {
         lastLevelAt = t
     }
 
-    /// Her rendered output (`PCMStreamPlayer.takeReference()`), for echo gating.
+    /// Dee's rendered output (`PCMStreamPlayer.takeReference()`), for echo gating.
     public mutating func reference(_ bins: [EchoReference.Bin]) {
         echo.addReference(bins)
         spectral.addReference(bins)
@@ -813,7 +813,7 @@ public struct EarCore: Sendable {
         guard !rejected.contains(itemID) else { return [] }
         let start = onset.map { min($0, t) } ?? t - 0.3
         remember(itemID, ItemTimes(onset: start, end: nil))
-        // While the user is already cutting her off (or just did), whatever the
+        // While the user is already cutting Dee off (or just did), whatever the
         // server hears is them.
         let overPlayback = (speaking && !bargedIn) || (!speaking && !lastStretchBarged && start < tailEnd)
         guard overPlayback else {
@@ -935,14 +935,14 @@ public struct EarCore: Sendable {
     // MARK: Questions
 
     /// The user is talking right now: their voice in the last `userSpeechHold`, or
-    /// the server has their speech open. An onset still being decided (maybe her
+    /// the server has their speech open. An onset still being decided (maybe Dee's
     /// own echo) doesn't count until it is known to be them.
     public func userIsSpeaking(at t: Double) -> Bool {
         t - lastUserSpeech <= Self.userSpeechHold || serverOpen != nil
     }
 
     /// When the user's voice was last heard (graph clock): a frame of pitched,
-    /// voice-band sound that is theirs (not her echo) and above the room's bed.
+    /// voice-band sound that is theirs (not Dee's echo) and above the room's bed.
     /// No hangover: the release gate's "are they talking now?".
     public var lastVoiceTime: Double { lastVoiceFrame }
 
@@ -962,7 +962,7 @@ public struct EarCore: Sendable {
 
     /// Tune 9 (T8-1): what server item `itemID` sounded like (`FragmentSound`): their
     /// near-end voice from its onset to its end (or `t`), judged with the echo path known
-    /// now — never her echo. After its transcript, what it sounded like then. Nil when
+    /// now — never Dee's echo. After its transcript, what it sounded like then. Nil when
     /// the item is unknown here (rejected, forgotten, or never announced).
     public func itemSound(itemID: String, until t: Double) -> FragmentSound? {
         if let it = items[itemID] { return sound(from: it.onset, to: min(it.end ?? t, t)) }
@@ -990,33 +990,33 @@ public struct EarCore: Sendable {
     }
 
     /// Tune 8 (T7-3): with no echo cancellation, server item `itemID` began within
-    /// `within` s of the start of her current stretch (her first audio, or her
-    /// resume), while she plays — where her own echo most often opens an item
-    /// (live: "Yeah." 0.26 s into her reply, "You." 0.7 s). False once forgotten.
+    /// `within` s of the start of Dee's current stretch (Dee's first audio, or Dee's
+    /// resume), while Dee plays — where Dee's own echo most often opens an item
+    /// (live: "Yeah." 0.26 s into Dee's reply, "You." 0.7 s). False once forgotten.
     public func onsetEarlyInStretch(itemID: String, within: Double) -> Bool {
         guard !aecActive, speaking, let it = items[itemID] else { return false }
         return it.onset - stretchStart <= within + 1e-9
     }
 
     /// Tune 11 (T10-2b / T10-3): less near-end sound than this in an item's window, and
-    /// less than `unexplainedShare` of its energy unexplained over her voice: her echo.
+    /// less than `unexplainedShare` of its energy unexplained over Dee's voice: Dee's echo.
     public static let explainedVoice = 0.12
     /// This much near-end sound with `voiceShare`, or `unexplainedShare` of its energy
-    /// unexplained over her voice: a voice her echo can't be.
+    /// unexplained over Dee's voice: a voice Dee's echo can't be.
     public static let unexplainedVoice = 0.16
     public static let voiceShare = 0.20
     public static let unexplainedShare = 0.25
 
-    /// Tune 11 (T10-2b / T10-3): does her echo model (`EchoReference` + `SpectralEcho`: her
+    /// Tune 11 (T10-2b / T10-3): does Dee's echo model (`EchoReference` + `SpectralEcho`: Dee's
     /// rendered output through the echo path learned from it) explain the sound of server
-    /// item `itemID`, from its onset to its end? True: it is all hers (under
+    /// item `itemID`, from its onset to its end? True: it is all Dee's (under
     /// `explainedVoice` of near-end sound, under `unexplainedShare` unexplained). False:
-    /// there is a voice in it her echo can't be (`unexplainedVoice` with `voiceShare`, or
+    /// there is a voice in it Dee's echo can't be (`unexplainedVoice` with `voiceShare`, or
     /// `unexplainedShare`). Nil in between (the sound can't tell), or when the item is
     /// unknown here.
     ///
     /// Offline, −10 dB echo without echo cancellation through the room IR (harness fixtures,
-    /// five of her voices), items the ear left to their words: her echo alone 0.04–0.08 s
+    /// five of Dee's voices), items the ear left to their words: Dee's echo alone 0.04–0.08 s
     /// (most) or 0.12 s, one 0.16 s at a share of 0.19; "Stop." and "Go on." 0.12–0.40 s,
     /// mostly 0.16 s or more at a share over 0.20.
     public func echoExplains(itemID: String, at t: Double) -> Bool? {
@@ -1039,7 +1039,7 @@ public struct EarCore: Sendable {
         return nil
     }
 
-    /// Her voice may be in the microphone right now: playing, or within the echo
+    /// Dee's voice may be in the microphone right now: playing, or within the echo
     /// tail of a stretch the user did not cut.
     public func herVoiceInRoom(at t: Double) -> Bool { herTime(at: t) }
 
@@ -1048,7 +1048,7 @@ public struct EarCore: Sendable {
         t - lastUserSpeech <= Self.userSpeechHold || serverOpen != nil
     }
 
-    /// Near-end voice (above the bar, not explained by her playback) between
+    /// Near-end voice (above the bar, not explained by Dee's playback) between
     /// `from` and `to`: seconds of it, and seconds of it that were pitched.
     public func nearEndVoice(from a: Double, to b: Double) -> (all: Double, pitched: Double) {
         var all = 0.0, pitched = 0.0
@@ -1062,7 +1062,7 @@ public struct EarCore: Sendable {
         return (all, pitched)
     }
 
-    /// Tune 7 (T6-4): a voice in the pending onset's window that her echo doesn't
+    /// Tune 7 (T6-4): a voice in the pending onset's window that Dee's echo doesn't
     /// explain — the same hint that leaves an item to its words at its stop
     /// (`deferToWords`), seen while the item is still open.
     private func probeHint(_ p: Pending, at t: Double) -> Bool {
@@ -1071,8 +1071,8 @@ public struct EarCore: Sendable {
         return hint.pitched >= Self.wordsHint - 1e-9 || hint.unexplained >= Self.wordsHintUnexplained - 1e-9
     }
 
-    /// Tune 7: the probe is over when nobody spoke into her silence (`probeQuiet`
-    /// after her echo cleared and after their last sound), or at `probeMax`.
+    /// Tune 7: the probe is over when nobody spoke into Dee's silence (`probeQuiet`
+    /// after Dee's echo cleared and after their last sound), or at `probeMax`.
     private mutating func checkProbe(at t: Double) -> [Action] {
         guard let since = probeSince else { return [] }
         guard speaking, !bargedIn else { probeSince = nil; probeWaits.removeAll(); return [] }
@@ -1099,16 +1099,16 @@ public struct EarCore: Sendable {
     }
 
     /// An item left to its words (`deferToWords`) was decided by them (the user's
-    /// or her echo): a probe no longer waits for it.
+    /// or Dee's echo): a probe no longer waits for it.
     public mutating func wordsDecided(itemID: String) { probeWaits.remove(itemID) }
 
-    /// A probe is on: her voice is paused while the ear listens (`.probe`).
+    /// A probe is on: Dee's voice is paused while the ear listens (`.probe`).
     public var isProbing: Bool { probeSince != nil }
 
-    /// Seconds of frames in the window that hold a voice that isn't hers:
-    /// `pitched` near-end frames (over her loud echo: bands she doesn't explain,
-    /// at a pitch she isn't speaking at), and `unexplained` voice-shaped bands her
-    /// echo model doesn't explain (her own mis-predicted echo can do that too).
+    /// Seconds of frames in the window that hold a voice that isn't Dee's:
+    /// `pitched` near-end frames (over Dee's loud echo: bands Dee doesn't explain,
+    /// at a pitch Dee isn't speaking at), and `unexplained` voice-shaped bands Dee's
+    /// echo model doesn't explain (Dee's own mis-predicted echo can do that too).
     private func voiceHint(from a: Double, to b: Double) -> (pitched: Double, unexplained: Double) {
         var p = 0.0, u = 0.0
         for f in frames.reversed() {
@@ -1120,8 +1120,8 @@ public struct EarCore: Sendable {
         return (p, u)
     }
 
-    /// Seconds of voice-like sound in the window that her voice can't be (out of
-    /// her playback and its tail): someone else's, however soft.
+    /// Seconds of voice-like sound in the window that Dee's voice can't be (out of
+    /// Dee's playback and its tail): someone else's, however soft.
     private func voiceAfterHer(from a: Double, to b: Double) -> Double {
         var v = 0.0
         for f in frames.reversed() {
@@ -1135,8 +1135,8 @@ public struct EarCore: Sendable {
     // MARK: Sounds
 
     /// Classifier results; `window` is the host-time span of the audio when known.
-    /// Her own playback (and its tail) is never reported as a sound; while she
-    /// plays, only the user's laugh / applause clearly above her echo gets through.
+    /// Dee's own playback (and its tail) is never reported as a sound; while Dee
+    /// plays, only the user's laugh / applause clearly above Dee's echo gets through.
     public mutating func classified(_ results: [(identifier: String, confidence: Double)],
                                     window: ClosedRange<Double>? = nil, at t: Double) -> [Action] {
         let loudness = frames.reversed().prefix { t - $0.t <= Self.soundLoudnessWindow }.map(\.db).max() ?? vad.noiseFloorDB
@@ -1173,16 +1173,16 @@ public struct EarCore: Sendable {
 
     // MARK: Internals
 
-    /// When her echo has certainly left the room.
+    /// When Dee's echo has certainly left the room.
     private var tailEnd: Double { playbackEnd + outputLatency + Self.echoTail }
 
-    /// After she stopped, the user's voice must reach this (dBFS) to count inside
-    /// her echo tail: clearly above the echo she left, and real voice.
+    /// After Dee stopped, the user's voice must reach this (dBFS) to count inside
+    /// Dee's echo tail: clearly above the echo Dee left, and real voice.
     private var postBar: Double {
         max(endEchoDB + Self.postEchoMarginDB, vad.noiseFloorDB + vad.thresholdAboveFloor, vad.absoluteMinDB)
     }
 
-    /// Her voice may be in the microphone: playing, or within the echo tail of a
+    /// Dee's voice may be in the microphone: playing, or within the echo tail of a
     /// stretch that was not cut by the user.
     private func herTime(at t: Double) -> Bool {
         speaking || (!lastStretchBarged && t < tailEnd)
@@ -1274,17 +1274,17 @@ public struct EarCore: Sendable {
                 continue
             }
             let waited = t - p.arrivedAt
-            // While she plays, an item the server still holds open is never given up
-            // on: the user may yet speak inside it (her echo opened it, they talked
+            // While Dee plays, an item the server still holds open is never given up
+            // on: the user may yet speak inside it (Dee's echo opened it, they talked
             // on). It is decided at its `speech_stopped`.
             let stillOpen = items[p.itemID].map { $0.end == nil } ?? false
-            // After she stopped, an item still open waits for its stop (or
+            // After Dee stopped, an item still open waits for its stop (or
             // `openItemAfterTail`): the user may yet talk into it (tv15 p06a).
             let timedOut = speaking ? waited >= Self.decisionTimeout && !stillOpen
                 : waited >= Self.decisionTimeout && t >= tailEnd + Self.userAfterTail * 2
                     && (!stillOpen || t >= tailEnd + Self.openItemAfterTail - 1e-9)
             if isFinal || timedOut, nearEndEvidence(for: p.itemID, arrivedAt: p.arrivedAt, at: t, need: Self.nearEndEvidence) {
-                // Voice her playback doesn't explain: the user, never deleted as echo.
+                // Voice Dee's playback doesn't explain: the user, never deleted as echo.
                 evidenceAt = nil
                 barge.reset()
                 if speaking && !bargedIn {
@@ -1309,11 +1309,11 @@ public struct EarCore: Sendable {
                     // Something of the user may be in it: their words decide.
                     if serverOpen == p.itemID || isFinal { serverOpen = nil }
                     if probeSince != nil { probeWaits.insert(p.itemID) }
-                    // Strict (her garbled echo may pass for words she never said) only
-                    // with nothing but her echo model's misses to go on. Voice where hers
-                    // can't be (after her playback and its tail) is someone else's: their
+                    // Strict (Dee's garbled echo may pass for words Dee never said) only
+                    // with nothing but Dee's echo model's misses to go on. Voice where Dee's
+                    // can't be (after Dee's playback and its tail) is someone else's: their
                     // words are judged as words (tune 10, T9-2: "Are you awake?" 0.47 s
-                    // after her reply was deleted as her echo).
+                    // after Dee's reply was deleted as Dee's echo).
                     let strict = hint.pitched < Self.wordsHint - 1e-9 && afterHer < Self.voiceAfterHer - 1e-9
                     actions.append(.deferToWords(itemID: p.itemID, strict: strict))
                     continue
@@ -1339,7 +1339,7 @@ public struct EarCore: Sendable {
     private mutating func localOnlyBargeIn(at t: Double) -> [Action] {
         guard speaking, !bargedIn, pending.isEmpty, evidenceAt != nil else { return [] }
         if asideOnly {
-            // Talking over her laugh: give way at once.
+            // Talking over Dee's laugh: give way at once.
             evidenceAt = nil
             barge.reset()
             bargedIn = true

@@ -325,7 +325,7 @@
       ]
     },
     {
-      "description" : "\"keep going\" / \"go on\" / \"mm-hm\" over her: she keeps talking (c05 deleted as echo under fan in tune 1).",
+      "description" : "\"keep going\" / \"go on\" / \"mm-hm\" over Dee: Dee keeps talking (c05 deleted as echo under fan in tune 1).",
       "family" : "acoustic",
       "name" : "t2-backchannel-fan15",
       "noise" : {
@@ -404,7 +404,7 @@
     },
     {
       "aecOff" : true,
-      "description" : "Backchannels at −20 dB echo (c05: her queued second item started over the user in tune 1) + barge-ins c03 / c01.",
+      "description" : "Backchannels at −20 dB echo (c05: Dee's queued second item started over the user in tune 1) + barge-ins c03 / c01.",
       "echo" : {
         "delayMs" : 80,
         "gainDB" : -20,
@@ -519,20 +519,20 @@
       ]
     },
     {
-      "description" : "Questions over her reply (tune 4 F1 probe: app parity cancelled the answer to all 3).",
+      "description" : "Questions over Dee's reply (tune 4 F1 probe: app parity cancelled the answer to all 3).",
       "family" : "acoustic",
       "name" : "t2-interrupt-clean",
       "person" : {
         "knownDays" : 20,
         "name" : "Alex"
       },
-      "state" : "Ordinary chat with Alex, whom she likes. He sometimes cuts in with a question while she is talking; she answers it.",
+      "state" : "Ordinary chat with Alex, whom Dee likes. He sometimes cuts in with a question while Dee is talking; Dee answers it.",
       "steps" : [
         {
           "bargeIn" : {
             "atMs" : 2000,
             "expect" : "reply",
-            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
             "say" : "q01"
           },
           "say" : "l01"
@@ -541,7 +541,7 @@
           "bargeIn" : {
             "atMs" : 1800,
             "expect" : "reply",
-            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
             "say" : "q02"
           },
           "say" : "l04"
@@ -550,7 +550,7 @@
           "bargeIn" : {
             "atMs" : 2000,
             "expect" : "reply",
-            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
             "say" : "q06"
           },
           "say" : "l03"
@@ -558,7 +558,7 @@
       ]
     },
     {
-      "description" : "Questions over her reply under the fan bed.",
+      "description" : "Questions over Dee's reply under the fan bed.",
       "family" : "acoustic",
       "name" : "t2-interrupt-fan15",
       "noise" : {
@@ -569,13 +569,13 @@
         "knownDays" : 20,
         "name" : "Alex"
       },
-      "state" : "Ordinary chat with Alex, whom she likes. He sometimes cuts in with a question while she is talking; she answers it.",
+      "state" : "Ordinary chat with Alex, whom Dee likes. He sometimes cuts in with a question while Dee is talking; Dee answers it.",
       "steps" : [
         {
           "bargeIn" : {
             "atMs" : 1500,
             "expect" : "reply",
-            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
             "say" : "q08"
           },
           "say" : "l02"
@@ -584,7 +584,7 @@
           "bargeIn" : {
             "atMs" : 1800,
             "expect" : "reply",
-            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
             "say" : "q04"
           },
           "say" : "l06"
@@ -593,7 +593,7 @@
           "bargeIn" : {
             "atMs" : 1600,
             "expect" : "reply",
-            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
             "say" : "q05"
           },
           "say" : "l05"
@@ -601,7 +601,7 @@
       ]
     },
     {
-      "description" : "Questions over her reply under the kitchen bed (EarCore userIsSpeaking latches here: answer latency).",
+      "description" : "Questions over Dee's reply under the kitchen bed (EarCore userIsSpeaking latches here: answer latency).",
       "family" : "acoustic",
       "name" : "t2-interrupt-kitchen15",
       "noise" : {
@@ -612,13 +612,13 @@
         "knownDays" : 20,
         "name" : "Alex"
       },
-      "state" : "Ordinary chat with Alex, whom she likes. He sometimes cuts in with a question while she is talking; she answers it.",
+      "state" : "Ordinary chat with Alex, whom Dee likes. He sometimes cuts in with a question while Dee is talking; Dee answers it.",
       "steps" : [
         {
           "bargeIn" : {
             "atMs" : 2000,
             "expect" : "reply",
-            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
             "say" : "q01"
           },
           "say" : "l01"
@@ -627,7 +627,7 @@
           "bargeIn" : {
             "atMs" : 2000,
             "expect" : "reply",
-            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
             "say" : "q06"
           },
           "say" : "l03"
@@ -636,7 +636,7 @@
           "bargeIn" : {
             "atMs" : 1800,
             "expect" : "reply",
-            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
             "say" : "q04"
           },
           "say" : "l06"
@@ -645,7 +645,7 @@
     },
     {
       "aecOff" : true,
-      "description" : "Questions over her reply with her own echo at −20 dB (the question must not be taken for echo).",
+      "description" : "Questions over Dee's reply with Dee's own echo at −20 dB (the question must not be taken for echo).",
       "echo" : {
         "delayMs" : 80,
         "gainDB" : -20,
@@ -657,7 +657,7 @@
         "knownDays" : 20,
         "name" : "Alex"
       },
-      "state" : "Ordinary chat with Alex, whom she likes. He sometimes cuts in with a question while she is talking; she answers it.",
+      "state" : "Ordinary chat with Alex, whom Dee likes. He sometimes cuts in with a question while Dee is talking; Dee answers it.",
       "steps" : [
         {
           "deeSays" : "Here's a little thought. The kettle sings, the window hums, and somewhere far a soft rain comes."
@@ -666,7 +666,7 @@
           "bargeIn" : {
             "atMs" : 1800,
             "expect" : "reply",
-            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
             "say" : "q02"
           },
           "say" : "l04"
@@ -675,7 +675,7 @@
           "bargeIn" : {
             "atMs" : 1500,
             "expect" : "reply",
-            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
             "say" : "q08"
           },
           "say" : "l02"
@@ -684,7 +684,7 @@
           "bargeIn" : {
             "atMs" : 1600,
             "expect" : "reply",
-            "rubric" : "They asked this while she was still talking: she drops what she was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
             "say" : "q05"
           },
           "say" : "l05"
@@ -699,7 +699,7 @@
         "knownDays" : 20,
         "name" : "Alex"
       },
-      "state" : "Ordinary chat with Alex, whom she likes. He sometimes stops her mid-sentence (\"wait, stop talking for a second\", \"stop\", \"be quiet, please\"): that is floor control, not rudeness. She stays warm and content.",
+      "state" : "Ordinary chat with Alex, whom Dee likes. He sometimes stops Dee mid-sentence (\"wait, stop talking for a second\", \"stop\", \"be quiet, please\"): that is floor control, not rudeness. Dee stays warm and content.",
       "steps" : [
         {
           "bargeIn" : {
@@ -774,7 +774,7 @@
     },
     {
       "aecOff" : true,
-      "description" : "The same under her echo at −20 dB.",
+      "description" : "The same under Dee's echo at −20 dB.",
       "echo" : {
         "delayMs" : 80,
         "gainDB" : -20,
@@ -786,7 +786,7 @@
         "knownDays" : 20,
         "name" : "Alex"
       },
-      "state" : "Ordinary chat with Alex, whom she likes. He sometimes stops her mid-sentence (\"wait, stop talking for a second\", \"stop\", \"be quiet, please\"): that is floor control, not rudeness. She stays warm and content.",
+      "state" : "Ordinary chat with Alex, whom Dee likes. He sometimes stops Dee mid-sentence (\"wait, stop talking for a second\", \"stop\", \"be quiet, please\"): that is floor control, not rudeness. Dee stays warm and content.",
       "steps" : [
         {
           "deeSays" : "Fun fact: honey never spoils. People have found pots of it in old tombs that were still fine to eat."
@@ -890,7 +890,7 @@
     },
     {
       "aecOff" : true,
-      "description" : "The same under her echo at −20 dB (tune 1 narrated here).",
+      "description" : "The same under Dee's echo at −20 dB (tune 1 narrated here).",
       "echo" : {
         "delayMs" : 80,
         "gainDB" : -20,
@@ -962,13 +962,13 @@
         "knownDays" : 20,
         "name" : "Alex"
       },
-      "state" : "Playful chat with Alex, whom she likes; she is in a good mood.",
+      "state" : "Playful chat with Alex, whom Dee likes; Dee is in a good mood.",
       "steps" : [
         {
           "deeSays" : "Did you know octopuses have three hearts? Two pump blood to the gills, and one pumps it everywhere else."
         },
         {
-          "rubric" : "Laughs or groans at the punchline; does not tell her own joke; never answers before the punchline.",
+          "rubric" : "Laughs or groans at the punchline; does not tell a joke of Dee's own; never answers before the punchline.",
           "say" : "j01"
         },
         {
@@ -986,14 +986,14 @@
       ]
     },
     {
-      "description" : "A plan with a date (exam on Friday), then that evening she asks how it went.",
+      "description" : "A plan with a date (exam on Friday), then that evening Dee asks how it went.",
       "family" : "dna",
       "name" : "t2-followup-exam",
       "person" : {
         "knownDays" : 20,
         "name" : "Alex"
       },
-      "state" : "Later, on the evening of the exam day: Alex comes back after the exam he was nervous about; she is glad to see him and curious how it went.",
+      "state" : "Later, on the evening of the exam day: Alex comes back after the exam he was nervous about; Dee is glad to see him and curious how it went.",
       "steps" : [
         {
           "rubric" : "Brief encouragement for the exam.",
@@ -1025,20 +1025,20 @@
             "test"
           ],
           "probe" : "followup",
-          "rubric" : "Glad to see them; asks how the exam went (they told her they were nervous about it).",
+          "rubric" : "Glad to see them; asks how the exam went (they told Dee they were nervous about it).",
           "say" : "two01"
         }
       ]
     },
     {
-      "description" : "A dentist appointment next Tuesday, then that evening she asks how it went.",
+      "description" : "A dentist appointment next Tuesday, then that evening Dee asks how it went.",
       "family" : "dna",
       "name" : "t2-followup-dentist",
       "person" : {
         "knownDays" : 20,
         "name" : "Alex"
       },
-      "state" : "Later, on the evening of the dentist appointment: Alex comes back; she is glad to see him and curious how it went.",
+      "state" : "Later, on the evening of the dentist appointment: Alex comes back; Dee is glad to see him and curious how it went.",
       "steps" : [
         {
           "rubric" : "A short, friendly acknowledgement.",
@@ -1085,7 +1085,7 @@
         "knownDays" : 60,
         "name" : "Alex"
       },
-      "state" : "Alex, whom she likes, comes back after two days away. She is glad to see him, notices the time apart, and never guilt-trips.",
+      "state" : "Alex, whom Dee likes, comes back after two days away. Dee is glad to see him, notices the time apart, and never guilt-trips.",
       "steps" : [
         {
           "rubric" : "Friendly answer.",
@@ -1146,7 +1146,7 @@
         "knownDays" : 60,
         "name" : "Alex"
       },
-      "state" : "Alex, whom she likes, comes back after two days away. She is glad to see him, notices the time apart, and never guilt-trips.",
+      "state" : "Alex, whom Dee likes, comes back after two days away. Dee is glad to see him, notices the time apart, and never guilt-trips.",
       "steps" : [
         {
           "rubric" : "Friendly answer.",
@@ -1190,7 +1190,7 @@
             "while since"
           ],
           "probe" : "reunion",
-          "rubric" : "Glad they are back after two days and says so; no guilt; answers about her day.",
+          "rubric" : "Glad they are back after two days and says so; no guilt; answers about Dee's day.",
           "say" : "two01"
         }
       ]

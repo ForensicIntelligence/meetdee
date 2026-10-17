@@ -11,7 +11,7 @@ import Testing
 // (scratchpad/harness-foundation.md), reproduced offline from the harness's own
 // fixtures (Tools/voice-harness/Fixtures: real TTS utterances, the fan / kitchen
 // beds, the room IR) mixed the way its MicMixer mixes them: user + looped bed at
-// an SNR against −24 dBFS speech + her rendered output fed back delayed, through
+// an SNR against −24 dBFS speech + Dee's rendered output fed back delayed, through
 // the room IR, at a gain.
 
 // MARK: - Fixtures
@@ -52,16 +52,16 @@ enum HarnessFixture {
 // MARK: - The room, frame by frame, around a real EarCore
 
 /// One scenario on EarCore at 24 kHz / 40 ms frames on the graph clock, the way
-/// CloudVoice drives it: her rendered output as echo reference before each mic
-/// frame, her playback level, server speech events at the times a server would
-/// send them. A barge-in flushes her (her output and its echo stop).
+/// CloudVoice drives it: Dee's rendered output as echo reference before each mic
+/// frame, Dee's playback level, server speech events at the times a server would
+/// send them. A barge-in flushes Dee (Dee's output and its echo stop).
 struct RoomSim {
     static let rate = 24_000.0
     static let frame = 960
     static let t0 = 100.0
 
     var core = EarCore()
-    var her: [Float]                 // her output on the absolute sample clock (0 = silent)
+    var her: [Float]                 // Dee's output on the absolute sample clock (0 = silent)
     var user: [Float]
     var bed: [Float] = []
     var bedGain: Float = 0
@@ -69,7 +69,7 @@ struct RoomSim {
     var echoDelay = 0
     var ir: [Float] = [1]
     var log: [(t: Double, action: EarCore.Action)] = []
-    var cutAt: Int?                  // sample where she was flushed
+    var cutAt: Int?                  // sample where Dee was flushed
     var server: [(sample: Int, event: ServerSpeech)] = []
     var initiativeEvery: Double?     // re-arm `initiativePending` this often (s)
     var speakingFrames = 0
@@ -81,9 +81,9 @@ struct RoomSim {
     var mic: [Float] = []
     var sent: [Float] = []
     var bars: [Double?] = []
-    /// Tune 7: on `.probe` CloudVoice pauses her (her output and its echo go
+    /// Tune 7: on `.probe` CloudVoice pauses Dee (Dee's output and its echo go
     /// silent, the player stays busy) until `.probeEnded` / `.bargeIn`. Off: probes
-    /// are ignored (she plays on).
+    /// are ignored (Dee plays on).
     var honorProbes = false
     var probes: [Double] = []
     var probeEnds: [Double] = []
@@ -137,7 +137,7 @@ struct RoomSim {
         for k in 0..<(n / Self.frame) {
             let a = k * Self.frame, b = a + Self.frame
             let t = Self.time(b)
-            // Her output this block (silent after a flush).
+            // Dee's output this block (silent after a flush).
             if probing { for i in a..<b { her[i] = 0 } }    // paused (the rest is dropped here)
             var out = Array(her[a..<b])
             if let c = cutAt { for i in 0..<out.count where a + i >= c { out[i] = 0 } }
@@ -197,7 +197,7 @@ struct RoomSim {
             }
             frames += 1
             if core.userIsSpeaking(at: t) { speakingFrames += 1 }
-            // She stops: flushed by a barge-in, or her audio ran out (the player
+            // Dee stops: flushed by a barge-in, or Dee's audio ran out (the player
             // goes idle once an utterance has played; 200 ms of nothing ends it).
             silentBlocks = hasAudio || probing ? 0 : silentBlocks + 1
             if playing, let c = cutAt, c <= b {
@@ -228,7 +228,7 @@ struct RoomSim {
         }
     }
 
-    /// echo[n] = g · Σ h[k] · her[n − D − k] for the block starting at `start`.
+    /// echo[n] = g · Σ h[k] · Dee[n − D − k] for the block starting at `start`.
     private func echoBlock(start: Int) -> [Float] {
         let L = ir.count
         let from = start - echoDelay - (L - 1)
@@ -247,7 +247,7 @@ struct RoomSim {
     }
 }
 
-/// Her voice for the scenarios: a long TTS turn from the fixtures at `levelDB`
+/// Dee's voice for the scenarios: a long TTS turn from the fixtures at `levelDB`
 /// (gpt-realtime replies sit around −20 dBFS).
 private func herVoice(_ id: String = "l02", levelDB: Double = -20, seconds: Double? = nil) throws -> [Float] {
     let u = try HarnessFixture.utterance(id)
@@ -263,7 +263,7 @@ private func isReject(_ a: EarCore.Action) -> Bool { if case .rejectEcho = a { t
 // MARK: - (1) A real interruption over a steady fan
 
 @Suite(.serialized) struct FanBargeInTests {
-    /// Fan at 15 dB SNR, no echo: "Wait, stop talking for a second" over her reply
+    /// Fan at 15 dB SNR, no echo: "Wait, stop talking for a second" over Dee's reply
     /// barges in quickly and is never deleted as echo (harness: 4/4 deleted before).
     @Test(arguments: [900, 1200, 1500, 2000])
     func waitStopTalkingOverAFanBargesIn(atMs: Int) throws {
@@ -343,12 +343,12 @@ private func isEmit(_ a: EarCore.Action) -> Bool {
     }
 }
 
-// MARK: - (2) Her own echo never barges in; the user over her echo still does
+// MARK: - (2) Dee's own echo never barges in; the user over Dee's echo still does
 
 @Suite(.serialized) struct EchoGatingTests {
     /// Residual echo at −20 dB / 80 ms through the room IR over the kitchen bed
-    /// (the harness's smoke-echo): an onset the server opens on her echo is
-    /// rejected, she is never cut, nothing of it is accepted.
+    /// (the harness's smoke-echo): an onset the server opens on Dee's echo is
+    /// rejected, Dee is never cut, nothing of it is accepted.
     @Test(arguments: [(-20.0, 80.0, "kitchen"), (-10.0, 40.0, "kitchen"), (-20.0, 120.0, "fan"), (-30.0, 200.0, "fan")])
     func herEchoNeverBargesIn(gainDB: Double, delayMs: Double, bed: String) throws {
         var sim = RoomSim(seconds: 9)
@@ -358,19 +358,19 @@ private func isEmit(_ a: EarCore.Action) -> Bool {
         let herStart = RoomSim.sample(0.8)
         let voice = try herVoice(seconds: 7)
         RoomSim.place(voice, into: &sim.her, at: herStart)
-        // The server's VAD hears her echo several times.
+        // The server's VAD hears Dee's echo several times.
         for (k, at) in [0.3, 2.0, 4.1].enumerated() {
             let onset = herStart + RoomSim.sample(at)
             sim.server.append((onset + 7_000, .start("item_e\(k)", onsetSample: onset)))
             sim.server.append((onset + RoomSim.sample(1.2), .stop("item_e\(k)", endSample: onset + RoomSim.sample(0.9))))
         }
-        // And once right after she stops (her echo tail).
+        // And once right after Dee stops (Dee's echo tail).
         let after = herStart + voice.count + RoomSim.sample(0.05)
         sim.server.append((after + 7_000, .start("item_tail", onsetSample: after)))
         sim.server.append((after + RoomSim.sample(0.7), .stop("item_tail", endSample: after + RoomSim.sample(0.4))))
         sim.run()
 
-        #expect(!sim.actions.contains(where: isBargeIn), "she cut herself on her own echo")
+        #expect(!sim.actions.contains(where: isBargeIn), "Dee cut in on Dee's own echo")
         for id in ["item_e0", "item_e1", "item_e2", "item_tail"] {
             #expect(sim.actions.contains(.rejectEcho(itemID: id)), "\(id) was not rejected")
             #expect(!sim.actions.contains(.acceptOnset(itemID: id)), "\(id) was taken for the user")
@@ -378,14 +378,14 @@ private func isEmit(_ a: EarCore.Action) -> Bool {
         #expect(sim.core.echo.gain != nil, "the echo path was never learned")
     }
 
-    /// The user talking over her echo still barges in (harness: "Hold on, hold
-    /// on" 900 ms into her reply, kitchen + −20 dB echo).
+    /// The user talking over Dee's echo still barges in (harness: "Hold on, hold
+    /// on" 900 ms into Dee's reply, kitchen + −20 dB echo).
     @Test(arguments: [("c06", "kitchen", -20.0, 80.0), ("c03", "kitchen", -20.0, 80.0), ("c03", "fan", -20.0, 120.0)])
     func userOverHerEchoStillBargesIn(fixture: String, bed: String, gainDB: Double, delayMs: Double) throws {
         var sim = RoomSim(seconds: 8)
         sim.setBed(try HarnessFixture.wav("noise/\(bed).wav"), snrDB: 15)
         sim.setEcho(gainDB: gainDB, delayMs: delayMs, ir: try HarnessFixture.wav("ir/room.wav"))
-        // An earlier reply taught her the echo path (as in a real conversation).
+        // An earlier reply taught Dee the echo path (as in a real conversation).
         let first = try herVoice("l01", seconds: 2.0)
         RoomSim.place(first, into: &sim.her, at: RoomSim.sample(0.3))
         let herStart = RoomSim.sample(3.5)
@@ -397,16 +397,16 @@ private func isEmit(_ a: EarCore.Action) -> Bool {
         sim.server = [(onset + 6_000, .start("item_u", onsetSample: onset)),
                       (start + u.end + 12_000, .stop("item_u", endSample: start + u.end))]
         sim.run()
-        let barge = try #require(sim.firstTime(isBargeIn), "the user over her echo didn't barge in")
+        let barge = try #require(sim.firstTime(isBargeIn), "the user over Dee's echo didn't barge in")
         #expect(barge - RoomSim.time(onset) <= 0.5, "\(barge - RoomSim.time(onset)) s")
         #expect(sim.actions.contains(.bargeIn(itemID: "item_u")))
         #expect(!sim.actions.contains(.rejectEcho(itemID: "item_u")))
     }
 
     /// Live harness, smoke-echo: the server opened "user" speech on the kitchen
-    /// bed just before her reply started ("Okay." — nobody spoke) and she cut
-    /// herself 340 ms in. Room noise before her playback is never near-end voice:
-    /// the onset is deleted and she plays on.
+    /// bed just before Dee's reply started ("Okay." — nobody spoke) and Dee cut
+    /// in on Dee's own reply 340 ms in. Room noise before Dee's playback is never near-end voice:
+    /// the onset is deleted and Dee plays on.
     @Test(arguments: [2.0, 6.0, 10.0])
     func roomNoiseOnsetJustBeforeHerReplyIsNotTheUser(herAt: Double) throws {
         var sim = RoomSim(seconds: herAt + 5)
@@ -420,11 +420,11 @@ private func isEmit(_ a: EarCore.Action) -> Bool {
         sim.server = [(herStart + RoomSim.sample(0.34), .start("item_n", onsetSample: onset)),
                       (herStart + RoomSim.sample(2.5), .stop("item_n", endSample: herStart + RoomSim.sample(2.0)))]
         sim.run()
-        #expect(!sim.actions.contains(where: isBargeIn), "she cut herself for room noise")
+        #expect(!sim.actions.contains(where: isBargeIn), "Dee cut in on Dee's reply for room noise")
         #expect(sim.actions.contains(.rejectEcho(itemID: "item_n")))
     }
 
-    /// Her echo alone never builds the local-only barge-in either (no server onset at all).
+    /// Dee's echo alone never builds the local-only barge-in either (no server onset at all).
     @Test func herLoudEchoNeverBargesInLocally() throws {
         var sim = RoomSim(seconds: 9)
         sim.setBed(try HarnessFixture.wav("noise/kitchen.wav"), snrDB: 20)
@@ -438,7 +438,7 @@ private func isEmit(_ a: EarCore.Action) -> Bool {
 // MARK: - EchoReference on its own
 
 @Suite struct EchoReferenceTests {
-    /// Her envelope: syllable-like bursts.
+    /// Dee's envelope: syllable-like bursts.
     static func envelope(seconds: Double, seed: UInt64 = 3) -> [Double] {
         var state = seed
         var out: [Double] = []
@@ -469,7 +469,7 @@ private func isEmit(_ a: EarCore.Action) -> Bool {
         #expect(abs((e.delay ?? 0) - 0.08) < 0.011, "delay \(String(describing: e.delay))")
         #expect(abs((e.gainDB ?? 0) - -20) < 3, "gain \(String(describing: e.gainDB))")   // a clean echo: any percentile
         #expect(e.confident)
-        // Prediction: her echo where she spoke.
+        // Prediction: Dee's echo where Dee spoke.
         let t = Double(ref.count) * EchoReference.bin
         #expect((e.predicted(at: t + 0.08) ?? 0) <= 0.01 * 0.01 * 1.01)
     }
@@ -497,7 +497,7 @@ private func isEmit(_ a: EarCore.Action) -> Bool {
             e.addMic(energy: floor + (i >= 8 ? ref[i - 8] : 0) * 0.01, floor: floor, at: t)
         }
         let learned = e.gainDB ?? 0
-        // The user talks over her for 1.5 s: loud, uncorrelated.
+        // The user talks over Dee for 1.5 s: loud, uncorrelated.
         let more = Self.envelope(seconds: 1.5, seed: 9)
         for j in 0..<more.count {
             let i = ref.count + j
@@ -512,7 +512,7 @@ private func isEmit(_ a: EarCore.Action) -> Bool {
         var e = EchoReference()
         for i in 0..<300 { e.addMic(energy: 1e-4, floor: 1e-6, at: Double(i) * 0.01) }
         #expect(e.gain == nil)
-        #expect((e.predicted(at: 3) ?? 0) == 0)          // nothing of hers to explain anything
+        #expect((e.predicted(at: 3) ?? 0) == 0)          // nothing of Dee's to explain anything
         #expect(!e.hasReference(at: 3))
     }
 }
@@ -685,9 +685,9 @@ private func isEmit(_ a: EarCore.Action) -> Bool {
     }
 }
 
-// MARK: - The whole loop: CloudVoice feeds her rendered output to the ear
+// MARK: - The whole loop: CloudVoice feeds Dee's rendered output to the ear
 
-/// LoopRig with her real echo in the microphone: what she rendered `delayMs`
+/// LoopRig with Dee's real echo in the microphone: what Dee rendered `delayMs`
 /// ago at `gainDB`, plus room noise.
 private final class EchoRoom: @unchecked Sendable {
     let rig: LoopRig
@@ -701,7 +701,7 @@ private final class EchoRoom: @unchecked Sendable {
         delay = Int(delayMs / 1000 * LoopRig.rate)
     }
 
-    /// 20 ms of mic: noise + her echo (+ `user`, 48 kHz, when given).
+    /// 20 ms of mic: noise + Dee's echo (+ `user`, 48 kHz, when given).
     func step(user: [Float]? = nil) throws {
         let n = Int(LoopRig.rate * 0.02)
         let out = rig.output
@@ -723,7 +723,7 @@ private final class EchoRoom: @unchecked Sendable {
         for f in Signal.frames(x, size: Int(LoopRig.rate * 0.02)) { try step(user: f) }
     }
 
-    /// Her reply: a real TTS voice (speech-like envelope), in 100 ms deltas.
+    /// Dee's reply: a real TTS voice (speech-like envelope), in 100 ms deltas.
     func reply(_ resp: String, _ item: String, seconds: Double) throws {
         let voice = try herVoice(seconds: seconds)
         rig.push(Srv.messageAdded(resp, item))
@@ -755,8 +755,8 @@ private final class EchoRoom: @unchecked Sendable {
     }
 
     /// Loud residual echo (−6 dB, 80 ms): the server opens "user" speech on it
-    /// mid-reply; it is deleted, she plays on, the brain never sees it, and the
-    /// echo path was learned from her own rendered audio.
+    /// mid-reply; it is deleted, Dee plays on, the brain never sees it, and the
+    /// echo path was learned from Dee's own rendered audio.
     @Test func herEchoIsDeletedAndSheKeepsTalking() async throws {
         let room = try EchoRoom(gainDB: -6, delayMs: 80)
         let rig = room.rig
@@ -769,7 +769,7 @@ private final class EchoRoom: @unchecked Sendable {
         #expect(await rig.waitSent("conversation.item.delete"))
         #expect(rig.sent("conversation.item.delete").first?["item_id"] as? String == "item_e")
         try room.run(2.5)
-        #expect(rig.sent("conversation.item.truncate").isEmpty, "she cut herself on her own echo")
+        #expect(rig.sent("conversation.item.truncate").isEmpty, "Dee cut in on Dee's own echo")
         #expect(!rig.voiceEvents.contains(.bargeIn))
         #expect(rig.brainSession { if case .userSpeechStarted("item_e", _) = $0 { true } else { false } }.isEmpty)
         let learned = rig.voice.learnedEcho
@@ -778,13 +778,13 @@ private final class EchoRoom: @unchecked Sendable {
         rig.voice.shutdown()
     }
 
-    /// The user talking over her (and her echo) still cuts her at once.
+    /// The user talking over Dee (and Dee's echo) still cuts Dee at once.
     @Test func theUserOverHerEchoStillBargesIn() async throws {
         let room = try EchoRoom(gainDB: -12, delayMs: 80)
         let rig = room.rig
         try await startReply(room, seconds: 4)
         try room.run(1.5)
-        try room.talk(0.1, amplitude: 0.5)                  // ≈ −14 dBFS; her echo peaks ≈ −23
+        try room.talk(0.1, amplitude: 0.5)                  // ≈ −14 dBFS; Dee's echo peaks ≈ −23
         rig.push(Srv.speechStarted("item_u2", ms: room.uplinkMs - 150))
         await rig.settle()
         try room.talk(0.4, amplitude: 0.5)
@@ -800,13 +800,13 @@ private final class EchoRoom: @unchecked Sendable {
     }
 }
 
-// MARK: - Sweep: her echo over every bed, gain and delay the harness uses
+// MARK: - Sweep: Dee's echo over every bed, gain and delay the harness uses
 
 @Suite(.serialized) struct EchoSweepTests {
-    /// Her voices: two by default, all four with `DEE_SWEEP=full`.
+    /// Dee's voices: two by default, all four with `DEE_SWEEP=full`.
     static let voices = ProcessInfo.processInfo.environment["DEE_SWEEP"] == "full" ? ["l02", "l01", "d02", "f01"] : ["l02", "f01"]
 
-    /// Echo-only: her reply with the server opening "user" speech on her echo
+    /// Echo-only: Dee's reply with the server opening "user" speech on Dee's echo
     /// three times. Never a barge-in, every onset rejected.
     @Test(arguments: [("kitchen", -20.0, 80.0), ("kitchen", -10.0, 40.0), ("fan", -20.0, 120.0), ("tv", -30.0, 200.0),
                       ("kitchen", -30.0, 200.0), ("fan", -10.0, 40.0), ("tv", -20.0, 80.0)])
@@ -834,9 +834,9 @@ private final class EchoRoom: @unchecked Sendable {
     }
 
     /// The user ("Wait, stop talking for a second" / "Hold on, hold on") over
-    /// her and her echo: never missed, never deleted; within 0.5 s at the
-    /// harness's −30 dB residual echo. At −20 dB the room IR makes her echo about
-    /// as loud as the user (≈ −8 dB re her output): the short "Wait," before
+    /// Dee and Dee's echo: never missed, never deleted; within 0.5 s at the
+    /// harness's −30 dB residual echo. At −20 dB the room IR makes Dee's echo about
+    /// as loud as the user (≈ −8 dB re Dee's output): the short "Wait," before
     /// c03's pause is masked and the barge-in lands on "stop talking" (≤ 1.2 s).
     @Test(arguments: [("kitchen", -20.0, 80.0), ("fan", -20.0, 120.0), ("tv", -30.0, 200.0), ("fan", -30.0, 40.0),
                       ("kitchen", -30.0, 120.0)])

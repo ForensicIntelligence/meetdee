@@ -1,12 +1,14 @@
 # Providers, wake phrase, onboarding — v0.6 contract (binding, rev 2)
 
-Sources: `scratchpad/wake-map-{voice,app,sdk}.md`, `prov-map-{local,brain,ui}.md`, `lmqual/exp*.py`, `wakefeas/` (HEAD 857d888). The 14 tuned
-rounds (`tune*-live.md`) must not regress: **mode 1 is today's path byte-for-byte while a window is open** (timing profile `.realtime`).
+**Developer:** Forensic Intelligence
+
+Based on the 0.6 checkpoint 14 code (857d888), the wake-phrase and LAN-model feasibility measurements, and the provider survey. The 14 tuned
+rounds must not regress: **mode 1 is today's path byte-for-byte while a window is open** (timing profile `.realtime`).
 
 ## 0. Invariants (each is a test; "all modes" = one test per mode 1/2/3)
 - **W1 wake is local.** In every mode the wake phrase is detected and reacted to (eyes, waking, window opening) only by `DeeWake.OnDeviceSpeech`
   (Apple SpeechAnalyzer, on-device assets). No audio leaves the phone before the local hit; detection and reaction never depend on a server.
-  A server/LAN transcript containing the phrase or "Dee" never wakes her or changes engagement. Tests: the transport fails every request → wake still
+  A server/LAN transcript containing the phrase or "Dee" never wakes Dee or changes engagement. Tests: the transport fails every request → wake still
   fires, `eyesWake` precedes any connect, 0 requests before the hit; a server transcript "hey dee" while dormant/open → no wake action.
 - **W2 DORMANT is silent.** While DORMANT: 0 sockets, 0 HTTP, 0 key mints, 0 audio bytes, 0 network TTS, 0 deferred client events (dropped).
   Only exceptions: user-tapped "Check key" and "Test connection". Saving a key/endpoint never reconnects or renders clips while dormant.
@@ -69,7 +71,7 @@ public enum ProviderFactory { static func make(_ c: ProviderConfig, secrets: any
     position (KD/Heidi/Haidee via WakeMatcher aliases) are rewritten to "Dee" ("Heidi Klum was on TV" unchanged).
   - `ChatBackend` — `/v1/chat/completions` SSE, `reasoning_effort:"none"`, include_usage, `max_tokens`. **Message layout (measured: Ollama hoists
     every system message):** [system: session instructions + cascaded tool-policy paragraph] [system: DNA stable part, `DNASplit.stable` = sections
-    1,2,4,5,6,9, resent only when its bytes change] [history ≤ 12 heard messages + on-phone rolling summary; her text cut to heard sentences; tool
+    1,2,4,5,6,9, resent only when its bytes change] [history ≤ 12 heard messages + on-phone rolling summary; Dee's text cut to heard sentences; tool
     calls/results] [user: `DNASplit.volatile` (header, 3,7,8, notes) + prefetched memories (M1/shareMemories) + transcript]. Tools array identical
     every request, only if probed. Reasoning deltas dropped; `ThinkStripper` → `SpeechCleaner` → `SentenceChunker` (first chunk may be a clause:
     comma after ≥ 4 words). A tool call discards unspoken text. `chunk.model` mismatch = error. Ollama: `keep_alive` on every request; post-tool
@@ -84,9 +86,30 @@ public enum ProviderFactory { static func make(_ c: ProviderConfig, secrets: any
 - **`TimingProfile`** (RealtimeSessionConfig + RealtimeBrain.Options, set by ProviderFactory): `.realtime` = today's values exactly; `.cascaded` =
   firstAudioTimeout 90 s while loading, stallRetryAfter off, slow clip once per window keyed to measured TTFT, TurnPolicy word waits per STT
   backend (measured; `.lan` longer). Test: mock 7 s first token → answered, no cancel, no retry request.
-- Her audio enters `graph.player` via `.assistantAudio` (VPIO AEC, barge-in, holds, eye level unchanged). `ClipRenderer`: OpenAI / LAN / on-device;
+- Dee's audio enters `graph.player` via `.assistantAudio` (VPIO AEC, barge-in, holds, eye level unchanged). `ClipRenderer`: OpenAI / LAN / on-device;
   `prepare()` only inside an open window (first window after a key save).
 - **Never silently fall back.** Every failure → `VoiceProblem` with `ProviderLabel`.
+- **0.6.0 field changes (LAN verify against a single-slot server and Ollama; these supersede the text above where they differ):**
+  - `response.created` is emitted **at once** on `response.create` (as OpenAI does), not at the first chat token, so a cancel by id works
+    while the reply still waits for its transcript and the next create never meets `conversation_already_has_active_response`.
+  - **`ChatLane`:** one FIFO lane per scheme://host:port, shared by every socket; a chat stream holds it from before its request until the
+    HTTP stream closes (finished, failed, cancelled), so a request after a cancel waits for the cancelled stream to close. A warm-up of the
+    same prefix keeps running and the reply queues behind it; a warm-up of another prefix is cancelled.
+  - **HTTP 429:** a reply's 429 before any byte is retried within an 8 s budget (`Retry-After` clamped to 0.2–3 s, else 0.3 / 0.6 / 1.0 /
+    1.5 s), then the turn fails with `.rateLimited(.lan(host))`. Warm-ups are never retried. No fallback.
+  - **Message layout (measured: first token 0.19 s when only the last user message changes, 8.49 s when a system message changes):**
+    the per-turn context goes on the user message for every server (`turnContextAsSystem` only for a server known to keep system
+    messages in place). `CacheDNASplit` moves the per-response lines (DNA TRACE, Voice, "Lately curious with them about", the regard line,
+    all of section 9) under "(now)" headings in the volatile part. The stable DNA is **pinned**; drift goes into the volatile part as
+    "N SECTION (updated)", and it re-pins when the history cut moves, section 1 changes (a persona switch), a line disappears, or more
+    than 8 lines are updated. History is trimmed in steps of 4; the rolling summary adds each dropped message once.
+  - **Merge window (modes 2 and 3):** `MergeTiming` 0.8 s, 1.4 s while the words trail off (`TrailingWords`: …the / and / to / of, a comma,
+    an ellipsis). Stop is reported at last voice + 300 ms, commit after the extra quiet; ≥ 100 ms of voice inside the window continues the
+    turn. Mode 3 turns come from EarCore's `voiceActive` (Apple `SpeechDetector` gave no results in the harness host); after 8 s of fed
+    audio with no voice evidence at all, hearing fails with `.noVoiceEvidence`.
+  - **Mode 2 rest-of-burst:** after a manual commit inside a piece, ≥ 100 ms of EarCore voice within 1.5 s opens the rest of the burst as a
+    new item at once; the server's start-less item joins it; an unclaimed one closes empty 3 s after the voice ends ("Keep… going" stays a
+    backchannel).
 
 ## 3. Wake (DeeWake)
 ```swift
@@ -118,7 +141,7 @@ public struct WakeHit: Sendable { var onsetFrame: Int64?; var onsetFromFinal: Bo
   onset − 0.3 s. Test: speech then "Hey Dee" with no gap → first frame ≤ phraseDuration + 0.35 s before hit end. Ring **12 s** (never sent dormant).
 - **False-wake backoff:** a window closing with no accepted turn = likely false wake; 3 in 10 min → `strict` (tiers a–b only) for 15 min, counted in
   `UsageCounter`. Tests with window inputs.
-- **Short phrase:** 1 word with key ≤ 3 chars → UI warning "Short phrases wake her by accident more often." **Unavailable ear:** stay DORMANT, one problem "I can't hear my wake phrase — tap me to talk"; never server recognition, never stream everything.
+- **Short phrase:** 1 word with key ≤ 3 chars → UI warning "Short phrases wake Dee by accident more often." **Unavailable ear:** stay DORMANT, one problem "I can't hear my wake phrase — tap me to talk"; never server recognition, never stream everything.
 
 ## 4. DORMANT ⇄ CONVERSATION (`ConversationWindow`, pure; driven by DeeModel, StandaloneHost, HarnessHost)
 States `.dormant`, `.waking(source, onsetFrame, at)`, `.open(lastAccepted, openedAt)`. `Engagement.answers(window:, …)` (pure, DeeWake) is the one
@@ -129,12 +152,12 @@ gates anything (test fails if the branch returns); `SpokenCommand.core`/commands
 | dormant | `phraseHeard(hit)` / `tapToTalk` / `greetingDue` (speakFirst, known person, ≤ 1 per arrival) | waking · `eyesWake`, `wokenByVoice` (clear sleeping, lastEngagedAt), `connect(resume:)`, `warmUp`, `markUsageStart` |
 | waking | `connected` | open · `openUplink(from: onset − 0.3 s)` (tap: tapTime − 0.3 s; greeting: now) · greeting → `allowInitiative(once)` |
 | waking | `connectFailed(p)` / 6 s timeout | dormant · `disconnect`, `problem(p)`, `eyesListeningOff` |
-| open | `acceptedTurn` (HeardVerdict answered/held; not ignored/echo/misheard), her reply to it, `phraseHeard`, `tapToTalk` | open · refresh `lastAccepted` |
+| open | `acceptedTurn` (HeardVerdict answered/held; not ignored/echo/misheard), Dee's reply to it, `phraseHeard`, `tapToTalk` | open · refresh `lastAccepted` |
 | open | `tick(now)`: ¬busy ∧ now − lastAccepted ≥ 60 s, or now − last acceptedTurn ≥ 600 s (hard cap) | dormant · `closeUplink`, `disconnect`, `logUsage`, `eyesListeningOff` |
-| open | `closeCommand` ("go to sleep" / "stop listening" / "that's all", with or without the phrase) | dormant after her local goodbye clip · same |
+| open | `closeCommand` ("go to sleep" / "stop listening" / "that's all", with or without the phrase) | dormant after Dee's local goodbye clip · same |
 | any | `background` / `providerChanged` / `earLost` | dormant · same (`earLost` adds a problem) |
 - `busy` = replyOutstanding ∨ toolRunning ∨ awaitingWords ∨ holdActive ∨ someone talking now (TurnPolicy.initiativeAllowed inputs); the 60 s is
-  measured from when busy ends. Raw speech activity, TV, her initiatives and replies to unanswered initiatives never refresh. Tests: TV bed after one
+  measured from when busy ends. Raw speech activity, TV, Dee's initiatives and replies to unanswered initiatives never refresh. Tests: TV bed after one
   wake closes at 60 s ± 2; 3 unanswered initiatives don't extend; mock 75 s first token keeps the window open and the reply plays.
 - `disconnect` = `CloudVoice.sleep()`: session.close, connect loop/reconnect/rollover timers stopped, EarCore `wakeOnVoice=false`, `WakeEar.start`.
   `connect(resume: true)` sends `seed(link:)` (summary + recent turns) on the first link unless ≥ 300 s dormant started a new conversation;
@@ -143,7 +166,7 @@ gates anything (test fails if the branch returns); `SpokenCommand.core`/commands
   `eyesWake` the opposite. Body `sleeping` (sleepAfter 180 s) stays separate. Test: every → dormant row emits it.
 - **Tap-to-wake** = a single tap outside the eyes or on the "Tap to talk" chip; eye taps (blink), pokes, pets, holds stay local reactions in DORMANT.
 - Initiatives, Cortex cues, curiosity, `sayAside`, touch/sound model turns, clip rendering: only while open or the one greeting window.
-- Voice change: `SpokenCommand.changeWakePhrase(to:)` → "My wake phrase will be "X". Is that right?" → yes within 20 s saves; invalid → her reason.
+- Voice change: `SpokenCommand.changeWakePhrase(to:)` → "My wake phrase will be "X". Is that right?" → yes within 20 s saves; invalid → Dee's reason.
 - `DeeModel` sets `isIdleTimerDisabled = true` in `.dee` (dim idle face after 2 min), restored on leave/background. No background wake (by choice: no background mic); onboarding says "keep Dee open, ideally on a charger".
 
 ## 5. App (app implementer)
@@ -195,15 +218,17 @@ gates anything (test fails if the branch returns); `SpokenCommand.core`/commands
 |---|---|
 | no / bad OpenAI key | "I need an OpenAI key — open my settings" / "That OpenAI key didn't work" |
 | local network denied | "Dee needs Local Network access — Settings › Privacy & Security › Local Network" |
-| LAN refused / timeout | "I can't reach the AI server at HOST" + hint: Ollama "turn on Expose Ollama to the network (OLLAMA_HOST=0.0.0.0)"; LM Studio "start the server with network access (bind 0.0.0.0)"; other "make sure it listens on your network, not just localhost" |
+| LAN refused / timeout | "Can't reach the AI server at HOST:PORT — is it running?" / "The AI server at HOST:PORT isn't answering — is it running?" (0.6.1: a stopped server looks the same as one bound to localhost, so no "Expose Ollama" claim here; the listen-on-network hints stay in server setup) |
+| Mode 3, no voice evidence | "I can't tell when you're talking — this iPhone's hearing isn't picking up any voice" (audio fed 8 s, no EarCore verdict and no detector result) |
 | LAN 401 / model missing / loading | "The AI server at HOST wants a key" / "HOST doesn't have MODEL" / "The AI server is loading MODEL…" |
+| LAN 429 after the 8 s retry budget | "<Server> says I'm talking too much — give me a minute" (`.rateLimited(.lan(host))`) |
 | redirect / public http / sk- over http | "HOST tried to send me elsewhere" / "Use https for servers outside your home network" / key refusal above |
 | no STT/TTS on LAN | onboarding offers "on this iPhone" |
 | ear unavailable / not asked / hot | "I can't hear my wake phrase — tap me to talk" (+ Settings link / permission card / "I'm too warm to listen") |
 | transcription mint 400/404 | "OpenAI hearing isn't available for this key" (no fallback) |
 
-## 8. Ownership (edit only your rows; no commits) and APIs each publishes first
-| Implementer | Owns | Publish first (stubs that compile, before others use them) |
+## 8. Module ownership and APIs each publishes first
+| Owner | Owns | Publish first (stubs that compile, before others use them) |
 |---|---|---|
 | wake | `Package.swift`, `Sources/DeeWake/**`, `Tests/DeeWakeTests/**` | §3 types, `ConversationWindow` inputs/actions, `Engagement.answers`, `WakeMatcher.stripLeading`, `MatchTier` |
 | voice | `Sources/DeeVoice/**`, `Sources/DeeRealtime/**`, their tests | `Transport` (+recorder), `OpenAIAuth(sessionType:)`, `TimingProfile`, `reconfigure`, `connect(resume:)`, `CloudVoice.sleep/wake(onsetFrame:)`, `ClipRenderer`, listening cues, transcription-probe constant |

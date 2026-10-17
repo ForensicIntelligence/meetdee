@@ -435,7 +435,7 @@ public struct Listener: SubReducer {
     }
 
     /// `silenceComfort` learning (§7.2): +0.05 when the user picks up after a silence
-    /// > 10 s, −0.05 when they check whether she's still there ("hello?").
+    /// > 10 s, −0.05 when they check whether Dee's still there ("hello?").
     mutating func learnComfort(_ text: String, _ m: inout Moment) {
         defer { silenceBeforeTurn = nil }
         if Self.isCheckingIn(text) {
@@ -477,7 +477,7 @@ public struct Listener: SubReducer {
 
     static func sign(_ v: Double) -> Int { v > signDeadBand ? 1 : v < -signDeadBand ? -1 : 0 }
 
-    /// Her line ended in a question mark (RAM-only check; the text is never kept).
+    /// Dee's line ended in a question mark (RAM-only check; the text is never kept).
     static func isQuestion(_ s: String) -> Bool {
         let t = s.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: "\"'”’)")))
         return t.hasSuffix("?")

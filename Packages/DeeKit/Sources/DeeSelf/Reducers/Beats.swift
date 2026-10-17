@@ -16,9 +16,9 @@ import Foundation
 /// - `listenHesitant` — requested by Listener: soft lids (`lidSoften` at `.beat`);
 /// - `sorryGoOn` — Dee interrupted the user (FloorKeeper's `.deeInterrupted`): a sheepish
 ///   look and a "go on" nod, plus — only on an idle floor, never over the user — one
-///   canned line (`.say`) from a seeded variant table for her humour style (≥ 4 per
+///   canned line (`.say`) from a seeded variant table for Dee's humour style (≥ 4 per
 ///   style, never the same twice in a row) and the `"sorrySaid"` signal. While the floor
-///   is yielding (she just stopped *because* they are talking) the line waits; it is said
+///   is yielding (Dee just stopped *because* they are talking) the line waits; it is said
 ///   if the floor goes idle within `sorryWait` with nobody talking, and dropped the moment
 ///   the user has the floor (RepairKeeper's cue note covers the apology then) (audit C3);
 /// - `reunion` — requested, or Learner's signal `"reunion"`: a glad bounce and a greeting glance.
@@ -106,7 +106,7 @@ public struct Beats: SubReducer {
         cancelIfStale(&m)
 
         // Dee interrupted the user: say sorry, go on. The words only on an idle floor;
-        // while they are talking — or she is yielding to them, which means they are —
+        // while they are talking — or Dee is yielding to them, which means they are —
         // the sheepish look and the "go on" nod say it without talking over them again
         // (finding 14, audit C3: speaking over them closes their turn).
         if m.momentary.floorEvents.contains(.deeInterrupted), lastSorry.map({ now.timeIntervalSince($0) >= Self.sorryCooldown }) ?? true {
@@ -249,7 +249,7 @@ public struct Beats: SubReducer {
     }
 
     /// Only an idle floor is free for a canned line: `.yielding` means the user just
-    /// started talking over her.
+    /// started talking over Dee.
     static func floorFree(_ f: Floor) -> Bool {
         if case .idle = f { true } else { false }
     }
@@ -266,7 +266,7 @@ public struct Beats: SubReducer {
     // MARK: - Step tables
 
     /// The steps of each kind. Signature glances (examine's `thinking`, reunion's
-    /// `greeting`) are picked once, at the start, from her seeded repertoire.
+    /// `greeting`) are picked once, at the start, from Dee's seeded repertoire.
     static func steps(for kind: Beat.Kind, _ m: Moment, _ rng: inout Rand) -> [BeatStep] {
         func signature(_ slot: Signature.Slot) -> Mannerism? {
             m.enduring.signature.pick(slot, energy: m.ongoing.mind.mood.energy, playGate: m.playGate,
@@ -311,7 +311,7 @@ public struct Beats: SubReducer {
         }
     }
 
-    /// A seeded pick for her humour style, never the same variant twice in a row.
+    /// A seeded pick for Dee's humour style, never the same variant twice in a row.
     mutating func sorryLine(_ style: HumourStyle, rng: inout Rand) -> String {
         let lines = Self.sorryLines(style)
         var i = rng.index(lines.count)

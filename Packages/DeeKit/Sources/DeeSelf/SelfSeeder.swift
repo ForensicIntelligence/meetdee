@@ -1,3 +1,4 @@
+import DeeCore
 import DeeMind
 import Foundation
 
@@ -5,14 +6,47 @@ import Foundation
 /// and a seed: the same (personality, seed) always gives the same Dee.
 public enum SelfSeeder {
     /// A brand-new enduring self. `now` stamps the seeded facets only.
-    public static func seed(personality p: Personality, seed: UInt64, at now: Date) -> Enduring {
+    ///
+    /// `pins` (a persona preset's humour pair) overrides the trait-fit ranking and its
+    /// ±0.1 noise; the noise is still drawn, so everything after it (signature, facets)
+    /// is the same as without pins. `tastes` are the preset's seeded tastes, written as
+    /// latent taste facets (source `.seed`, not crystallised) next to the capabilities.
+    public static func seed(personality p: Personality, seed: UInt64, at now: Date,
+                            pins: (humour: HumourStyle, secondary: HumourStyle)? = nil,
+                            tastes: [SeededTaste] = []) -> Enduring {
         var rng = Rand(seed: seed ^ 0x5E_ED_5E_ED_00_00_00_01)
         let scores = humourScores(p, rng: &rng)
         let ranked = HumourStyle.allCases.sorted { (scores[$0]!, $1.rawValue) > (scores[$1]!, $0.rawValue) }
         let signature = signature(p, rng: &rng)
-        let facets = capabilityFacets(rng: &rng, at: now)
-        return Enduring(seed: seed, values: values(p), humour: ranked[0], humourSecondary: ranked[1],
-                        signature: signature, facets: facets)
+        var facets = capabilityFacets(rng: &rng, at: now)
+        if !tastes.isEmpty {
+            facets += tasteFacets(tastes, rng: &rng, at: now)
+            facets.sort { ($0.kind.rawValue, $0.subject.text) < ($1.kind.rawValue, $1.subject.text) }
+        }
+        return Enduring(seed: seed, values: values(p), humour: pins?.humour ?? ranked[0],
+                        humourSecondary: pins?.secondary ?? ranked[1], signature: signature, facets: facets)
+    }
+
+    /// A persona preset's enduring self: its stored traits, its fixed seed, its pinned
+    /// humour and its seeded tastes. Classic (no fixed seed) uses `fallbackSeed`.
+    public static func seed(preset: PersonaPreset, fallbackSeed: UInt64, at now: Date) -> Enduring {
+        seed(personality: preset.storedTraits(), seed: preset.seed ?? fallbackSeed, at: now,
+             pins: humourPins(preset), tastes: preset.seededTastes)
+    }
+
+    /// The preset's pinned humour pair, typed (nil for Classic).
+    public static func humourPins(_ preset: PersonaPreset) -> (humour: HumourStyle, secondary: HumourStyle)? {
+        guard let a = preset.humour.flatMap(HumourStyle.init(rawValue:)),
+              let b = preset.humourSecondary.flatMap(HumourStyle.init(rawValue:)) else { return nil }
+        return (a, b)
+    }
+
+    /// Latent seeded tastes (a preset's "likes rain", "dislikes sirens").
+    static func tasteFacets(_ tastes: [SeededTaste], rng: inout Rand, at now: Date) -> [Facet] {
+        tastes.compactMap { t in
+            Subject(t.subject).map { Facet(id: rng.uuid(), kind: .taste, subject: $0, innate: round3(clamp(t.innate, -1, 1)),
+                                           source: .seed, updatedAt: now) }
+        }
     }
 
     // MARK: Values (fixed; weights from traits)

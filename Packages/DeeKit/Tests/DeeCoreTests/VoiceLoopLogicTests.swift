@@ -5,7 +5,7 @@ import Testing
 /// Voice-loop audit (scratchpad voice-audit.md): the pure pieces of the fixes.
 /// - C8: spoken commands are whole utterances (`SpokenCommand`);
 /// - C1: speech with nobody in view is answered only when it addresses Dee;
-/// - C9: history keeps only what she said out loud (`SpokenReply`, `ReplySettlement`);
+/// - C9: history keeps only what Dee said out loud (`SpokenReply`, `ReplySettlement`);
 /// - C11: permission and recognizer failures become a visible state (`VoiceHealth`).
 @Suite struct SpokenCommandTests {
     @Test(arguments: [
@@ -19,7 +19,7 @@ import Testing
         #expect(SpokenCommand.match(text, deeIsTalking: true) == expected, "\"\(text)\"")
     }
 
-    /// C8: these used to silence her (prefix/suffix match) or wipe the conversation.
+    /// C8: these used to silence Dee (prefix/suffix match) or wipe the conversation.
     @Test(arguments: [
         "don't stop", "Don't stop!", "it's so quiet", "It's so quiet in here", "please don't stop",
         "stop it, that tickles", "Stop it, that tickles!", "I can't stop", "we had to stop", "the bus didn't stop",
@@ -31,7 +31,7 @@ import Testing
         #expect(SpokenCommand.match(text, deeIsTalking: true) == nil, "\"\(text)\"")
     }
 
-    /// "Stop" to a silent Dee is conversation: she answers it instead of ignoring them.
+    /// "Stop" to a silent Dee is conversation: Dee answers it instead of ignoring them.
     @Test func stopOnlyWhenThereIsSomethingToStop() {
         #expect(SpokenCommand.match("stop", deeIsTalking: false) == nil)
         #expect(SpokenCommand.match("quiet", deeIsTalking: false) == nil)
@@ -47,7 +47,7 @@ import Testing
         #expect(SpokenCommand.core(of: "don\u{2019}t stop") == "don't stop")
     }
 
-    /// C1: with nobody in view (or asleep) only speech aimed at her is answered.
+    /// C1: with nobody in view (or asleep) only speech aimed at Dee is answered.
     @Test func addressesDee() {
         for t in ["Dee, are you there?", "hey dee", "Wake up!", "Are you awake?", "Hi Dee.", "Where's Dee's charger?", "D, come here"] {
             #expect(SpokenCommand.addressesDee(t), "\"\(t)\"")
@@ -101,9 +101,9 @@ import Testing
 
     @Test func settlement() {
         let cps = 13.0
-        // Played out: keep (her history is exactly what she said).
+        // Played out: keep (Dee's history is exactly what Dee said).
         #expect(ReplySettlement.decide(streamed: Self.text, audioStarted: true, audioFinished: true, playedSeconds: 1, charactersPerSecond: cps) == .keep)
-        // Never reached her voice (superseded, an initiative that gave way): withdraw.
+        // Never reached Dee's voice (superseded, an initiative that gave way): withdraw.
         #expect(ReplySettlement.decide(streamed: Self.text, audioStarted: false, audioFinished: false, playedSeconds: 0, charactersPerSecond: cps) == .retract)
         // Cut off after one sentence (C9: decode runs ahead of speech).
         #expect(ReplySettlement.decide(streamed: Self.text, audioStarted: true, audioFinished: false, playedSeconds: 1.4, charactersPerSecond: cps)
@@ -134,7 +134,7 @@ import Testing
     }
 
     /// First launch: the speech model downloads for minutes. Say so, instead of
-    /// looking like she's listening.
+    /// looking like Dee's listening.
     @Test func slowEarsShowAsPreparing() {
         var h = VoiceHealth()
         h.listeningWanted(since: Self.t0)
@@ -188,7 +188,7 @@ import Testing
         guard case .earsUnavailable = h.problem(at: Self.t0) else { Issue.record("a retried failure still says it retries"); return }
     }
 
-    /// Review L5: with the cloud voice hearing for her, on-device speech problems
+    /// Review L5: with the cloud voice hearing for Dee, on-device speech problems
     /// don't matter; the cloud voice's own problems do.
     @Test func cloudVoiceProblemsReplaceOnDeviceSpeechOnes() {
         var h = VoiceHealth()

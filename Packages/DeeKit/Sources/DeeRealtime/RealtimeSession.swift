@@ -9,9 +9,9 @@ public typealias RealtimeCredentialInvalidator = @Sendable () async -> Void
 ///
 /// Dee keeps the floor: the session runs semantic VAD with `create_response` and
 /// `interrupt_response` both off, so the server only *reports* speech start/stop
-/// and commits. The app decides when she answers (`requestResponse`), when she
+/// and commits. The app decides when Dee answers (`requestResponse`), when Dee
 /// speaks first (`initiative`), when a user onset is a real barge-in (`bargeIn`)
-/// and when it was her own echo (`rejectEcho`).
+/// and when it was Dee's own echo (`rejectEcho`).
 ///
 /// Audio in: `appendAudio` with PCM16 mono 24 kHz. Audio out: `.assistantAudio`
 /// events; the app plays them and reports what it played (`bargeIn(playedMs:)`,
@@ -189,7 +189,7 @@ public actor RealtimeSession {
     }
     private var deferred: Request?
     /// A reply / follow-up that user speech preempted, re-requested if that speech
-    /// turns out to be her echo.
+    /// turns out to be Dee's echo.
     private var preempted: (byItem: String, request: Request)?
     private var cancelEventIDs: Set<String> = []
 
@@ -203,7 +203,7 @@ public actor RealtimeSession {
         var outOfBand = false
         var receivedMs: Int { bytes / 48 }   // 24 kHz × 2 bytes
     }
-    /// Her recent audio items (queued or playing at the app), oldest first.
+    /// Dee's recent audio items (queued or playing at the app), oldest first.
     private var outputs: [Playback] = []
     private static let maxOutputs = 8
     private func output(_ itemID: String) -> Playback? { outputs.last { $0.itemID == itemID } }
@@ -212,13 +212,13 @@ public actor RealtimeSession {
         body(&outputs[i])
     }
     private var playing = false
-    /// The app is playing audio of hers the server never sent (a clip).
+    /// The app is playing audio of Dee's the server never sent (a clip).
     private var localPlaying = false
-    /// Her voice may be in the microphone: server audio or a local clip is playing.
+    /// Dee's voice may be in the microphone: server audio or a local clip is playing.
     private var audible: Bool { playing || localPlaying }
 
     private var openSpeech: String?
-    /// The open speech started while her audio was still playing (maybe echo).
+    /// The open speech started while Dee's audio was still playing (maybe echo).
     private var openSpeechOverPlayback = false
     private var openSpeechCommitted = false
     /// `audio_start_ms` of the user speech items of the live connection.
@@ -376,8 +376,8 @@ public actor RealtimeSession {
 
     /// `connect()` for a window that opens again after DORMANT (v0.6, contract §4):
     /// with `resume`, the new connection's first item is the seed (the last
-    /// summary and the recent messages, as after a reconnect), so she remembers
-    /// what was said before she slept. Nothing is seeded when nothing remains (the
+    /// summary and the recent messages, as after a reconnect), so Dee remembers
+    /// what was said before Dee slept. Nothing is seeded when nothing remains (the
     /// app started a new conversation — `resetConversation` — after a long sleep).
     public func connect(resume: Bool) async throws {
         while connecting {
@@ -606,7 +606,7 @@ public actor RealtimeSession {
     }
 
     /// Where (server bytes) the unfinished user turn on the live connection starts,
-    /// and its items: open speech the app has not taken for her echo, speech
+    /// and its items: open speech the app has not taken for Dee's echo, speech
     /// stopped but not committed yet, a committed turn not answered yet (its reply
     /// requested but without audio counts too), or local speech the app reported.
     private func unfinishedTurn() -> (start: Int, items: [String])? {
@@ -768,7 +768,7 @@ public actor RealtimeSession {
     }
 
     /// Dee speaks first. Refused while the user is talking, while a response is
-    /// in flight, or while she is still playing audio. If the user starts talking
+    /// in flight, or while Dee is still playing audio. If the user starts talking
     /// before its first audio arrives, it is cancelled (`.initiativeCancelled`).
     /// `reasoningEffort` as for `requestResponse`.
     @discardableResult
@@ -805,7 +805,7 @@ public actor RealtimeSession {
         guard isReady else { return .refused(.notConnected) }
         if openSpeech != nil { return .refused(.userSpeaking) }
         // The rollover summary is out of band (text, `conversation: none`): not a
-        // response of hers, so it never holds her back.
+        // response of Dee's, so it never holds Dee back.
         if track != nil { return .refused(.responseInFlight) }
         if audible { return .refused(.speaking) }
         createResponse(request)
@@ -826,7 +826,7 @@ public actor RealtimeSession {
     }
 
     /// Takes a committed (or still open) user item out of the conversation: speech
-    /// that was not for her (a TV, people talking to each other, a wake-word miss).
+    /// that was not for Dee (a TV, people talking to each other, a wake-word miss).
     /// The item is deleted now (or as soon as it commits), its line leaves
     /// `recentTurns` (and so every later seed), and later events for it are not
     /// emitted. A reply requested for it that has no audio yet is cancelled (it
@@ -925,7 +925,7 @@ public actor RealtimeSession {
         recompute()
     }
 
-    /// What of her item `itemID` counts as heard (`HeardRule`): after a cut, the
+    /// What of Dee's item `itemID` counts as heard (`HeardRule`): after a cut, the
     /// sentences kept; otherwise every sentence placed so far. nil: none / unknown.
     public func heardText(itemID: String) -> String? { spokenText(itemID) }
 
@@ -948,7 +948,7 @@ public actor RealtimeSession {
         bargeIn(cuts: outputs.last.map { [($0.itemID, playedMs)] } ?? [])
     }
 
-    /// The user really interrupted (or an interruption stopped her). The app has
+    /// The user really interrupted (or an interruption stopped Dee). The app has
     /// already flushed its player; `cuts` lists every assistant item that was
     /// playing or queued, with how much of each was heard (0 for one still
     /// queued). Cancels a generating response and truncates each item to exactly
@@ -988,9 +988,9 @@ public actor RealtimeSession {
         return outcome
     }
 
-    /// The app is (or stops) playing audio of hers that the server never sent,
+    /// The app is (or stops) playing audio of Dee's that the server never sent,
     /// such as a pre-rendered laugh. While on, user speech that starts counts as
-    /// possibly her echo, exactly as during her server audio: it does not preempt
+    /// possibly Dee's echo, exactly as during Dee's server audio: it does not preempt
     /// a pending reply or follow-up until the app decides (`acceptSpeech`,
     /// `bargeIn`, `rejectEcho`), and `initiative` is refused (`.speaking`). Turn
     /// it off once the clip's echo has left the room. `state` is not affected.
@@ -1031,8 +1031,8 @@ public actor RealtimeSession {
         return true
     }
 
-    /// The open user speech `itemID`, held as possibly her echo because it began
-    /// while her audio was playing, is the user after all (the app checked). From
+    /// The open user speech `itemID`, held as possibly Dee's echo because it began
+    /// while Dee's audio was playing, is the user after all (the app checked). From
     /// now on it counts as ordinary user speech: a response without audio yet is
     /// preempted as if the speech had started over silence (an initiative is
     /// cancelled, a reply or follow-up gets `.replyPreempted`), and no tool
@@ -1061,7 +1061,7 @@ public actor RealtimeSession {
         withdraw(itemID)
         emit(.echoRejected(itemID: itemID))
         if let t = track, t.kind == .reply, t.turnItemID == itemID, t.firstAudioAt == nil, !t.cancelRequested {
-            // She was about to answer her own voice.
+            // Dee was about to answer Dee's own voice.
             cancelTrack()
             emit(.replyPreempted(responseID: t.id))
         }
@@ -1479,7 +1479,7 @@ public actor RealtimeSession {
             if speechStartMs.count > 32, let oldest = speechStartMs.min(by: { $0.value < $1.value }) {
                 speechStartMs[oldest.key] = nil
             }
-            // While her audio is still audible this may be her own echo: the app
+            // While Dee's audio is still audible this may be Dee's own echo: the app
             // decides (`rejectEcho` / `bargeIn`), so pending output is not preempted.
             openSpeechOverPlayback = audible
             emit(.userSpeechStarted(itemID: e.itemID, audioStartMs: e.audioStartMs))
@@ -1654,7 +1654,7 @@ public actor RealtimeSession {
     }
 
     /// User speech `itemID` is open before `t` has audio: cancel `t` unless the
-    /// speech may be her echo. Returns whether it was cancelled.
+    /// speech may be Dee's echo. Returns whether it was cancelled.
     @discardableResult
     private func preemptForSpeech(_ t: Track, by itemID: String) -> Bool {
         if t.kind == .initiative || t.kind == .say {
@@ -2041,7 +2041,7 @@ public actor RealtimeSession {
         send(.itemDelete(itemID: itemID, eventID: eid))
     }
 
-    /// An item of the live server conversation (user audio, her output, a client item).
+    /// An item of the live server conversation (user audio, Dee's output, a client item).
     private func noteItem(_ id: String) {
         guard !id.hasPrefix("dna_"), !outOfBandItems.contains(id), !ledger.contains(id) else { return }
         ledger.append(id)
@@ -2123,7 +2123,7 @@ public actor RealtimeSession {
         turns.contains { $0.itemID == itemID && $0.role == .assistant }
     }
 
-    /// Sets (or adds) her turn for an item; an empty text removes it.
+    /// Sets (or adds) Dee's turn for an item; an empty text removes it.
     private func setAssistantTurn(_ itemID: String, _ text: String?) {
         // An out-of-band line is not part of the conversation.
         guard !outOfBandItems.contains(itemID) else { return }
@@ -2134,10 +2134,10 @@ public actor RealtimeSession {
         }
     }
 
-    /// Her response ended before it completed (failed, filtered, token limit,
+    /// Dee's response ended before it completed (failed, filtered, token limit,
     /// socket lost, closed): the transcript may run ahead of the audio that came.
     /// The trailing sentence is placed at the speaking rate (not stretched onto
-    /// the audio received), and her turn keeps only the sentences whose midpoint
+    /// the audio received), and Dee's turn keeps only the sentences whose midpoint
     /// that audio covers, the same rule as a barge-in. The app plays out what came.
     private func endedEarly(_ t: Track, itemID iid: String) {
         if var s = splitters.removeValue(forKey: iid), let rest = s.finish() { sentence(rest, itemID: iid) }

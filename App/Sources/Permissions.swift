@@ -57,20 +57,23 @@ enum Permissions {
         return state(kind)
     }
 
-    static func card(_ kind: PermissionKind) -> (title: String, symbol: String, body: String) {
+    /// The card's text, in the persona's name and pronouns.
+    static func card(_ kind: PermissionKind, persona p: PersonaPreset = PersonaCatalog.classic)
+        -> (title: String, symbol: String, body: String) {
+        let t = p.text
         switch kind {
         case .microphone:
-            ("Her ears", "mic.fill",
-             "Dee listens for her wake phrase right here on your iPhone — that never leaves the phone. Only after she wakes does what she hears go to the AI you choose, until the conversation ends.")
+            return ("\(t.Their) ears", "mic.fill",
+                    "\(p.name) \(Pronouns.thirdPerson("listen")) for \(t.their) wake phrase right here on your iPhone — that never leaves the phone. Only after \(t.they("wake")) does what \(t.they("hear")) go to the AI you choose, until the conversation ends.")
         case .speech:
-            ("Hearing her name", "waveform.badge.mic",
-             "Apple's speech recognition, running on this iPhone, is how Dee notices her wake phrase. Nothing is sent anywhere to listen for it.")
+            return ("Hearing \(t.their) name", "waveform.badge.mic",
+                    "Apple's speech recognition, running on this iPhone, is how \(p.name) \(Pronouns.thirdPerson("notice")) \(t.their) wake phrase. Nothing is sent anywhere to listen for it.")
         case .camera:
-            ("Her eyes", "camera.fill",
-             "Dee looks at you and the things around her: her eyes follow your face and she recognises friends. Video stays on this iPhone — never recorded, never sent.")
+            return ("\(t.Their) eyes", "camera.fill",
+                    "\(p.name) \(Pronouns.thirdPerson("look")) at you and the things around \(t.them): \(t.their) eyes follow your face and \(t.they("recognise")) friends. Video stays on this iPhone — never recorded, never sent.")
         case .localNetwork:
-            ("Your home network", "wifi",
-             "If you run an AI on your own Mac or server, Dee needs to reach it on your Wi-Fi. She only ever talks to the address you give her. Using OpenAI only? You can skip this.")
+            return ("Your home network", "wifi",
+                    "If you run an AI on your own Mac or server, \(p.name) needs to reach it on your Wi-Fi. \(t.They) only ever \(p.pronouns.verb("talk")) to the address you give. Using OpenAI only? You can skip this.")
         }
     }
 }

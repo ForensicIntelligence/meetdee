@@ -24,8 +24,8 @@ import Synchronization
 /// - **Hold.** `hold()` pauses where it is (a 5 ms fade, then silence; nothing is
 ///   dropped, nothing more counts as played) and `resume()` goes on from exactly
 ///   there (fading back in); `flush()` ends a hold. `holdAtBoundary` lets the
-///   utterance playing now finish but starts no new one until it is cleared: she
-///   never begins her next sentence item over someone who may be talking.
+///   utterance playing now finish but starts no new one until it is cleared: Dee
+///   never begins Dee's next sentence item over someone who may be talking.
 /// - **Gate** (tune 4, speculative replies). `gate(utterance:)` buffers an
 ///   utterance without ever starting it; `release(utterance:)` lets it start at
 ///   the next render cycle (`minTargetMs` buffered suffices), `discard(utterance:)`
@@ -35,7 +35,7 @@ import Synchronization
 /// - **Level.** `.level` events come from the samples just played (the eye bounce).
 /// - **Echo reference.** The energy of every 10 ms it rendered (silence included),
 ///   stamped on the graph clock, is kept for `takeReference()`: what `EarCore`
-///   compares the microphone against so her own echo is never taken for the user.
+///   compares the microphone against so Dee's own echo is never taken for the user.
 /// - **Clock.** Live, render times come from the render timestamps' host time; in
 ///   offline manual rendering (`renderClock`) from the frames rendered, which is
 ///   the manual graph's clock (`.started(at:)`, the reference, `.flushed` marks).

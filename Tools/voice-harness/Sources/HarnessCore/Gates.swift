@@ -34,11 +34,11 @@ public enum Gates {
         public var bargeInMissRate = 0.05
         public var replyWithinThree = 0.95
         public var memory = 0.90
-        /// Backchannels ("keep going", "go on", "mm-hm") she stopped on.
+        /// Backchannels ("keep going", "go on", "mm-hm") Dee stopped on.
         public var backchannelStopRate = 0.05
         /// Dated follow-ups and reunions acknowledged.
         public var followups = 1.0
-        /// Tune 5: questions asked over her that she stopped for and answered in time.
+        /// Tune 5: questions asked over Dee that Dee stopped for and answered in time.
         public var interruptAnswered = 1.0
         public init() {}
     }
@@ -105,7 +105,7 @@ public enum Gates {
         if m.bargeInsApplicable == 0 {
             g.append(Gate(id: "barge_in", metric: "Barge-in: user onset → Dee audio stopped; misses",
                           target: "p90 ≤ \(t.bargeInP90) s; missed < \(pct(t.bargeInMissRate))",
-                          value: m.bargeIns == 0 ? "no barge-ins scripted" : "\(m.bargeIns) scripted, none applicable (her reply had ended)",
+                          value: m.bargeIns == 0 ? "no barge-ins scripted" : "\(m.bargeIns) scripted, none applicable (Dee's reply had ended)",
                           n: 0, status: m.bargeIns == 0 ? .skip : .fail))
         } else {
             let ok = (m.bargeInP90 ?? .infinity) <= t.bargeInP90 && (m.bargeInMissRate ?? 1) < t.bargeInMissRate
@@ -118,29 +118,29 @@ public enum Gates {
                                 .joined(separator: "; ").nilIfEmpty))
         }
 
-        // 4b. Backchannels: "keep going" / "go on" / "mm-hm" said over her are not
-        // barge-ins (user decision, tune 2): she keeps talking.
+        // 4b. Backchannels: "keep going" / "go on" / "mm-hm" said over Dee are not
+        // barge-ins (user decision, tune 2): Dee keeps talking.
         let bcRate = m.backchannelsApplicable > 0 ? Double(m.backchannelStops) / Double(m.backchannelsApplicable) : nil
-        g.append(Gate(id: "backchannel", metric: "Backchannel over her (keep going / go on / mm-hm): she keeps talking",
+        g.append(Gate(id: "backchannel", metric: "Backchannel over Dee (keep going / go on / mm-hm): Dee keeps talking",
                       target: "stopped < \(pct(t.backchannelStopRate))",
                       value: m.backchannels == 0 ? "no backchannels scripted"
                           : "stopped \(m.backchannelStops)/\(m.backchannelsApplicable) (\(pct(bcRate))); heard as a user item \(m.backchannelsHeard)/\(m.backchannels)",
                       n: m.backchannelsApplicable,
                       status: m.backchannelsApplicable == 0 ? (m.backchannels == 0 ? .skip : .fail)
                           : ((bcRate ?? 1) < t.backchannelStopRate ? .pass : .fail),
-                      note: ([m.backchannels > m.backchannelsApplicable ? "\(m.backchannels - m.backchannelsApplicable) not applicable (her reply had ended)" : nil,
+                      note: ([m.backchannels > m.backchannelsApplicable ? "\(m.backchannels - m.backchannelsApplicable) not applicable (Dee's reply had ended)" : nil,
                               m.backchannelStopList.isEmpty ? nil : "stopped on: " + m.backchannelStopList.joined(separator: ", "),
-                              m.backchannelCapEnds.isEmpty ? nil : "continued, then ended at her sentence cap: " + m.backchannelCapEnds.joined(separator: ", ")]
+                              m.backchannelCapEnds.isEmpty ? nil : "continued, then ended at Dee's sentence cap: " + m.backchannelCapEnds.joined(separator: ", ")]
                                 .compactMap { $0 }).joined(separator: "; ").nilIfEmpty))
 
-        // 4c. Tune 5: a question asked over her (content barge-in): she stops AND
+        // 4c. Tune 5: a question asked over Dee (content barge-in): Dee stops AND
         // answers it, starting within the latency gate (`Metrics.interruptAnswerWithin`).
-        let iqMetric = "Interrupting questions answered: she stops and answers a question asked over her"
+        let iqMetric = "Interrupting questions answered: Dee stops and answers a question asked over Dee"
         let iqTarget = "\(pct(t.interruptAnswered)), each answer ≤ \(Metrics.interruptAnswerWithin) s after their end of speech"
         let iqScripted = m.interruptQuestions.count
         if m.interruptQuestionsApplicable == 0 {
             g.append(Gate(id: "interrupt_questions", metric: iqMetric, target: iqTarget,
-                          value: iqScripted == 0 ? "no interrupting questions scripted" : "\(iqScripted) scripted, none applicable (her reply had ended)",
+                          value: iqScripted == 0 ? "no interrupting questions scripted" : "\(iqScripted) scripted, none applicable (Dee's reply had ended)",
                           n: 0, status: iqScripted == 0 ? .skip : .fail))
         } else {
             let rate = Double(m.interruptQuestionsAnswered) / Double(m.interruptQuestionsApplicable)
@@ -151,7 +151,7 @@ public enum Gates {
                           value: "\(pct(rate)) (\(m.interruptQuestionsAnswered)/\(m.interruptQuestionsApplicable)); answer p50 \(s(m.interruptAnswerP50)) s, p90 \(s(m.interruptAnswerP90)) s",
                           n: m.interruptQuestionsApplicable,
                           status: rate >= t.interruptAnswered ? .pass : .fail,
-                          note: ([na > 0 ? "\(na) not applicable (her reply had ended)" : nil,
+                          note: ([na > 0 ? "\(na) not applicable (Dee's reply had ended)" : nil,
                                   misses.isEmpty ? nil : "missed: " + misses.prefix(12).joined(separator: "; ")]
                                 .compactMap { $0 }).joined(separator: "; ").nilIfEmpty))
         }
@@ -170,7 +170,7 @@ public enum Gates {
                       n: m.truncations.count, status: m.truncations.isEmpty ? .skip : (truncOK ? .pass : .fail)))
 
         // 7. Leaks.
-        // 0.6 §6: scored on what she said aloud (`Metrics.spokenText`); unheard text is information.
+        // 0.6 §6: scored on what Dee said aloud (`Metrics.spokenText`); unheard text is information.
         let unspoken = m.leaksUnspoken.isEmpty ? nil
             : "spoken text only; unspoken (not counted): \(m.leaksUnspoken.count) — "
               + m.leaksUnspoken.prefix(4).map { "\($0.scenario): \($0.text.prefix(40))" }.joined(separator: "; ")
@@ -178,7 +178,7 @@ public enum Gates {
                       target: "0", value: "\(m.leaks.count)", n: m.replies,
                       status: m.leaks.isEmpty ? .pass : .fail, note: unspoken))
 
-        // 7b. Narration of her own process (DNA §3: no preamble; tools are silent).
+        // 7b. Narration of Dee's own process (DNA §3: no preamble; tools are silent).
         g.append(Gate(id: "narration", metric: "Narrated process said aloud (\"let me respond\", \"let me check what I remember\")",
                       target: "0", value: "\(m.narrations.count)", n: m.replies,
                       status: m.narrations.isEmpty ? .pass : .fail,

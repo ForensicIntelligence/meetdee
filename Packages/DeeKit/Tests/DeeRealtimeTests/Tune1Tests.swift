@@ -357,7 +357,7 @@ import Testing
         #expect(await !h.session.hasUnansweredUserTurn)
     }
 
-    /// TV speech preempted her pending reply; dropping it brings the reply back.
+    /// TV speech preempted Dee's pending reply; dropping it brings the reply back.
     @Test func droppingTheSpeechThatPreemptedAReplyResumesIt() async throws {
         let h = try await Harness.connected()
         await userTurn(h, "u1")
@@ -472,7 +472,7 @@ import Testing
         #expect(await h.session.hasUnansweredUserTurn)
         await h.advance(by: 6)
         await h.advance(by: 1)
-        #expect(h.factory.made.count == 1)                         // waiting for her answer
+        #expect(h.factory.made.count == 1)                         // waiting for Dee's answer
         #expect(!h.log.contains { $0 == .rolloverStarted(forced: false) })
         await h.session.userTurnHandled(itemID: "u1")              // e.g. a command
         await h.advance(by: 1)
@@ -590,7 +590,7 @@ import Testing
     }
 
     /// The speaking rate is learned from completed replies, so the next reply's
-    /// hints sit closer to her real audio.
+    /// hints sit closer to Dee's real audio.
     @Test func theSpeakingRateIsLearned() async throws {
         let h = try await Harness.connected()
         #expect(await h.session.speakingRateMsPerCharacter == 62)

@@ -126,7 +126,7 @@ struct MetricsTests {
             .init(step: 2, line: "Never played", requested: 20, outcome: "refused(userSpeaking)", audioStarted: nil,
                   audioEnded: nil, window: .init(start: 20, end: 22.5)),
         ]
-        b.userItem("echo1", seen: 2.0, transcript: "Owls")     // her own echo taken for the user
+        b.userItem("echo1", seen: 2.0, transcript: "Owls")     // Dee's own echo taken for the user
         let m = metrics(b)
         #expect(m.echoSegments == 2 && m.echoSegmentsNotSpoken == 1)
         #expect(m.selfTriggers == 1 && m.selfTriggerItems == ["echo1"])

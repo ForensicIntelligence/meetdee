@@ -128,7 +128,7 @@ import Testing
         var f = OnboardingFlow()
         let steps = Self.walk(&f)
         #expect(steps == [.meet, .talking, .seeing, .privacy, .micPermission, .speechPermission, .cameraPermission,
-                          .localNetworkPermission, .provider, .wakePhrase, .voice, .speakFirst,
+                          .localNetworkPermission, .provider, .persona, .wakePhrase, .voice, .speakFirst,
                           // still undetermined: shown once more before Done (local network only for LAN modes)
                           .micPermission, .speechPermission, .cameraPermission, .done])
         #expect(!f.canFinish, "no provider yet")
@@ -160,7 +160,7 @@ import Testing
     @Test func backUndoesARevisit() {
         var f = OnboardingFlow(permissions: [.speech: .granted, .camera: .granted, .localNetwork: .granted])
         f.skip()
-        f.next(); f.next(); f.next(); f.next()
+        f.next(); f.next(); f.next(); f.next(); f.next()   // persona, wake phrase, voice, speak first, mic
         #expect(f.step == .micPermission)
         f.back()
         #expect(f.step == .speakFirst)

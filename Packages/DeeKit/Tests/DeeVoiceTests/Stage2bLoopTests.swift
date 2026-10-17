@@ -114,8 +114,8 @@ import Testing
         rig.voice.shutdown()
     }
 
-    /// 2. She laughs at the joke while her reply is generated; the laugh's echo
-    /// opens a server item. The session counts the clip as her voice: the reply
+    /// 2. Dee laughs at the joke while Dee's reply is generated; the laugh's echo
+    /// opens a server item. The session counts the clip as Dee's voice: the reply
     /// is not preempted, and it plays.
     @Test func herLaughsEchoDoesNotPreemptTheReply() async throws {
         let (cache, dir) = try await clips([.laugh1])
@@ -131,7 +131,7 @@ import Testing
         await rig.settle()
         try rig.quiet(0.2)
         await rig.settle()
-        #expect(rig.sent("response.cancel").isEmpty, "her laugh's echo preempted the reply")
+        #expect(rig.sent("response.cancel").isEmpty, "Dee's laugh's echo preempted the reply")
         #expect(rig.brainSession { if case .replyPreempted = $0 { true } else { false } }.isEmpty)
         rig.reply("resp_1", "item_a1", ms: 400)
         rig.push(Srv.responseDone("resp_1"))
@@ -159,7 +159,7 @@ import Testing
         rig.voice.shutdown()
     }
 
-    /// 3. The user barges in while her reply plays and a tool follow-up is queued
+    /// 3. The user barges in while Dee's reply plays and a tool follow-up is queued
     /// behind it: the server keeps what was heard of the first and nothing of the
     /// second, and the follow-up is cancelled.
     @Test func bargeInCutsTheQueuedFollowUpToo() async throws {
@@ -206,7 +206,7 @@ import Testing
         rig.voice.shutdown()
     }
 
-    /// 5. A quick answer in her echo tail is accepted as the user: the session is
+    /// 5. A quick answer in Dee's echo tail is accepted as the user: the session is
     /// told, so a tool follow-up whose result lands meanwhile waits instead of
     /// talking over them.
     @Test func anAcceptedTailAnswerHoldsTheFollowUp() async throws {
@@ -227,7 +227,7 @@ import Testing
                                                   name: "recall", arguments: "{}")),
                  Srv.responseDone("resp_1"))
         await rig.settle()
-        try rig.quiet(0.4)                                   // played out; her tail is in the room
+        try rig.quiet(0.4)                                   // played out; Dee's tail is in the room
         try rig.talk(0.1)
         rig.push(Srv.speechStarted("item_u2", ms: uplinkMs(rig) - 100))
         await rig.settle()
@@ -242,7 +242,7 @@ import Testing
         rig.voice.shutdown()
     }
 
-    /// Review fix 3: the user talks over her laugh (it stops) while the reply to
+    /// Review fix 3: the user talks over Dee's laugh (it stops) while the reply to
     /// their last turn is being generated. Their next onset lands inside the
     /// laugh's echo window; the ear does not hold it (the laugh was cut), so it
     /// is the user, and the session is told: the reply without audio yields.
@@ -254,7 +254,7 @@ import Testing
         try rig.quiet(0.3)
         try await answer(rig)                                // the reply is being generated…
         rig.push(Srv.responseCreated("resp_1"))
-        #expect(rig.voice.play(.laugh1, deferWhileUserSpeaks: false))   // …while she laughs
+        #expect(rig.voice.play(.laugh1, deferWhileUserSpeaks: false))   // …while Dee laughs
         try rig.quiet(0.1)
         try rig.talk(0.5)                                    // the user talks over the laugh
         _ = await rig.brain.wait { $0 == .clipPlayed(.laugh1, cut: true) }

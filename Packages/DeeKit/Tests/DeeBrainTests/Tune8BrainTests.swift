@@ -16,7 +16,7 @@ import Testing
     typealias T5 = Tune5BrainTests
     typealias T7 = Tune7BrainTests
 
-    // MARK: T7-1 — one misheard-fragment rule; a question over her is answered
+    // MARK: T7-1 — one misheard-fragment rule; a question over Dee is answered
 
     /// The brain's fragment rule is the voice's (`Backchannel.isMisheardFragment`), word for word.
     @Test func theBrainUsesTheVoicesFragmentRule() {
@@ -28,11 +28,11 @@ import Testing
         #expect(!TurnPolicy.isMisheardFragment("Big deal."))
     }
 
-    /// t2-interrupt-fan15 q08 (19.92–21.61): "Who made you?" said over her came back as
+    /// t2-interrupt-fan15 q08 (19.92–21.61): "Who made you?" said over Dee came back as
     /// "Too late." (quick commit 20.88, partials 20.99, the server's empty tail committed
     /// 21.08). The brain's own fragment rule took it for a backchannel (`continued` +
     /// `resumed-brain` 21.18); the final words (21.35, verdict "answer") were then let go:
-    /// no `response.create`, she talked on to her sentence cap. Now it is their turn.
+    /// no `response.create`, Dee talked on to Dee's sentence cap. Now it is their turn.
     @Test func liveFan15Q08TooLateOverHerIsAnswered() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -51,7 +51,7 @@ import Testing
         rig.shutdown()
     }
 
-    /// The 21.36 half: words first taken for "keep going" (she was cut, so a carry-on was
+    /// The 21.36 half: words first taken for "keep going" (Dee was cut, so a carry-on was
     /// asked for) whose full words are a question. The carry-on answers nothing: before,
     /// the "answer" verdict found the item `requested` and settled it — the question was
     /// never answered. Now the carry-on is taken back unheard and the turn gets one answer.
@@ -119,7 +119,7 @@ import Testing
 
     /// t2-backchannel-echo20 c05 (58.09–60.42): "Keep going, I'm listening." under loud echo
     /// came back as "Sheupr and going." — three words, so its partial decided at once
-    /// (`earlyWords` 60.16): her reply was cut at 2385 ms and an answer asked for. Words
+    /// (`earlyWords` 60.16): Dee's reply was cut at 2385 ms and an answer asked for. Words
     /// that end the way a continuer does wait for the full words now.
     @Test func liveEcho20C05SheuprAndGoingNeverDecidesEarly() async throws {
         let rig = try await BrainRig(tune: { $0.partialSettle = 0.6 })
@@ -129,11 +129,11 @@ import Testing
         try? await Task.sleep(for: .milliseconds(300))
         #expect(!rig.brain.trace.contains(.earlyWords), "\(rig.brain.trace)")
         #expect(rig.responseCreates().count == 1, "\(rig.trail())")
-        #expect(!rig.trail().contains("truncate:item_a1"), "her reply is not cut: \(rig.trail())")
+        #expect(!rig.trail().contains("truncate:item_a1"), "Dee's reply is not cut: \(rig.trail())")
         rig.shutdown()
     }
 
-    /// A real three-word turn over her still decides at its first words (tune 6 speed).
+    /// A real three-word turn over Dee still decides at its first words (tune 6 speed).
     @Test func threeWordsThatAreATurnStillDecideAtOnce() async throws {
         let rig = try await BrainRig(tune: { $0.partialSettle = 0.6 })
         try await rig.start()
@@ -144,10 +144,10 @@ import Testing
     }
 
     /// t2-backchannel-fan15 c05 (49.16–52.03): "Keep going, I'm listening." came back as
-    /// "Keep going." (she went on: `continued`, go-on deferred) and "I'm listen." — quick
-    /// committed, resumed, then its full words were answered (`heard(answer)` 51.90): her
+    /// "Keep going." (Dee went on: `continued`, go-on deferred) and "I'm listen." — quick
+    /// committed, resumed, then its full words were answered (`heard(answer)` 51.90): Dee's
     /// reply cut at 2065 ms for "Aww, sleepiness is sneaky…". "I'm listen." is "I'm
-    /// listening." cut off: she goes on.
+    /// listening." cut off: Dee goes on.
     @Test func liveFan15C05ImListenDoesNotStopHer() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -169,32 +169,32 @@ import Testing
 
     // MARK: T7-3 — the answer to a new turn is never thrown away for a carry-on
 
-    /// t2-interrupt-echo20 q02 (23.64–27.64): a phantom "Yeah." (her echo, AEC off) over her
-    /// reply was a backchannel she talked on through (`continued`). "Are you awake?" then
-    /// decided at its first words (`earlyWords` 26.00) and the answer's cut of her reply
+    /// t2-interrupt-echo20 q02 (23.64–27.64): a phantom "Yeah." (Dee's echo, AEC off) over Dee's
+    /// reply was a backchannel Dee talked on through (`continued`). "Are you awake?" then
+    /// decided at its first words (`earlyWords` 26.00) and the answer's cut of Dee's reply
     /// counted as "cut anyway after keep going": a carry-on for "Yeah." was asked for,
     /// refused (`responseInFlight`), and retried when the answer completed (26.90) —
     /// re-arming the gate threw the held 3.9 s answer away ("rearmed"): 0.9 s lost. A cut
-    /// for a newer turn brings no carry-on; the held answer is the one she plays.
+    /// for a newer turn brings no carry-on; the held answer is the one Dee plays.
     @Test func liveEcho20Q02TheAnswerIsNotThrownAwayForACarryOn() async throws {
         let rig = try await BrainRig()
         try await rig.start()
         await T3.sheIsTalking(rig, "That's a tiny little mental replay loop, isn't it?")
         rig.push(Srv.responseDone("resp_1"))                               // written; still playing
-        // The phantom "Yeah." over her: she talks on.
+        // The phantom "Yeah." over Dee: Dee talks on.
         await T3.over(rig, "item_y")
         T2.deltas(rig, "item_y", "Yeah.")
         #expect(await rig.until { rig.brain.trace.contains(.backchannel("continued")) }, "\(rig.brain.trace)")
         rig.push(Srv.userTranscript("item_y", "Yeah."))
         #expect(await rig.until { rig.host.heardLog.contains { $0.text == "Yeah." } })
-        // "Are you awake?" over her: held by the voice, decided at its first words.
+        // "Are you awake?" over Dee: held by the voice, decided at its first words.
         rig.push(Srv.speechStarted("item_q", ms: 5000))
         await rig.settle()
         rig.brain.injectHold(.paused(itemID: "item_q"))
         rig.push(Srv.speechStopped("item_q", ms: 6100), Srv.committed("item_q"))
         T2.deltas(rig, "item_q", "Are you awake?")
         #expect(await rig.until { rig.responseCreates().count == 2 }, "\(rig.trail()) \(rig.brain.trace)")
-        rig.brain.inject(.itemPlayed(itemID: "item_a1", playedMs: 2965, cut: true))    // the answer's cut of her reply
+        rig.brain.inject(.itemPlayed(itemID: "item_a1", playedMs: 2965, cut: true))    // the answer's cut of Dee's reply
         rig.push(Srv.userTranscript("item_q", "Are you awake?"))
         #expect(await rig.until { rig.host.heardLog.contains { $0.text == "Are you awake?" } })
         rig.push(Srv.responseCreated("resp_2"), Srv.messageAdded("resp_2", "item_a2"))
@@ -229,8 +229,8 @@ import Testing
         #expect(TurnPolicy.metaSentence(in: "Okay. I heard you say it's late.") == 1)
     }
 
-    /// fallback-429-long q08 "Who made you?" → "Hi Alex, who made you?" (her whole reply,
-    /// judge 2). Her first sentence only said their question back: taken back unheard and
+    /// fallback-429-long q08 "Who made you?" → "Hi Alex, who made you?" (Dee's whole reply,
+    /// judge 2). Dee's first sentence only said their question back: taken back unheard and
     /// asked again once, to answer it first.
     @Test func liveFallback429LongQ08TheirQuestionIsNotSaidBack() async throws {
         let rig = try await BrainRig()
@@ -267,9 +267,9 @@ import Testing
         rig.shutdown()
     }
 
-    /// interrupt-kitchen15 q06 "What did you do today?" asked over her → "Ooh, I want to
+    /// interrupt-kitchen15 q06 "What did you do today?" asked over Dee → "Ooh, I want to
     /// hear what happened with your volcanoes today! As for me, …". The answer to a
-    /// question asked over her carries the answer-first note.
+    /// question asked over Dee carries the answer-first note.
     @Test func aQuestionOverHerIsAnsweredFirst() async throws {
         let rig = try await BrainRig()
         try await rig.start()

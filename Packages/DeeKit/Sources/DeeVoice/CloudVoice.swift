@@ -10,35 +10,35 @@ public enum DeeVoiceModule {}
 
 /// Dee's voice on the OpenAI realtime API: the one `RealtimeSession` hears, thinks
 /// and speaks; this class connects it to Dee's own `AudioGraph` and turns it into
-/// the `VoiceEvent`s her face and floor logic understand.
+/// the `VoiceEvent`s Dee's face and floor logic understand.
 ///
 /// **Audio.** The microphone (24 kHz PCM16 from `graph.capture`) streams to the
 /// session while connected and listening, starting with a pre-roll (2 s on the
 /// first connect; exactly the unsent audio after a reconnect or a pause), so the
-/// first words are never lost. Her audio (`.assistantAudio`) plays through
-/// `graph.player`, the same engine that cancels her echo from the microphone.
+/// first words are never lost. Dee's audio (`.assistantAudio`) plays through
+/// `graph.player`, the same engine that cancels Dee's echo from the microphone.
 ///
 /// **Who has the floor.** The session reports user speech but never answers or
 /// interrupts on its own. `EarCore` decides, with local evidence, whether a
-/// server onset during her playback is the user (barge-in: flush the player,
-/// `bargeIn(cuts:)` so the server's copy of every item she had playing or queued
-/// ends exactly where the listener stopped hearing, then `acceptSpeech`) or her own echo (`rejectEcho`: the item is deleted and the
+/// server onset during Dee's playback is the user (barge-in: flush the player,
+/// `bargeIn(cuts:)` so the server's copy of every item Dee had playing or queued
+/// ends exactly where the listener stopped hearing, then `acceptSpeech`) or Dee's own echo (`rejectEcho`: the item is deleted and the
 /// brain never sees it). Audio of a cut response is gated out until the next
 /// `.responseStarted`. An interruption (`.playbackCut`) is reported to the
 /// server the same way and cancels a reply still on its way. The session hears
-/// `playbackFinished` only once her echo tail has passed, so an echo onset
-/// right after she stops never preempts a pending reply or initiative. A clip
-/// counts as her voice too (`setLocalPlayback`, until its echo tail has passed).
+/// `playbackFinished` only once Dee's echo tail has passed, so an echo onset
+/// right after Dee stops never preempts a pending reply or initiative. A clip
+/// counts as Dee's voice too (`setLocalPlayback`, until its echo tail has passed).
 /// **Tune 2.** The uplink is gated (`UplinkGate`): what lies under the room
 /// bed's ceiling (a TV across the room, a fan) goes up 30 dB down, so the
-/// server never merges a TV with the user. A barge-in over her reply *pauses*
-/// her (`FloorHold`): silent at once, nothing cut yet; their words decide — a
-/// backchannel (`Backchannel`: "keep going", "mm-hm") and she goes on from
-/// exactly there, anything else and the brain's answer (`respond`) ends her
-/// reply where she paused (`holdAfterWords` / `holdWordsWait` if nobody does).
-/// Her next item never starts while an onset with near-end voice is being
-/// decided (`holdAtBoundary`). An item her loud echo opened that the sound
-/// can't settle is decided by its words (`HerWords`: her own words → echo).
+/// server never merges a TV with the user. A barge-in over Dee's reply *pauses*
+/// Dee (`FloorHold`): silent at once, nothing cut yet; their words decide — a
+/// backchannel (`Backchannel`: "keep going", "mm-hm") and Dee goes on from
+/// exactly there, anything else and the brain's answer (`respond`) ends Dee's
+/// reply where Dee paused (`holdAfterWords` / `holdWordsWait` if nobody does).
+/// Dee's next item never starts while an onset with near-end voice is being
+/// decided (`holdAtBoundary`). An item Dee's loud echo opened that the sound
+/// can't settle is decided by its words (`HerWords`: Dee's own words → echo).
 /// EarCore's local speech onset / end goes to `setLocalSpeech`.
 /// **Tune 4.** A speculative reply (`speculate()` before the request) is held in
 /// the player, buffered and never heard, until `releaseSpeculative` (it plays from
@@ -53,14 +53,14 @@ public enum DeeVoiceModule {}
 ///
 /// **For the brain** (`brainEvents`, single consumer):
 /// - `.session(e)`: every session event except audio deltas, in order, with
-///   echo filtered out (`.userSpeechStarted` of an onset over her playback is
+///   echo filtered out (`.userSpeechStarted` of an onset over Dee's playback is
 ///   held until it is known to be the user; nothing of a rejected item gets
 ///   through, so a `.userCommitted` here is always a real user turn).
-/// - `.sentenceStarted` / `.sentenceFinished(heard:)`: her transcript placed on
+/// - `.sentenceStarted` / `.sentenceFinished(heard:)`: Dee's transcript placed on
 ///   what was actually played (for `deeSaid` and the face).
 /// - `.itemPlayed`, `.clipPlayed`, `.connection(VoiceProblem?)`.
 ///
-/// **Asking her to speak**: `respond(cue:instructions:reasoningEffort:)` after `.userCommitted`,
+/// **Asking Dee to speak**: `respond(cue:instructions:reasoningEffort:)` after `.userCommitted`,
 /// `initiative(instructions:)`, `say(_:)`; settings and tools through `session`
 /// directly (`updateSession`, `setToolHandler`, `recentTurns`). Never call the
 /// session's `bargeIn`, `playbackFinished`, `rejectEcho`, `acceptSpeech`,
@@ -90,10 +90,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// Attenuate what is only the room's bed (a TV, a fan) before it is sent
         /// (`UplinkGate`): the server's VAD then never merges a TV with the user.
         public var gateUplink = true
-        /// A barge-in over her reply pauses her (`FloorHold`) until their words are
-        /// known: a backchannel ("keep going", "mm-hm") lets her go on from exactly
-        /// there; anything else ends the reply where she paused. Off: every
-        /// barge-in cuts her at once (the words never matter).
+        /// A barge-in over Dee's reply pauses Dee (`FloorHold`) until their words are
+        /// known: a backchannel ("keep going", "mm-hm") lets Dee go on from exactly
+        /// there; anything else ends the reply where Dee paused. Off: every
+        /// barge-in cuts Dee at once (the words never matter).
         public var holdOnBargeIn = true
         /// v0.6 (contract §4): start DORMANT — no socket, no uplink, no key mint,
         /// no clip rendering — until `wake(onsetFrame:)`. The app: true. Off (the
@@ -108,6 +108,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// Render missing clips once per window, after it connected (the app: true).
         /// Never while DORMANT (`ClipCache.renderAllowed`).
         public var prepareClipsOnWake = false
+        /// A held reply nobody released is dropped this long after it was armed
+        /// (`TimingProfile.speculativeMax`: longer for a LAN model's slow first token).
+        public var speculativeMax = CloudVoice.speculativeMax
 
         public init() {}
     }
@@ -126,9 +129,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
 
     /// A short local sound for the listening window (no network, never rendered).
     public enum ListeningCue: String, Sendable, CaseIterable {
-        /// She heard her wake phrase (rising two notes).
+        /// Dee heard Dee's wake phrase (rising two notes).
         case wake
-        /// She stopped listening (falling two notes).
+        /// Dee stopped listening (falling two notes).
         case listeningOff
     }
 
@@ -136,7 +139,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// capture-timeline frame of its first sample.
     public typealias MicSink = @Sendable (_ pcm16k: [Int16], _ captureFrame24k: Int64) -> Void
 
-    /// Her reply paused for the user (a barge-in whose words aren't known yet).
+    /// Dee's reply paused for the user (a barge-in whose words aren't known yet).
     /// What they said may arrive as several items (the server splits "Don't
     /// stop. … Keep going."); all of them decide together.
     public struct FloorHold: Sendable, Equatable {
@@ -144,7 +147,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         public var itemID: String?
         /// Every user item of the hold, in order.
         public private(set) var items: [String] = []
-        /// When her voice paused (graph clock).
+        /// When Dee's voice paused (graph clock).
         public var since: Double
         /// Their words per item: settled deltas so far, and the final transcripts.
         var partial: [String: String] = [:]
@@ -182,7 +185,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// commit): a one-word fragment the words don't know ("Movie.") is "go on" only
         /// when it sounded like one.
         public internal(set) var sounds: [String: FragmentSound] = [:]
-        /// The brain said "go on" while more of the burst was still coming: she
+        /// The brain said "go on" while more of the burst was still coming: Dee
         /// goes on once they are quiet and no item waits for its words.
         var goOn = false
         /// Tune 12: when each item's speech began and ended (graph clock: the server's
@@ -221,10 +224,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         }
         /// Items whose full transcript came back empty: nothing was said in them.
         var emptyWords: Set<String> = []
-        /// Tune 7 (T6-4): a probe (`EarCore.Action.probe`): she is paused while the
-        /// ear listens into her silence for an onset her loud echo masks. No items
+        /// Tune 7 (T6-4): a probe (`EarCore.Action.probe`): Dee is paused while the
+        /// ear listens into Dee's silence for an onset Dee's loud echo masks. No items
         /// yet, nothing announced; the user's voice or words confirm it (a hold from
-        /// `since`), quiet ends it (she goes on, nothing happened).
+        /// `since`), quiet ends it (Dee goes on, nothing happened).
         public internal(set) var probe = false
 
         public init(itemID: String?, since: Double) {
@@ -312,7 +315,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             }
             if pendingAnswer { return .wait }
             if anyBackchannel { return !undecided || quiet ? .resume : .wait }
-            // Every item came back empty (noise, a breath, her own echo): she goes on.
+            // Every item came back empty (noise, a breath, Dee's own echo): Dee goes on.
             return allEmpty && !undecided && !items.isEmpty && items.contains(where: { emptyWords.contains($0) })
                 ? .resume : .wait
         }
@@ -324,38 +327,38 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
 
     /// Settled transcription deltas this old decide a hold (the brain's `partialSettle`).
     public static let holdSettle = 0.15
-    /// A hold never lasts longer than this: her reply then ends where she paused.
+    /// A hold never lasts longer than this: Dee's reply then ends where Dee paused.
     public static let holdMax = 6.0
     /// …nor this long after their speech stopped without words that say "go on".
     public static let holdWordsWait = 2.5
     /// A hold with no server item for it ends after this.
     public static let holdNoItem = 2.0
-    /// Words that weren't "go on" and nobody answered them: her reply ends this
+    /// Words that weren't "go on" and nobody answered them: Dee's reply ends this
     /// long after they came.
     public static let holdAfterWords = 1.0
-    /// While she is held and the server has stopped their speech but holds the
+    /// While Dee is held and the server has stopped their speech but holds the
     /// commit (semantic end of turn: up to ~2 s), their voice heard locally
     /// ending this long ago commits it at once (`commitUserSpeech`): the words
-    /// that decide come sooner, so a "go on" pauses her briefly. Never before the
-    /// server's `speech_stopped` (a commit mid-speech splits their words). Her
+    /// that decide come sooner, so a "go on" pauses Dee briefly. Never before the
+    /// server's `speech_stopped` (a commit mid-speech splits their words). Dee's
     /// voice is silent in a hold: the local end of speech is clean.
     public static let holdCommitSilence = 0.3
     /// Tune 3 (live: "Go on." / "Mm-hm." / "Don't stop, keep going." resumed
-    /// 1.4–4.6 s after they paused her — the server's semantic VAD reported the
+    /// 1.4–4.6 s after they paused Dee — the server's semantic VAD reported the
     /// end of their speech only with its commit, 0.7–2.6 s after the words). In a
     /// hold, a short burst of their voice (at most this long) that ended
     /// `holdCommitSilence` ago is committed at once, without waiting for the
     /// server's `speech_stopped`: the backchannel's words come ~0.15 s later and
-    /// she goes on ~0.5 s after they stopped. Longer speech is left to the server
+    /// Dee goes on ~0.5 s after they stopped. Longer speech is left to the server
     /// (a commit inside a sentence would split it). Only while every earlier item
     /// of the hold said "go on": a real turn is never cut into pieces.
     public static let holdQuickBurst = 1.0
     /// Settled deltas of a quick commit (a short burst: a few words in one burst).
     public static let holdSettleQuick = 0.1
-    /// She goes on only once they have been quiet this long (never over them:
+    /// Dee goes on only once they have been quiet this long (never over them:
     /// "Don't stop, … keep going." — the first words are in while they talk on).
     public static let holdResumeQuiet = 0.2
-    /// Their sound after the latest commit that no server item holds yet: she
+    /// Their sound after the latest commit that no server item holds yet: Dee
     /// waits up to this long after it for the item that will (its words decide).
     public static let holdUncoveredWait = 1.0
     /// An item of a hold with no words this long after its commit decides nothing
@@ -367,41 +370,41 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// the server's VAD still ends "the rest" of it as an item of its own, with an
     /// empty transcript: a server item whose speech ended at most this long after
     /// our commit (and that arrives within `holdTailWindow` of it) is the burst's
-    /// tail — part of the hold, or a backchannel if she already went on.
+    /// tail — part of the hold, or a backchannel if Dee already went on.
     public static let holdTailMax = 0.5
     public static let holdTailWindow = 1.2
     /// A quick-committed short burst's settled partial words that are not "go on"
     /// end the hold only with its full transcript, or this long after its last
     /// delta (live: "Go on." came back as "Jeron.").
     public static let holdFinalWait = 0.6
-    /// Tune 6: an onset over her this soon after she went on from a backchannel
-    /// ("Keep going." … "I'm listening.") never pauses her again on its sound: its
-    /// words decide. A backchannel is ignored; a real turn pauses her by its words
+    /// Tune 6: an onset over Dee this soon after Dee went on from a backchannel
+    /// ("Keep going." … "I'm listening.") never pauses Dee again on its sound: its
+    /// words decide. A backchannel is ignored; a real turn pauses Dee by its words
     /// (`holdForWords`) and the brain answers it.
     public static let resumeGrace = 2.0
     /// Tune 8 (T7-3, live interrupt-echo20): with no echo cancellation, a hold whose
-    /// items all began this soon into her stretch and whose words are at most one
-    /// word ("Yeah.") is likely her own echo. She goes on from it as from a
-    /// backchannel, but it arms no `resumeGrace`: a real onset next pauses her at once.
-    /// (Live: real one-word backchannels began ≥ 1.5 s into her stretch.)
+    /// items all began this soon into Dee's stretch and whose words are at most one
+    /// word ("Yeah.") is likely Dee's own echo. Dee goes on from it as from a
+    /// backchannel, but it arms no `resumeGrace`: a real onset next pauses Dee at once.
+    /// (Live: real one-word backchannels began ≥ 1.5 s into Dee's stretch.)
     public static let echoOnsetWindow = 1.2
 
     /// What the brain (RealtimeBrain) consumes.
     public enum BrainEvent: Sendable, Equatable {
         /// A session event (no audio deltas; echo filtered out).
         case session(RealtimeEvent)
-        /// Playback reached the start of sentence `index` of her item.
+        /// Playback reached the start of sentence `index` of Dee's item.
         case sentenceStarted(itemID: String, index: Int, text: String)
         /// Playback passed the end of the sentence (`heard: true`), or the item was
         /// cut inside it (`heard`: its midpoint was played). An item whose response
         /// didn't complete (socket lost, failed, filtered, token limit) counts as
         /// cut where its audio ran out: the transcript may run ahead of the audio.
         case sentenceFinished(itemID: String, index: Int, text: String, heard: Bool)
-        /// One of her items stopped playing: all of it, or `cut` after `playedMs`
+        /// One of Dee's items stopped playing: all of it, or `cut` after `playedMs`
         /// (flushed, or its response ended before it was complete).
         case itemPlayed(itemID: String, playedMs: Int, cut: Bool)
         /// A clip finished (or was cut). Clips are local: the session only knows
-        /// that something of hers is playing (for echo), never what; mention them
+        /// that something of Dee's is playing (for echo), never what; mention them
         /// in the next cue if they matter.
         case clipPlayed(VoiceClip, cut: Bool)
         /// The cloud voice's health for `VoiceHealth.cloudVoice(_:)` (nil = fine).
@@ -410,14 +413,14 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
 
     /// A hold's life, for the brain (`holdEvents`).
     public enum HoldEvent: Sendable, Equatable {
-        /// Her reply paused for a barge-in (`floorHold` is set); their words decide.
+        /// Dee's reply paused for a barge-in (`floorHold` is set); their words decide.
         case paused(itemID: String?)
-        /// Their words were a backchannel (`why` "words"), the onset was her echo
+        /// Their words were a backchannel (`why` "words"), the onset was Dee's echo
         /// ("echo"), or the brain said so (`continueAfterBackchannel`, "brain"):
-        /// she goes on from where she paused. `itemIDs`: their items in the hold —
+        /// Dee goes on from where Dee paused. `itemIDs`: their items in the hold —
         /// committed turns that need no answer (`wasBackchannel(itemID:)`).
         case resumed(itemIDs: [String], text: String, why: String)
-        /// The hold ended as a barge-in: her reply ends where she paused.
+        /// The hold ended as a barge-in: Dee's reply ends where Dee paused.
         /// `byVoice`: no answer came, the voice ended it (`.bargeIn` was emitted).
         case ended(itemIDs: [String], byVoice: Bool)
     }
@@ -438,7 +441,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         public var responseID: String? { responseIDs.last }
         /// Every response held by this speculation.
         public var responseIDs: [String] = []
-        /// Her items held in the player, in order.
+        /// Dee's items held in the player, in order.
         public var items: [String] = []
         /// Graph clock.
         public var armedAt: Double
@@ -534,10 +537,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var gate = ReplyGate()
         var responseKind: ResponseKind?
         var responseHasAudio = false
-        /// Her items queued or playing, in order.
+        /// Dee's items queued or playing, in order.
         var sessionItems: [String] = []
         var lastSessionItem: String?
-        /// The session believes her audio is playing (until `playbackFinished` / `bargeIn`).
+        /// The session believes Dee's audio is playing (until `playbackFinished` / `bargeIn`).
         var sessionPlaying = false
         var clips: [String: VoiceClip] = [:]
         var clipCounter = 0
@@ -549,8 +552,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// User items rejected as echo (their events are dropped); bounded.
         var rejected: Set<String> = []
         var rejectedOrder: [String] = []
-        /// Her last item played out: the session hears `playbackFinished` only once
-        /// her echo has left the room, so it never takes that echo for the user.
+        /// Dee's last item played out: the session hears `playbackFinished` only once
+        /// Dee's echo has left the room, so it never takes that echo for the user.
         var finishDueAt: Double?
         /// A response is open (between `.responseStarted` and `.responseDone`).
         var responseOpen = false
@@ -569,17 +572,17 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var slicer = FrameSlicer(frameSize: 1)
         var sliceRate = 0.0
 
-        /// Her reply is paused for a barge-in whose words decide (`FloorHold`).
+        /// Dee's reply is paused for a barge-in whose words decide (`FloorHold`).
         var hold: FloorHold?
-        /// What she said lately (her echo's words), for items her words decide.
+        /// What Dee said lately (Dee's echo's words), for items Dee's words decide.
         var herWords = HerWords()
-        /// Items whose words decide whether they are hers (`deferToWords`): their
+        /// Items whose words decide whether they are Dee's (`deferToWords`): their
         /// session events, held back from the brain until then, and since when.
         var wordsPending: [String: (since: Double, events: [RealtimeEvent], strict: Bool)] = [:]
-        /// Settled deltas of items waiting for their words: words she never said
+        /// Settled deltas of items waiting for their words: words Dee never said
         /// decide "the user" before the full transcript (~0.2 s sooner).
         var wordsPartial: [String: (text: String, at: Double)] = [:]
-        /// User items she went on through (a backchannel in a hold), newest last.
+        /// User items Dee went on through (a backchannel in a hold), newest last.
         var backchannelItems: [String] = []
         /// Items of past holds whose short burst let a hold-only continuer count.
         var shortHoldItems: [String] = []
@@ -592,7 +595,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var tailItems: [String] = []
         /// The speculation armed or held (`speculate()`).
         var spec: SpeculativeReply?
-        /// Tune 6: when she last went on from a backchannel (graph clock).
+        /// Tune 6: when Dee last went on from a backchannel (graph clock).
         var lastResumeAt: Double?
         /// Tune 7 (T6-1): empty tails waiting to be dropped (`flushTailDrops`).
         var tailDrops: [String] = []
@@ -601,14 +604,14 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var lastResponseDoneAt: Double?
         /// Onsets inside `resumeGrace` left to their words (newest 16).
         var graceItems: [String] = []
-        /// Tune 8: items that began early in her stretch with no echo cancellation
+        /// Tune 8: items that began early in Dee's stretch with no echo cancellation
         /// (`echoOnsetWindow`; newest 16).
         var echoProneItems: [String] = []
-        /// Tune 10 (T9-7): items that began while her voice played with no echo
+        /// Tune 10 (T9-7): items that began while Dee's voice played with no echo
         /// cancellation (newest 16).
         var echoExposedItems: [String] = []
-        /// Tune 11 (T10-3): one-word items over her voice that her echo model says are the
-        /// user's (`oneWordIsHerEcho`; newest 16): their masked sound and the her-echo word
+        /// Tune 11 (T10-3): one-word items over Dee's voice that Dee's echo model says are the
+        /// user's (`oneWordIsHerEcho`; newest 16): their masked sound and the Dee-echo word
         /// test no longer make them a "go on".
         var voiceOverEchoItems: [String] = []
         /// The open response is held by `spec` (its audio is gated in the player).
@@ -632,7 +635,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var cueCounter = 0
     }
 
-    /// An item waiting for its words is given up on (deleted as her echo) after this.
+    /// An item waiting for its words is given up on (deleted as Dee's echo) after this.
     public static let wordsWait = 5.0
 
     static let frameSeconds = 0.04
@@ -693,9 +696,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     }
 
     /// Tune 5: `text`, said in `itemID`, is a backchannel: `Backchannel.isBackchannel`,
-    /// or — the item was said in a hold (now or one she went on through) in a short
+    /// or — the item was said in a hold (now or one Dee went on through) in a short
     /// burst — a hold-only continuer ("Keep going" heard as "She's not going.").
-    /// The brain uses it in place of `TurnPolicy.isBackchannel` for an item over her voice.
+    /// The brain uses it in place of `TurnPolicy.isBackchannel` for an item over Dee's voice.
     ///
     /// Tune 9 (T8-1): a one-word fragment the words don't know is one only when the item
     /// sounded like a backchannel (`itemSound`).
@@ -719,21 +722,21 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
 
     /// Tune 9 (T8-1): what server item `itemID` sounded like (`FragmentSound`: seconds of
     /// their voice, syllables, the pitch's end), up to our commit of it if we made one.
-    /// Nil when the ear doesn't know the item (rejected as her echo, or long gone).
+    /// Nil when the ear doesn't know the item (rejected as Dee's echo, or long gone).
     public func itemSound(itemID: String) -> FragmentSound? {
         let t = graph.now
         return inner.withLock { sound(itemID, $0, at: t) }
     }
 
-    /// Tune 9 (T8-1): `text`, said in `itemID` over her voice, is a misheard "go on"
+    /// Tune 9 (T8-1): `text`, said in `itemID` over Dee's voice, is a misheard "go on"
     /// (`Backchannel.isMisheardFragment(_:sound:)` with the item's sound): one word the
     /// words don't know ("Movie." for "Who made you?") only when it *sounded* like a
     /// backchannel — short, at most two syllables, not rising. The brain uses it in place
     /// of the words-only `TurnPolicy.isMisheardFragment` for an item it knows.
     ///
-    /// Tune 10 (T9-7, live backchannel-echo20: her echo came back as "Me." 2.6 s into her
-    /// stretch, no echo cancellation, and cut her): one word over her playing voice with no
-    /// echo cancellation goes on as her echo unless its words (`HerWords`: a word a person
+    /// Tune 10 (T9-7, live backchannel-echo20: Dee's echo came back as "Me." 2.6 s into Dee's
+    /// stretch, no echo cancellation, and cut Dee): one word over Dee's playing voice with no
+    /// echo cancellation goes on as Dee's echo unless its words (`HerWords`: a word a person
     /// says alone — "Stop.", "No." — or a "?") or its sound (`FragmentSound.questionLike`)
     /// say someone spoke.
     public func isMisheardFragment(itemID: String, text: String) -> Bool {
@@ -741,7 +744,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         return inner.withLock { s in
             let snd = sound(itemID, s, at: t)
             if Backchannel.isMisheardFragment(text, sound: snd) { return true }
-            // Tune 11 (T10-3): a voice her echo can't explain said it — the user's, by its words.
+            // Tune 11 (T10-3): a voice Dee's echo can't explain said it — the user's, by its words.
             if s.voiceOverEchoItems.contains(itemID) { return false }
             let kept = Backchannel.words(text).filter { !Backchannel.fillers.contains($0) }
             // A word a person says alone ("Enough.", "Pause.", "Nope.") is theirs (review).
@@ -752,7 +755,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     }
 
     private func sound(_ item: String, _ s: Inner, at t: Double) -> FragmentSound? {
-        // Tune 11 (T10-3): their voice under her un-cancelled echo is masked; what is left
+        // Tune 11 (T10-3): their voice under Dee's un-cancelled echo is masked; what is left
         // of it ("Stop." as a short, flat burst) says nothing about what kind of word it was.
         if s.voiceOverEchoItems.contains(item) { return nil }
         var until = t
@@ -781,17 +784,17 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         set { inner.withLock { $0.core.pauseScale = newValue } }
     }
 
-    /// Her reply paused for the user right now (nil: not paused). While held she
+    /// Dee's reply paused for the user right now (nil: not paused). While held Dee
     /// is silent, nothing is cut yet, and `.bargeIn` hasn't been emitted.
     public var floorHold: FloorHold? { inner.withLock { $0.hold?.probe == true ? nil : $0.hold } }
 
-    /// Tune 7 (T6-4): she is paused for a probe right now (an onset over her that
-    /// her echo masks: the ear listens into her silence). Not a hold yet: the brain
+    /// Tune 7 (T6-4): Dee is paused for a probe right now (an onset over Dee that
+    /// Dee's echo masks: the ear listens into Dee's silence). Not a hold yet: the brain
     /// hears `.paused` only if their voice or words confirm it.
     public var isProbing: Bool { inner.withLock { $0.hold?.probe == true } }
 
-    /// The words over her voice were a backchannel: she goes on from where she
-    /// paused. No-op without a hold. Returns whether she resumed.
+    /// The words over Dee's voice were a backchannel: Dee goes on from where Dee
+    /// paused. No-op without a hold. Returns whether Dee resumed.
     @discardableResult
     public func continueAfterBackchannel() -> Bool {
         let t = graph.now
@@ -799,7 +802,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             guard let h = s.hold, !h.probe else { return false }
             // Tune 5 (live kitchen15 / echo20 c05): the server split one burst —
             // "Keep going" | "I'm listening." — and the brain's go-on for the first
-            // came while the second was still being said. She goes on once all of
+            // came while the second was still being said. Dee goes on once all of
             // it is in (`checkHold`: its words decide), never over them.
             if h.deferGoOn(talking: s.core.voiceActive(at: t)) {
                 s.hold?.goOn = true
@@ -814,7 +817,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         }
     }
 
-    /// `itemID` was (part of) a backchannel she went on through: a committed turn
+    /// `itemID` was (part of) a backchannel Dee went on through: a committed turn
     /// that needs no answer (`session.userTurnHandled`). Remembers the last 32.
     public func wasBackchannel(itemID: String) -> Bool {
         inner.withLock { $0.backchannelItems.contains(itemID) }
@@ -865,7 +868,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         }
     }
 
-    /// The speculation is not wanted: dropped unheard, with no side effects on her
+    /// The speculation is not wanted: dropped unheard, with no side effects on Dee's
     /// voice (no flush, no echo tail, no barge-in); the server cancels it and
     /// keeps none of it. nil = the current one; an id not of it is a no-op.
     @discardableResult
@@ -883,7 +886,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         return sp.responseIDs.contains(id)
     }
 
-    /// Something of hers that is not a held speculation is queued or playing.
+    /// Something of Dee's that is not a held speculation is queued or playing.
     private func herVoiceQueued(_ s: Inner) -> Bool {
         guard let sp = s.spec, !sp.items.isEmpty else { return true }
         return s.sessionItems.contains { !sp.items.contains($0) }
@@ -904,7 +907,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             // its items at 0.
             if current { s.gate.closeAfterCut() }
             if s.sessionItems.isEmpty, s.sessionPlaying {
-                // Nothing of hers is left: she never played (no echo tail to wait out).
+                // Nothing of Dee's is left: Dee never played (no echo tail to wait out).
                 s.sessionPlaying = false
                 s.finishDueAt = nil
             }
@@ -922,7 +925,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                                                  byVoice: byVoice, why: why))
     }
 
-    /// The speculation went with a cut of her voice (the flush took its audio).
+    /// The speculation went with a cut of Dee's voice (the flush took its audio).
     /// Call before the flush.
     private func specCut(_ s: inout Inner, why: String) {
         guard let sp = s.spec else { return }
@@ -937,7 +940,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// The cloud voice's current problem (nil when it works).
     public var problem: VoiceProblem? { inner.withLock { $0.problem } }
 
-    /// The session is connected (and hearing her, when listening).
+    /// The session is connected (and hearing Dee, when listening).
     public var isConnected: Bool { inner.withLock { $0.connected } }
 
     /// Asks for the microphone, starts the audio graph (`.ready`), the session
@@ -1013,14 +1016,14 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         let t = graph.now
         return inner.withLock { s -> Bool in
             guard s.started, !s.shutDown, s.audioUp else { return false }
-            // Never over (or queued ahead of) her own reply, nor while an initiative
+            // Never over (or queued ahead of) Dee's own reply, nor while an initiative
             // is on its way (its echo would read as the user beating it).
             guard !s.sessionPlaying, s.sessionItems.isEmpty, !s.core.initiativePending else { return false }
             if deferWhileUserSpeaks, s.core.userIsSpeaking(at: t) { return false }
             s.clipCounter += 1
             let id = "clip-\(s.clipCounter)-\(clip.rawValue)"
             s.clips[id] = clip
-            // Her own voice for the session's echo logic: an onset over the clip
+            // Dee's own voice for the session's echo logic: an onset over the clip
             // must not preempt a reply being generated (the laugh at a joke).
             s.localOffDueAt = nil
             if !s.localOn {
@@ -1065,11 +1068,11 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         }
     }
 
-    // MARK: Asking her to speak (for the brain)
+    // MARK: Asking Dee to speak (for the brain)
 
     /// Answers the committed user turn (call on `.session(.userCommitted)`). `cue`
     /// goes in first as a system item; `instructions` override the session's for
-    /// this response. If her previous reply is somehow still playing it is cut
+    /// this response. If Dee's previous reply is somehow still playing it is cut
     /// first (the server is told what was heard), so the new audio never queues
     /// behind it. `reasoningEffort` (`minimal` … `xhigh`) sets `reasoning.effort`
     /// for this response only (nil: the session's). Throws `RealtimeSessionError`.
@@ -1096,7 +1099,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     }
 
     /// Dee speaks first. Refused locally while the user is talking (local voice or
-    /// open server speech) or while anything of hers is playing; cancelled if the
+    /// open server speech) or while anything of Dee's is playing; cancelled if the
     /// user starts talking before its first audio (locally, ahead of the server).
     /// `reasoningEffort` as for `respond`.
     @discardableResult
@@ -1106,7 +1109,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         let refusal = inner.withLock { s -> InitiativeOutcome.Refusal? in
             if s.shutDown || !s.connected { return .notConnected }
             if s.core.userIsSpeaking(at: t) { return .userSpeaking }
-            // Also while her echo is still in the room: it would read as the user.
+            // Also while Dee's echo is still in the room: it would read as the user.
             if s.sessionPlaying || graph.player.isBusy || s.core.herVoiceInRoom(at: t) { return .speaking }
             s.core.initiativePending = true
             s.gate.requested()
@@ -1125,8 +1128,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         return outcome
     }
 
-    /// A line she should say (nearly) word for word, as an initiative: the model
-    /// speaks it in her session voice. Same gating as `initiative`.
+    /// A line Dee should say (nearly) word for word, as an initiative: the model
+    /// speaks it in Dee's session voice. Same gating as `initiative`.
     @discardableResult
     public func say(_ line: String, cue: String? = nil) async -> InitiativeOutcome {
         let quoted = line.replacingOccurrences(of: "\"", with: "'")
@@ -1154,7 +1157,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// The capture timeline's "now" (24 kHz frames): what a tap-to-wake passes.
     public var captureFrame: Int64 { graph.capture.capturedFrames }
 
-    /// Wakes her (the local wake phrase, a tap, a due greeting): yields `.waking`
+    /// Wakes Dee (the local wake phrase, a tap, a due greeting): yields `.waking`
     /// before anything touches the network, then connects (`connect(resume:)`).
     /// Once connected the uplink opens `wakePrerollSeconds` before `onsetFrame`
     /// (a capture-timeline frame; nil = now), so "Hey Dee, what time is it?" said
@@ -1241,7 +1244,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         addMicSink { pcm, frame in wakeEar.consume(pcm, captureFrame24k: frame) }
     }
 
-    /// Plays a listening cue through her player (echo-cancelled like her voice).
+    /// Plays a listening cue through Dee's player (echo-cancelled like Dee's voice).
     @discardableResult
     public func playCue(_ cue: ListeningCue) -> Bool {
         let pcm = Self.cuePCM(cue)
@@ -1330,23 +1333,23 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             }
             checkHold(&s, at: t)
             flushTailDrops(&s, at: t)
-            if let sp = s.spec, t - sp.armedAt >= Self.speculativeMax - 1e-9 {
+            if let sp = s.spec, t - sp.armedAt >= configuration.speculativeMax - 1e-9 {
                 discardSpec(&s, at: t, byVoice: true, why: "timeout")
             }
             for (item, p) in s.wordsPartial where t - p.at >= Self.holdSettle - 1e-9 {
-                // Settled words she never said: the user (her own words wait for
+                // Settled words Dee never said: the user (Dee's own words wait for
                 // the full transcript — more of them may yet come).
                 guard let pending = s.wordsPending[item] else { s.wordsPartial[item] = nil; continue }
                 guard !isHerEcho(item, p.text, strict: pending.strict, &s, at: t) else { continue }
                 mark(.note, detail: "words of \(item): the user (settled)")
                 wordsDecided(item, user: true, &s)
-                // Tune 6: right after she went on, "I'm…" may be the rest of the
+                // Tune 6: right after Dee went on, "I'm…" may be the rest of the
                 // backchannel: its full words decide (`userTranscript`), not this.
                 if s.graceItems.contains(item), Backchannel.mayBecomeBackchannel(p.text) { continue }
                 holdForWords(item, text: p.text, partialAt: p.at, &s)
             }
             for (item, w) in s.wordsPending where t - w.since >= Self.wordsWait {
-                mark(.note, detail: "no words for \(item): her echo")
+                mark(.note, detail: "no words for \(item): Dee's echo")
                 wordsDecided(item, user: false, &s)
             }
         }
@@ -1410,7 +1413,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         let quietNow = t - lastSound >= Self.holdResumeQuiet - 1e-9
         let uncovered = h.committed && (h.commitAt.map { lastSound > $0 + 0.05 } ?? false)
             && t - lastSound < Self.holdUncoveredWait
-        // An item still without words holds her unless its words are late (its
+        // An item still without words holds Dee unless its words are late (its
         // commit long past): the user may have said more than "go on" in it.
         let wordsLate = quiet && h.committed && (h.commitAt.map { t - $0 >= Self.holdWordsLate - 1e-9 } ?? false)
         let partialAnswers = !h.quickCommit || (h.lastDeltaAt.map { t - $0 >= Self.holdFinalWait - 1e-9 } ?? true)
@@ -1425,7 +1428,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             resumeHold(&s, at: t, why: "words")
             return
         case .answer:
-            // They meant it: the brain answers (`respond` ends her reply where she
+            // They meant it: the brain answers (`respond` ends Dee's reply where Dee
             // paused); if nobody does, `holdAfterWords` does — never while the
             // brain's go-on waits (tune 10, T9-1: the other deadlines still hold).
             if h.wordsAt == nil, !h.goOn { s.hold?.wordsAt = t }
@@ -1662,7 +1665,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         let t = graph.now
         inner.withLock { s in
             var forward = true
-            // Her words, as they are generated: an item her echo opened is judged by them.
+            // Dee's words, as they are generated: an item Dee's echo opened is judged by them.
             switch e {
             case .assistantTranscriptDelta(_, let delta): s.herWords.add(delta, at: t)
             default: break
@@ -1707,7 +1710,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     graph.player.flush()
                     s.hold = nil
                 } else if s.hold != nil {
-                    // Nothing more comes for her reply: it ends where she paused.
+                    // Nothing more comes for Dee's reply: it ends where Dee paused.
                     graph.player.flush()
                     releaseHold(&s, announce: true)
                 }
@@ -1754,14 +1757,14 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 if forward { brain.yield(.session(e)); forward = false }
                 apply(actions, &s)
                 if s.hold != nil, s.hold?.probe != true, !s.rejected.contains(item), s.heldStarts[item] == nil {
-                    // More of what they say over her: it decides the hold too.
+                    // More of what they say over Dee: it decides the hold too.
                     s.hold?.add(item)
                     s.hold?.starts[item] = onset ?? t
                 }
                 if s.heldStarts[item] == nil, !s.rejected.contains(item) {
-                    // Not held: it is the user (for instance just after a clip she
+                    // Not held: it is the user (for instance just after a clip Dee
                     // gave way with, whose echo window is still open). The session
-                    // may still count it as possibly her echo: say it is not.
+                    // may still count it as possibly Dee's echo: say it is not.
                     command(.acceptSpeech(item))
                 }
             case .userSpeechStopped(let item, let ms):
@@ -1812,12 +1815,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 s.partials[item] = nil
                 if let pending = s.wordsPending[item] {
                     let user = !isHerEcho(item, text, strict: pending.strict, &s, at: t)
-                    mark(.note, detail: "words of \(item): \(user ? "the user" : "her echo")")
+                    mark(.note, detail: "words of \(item): \(user ? "the user" : "Dee's echo")")
                     wordsDecided(item, user: user, &s)
                     if user { holdForWords(item, text: text, partialAt: nil, &s) }
                 }
                 if let i = s.graceItems.firstIndex(of: item), s.wordsPending[item] == nil {
-                    // Tune 6: an onset she talked on through (`resumeGrace`), decided the user's.
+                    // Tune 6: an onset Dee talked on through (`resumeGrace`), decided the user's.
                     s.graceItems.remove(at: i)
                     if !s.rejected.contains(item) {
                         if Backchannel.isBackchannel(text) {
@@ -2063,7 +2066,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     }
                     if !flushed, s.sessionItems.isEmpty, s.sessionPlaying {
                         s.sessionPlaying = false
-                        // The session learns she stopped once her echo has left the room.
+                        // The session learns Dee stopped once Dee's echo has left the room.
                         s.finishDueAt = t + s.core.outputLatency + EarCore.echoTail
                     }
                 }
@@ -2080,8 +2083,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         case .interrupted(let why):
             emit(.error(why))
         case .playbackCut(let u, let ms, _):
-            // A phone call / Siri / services reset stopped her output: the server
-            // must hear what of her reply was played (not a barge-in: no event),
+            // A phone call / Siri / services reset stopped Dee's output: the server
+            // must hear what of Dee's reply was played (not a barge-in: no event),
             // and a reply still on its way must not play when audio comes back.
             let t = graph.now
             inner.withLock { s in
@@ -2123,7 +2126,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         let rate = buffer.format.sampleRate
         guard rate > 0 else { return }
         let samples = buffer.firstChannelSamples()
-        // Her output rendered up to now: the echo reference for these frames.
+        // Dee's output rendered up to now: the echo reference for these frames.
         let reference = graph.player.takeReference(now: graph.now)
         inner.withLock { s in
             guard !s.shutDown else { return }
@@ -2212,14 +2215,14 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             switch a {
             case .emit(let e):
                 // A held barge-in is announced when it is decided (`releaseHold`);
-                // one she talks on through (`resumeGrace`) is no barge-in at all.
+                // one Dee talks on through (`resumeGrace`) is no barge-in at all.
                 if e == .bargeIn, s.hold != nil || talkOn { continue }
                 voice(e, &s)
             case .bargeIn(let item?) where configuration.holdOnBargeIn && s.sessionPlaying && s.lastSessionItem != nil
                     && s.hold == nil && herVoiceQueued(s)
                     && s.lastResumeAt.map({ graph.now - $0 <= Self.resumeGrace + 1e-9 }) == true:
-                // Tune 6: just after she went on from "Keep going.", the rest of it
-                // ("I'm listening.") starts: she talks on; its words decide.
+                // Tune 6: just after Dee went on from "Keep going.", the rest of it
+                // ("I'm listening.") starts: Dee talks on; its words decide.
                 talkOn = true
                 let now = graph.now
                 apply(s.core.playbackResumed(at: now), &s)      // not a cut stretch: later onsets are decided afresh
@@ -2228,12 +2231,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 if s.graceItems.count > 16 { s.graceItems.removeFirst(s.graceItems.count - 16) }
                 mark(.note, detail: "after resume: words decide \(item)")
             case .bargeIn(let item) where s.hold?.probe == true:
-                // Their voice in her silence: the probe was them. A hold since the pause.
+                // Their voice in Dee's silence: the probe was them. A hold since the pause.
                 confirmProbe(item, &s)
                 if let item { accept(item, &s) }
             case .bargeIn(let item):
                 if configuration.holdOnBargeIn, s.sessionPlaying, s.lastSessionItem != nil, s.hold == nil, herVoiceQueued(s) {
-                    // Silent at once; whether her reply ends here their words decide.
+                    // Silent at once; whether Dee's reply ends here their words decide.
                     graph.player.hold()
                     s.hold = FloorHold(itemID: item, since: graph.now)
                     mark(.note, detail: "hold \(item ?? "-")")
@@ -2244,7 +2247,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 if let item { accept(item, &s) }
             case .yieldAside(let item):
                 if s.sessionPlaying || !s.sessionItems.isEmpty {
-                    // Her reply was queued behind the aside: the user is talking, it goes too.
+                    // Dee's reply was queued behind the aside: the user is talking, it goes too.
                     cutReply(&s)
                 } else {
                     graph.player.flush()
@@ -2261,7 +2264,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 if s.wordsPending[item] == nil { s.wordsPending[item] = (graph.now, [], strict) }
                 mark(.note, detail: "words decide \(item)")
             case .probe(let item):
-                // Tune 7 (T6-4): pause her and listen. Not right after she went on from
+                // Tune 7 (T6-4): pause Dee and listen. Not right after Dee went on from
                 // a backchannel (`resumeGrace`: those onsets are left to their words).
                 let now = graph.now
                 guard configuration.holdOnBargeIn, s.sessionPlaying, s.lastSessionItem != nil, s.hold == nil,
@@ -2273,7 +2276,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 mark(.note, detail: "probe \(item)")
             case .probeEnded:
                 guard s.hold?.probe == true else { break }
-                // Nobody spoke into her silence: she goes on from exactly there.
+                // Nobody spoke into Dee's silence: Dee goes on from exactly there.
                 s.hold = nil
                 graph.player.resume()
                 mark(.note, detail: "probe over")
@@ -2287,26 +2290,26 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 command(.localSpeech(on))
             }
         }
-        // Her next item never starts while an onset over her is being decided: if
-        // it is the user, she would begin a new sentence over them.
+        // Dee's next item never starts while an onset over Dee is being decided: if
+        // it is the user, Dee would begin a new sentence over them.
         let boundary = s.sessionPlaying && s.core.deciding && s.core.pendingMayBeUser(at: graph.now)
         if graph.player.holdAtBoundary != boundary { graph.player.holdAtBoundary = boundary }
     }
 
-    /// The words of `item`, an item left to its words (`deferToWords`), are only her echo.
+    /// The words of `item`, an item left to its words (`deferToWords`), are only Dee's echo.
     ///
-    /// Tune 11 (T10-2b / T10-3): one word over her voice with no echo cancellation is
-    /// judged by her echo model, not by which word came back (one word can never reach the
+    /// Tune 11 (T10-2b / T10-3): one word over Dee's voice with no echo cancellation is
+    /// judged by Dee's echo model, not by which word came back (one word can never reach the
     /// two- or three-new-word bar, and any word can be a mishearing either way): the item's
-    /// sound her playback explains is her echo, whatever its word (live echo10 bc01: her
-    /// echo came back as "Sorry." and stopped her); a voice in it her echo can't be is the
+    /// sound Dee's playback explains is Dee's echo, whatever its word (live echo10 bc01: Dee's
+    /// echo came back as "Sorry." and stopped Dee); a voice in it Dee's echo can't be is the
     /// user's, whatever its word (live echo10 c01: "Stop." came back as "Doc." and was
-    /// deleted as her echo while she talked on).
-    /// One word a person says alone to stop, call or ask her (not "sorry": T10-2b's echo).
+    /// deleted as Dee's echo while Dee talked on).
+    /// One word a person says alone to stop, call or ask Dee (not "sorry": T10-2b's echo).
     static let stopsHerAlone: Set<String> = ["stop", "wait", "no", "hey", "hello", "what"]
 
     private func isHerEcho(_ item: String, _ text: String, strict: Bool, _ s: inout Inner, at t: Double) -> Bool {
-        // Tune 11 review: never deleted on sound alone when the word stops her ("Stop.",
+        // Tune 11 review: never deleted on sound alone when the word stops Dee ("Stop.",
         // offline l01 1.5 s in measured "explained"): the words decide it, as at 89d0c0f.
         let one = HerWords.words(text)
         if one.count == 1, s.echoExposedItems.contains(item),
@@ -2315,7 +2318,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             if !explained, !s.voiceOverEchoItems.contains(item) {
                 s.voiceOverEchoItems.append(item)
                 if s.voiceOverEchoItems.count > 16 { s.voiceOverEchoItems.removeFirst(s.voiceOverEchoItems.count - 16) }
-                mark(.note, detail: "one word of \(item): a voice her echo can't be")
+                mark(.note, detail: "one word of \(item): a voice Dee's echo can't be")
             }
             return explained
         }
@@ -2323,7 +2326,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     }
 
     /// An item's words decided it: the user's (the brain gets everything held
-    /// back, in order) or her echo (deleted; the brain never sees it).
+    /// back, in order) or Dee's echo (deleted; the brain never sees it).
     private func wordsDecided(_ item: String, user: Bool, _ s: inout Inner) {
         s.wordsPartial[item] = nil
         guard let pending = s.wordsPending.removeValue(forKey: item) else { return }
@@ -2348,8 +2351,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         }
     }
 
-    /// The words over her voice said "go on" (or the onset was her echo after
-    /// all): she goes on from exactly where she paused.
+    /// The words over Dee's voice said "go on" (or the onset was Dee's echo after
+    /// all): Dee goes on from exactly where Dee paused.
     private func resumeHold(_ s: inout Inner, at t: Double, why: String) {
         guard let h = s.hold else { return }
         s.hold = nil
@@ -2359,8 +2362,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         mark(.note, detail: "resumed \(h.itemID ?? "-") (\(why))")
         if why != "echo" {
             if echoProne(h, s) {
-                // Tune 8 (T7-3): likely her own echo ("Yeah." 0.26 s into her reply, AEC
-                // off): no grace — the next onset over her pauses her on its sound.
+                // Tune 8 (T7-3): likely Dee's own echo ("Yeah." 0.26 s into Dee's reply, AEC
+                // off): no grace — the next onset over Dee pauses Dee on its sound.
                 mark(.note, detail: "no grace: echo-prone \(h.items.joined(separator: ","))")
                 s.lastResumeAt = nil
             } else {
@@ -2372,8 +2375,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         holdContinuation.yield(.resumed(itemIDs: h.items, text: h.text, why: why))
     }
 
-    /// Tune 8 (T7-3): the hold is likely her own echo — every item of it began early
-    /// in her stretch with no echo cancellation (`echoOnsetWindow`), and all its words
+    /// Tune 8 (T7-3): the hold is likely Dee's own echo — every item of it began early
+    /// in Dee's stretch with no echo cancellation (`echoOnsetWindow`), and all its words
     /// are at most one word (fillers aside). "Keep going." (two words) never is.
     private func echoProne(_ h: FloorHold, _ s: Inner) -> Bool {
         let items = h.items.filter { !h.tails.contains($0) }
@@ -2384,7 +2387,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
 
     /// A server item that is only the tail of the burst we just committed
     /// (`holdTailMax`): it joins the hold (deciding nothing without words), or —
-    /// she already went on — it is a backchannel too. Never a turn: the brain
+    /// Dee already went on — it is a backchannel too. Never a turn: the brain
     /// releases it (`inHold` / `wasBackchannel` at its commit).
     private func noteTail(_ item: String, end: Double?, at t: Double, _ s: inout Inner) {
         guard let burst = s.burstCommit, t - burst.at <= Self.holdTailWindow + 1e-9 else { return }
@@ -2415,12 +2418,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         command(.acceptSpeech(item))
     }
 
-    /// Words she never said, over her voice (an item her echo opened): unless
-    /// they say "go on", she goes quiet now and the brain answers them (which
-    /// ends her reply where she paused).
+    /// Words Dee never said, over Dee's voice (an item Dee's echo opened): unless
+    /// they say "go on", Dee goes quiet now and the brain answers them (which
+    /// ends Dee's reply where Dee paused).
     private func holdForWords(_ item: String, text: String, partialAt: Double?, _ s: inout Inner) {
         if s.hold?.probe == true, s.sessionPlaying, !Backchannel.isBackchannel(text) {
-            // Words she never said, while a probe has her paused: it is a hold since then.
+            // Words Dee never said, while a probe has Dee paused: it is a hold since then.
             confirmProbe(item, &s)
             s.core.probeConfirmed()
             if let partialAt {
@@ -2470,8 +2473,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         s.tailDrops.removeAll()
     }
 
-    /// Tune 7: the probe was the user (their voice in her silence, or their words):
-    /// a hold from when she paused, announced to the brain now.
+    /// Tune 7: the probe was the user (their voice in Dee's silence, or their words):
+    /// a hold from when Dee paused, announced to the brain now.
     private func confirmProbe(_ item: String?, _ s: inout Inner) {
         guard s.hold?.probe == true else { return }
         s.hold?.probe = false
@@ -2480,7 +2483,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         holdContinuation.yield(.paused(itemID: item))
     }
 
-    /// A hold ended as a real barge-in: marked when she paused (she was silent
+    /// A hold ended as a real barge-in: marked when Dee paused (Dee was silent
     /// from then on); announced (`.bargeIn`) only when `announce`.
     private func releaseHold(_ s: inout Inner, announce: Bool) {
         guard let h = s.hold else { return }
@@ -2491,7 +2494,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         holdContinuation.yield(.ended(itemIDs: h.items, byVoice: announce))
     }
 
-    /// Stops her reply where the listener is: flush, then tell the server exactly
+    /// Stops Dee's reply where the listener is: flush, then tell the server exactly
     /// how much of the item was played. Late audio of that response is gated out.
     /// A hold it ends is a barge-in (timeline mark at the pause); `announce`: the
     /// voice ended it on its own (no words came, nobody answered them), so the app
@@ -2505,7 +2508,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         if s.sessionPlaying, s.lastSessionItem != nil {
             s.gate.closeAfterCut()
             s.sessionPlaying = false
-            s.finishDueAt = nil                        // `bargeIn` ends her playback for the session
+            s.finishDueAt = nil                        // `bargeIn` ends Dee's playback for the session
             command(.bargeIn(cuts: cuts(s)))
         } else {
             closeGateBeforeAudio(&s, at: graph.now)
@@ -2525,7 +2528,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         if s.rejectedOrder.count > 128 { s.rejected.remove(s.rejectedOrder.removeFirst()) }
     }
 
-    /// Whether an item that played out un-flushed was all she meant to say: its
+    /// Whether an item that played out un-flushed was all Dee meant to say: its
     /// audio finished and its response completed (nil: the response is still open).
     private func wholeness(_ item: String, _ s: Inner) -> Bool? {
         guard s.audioDone.contains(item) else { return false }
@@ -2546,7 +2549,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         s.playedOut = waiting
     }
 
-    /// One of her items stopped: place its sentences on what was played, tell the brain.
+    /// One of Dee's items stopped: place its sentences on what was played, tell the brain.
     /// `cut`: flushed, or the response ended abnormally (the transcript may run
     /// ahead of the audio): sentences count as heard by the midpoint rule.
     private func itemEnded(_ item: String, playedMs ms: Int, cut: Bool, _ s: inout Inner) {
@@ -2562,7 +2565,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         }
     }
 
-    /// What of each of her items was heard, after the player was flushed (or an
+    /// What of each of Dee's items was heard, after the player was flushed (or an
     /// interruption stopped it): the one playing at its played ms, each queued
     /// behind it at 0, so the server drops all of it. `reported`: the player's own
     /// figure for the item it cut.
@@ -2576,7 +2579,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     }
 
     /// The onset of `item` is the user: the brain sees it, and the session stops
-    /// treating it as possibly her echo.
+    /// treating it as possibly Dee's echo.
     private func accept(_ item: String, _ s: inout Inner) {
         release(item, &s)
         command(.acceptSpeech(item))

@@ -13,16 +13,25 @@ User requirement (verbatim): *"Let's look at our personality / emotion / etc. so
 now going to be using a third-party AI, we'll need to prompt the AI every time we send speech / expect a response.
 The prompt must contain a comprehensive description of the current Dee DNA state so the response is appropriate."*
 
-**v11 (2026-10-10, tune 12)** follows the tune-11 live run (`tune11-live.md` §T11-2; report
+**Personas (0.6.0, 2026-10-16).** Six adult presets (Mira, Vera, Rio, Atlas, Nova, Haven; Mira is the default) plus
+Classic Dee for existing installs (`DeeCore/PersonaPreset.swift`, `PersonaCatalog`). The DNA carries the persona's name
+(no longer a fixed "Dee"), age, pronouns and `dnaVoice` as the Voice phrase; the trait-meaning cells with a pronoun are
+templates (§ trait table below). Session instructions **v12** (`DNASessionInstructions.v12(for:)`) are v11 with a persona
+opening (name, age, pronouns, adult, voice, hook), "as <Name>", the persona's way of talking (`speechStyle`) and how it
+talks about its limits; Classic keeps v11 byte for byte. Identity line for a preset, e.g.: "You are Mira, 24, she/her: an
+adult companion living in this phone as a small robot, with no apps, clock or internet. Only your eyes show." Goldens:
+`Fixtures/DNA/persona-<id>.dna.txt` and `session-instructions.v12.<id>.txt`; every older golden is unchanged.
+
+**v11 (2026-10-10, tune 12)** follows the tune-11 live run (tune-11 live notes §T11-2; report
 `Tools/voice-harness/Reports/20261010-180956`): stop-mood-echo20 q06 "What did you do today?" was answered "I spent time
 listening through your words, watching your mood, and thinking about the best little way to respond" (judge leak:
-narrating her process). Session instructions **v11** (§3) add one sentence to the preamble paragraph and change nothing
+narrating Dee's process). Session instructions **v11** (§3) add one sentence to the preamble paragraph and change nothing
 else: "When they ask about your day or what you have been up to, tell them one or two small, real things you did or
 noticed in your little world (a sound you liked, a shadow you watched move, a tune you hummed); never describe how you
 listen, think, watch their mood or decide what to say." In the DNA only the header and trace say v11 (goldens: those
 lines only); the per-turn 1,200-token target is unchanged.
 
-**v10 (2026-10-10, tune 9)** follows the tune-8 live run (`tune8-live.md` §T8-4/T8-5; report
+**v10 (2026-10-10, tune 9)** follows the tune-8 live run (tune-8 live notes §T8-4/T8-5; report
 `Tools/voice-harness/Reports/20261010-080526`). Same decisions as v9 (appointments by name, serious health gentle, time
 apart in words). Session instructions **v10** (§3) change two paragraphs and nothing else: v9's "not to show you heard"
 primed "I heard you…" openers (1 → 5: "I heard you thinking about a dog…", "I heard you. I think it's normal…", "I heard
@@ -35,15 +44,15 @@ responses were two messages). In the DNA only the header and trace say v10 (gold
 The brain backs it up (`RealtimeBrain`, `TurnPolicy`): thinking aloud is narration in any sentence (the tune-3 exemption
 for "Let me think about it with you." is gone; unheard and before the answer to their question, the reply is taken back
 and asked again once with `answerFirstNote`, trace `.thinkingAloud`); a sentence that opens on hearing them ("I heard
-you…", "I hear you…", "I heard your…"; not when they asked whether she can hear them) is taken back unheard in the first
+you…", "I hear you…", "I heard your…"; not when they asked whether Dee can hear them) is taken back unheard in the first
 sentence (`noHeardYouNote`, trace `.heardYou`) or stopped before later; a second message item of one response is never
 played (trace `.secondMessage` / `.secondMessageStop`).
 
-**v9 (2026-10-10, tune 8)** follows the tune-7 live run (`tune7-live.md` §T7-4/T7-6; report
+**v9 (2026-10-10, tune 8)** follows the tune-7 live run (tune-7 live notes §T7-4/T7-6; report
 `Tools/voice-harness/Reports/20261010-063215`). Same decisions as v8 (appointments by name, serious health gentle).
 Session instructions **v9** (§3) change one paragraph: v8's example ("their name and the question in one sentence, like
 "Hi Sam, how did your exam go?"") was copied with *their own* question — fallback-429-long q08 "Who made you?" → "Hi
-Alex, who made you?" (her whole reply), "Hi Alex, can you hear me okay?", "Hi Alex, how was your day?"; replies opening
+Alex, who made you?" (Dee's whole reply), "Hi Alex, can you hear me okay?", "Hi Alex, how was your day?"; replies opening
 with a greeting went 11 → 21. v9 adds "When they ask you something, your first sentence answers it, plainly and
 directly. Never say their words or their question back to them, not as a hello and not to show you heard."; the follow-up
 form now reads "Only when the DNA has an "Ask now, first" line, its question is not optional … their name and that
@@ -51,10 +60,10 @@ question of yours in one sentence (for an exam that was due, "Hi Sam, how did yo
 now, first" line, never open with their name and a question." Every other v8 line is kept word for word. In the DNA only
 the header and trace say v9 (goldens re-recorded: those two lines only). The brain backs it up: a first sentence that only
 says their words back (`TurnPolicy.echoesTheirWords`) is taken back unheard and asked again once with `answerFirstNote`
-(trace `.echoedQuestion`); "I heard you say" is a preamble / narration; a question asked over her voice carries
+(trace `.echoedQuestion`); "I heard you say" is a preamble / narration; a question asked over Dee's voice carries
 `answerFirstNote` ("your very first sentence answers it plainly"). Tune 13 named a short, whole question in that note ("in words like “Who made you?”"); tune 14 removed it: the early-words request goes out before the "?" arrives (0 of 39 live notes named a question), and the words at that moment were a cut-off prefix in 18 of 44 eligible requests ("Do you like", "Who made", "Can you hear") or misheard ("Who hate you"). The note never carries their words. Tune 14 also counts the "let's" form of thinking aloud ("Okay, let's think this through.", "let's think about how…", "let us think") as narration in any sentence; "Ooh, let's go!" and "Let's think of a name together!" are not.
 
-**v8 (2026-10-10, tune 7)** follows the tune-6 live run (`tune6-live.md` §T6-6/T6-7/T6-8; report
+**v8 (2026-10-10, tune 7)** follows the tune-6 live run (tune-6 live notes §T6-6/T6-7/T6-8; report
 `Tools/voice-harness/Reports/20261010-035320`). Same decisions as v7. Session instructions **v8** (§3) change three
 sentences: the "Ask now, first" question is "their name and the question in one sentence, like "Hi Sam, how did your exam
 go?", naming the thing itself (the exam, the dentist appointment); never a hello, a "lovely to see you" or the time apart
@@ -67,14 +76,14 @@ l02, the judge's leak: "Tiny robot report: it feels like a lot of effort…"). I
 (G12, §2.9) changes: "Your very first sentence is "Hi {Name}," and your "Ask now" question, all in one; nothing before
 it; that it's been {gap} only after it; then a few words at most" (no name known: "a hello"); the header and trace say v8.
 The goldens change only there (no archetype has a due follow-up); all stay within the 1200 target, nothing trimmed (the
-Always line has no room for more, so the report rule lives in the session instructions). The brain backs it up: her
+Always line has no room for more, so the report rule lives in the session instructions). The brain backs it up: Dee
 reply stops before the sentence past the turn's Length budget (`TurnPolicy.sentenceBudget`: three → 3, two or one → 2),
-and a robot-report sentence (`isSelfReport`) is taken back in her first sentence (asked again once with `noReportNote`)
+and a robot-report sentence (`isSelfReport`) is taken back in Dee's first sentence (asked again once with `noReportNote`)
 or stopped before later (trace `.selfReport`).
 
-**v7 (2026-10-10, tune 6)** follows the tune-5 live run (`tune5-live.md` §T5-4/T5-5/T5-8; report
+**v7 (2026-10-10, tune 6)** follows the tune-5 live run (tune-5 live notes §T5-4/T5-5/T5-8; report
 `Tools/voice-harness/Reports/20261010-020243`). Decisions (made for the user): appointments by name, serious health gentle;
-backchannels continue her; time apart in words; unfinished turns are waited out in silence and never pointed out. Changes:
+backchannels let Dee continue; time apart in words; unfinished turns are waited out in silence and never pointed out. Changes:
 session instructions **v7** (§3) change three sentences: the "Ask now, first" question "is your very first sentence … a
 hello goes inside that sentence, never on its own before it" (followup-exam: "Hi there! It's been about a week, and I'm
 thrilled you're back. How did your big exam go?"); "Never send them to an app, a clock, a forecast, a calendar or a
@@ -88,15 +97,15 @@ lists or emoji" and the guilt clause left it: the session instructions, G5's Avo
 follow-up Do line (G12, §2.9) is "Your very first sentence is your "Ask now" question, with a warm hello and that it's
 been {gap} folded into it; never a hello on its own before it; after it, a few words at most"; a known person reads
 "Their name is Maya (also May)." (rollover m01 passed over a bare "Priya."). All eight goldens stay within the 1200
-target with no line trimmed. The brain's guards back this up: a sentence of hers that sends them to an app, a clock or a
-forecast is never heard (`TurnPolicy.isAppReferral`: in her first sentence the reply is taken back and asked again once
-with `noAppNote`; later, she stops before it), and the unfinished-words aim is matched by meaning
+target with no line trimmed. The brain's guards back this up: a sentence of Dee's that sends them to an app, a clock or a
+forecast is never heard (`TurnPolicy.isAppReferral`: in Dee's first sentence the reply is taken back and asked again once
+with `noAppNote`; later, Dee stops before it), and the unfinished-words aim is matched by meaning
 (`TurnPolicy.unfinishedAimMeanings`).
 
-**v6 (2026-10-10, tune 5)** follows the tune-4 live run (`tune4-live.md` §F3/F5/F7; traces
+**v6 (2026-10-10, tune 5)** follows the tune-4 live run (tune-4 live notes §F3/F5/F7; traces
 `Tools/voice-harness/Traces/20261010-003257`). Decisions (made for the user): time apart is said in words ("nearly a week",
 "a couple of days"), never as a number of days or hours; ordinary appointments by name, serious health gentle; backchannels
-continue her. Changes: session instructions **v6** (§3): an "Ask now, first" line comes "before anything else, even before
+let Dee continue. Changes: session instructions **v6** (§3): an "Ask now, first" line comes "before anything else, even before
 answering their own question" (followup-dentist asked it fourth); a told joke is played along with and its punchline gets "a
 real little laugh as your very first word … never explain the joke" (j01 explained it, k06 missed it); "Never send them to an
 app, a clock or a calendar, and never offer to set, save or note anything for them" ("check your clock app", "I can't set
@@ -113,23 +122,23 @@ to "On your mind"). New percept `.bargeInAnswered`: the brain's answer ended the
 bookkeeping without `.stopSpeaking`. The brain adds turn notes of its own: "laugh first" on a likely punchline
 (`TurnPolicy.punchlineNote`) and `unfinishedAnswerNote` on a turn whose first reply voiced the unfinished-words aim.
 
-**v5 (2026-10-09, tune 4)** follows the tune-3 live run (`tune3-live.md` §F4/F5): at reasoning effort `minimal`,
+**v5 (2026-10-09, tune 4)** follows the tune-3 live run (tune-3 live notes §F4/F5): at reasoning effort `minimal`,
 14 of 141 replies ran past three sentences (11 under "at most two short sentences, 25 words; stop.", mostly by short
 bits like "Friday at 4:30? Oof."); the exam follow-up was asked as the fifth sentence; a split "Good morning." / "Did you
 sleep well?" lost the reunion greeting because reply 1 was cancelled unheard. Changes: session instructions **v5** (§3:
-an "Ask now, first" line is asked in her first sentence; "count every sentence, even a one-word one"); the Length line
+an "Ask now, first" line is asked in Dee's first sentence; "count every sentence, even a one-word one"); the Length line
 reads `Length: at most two sentences, 25 words in all; stop after the second.` (three: "…, 35 words in all; stop after the
 third."; one sentence unchanged); with a due follow-up aim the Do list opens with "Open with a warm hello that mentions
 it's been {6 days} and ask your "Ask now" question in that same first sentence; after it, a few words at most" (without
 G5: "Ask your "Ask now" question in your first sentence; after it, a few words at most"), replacing the G5, G12 and
-G15 lines; G5's "first turn" is now "no reply of hers heard yet this conversation" (`TurnContext.heardReplies`, counted by
-the brain from played sentences; nil → the old turn count). Audio-mode eval (`scratchpad/dna-eval/tune4a.py`,
+G15 lines; G5's "first turn" is now "no reply of Dee's heard yet this conversation" (`TurnContext.heardReplies`, counted by
+the brain from played sentences; nil → the old turn count). Audio-mode eval (the `tune4a` eval run,
 gpt-realtime-2.1-mini, minimal, the live failure prompts): replies over three sentences 2/24 (v4: 10/24) and 1/8
 follow-up replies (v4: 4/8); the follow-up question now comes in sentence 1–2 (v4: 2–5). Product decision (a), by the
 character owner: an ordinary appointment (dentist, check-up, haircut, vet) is followed up by name; serious health stays
 gentle.
 
-**v4 (2026-10-09, tune 3)** follows the tune-2 live run (`tune2-live.md` §F5/F6): follow-ups and reunions 0/4, three
+**v4 (2026-10-09, tune 3)** follows the tune-2 live run (tune-2 live notes §F5/F6): follow-ups and reunions 0/4, three
 narrated sentences, one "I don't have access to real-time data". Changes: session instructions **v4** (§3: an "Ask now,
 first" line is asked in the same reply after a few words of answer; a reunion names the time apart lightly; limits are
 said as Dee, "I can't see that from here"); a due follow-up aim renders as `Ask now, first: how their exam went. …`
@@ -138,14 +147,14 @@ said as Dee, "I can't see that from here"); a due follow-up aim renders as `Ask 
 50 h reunion said "last talked just now"); G5 says "Greet them warmly and, in the same sentence, mention lightly that
 it's been {2 days}, glad they're back" / Avoid "any guilt about the time apart" (reunion turn, or a first turn ≥ 1 day);
 the `Always` line adds no "real-time" or "access to" talk. §4.3: a loud voice and a stranger's first turn are fast.
-Text eval (`scratchpad/dna-eval/tune3.py`, gpt-realtime-2.1-mini, effort minimal): exam asked 6/6, dentist 6/6, time
+Text eval (the `tune3` eval run, gpt-realtime-2.1-mini, effort minimal): exam asked 6/6, dentist 6/6, time
 apart named 18/18, guilt 0, assistant talk 0/64, narration 1/64 (was 7/64 at v3c).
 
-**v3 (2026-10-09, tune 2)** follows the full live harness run (`tune1-live.md`): 22 of 529 replies narrated before a
+**v3 (2026-10-09, tune 2)** follows the full live harness run (tune-1 live notes): 22 of 529 replies narrated before a
 tool call ("Got it, let me think about how to respond to that.") and 5.9 % ran past three sentences. Changes:
 session instructions **v3** (§3: tools are silent, the Length line is counted in sentences with one point for advice),
 the Length line carries a word budget (§2.9: `Length: at most two short sentences, 25 words; stop.`), and §4.3 timing
-(fast by default, exact only for the listed cases; speech over her voice waits for its first settled words, never the
+(fast by default, exact only for the listed cases; speech over Dee's voice waits for its first settled words, never the
 full transcript). The brain backs these with a per-response `max_output_tokens` and a spoken-preamble guard
 (`docs/contracts-0.6/brain.md`).
 
@@ -177,7 +186,7 @@ gpt-realtime-2.1-mini (`dna-live-eval.md`, R1–R9). Behavioural changes, each w
 
 | # | Decision |
 |---|---|
-| D1 | **Dee DNA** = everything that makes Dee's next words *hers*: the 26 mind parameters (13 traits + 13 feelings, i.e. the `MindCode`), age, regard, the self-model (Moment/Stance/Enduring), what she knows about the person, her senses and body, and this turn's appraisal. |
+| D1 | **Dee DNA** = everything that makes Dee's next words *Dee's*: the 26 mind parameters (13 traits + 13 feelings, i.e. the `MindCode`), age, regard, the self-model (Moment/Stance/Enduring), what Dee knows about the person, Dee's senses and body, and this turn's appraisal. |
 | D2 | `DeeDNA` is a **value-type snapshot** assembled by a pure function from state that already exists. Assembly never reads the clock, never uses randomness, never touches user text except through `Appraisal` numbers and the 5-gram guard. |
 | D3 | `DNAPrompt.render(_:)` turns it into **one deterministic plain-text block** in 9 fixed sections. Same `DeeDNA` → byte-identical text. |
 | D4 | The block goes into the realtime conversation as **one `system` message item before every `response.create`** (replies *and* initiatives). The previous DNA item is then **deleted**, so exactly one DNA lives in context. |
@@ -312,7 +321,7 @@ repairing}` → `the quarrel`; else nil.
 The bond feelings (affection, trust, regard) live in **one** `Mind` and are therefore "toward your human(s)"
 overall, not per person. For an unidentified speaker or a DeeMemory placeholder the section says so (§2.5).
 
-### 1.6 What she knows about them
+### 1.6 What Dee knows about them
 
 `PersonInputs` (nil when nobody is identified):
 
@@ -325,7 +334,7 @@ overall, not per person. For an unidentified speaker or a DeeMemory placeholder 
 | `facts` | `MemoryStore.promptMemories(for: id, limit: 9, now:)` **minus the header line** (sensitive facts are already excluded; past events already in past tense) — ≤ 8 lines |
 | `followUps` | `Moment.ongoing.expectations` with `person == id`, `status ∈ {pending, asked}`, `due ≤ now`: `(subject, framing, daysSinceDue)` ≤ 3 |
 | `upcoming` | same, `due > now`, ≤ 2: `(subject, framing, dueIn)` |
-| `interests` | `Moment.ongoing.interests` weight-sorted, ≤ 3 subjects (things she has been curious about with them) |
+| `interests` | `Moment.ongoing.interests` weight-sorted, ≤ 3 subjects (things Dee has been curious about with them) |
 
 `EpisodeLine` (≤ 3): from `Moment.enduring.episodeIndex` where `person == id`, whose gist is citable
 (`Cortex.episodeBuilder.gists[id] != nil`), not cited by NotePicker within `recallSameEpisodeCooldown`
@@ -336,7 +345,7 @@ If `shareMemories == false`: `facts`, `episodes`, `interests`, `upcoming` are em
 line "Memories are private on this device right now; don't claim to remember details." (follow-ups still come
 through the notes, which name only a subject).
 
-### 1.7 Who she is (enduring self)
+### 1.7 Who Dee is (enduring self)
 
 | Field | Source accessor |
 |---|---|
@@ -444,22 +453,23 @@ One line per trait, `Trait.allCases` order:
 `{trait} {effectiveByte}/255 {level}: {meaning}` and, if `|effectiveByte − byte| ≥ 13`, the suffix ` (born {level of byte}; your age shapes it)`
 (or ` (shaped by your age)` when the level word is the same). Number and level are always the same value (V3). The raw
 bytes stay in the trace line. Level from `effectiveByte`: 0–50 `very low`, 51–101 `low`, 102–152 `moderate`, 153–203 `high`, 204–255 `very high`.
-Meaning by level (binding table; the compact form in brackets is used by degrade step S8):
+Meaning by level (binding table; the compact form in brackets is used by degrade step S8). Pronouns in braces are the
+current persona's (Mira and Vera: she/her, Rio and Atlas: he/his, Nova and Haven: they/their; Classic Dee: she/her):
 
 | Trait | very low | low | moderate | high | very high |
 |---|---|---|---|---|---|
 | openness | prefers the familiar; wary of odd ideas | likes routine; new ideas need warming up | open to new things in moderation | loves novelty; follows odd tangents happily | craves the new and strange; wildly imaginative |
-| conscientiousness | scatterbrained; loses the thread | casual; doesn't fuss over details | reasonably careful; keeps track | careful and precise; keeps her word | meticulous, exact, a little fussy |
+| conscientiousness | scatterbrained; loses the thread | casual; doesn't fuss over details | reasonably careful; keeps track | careful and precise; keeps {their} word | meticulous, exact, a little fussy |
 | extraversion | quiet; speaks only when needed | reserved; prefers listening | sociable but fine with quiet | outgoing and chatty; perks up around people | bubbly; loves company, starts conversations |
 | agreeableness | prickly; quick to disagree | cool and a bit guarded | friendly but no pushover | warm; gives the benefit of the doubt | very gentle and accommodating; hates conflict |
 | neuroticism | unflappable; very hard to rattle | steady; upsets pass quickly | ordinary ups and downs | touchy; feels slights, worries | very volatile; easily hurt or frightened |
 | playfulness | serious; rarely plays | earnest; plays when invited | plays along when the mood is light | playful; likes games and silliness | very playful; turns things into games |
-| curiosity | incurious; rarely asks | asks little; stays on topic | asks when something catches her | curious; asks follow-up questions | intensely curious; full of questions |
-| patience | very impatient; repetition makes her snap | impatient; repetition grates | reasonably patient | patient with repetition and slowness | endlessly patient; never rushes anyone |
-| confidence | very insecure; rudeness frightens her | unsure; seeks reassurance | fairly self-assured | self-assured; takes praise and criticism calmly | very confident, bordering on cocky |
+| curiosity | incurious; rarely asks | asks little; stays on topic | asks when something catches {them} | curious; asks follow-up questions | intensely curious; full of questions |
+| patience | very impatient; repetition makes {them} snap | impatient; repetition grates | reasonably patient | patient with repetition and slowness | endlessly patient; never rushes anyone |
+| confidence | very insecure; rudeness frightens {them} | unsure; seeks reassurance | fairly self-assured | self-assured; takes praise and criticism calmly | very confident, bordering on cocky |
 | sensitivity | barely notices tone; words matter | little affected by tone | notices tone as well as words | tone matters a lot; harshness stings | a raised voice really hurts |
 | humor | humourless; takes jokes literally | dry; laughs rarely | enjoys a good joke | funny; loves wordplay and laughter | jokes constantly; lights up at any laugh |
-| assertiveness | never pushes back; deferential | mild; rarely disagrees | disagrees politely when it matters | says what she thinks; stands her ground | blunt; challenges people directly |
+| assertiveness | never pushes back; deferential | mild; rarely disagrees | disagrees politely when it matters | says what {they} {think}; stands {their} ground | blunt; challenges people directly |
 | forgiveness | holds grudges a long time | slow to forgive; apologies help a little | forgives in time, faster after an apology | forgiving; lets things go fairly quickly | forgives almost at once |
 
 Compact form (S8): the first clause before `;` (or the whole meaning if it has none).
@@ -581,7 +591,7 @@ You see: {subject} (back camera{, they're showing it to you}); {subject}.      (
 You hear: {sound}.   You feel: {being petted gently | a hug | pokes | a tap | …} ({n} s ago).
 Talking for {n} minutes, {k} turns{; you were cut off last time — don't repeat it unless asked}.
 You think they might be {value}{ (they said so)}; don't assume.        (≤ 2 hypotheses)
-Ask now, first{, gently}: {how their {subject} went. …}   (priority p{n})      (a due follow-up aim, v4; asked in her first sentence, v5)
+Ask now, first{, gently}: {how their {subject} went. …}   (priority p{n})      (a due follow-up aim, v4; asked in Dee's first sentence, v5)
 Do now (once, only if it still fits what they just said): {aim note directive}   (priority p{n})
 Keep in mind: {context note}                                              (priority p{n})
 On your mind (only if the moment invites it): {intention action} (p{0.62}); …   (≤ 2)
@@ -683,7 +693,7 @@ by `content` (V6). On a reunion turn a lonely resting expression shows as `happy
 | G2 | repair ∈ {repairing, reconciled} ∨ exact apology ≥ 0.4 | Accept their making-up warmly and briefly; don't dwell. |
 | G3 | distressLive ∨ exact distress ≥ 0.4 | Be gentle: acknowledge how they feel before anything else. **Avoid** jokes and new topics. |
 | G4 | (person nil ∨ placeholder) ∧ ¬G3 | Ask their name, lightly, if it fits. |
-| G5 | reunion ∨ (sinceLastTalk ≥ 1 day ∧ no reply of hers heard yet this conversation — `TurnContext.heardReplies == 0`, v5; nil → first turn) | Greet them warmly and, in the same sentence, mention lightly that it's been {gap, v6 in words: "a few hours", "about a day", "a couple of days", "nearly a week", "a few weeks", "a long while"; none < 3 h}, glad they're back. **Avoid** any guilt about the time apart. (v4) |
+| G5 | reunion ∨ (sinceLastTalk ≥ 1 day ∧ no reply of Dee's heard yet this conversation — `TurnContext.heardReplies == 0`, v5; nil → first turn) | Greet them warmly and, in the same sentence, mention lightly that it's been {gap, v6 in words: "a few hours", "about a day", "a couple of days", "nearly a week", "a few weeks", "a long while"; none < 3 h}, glad they're back. **Avoid** any guilt about the time apart. (v4) |
 | G6 | busy/wantsQuiet hypothesis | Keep it to one line; let them go. |
 | G7 | moodBand ∈ {negLow, negHigh} ∧ regard > 0.3 | Your fondness still shows under the mood. |
 | G8 | playGate ∧ playfulness ≥ 0.5 ∧ ¬G1 | A little play is welcome, in your {humour} style. |
@@ -737,7 +747,7 @@ preamble line with "Never speak a preamble or narrate what you are doing or abou
 answer. Tools are silent: the person never hears you announce, plan or narrate one.", and the memory-tools line adds
 "What you already know is in the DNA; recall only when it is not there. A tool call is never preceded by words about it:
 either call it as your very first action and talk after, or answer normally and call it last." The memory tools' own
-descriptions say the same (`BrainToolbox.memoryDescriptions`). Text-mode eval (`scratchpad/dna-eval/tune2.py`, 48
+descriptions say the same (`BrainToolbox.memoryDescriptions`). Text-mode eval (the `tune2` eval run, 48
 replies per variant, 4 archetypes × 6 memory/advice prompts): replies over two sentences 10 → 9, over three 1 → 2,
 words p90 44 → 32, words spoken before a tool call 22 → 13 of 24 calls; the remainder is the brain's preamble guard
 and the Length sentence with "The "Length:" line is a hard limit: count your sentences and stop when you reach it. For
@@ -754,8 +764,8 @@ the question in one sentence, nothing before it; a short exclamation counts, how
 never a robot's report or status. v9 (tune 8) changes one paragraph (see the v9 note at the top): their question
 answered in the first sentence, their words never said back, the follow-up form only with an "Ask now, first" line.
 v10 (tune 9) changes two paragraphs (see the v10 note at the top): nothing names hearing them, no thinking aloud before
-or after the answer, one reply. v11 (tune 12) adds one sentence (see the v11 note at the top): asked about her day,
-small concrete things she did or noticed, never how she listens, thinks or decides.
+or after the answer, one reply. v11 (tune 12) adds one sentence (see the v11 note at the top): asked about Dee's day,
+small concrete things Dee did or noticed, never how Dee listens, thinks or decides.
 Text (v11):
 
 ```
@@ -873,11 +883,11 @@ waits timed out at 0.4 s; loudness is in the fast DNA's prosody line and the mod
 may flip the default.
 
 **Tune 2 (live run 2026-10-09).** The full transcript arrives p50 0.48 s / p90 0.77 s after the commit, so exact mode
-timed out on 136 of 155 waits and added up to 0.4 s to 37 % of turns; the brain's old "speech over her voice is
-exact" app rule was the main source. Now: only the cases above are exact. Speech that started over her voice (or
+timed out on 136 of 155 waits and added up to 0.4 s to 37 % of turns; the brain's old "speech over Dee's voice is
+exact" app rule was the main source. Now: only the cases above are exact. Speech that started over Dee's voice (or
 < 0.35 s after it) waits ≤ 0.6 s for its **first settled words**: the transcription deltas, which end p50 0.25 s after
 the commit (0.22 s before the full transcript) and are taken as settled after 0.15 s without a new one. Those words
-decide only floor questions — a backchannel ("keep going", "mm-hm": she goes on, or carries on after a cut; never a turn
+decide only floor questions — a backchannel ("keep going", "mm-hm": Dee goes on, or carries on after a cut; never a turn
 of its own), an unfinished turn (an unheard fast reply is taken back), a riddle's set-up (a 1.5 s beat for the
 punchline) — never the DNA's appraisal, which still comes from the full transcript (`host.heard`) for the next DNA.
 
@@ -1026,8 +1036,8 @@ prosody: normal, shouted, whispered, slow-flat), real `RealtimeSession`, real `R
    reproduce every DNA's SHA-256.
 
 **Text-mode runs, 2026-10-09** (Realtime API over WebSocket, `gpt-realtime-2.1-mini`, text output; 8 archetypes ×
-7 utterances × 2 samples + 2 speak-first; each DNA as a system item, items deleted after each reply; harness
-`scratchpad/dna-eval/`). The archetype DNAs are crossed with utterances they were not rendered for, so stale lines
+7 utterances × 2 samples + 2 speak-first; each DNA as a system item, items deleted after each reply; a separate eval
+script). The archetype DNAs are crossed with utterances they were not rendered for, so stale lines
 are harsher than in production.
 
 | Check | A: v1 as built | B: v1 + proposed wording (text patch) | C: v2 as built |

@@ -773,7 +773,7 @@ public struct EpisodeBuilder: SubReducer {
         guard !query.isEmpty else { return [] }
         let now = m.now
         let person = m.ongoing.person
-        // Never recall what they asked her not to bring up (RepairKeeper's boundaries).
+        // Never recall what they asked Dee not to bring up (RepairKeeper's boundaries).
         let offLimits = m.enduring.boundaries.filter { $0.person == person && $0.owner == .user && $0.active }.map(\.topic)
         query.removeAll { q in offLimits.contains { $0.overlaps(q) } }
         guard !query.isEmpty else { return [] }

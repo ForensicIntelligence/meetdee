@@ -33,7 +33,7 @@ import Testing
             l.streamed("Oh, hello!", id: id, voiceSpeaking: false, at: Self.t(1))
             #expect(l.mustGiveWay(userHoldsFloor: true), "\(kind): written, not yet said (gate 3, a partial)")
             l.speakingStarted(at: Self.t(2))
-            #expect(!l.mustGiveWay(userHoldsFloor: true), "\(kind): once she is speaking, a barge-in handles it")
+            #expect(!l.mustGiveWay(userHoldsFloor: true), "\(kind): once Dee is speaking, a barge-in handles it")
         }
         var l = TurnLedger()
         _ = Self.userTurn(&l)
@@ -126,7 +126,7 @@ import Testing
         l.asideRequested(duration: 1.5, voiceSpeaking: false, at: Self.t(2))
         l.speakingStarted(at: Self.t(2.1))
         l.speakingFinished(at: Self.t(3))
-        #expect(l.reply?.audioEverStarted == false, "the laugh was not her initiative")
+        #expect(l.reply?.audioEverStarted == false, "the laugh was not Dee's initiative")
         #expect(l.reply?.settled == false, "not kept as said")
         #expect(l.awaitingVoice)
         #expect(!l.isSilentTooLong(at: Self.t(1.5 + TurnLedger.silentReplyTimeout - 1)))
@@ -212,7 +212,7 @@ import Testing
         #expect(l.reply?.audioFinished == true)
         #expect(l.takeUnsettled() == nil)
 
-        // More was written after her voice went quiet: that part is still to play.
+        // More was written after Dee's voice went quiet: that part is still to play.
         var m = TurnLedger()
         let id2 = Self.userTurn(&m)
         m.streamed("Let me check.", id: id2, voiceSpeaking: false, at: Self.t(0.5))
@@ -226,7 +226,7 @@ import Testing
         #expect(m.reply?.audioFinished == true)
     }
 
-    /// The user talks after her voice caught up, while the model is still in a tool
+    /// The user talks after Dee's voice caught up, while the model is still in a tool
     /// round: all of the streamed text was heard, and only that stays in history.
     @Test func stoppedAfterHerVoiceCaughtUp() {
         var l = TurnLedger()
@@ -271,7 +271,7 @@ import Testing
         #expect(!f.holds(at: now, voiceActive: false, engaged: true, cortexUserTurn: false, cortexYielding: false))
         #expect(f.holds(at: now, voiceActive: true, engaged: true, cortexUserTurn: false, cortexYielding: false))
         #expect(!f.holds(at: now, voiceActive: true, engaged: false, cortexUserTurn: false, cortexYielding: false),
-                "a TV in an empty room does not hold the floor (she may fall asleep)")
+                "a TV in an empty room does not hold the floor (Dee may fall asleep)")
         #expect(f.holds(at: now, voiceActive: false, engaged: false, cortexUserTurn: false, cortexYielding: true))
 
         f.partial(at: Self.t(99))

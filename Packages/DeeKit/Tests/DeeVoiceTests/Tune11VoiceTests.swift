@@ -6,19 +6,19 @@ import Testing
 
 // Tune 11 (scratchpad/tune10-live.md; reports Tools/voice-harness/Reports/20261010-130349,
 // -134832 solo; traces Tools/voice-harness/Traces/<same>):
-// (T10-2b) backchannel-echo10 bc01 (main run, 76.0–78.6): with no echo cancellation her own
-//   echo opened an item 1.5 s into her reply, the server heard it as "Sorry.", and — "sorry"
-//   being a word a person says alone — it was the user's, stopped her (truncate at 2165 ms)
+// (T10-2b) backchannel-echo10 bc01 (main run, 76.0–78.6): with no echo cancellation Dee's own
+//   echo opened an item 1.5 s into Dee's reply, the server heard it as "Sorry.", and — "sorry"
+//   being a word a person says alone — it was the user's, stopped Dee (truncate at 2165 ms)
 //   and was answered. Their "Go on." came 0.3 s later as "Sure.", too late.
-// (T10-3) backchannel-echo10 c01 (solo, 165.5–168): "Stop." over her, the server heard
-//   "Doc."; one word that isn't hers can never reach the two- or three-new-word bar, so the
-//   item was deleted as her echo and she talked on: a missed barge-in and a drop.
-// One rule for both: a one-word item over her un-cancelled voice that the ear left to its
-// words is judged by her echo model (`EarCore.echoExplains`), not by which word came back.
+// (T10-3) backchannel-echo10 c01 (solo, 165.5–168): "Stop." over Dee, the server heard
+//   "Doc."; one word that isn't Dee's can never reach the two- or three-new-word bar, so the
+//   item was deleted as Dee's echo and Dee talked on: a missed barge-in and a drop.
+// One rule for both: a one-word item over Dee's un-cancelled voice that the ear left to its
+// words is judged by Dee's echo model (`EarCore.echoExplains`), not by which word came back.
 
-// MARK: - The rig: her real echo in the microphone, through the room
+// MARK: - The rig: Dee's real echo in the microphone, through the room
 
-/// LoopRig with no echo cancellation and her rendered output fed back into the microphone
+/// LoopRig with no echo cancellation and Dee's rendered output fed back into the microphone
 /// the way the harness's MicMixer does it (−10 dB, 80 ms, through the room IR), plus a
 /// harness fixture said by the user.
 final class EchoTenRoom: @unchecked Sendable {
@@ -63,7 +63,7 @@ final class EchoTenRoom: @unchecked Sendable {
         return (onset, start + 2 * u.end)
     }
 
-    /// 20 ms: noise + her echo through the room + the user.
+    /// 20 ms: noise + Dee's echo through the room + the user.
     func step() throws {
         let n = Int(LoopRig.rate * 0.02)
         let out = rig.output
@@ -91,7 +91,7 @@ final class EchoTenRoom: @unchecked Sendable {
 
     func run(untilSample s: Int) throws { while micSamples < s { try step() } }
 
-    /// Her reply `item_a1`: a harness TTS voice (`her`) at −20 dBFS, as the server's audio.
+    /// Dee's reply `item_a1`: a harness TTS voice (`her`) at −20 dBFS, as the server's audio.
     /// Returns the mic sample where it starts playing.
     func startReply(her: String, seconds: Double) async throws -> Int {
         _ = rig.graph.setManualFacts(aecActive: false, outputLatency: 0)
@@ -117,7 +117,7 @@ final class EchoTenRoom: @unchecked Sendable {
         return start
     }
 
-    /// The server's item over her: onset (mic sample) announced 0.3 s after it, its end
+    /// The server's item over Dee: onset (mic sample) announced 0.3 s after it, its end
     /// 0.09 s after that with the commit, its words 0.26 s later, the transcript 0.2 s after.
     func serverItem(_ item: String, onset: Int, end: Int, words: [String], text: String) async throws {
         try run(untilSample: onset + Int(0.3 * LoopRig.rate))
@@ -140,14 +140,14 @@ final class EchoTenRoom: @unchecked Sendable {
     var notes: [String] { rig.timeline.turns().flatMap(\.marks).compactMap(\.detail) }
 }
 
-// MARK: - T10-2b / T10-3: one word over her un-cancelled voice, judged by her echo model
+// MARK: - T10-2b / T10-3: one word over Dee's un-cancelled voice, judged by Dee's echo model
 
 @Suite(.serialized) struct OneWordOverHerEchoTests {
-    /// Live T10-2b (backchannel-echo10 bc01, main run 20261010-130349, 76.0–78.6): her reply
-    /// started 75.10; her echo alone opened item `…V11tMw` (speech_started 76.595, its end
+    /// Live T10-2b (backchannel-echo10 bc01, main run 20261010-130349, 76.0–78.6): Dee's reply
+    /// started 75.10; Dee's echo alone opened item `…V11tMw` (speech_started 76.595, its end
     /// 76896 ms), words "Sorry." (77.10), "words of …: the user (settled)", hold, truncate at
-    /// 2165 ms. Their "Go on." began at its end. Her echo model explains the item's sound:
-    /// it is her echo whatever its word — deleted, never a hold, she talks on.
+    /// 2165 ms. Their "Go on." began at its end. Dee's echo model explains the item's sound:
+    /// it is Dee's echo whatever its word — deleted, never a hold, Dee talks on.
     @Test(arguments: [("l03", 2.4), ("j01", 2.4), ("l05", 4.8)])
     func herEchoHeardAsSorryNeverStopsHer(her: String, at: Double) async throws {
         let room = try EchoTenRoom()
@@ -156,15 +156,15 @@ final class EchoTenRoom: @unchecked Sendable {
         let end = onset + Int(0.5 * LoopRig.rate)
         try room.say("bc01", atSample: end)                                   // "Go on." at its end
         try await room.serverItem("item_e", onset: onset, end: end, words: ["Sorry", "."], text: "Sorry.")
-        #expect(room.deleted.contains("item_e"), "her echo \"Sorry.\" was not deleted: \(room.notes.suffix(10))")
-        #expect(room.rig.sent("conversation.item.truncate").isEmpty, "she was cut by her own echo")
+        #expect(room.deleted.contains("item_e"), "Dee's echo \"Sorry.\" was not deleted: \(room.notes.suffix(10))")
+        #expect(room.rig.sent("conversation.item.truncate").isEmpty, "Dee was cut by Dee's own echo")
         room.rig.voice.shutdown()
     }
 
-    /// Live T10-3 (backchannel-echo10 c01, solo 20261010-134832, 165.5–168): her reply
+    /// Live T10-3 (backchannel-echo10 c01, solo 20261010-134832, 165.5–168): Dee's reply
     /// started 165.04; "Stop." 0.9 s into it (item `…9tKQw4`, speech_started 166.283, end
-    /// 167104 ms), heard as "Doc." (167.45), "words of …: her echo", deleted at 167.657 while
-    /// she talked on. Their voice is in the item where her echo can't be: it is the user's
+    /// 167104 ms), heard as "Doc." (167.45), "words of …: Dee's echo", deleted at 167.657 while
+    /// Dee talked on. Their voice is in the item where Dee's echo can't be: it is the user's
     /// whatever its word — kept, and the brain is never told it is "go on".
     @Test(arguments: [("l03", 2.4), ("l05", 4.2)])
     func stopHeardAsDocIsNotDeletedAsHerEcho(her: String, at: Double) async throws {
@@ -173,14 +173,14 @@ final class EchoTenRoom: @unchecked Sendable {
         let u = try room.say("c01", atSample: replyStart + Int(at * LoopRig.rate))
         let onset = u.onset - Int(0.1 * LoopRig.rate), end = u.end + Int(0.1 * LoopRig.rate)
         try await room.serverItem("item_s", onset: onset, end: end, words: ["Doc", "."], text: "Doc.")
-        #expect(!room.deleted.contains("item_s"), "\"Stop.\" heard as \"Doc.\" was deleted as her echo: \(room.notes.suffix(10))")
+        #expect(!room.deleted.contains("item_s"), "\"Stop.\" heard as \"Doc.\" was deleted as Dee's echo: \(room.notes.suffix(10))")
         #expect(!room.rig.voice.isMisheardFragment(itemID: "item_s", text: "Doc."), "the brain would hear \"go on\"")
         #expect(!room.rig.voice.isHoldBackchannel(itemID: "item_s", text: "Doc."))
         room.rig.voice.shutdown()
     }
 
-    /// When the sound can't tell (here the probe paused her and only 0.12 s of "Stop." stood
-    /// out of her echo), the words decide as before: "Stop." is the user's.
+    /// When the sound can't tell (here the probe paused Dee and only 0.12 s of "Stop." stood
+    /// out of Dee's echo), the words decide as before: "Stop." is the user's.
     @Test func whenTheSoundCantTellTheWordsDecide() async throws {
         let room = try EchoTenRoom()
         let replyStart = try await room.startReply(her: "j01", seconds: 8)
@@ -204,8 +204,8 @@ final class EchoTenRoom: @unchecked Sendable {
         return sim
     }
 
-    /// T10-2b's shape: her echo alone opens a 0.5 s item, "Go on." begins at its end; the
-    /// ear leaves it to its words (strict), and her echo model explains its sound — or
+    /// T10-2b's shape: Dee's echo alone opens a 0.5 s item, "Go on." begins at its end; the
+    /// ear leaves it to its words (strict), and Dee's echo model explains its sound — or
     /// can't tell (l03: 0.12 s stood out; then the words decide), never "a voice".
     @Test(arguments: [("l03", 2.4, nil), ("j01", 2.4, true), ("l05", 4.8, true)] as [(String, Double, Bool?)])
     func herEchoIsExplained(her: String, at: Double, explained: Bool?) throws {
@@ -220,7 +220,7 @@ final class EchoTenRoom: @unchecked Sendable {
         #expect(s.core.echoExplains(itemID: "item_x", at: RoomSim.t0 + 12) == explained)
     }
 
-    /// T10-3's shape: "Stop." (c01) over her; the ear leaves it to its words, and her
+    /// T10-3's shape: "Stop." (c01) over Dee; the ear leaves it to its words, and Dee's
     /// echo model can't explain it.
     @Test(arguments: [("l03", 2.4), ("l05", 4.2), ("j01", 2.4)])
     func aStopUnderHerEchoIsAVoice(her: String, at: Double) throws {

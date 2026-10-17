@@ -114,17 +114,17 @@ public struct Facet: Sendable, Equatable, Codable, Identifiable {
 
 public struct Lesson: Sendable, Equatable, Codable, Identifiable {
     public enum Situation: String, Sendable, Codable, CaseIterable {
-        /// She guessed a mood and was corrected.
+        /// Dee guessed a mood and was corrected.
         case moodGuess
         /// "I was joking".
         case tookLiterally
         /// "No, the other one".
         case wrongReferent
-        /// She spoke over a slow speaker.
+        /// Dee spoke over a slow speaker.
         case interruptedThem
         /// Playful reply → flat/negative.
         case jokeFlopped
-        /// Busy/quiet signals after her questions.
+        /// Busy/quiet signals after Dee's questions.
         case askedTooMuch
 
         /// The template stored as `Lesson.doInstead` (no names, no user text).

@@ -71,7 +71,7 @@ struct LatencySemanticsTests {
         #expect(m.latencyMain == [cont.latency!])
         #expect(gate(Gates.evaluate(m), "wait_turns")?.status == .fail)
 
-        // She waits: nothing in the gap → no early answer; one latency, from 5.0 s.
+        // Dee waits: nothing in the gap → no early answer; one latency, from 5.0 s.
         var good = RunBuilder()
         good.utterance("c06", 1, 2, expect: .any)
         good.run.utterances[0].turnEnd = 5.0
@@ -253,7 +253,7 @@ struct WireRecorderTests {
         // resetConversation(keeping:) later deletes the answered turn with the same id prefix.
         _ = send(#"{"type":"conversation.item.delete","item_id":"u1","event_id":"dee_del_9"}"#, at: 30, out: true)
         #expect(run.userItems.map(\.itemID) == ["u1"] && run.echoRejected == nil)
-        // An unanswered item withdrawn by the session is still her echo.
+        // An unanswered item withdrawn by the session is still Dee's echo.
         _ = send(#"{"type":"input_audio_buffer.speech_started","item_id":"e2","audio_start_ms":10}"#, at: 31, out: false)
         _ = send(#"{"type":"input_audio_buffer.committed","item_id":"e2"}"#, at: 32, out: false)
         _ = send(#"{"type":"conversation.item.delete","item_id":"e2","event_id":"dee_del_11"}"#, at: 32.1, out: true)
@@ -356,7 +356,7 @@ struct JudgeTests {
     @Test func itemsCarryStateRubricAndContext() {
         var b = RunBuilder()
         b.run.family = "dna"
-        b.run.state = "She was just insulted."
+        b.run.state = "Dee was just insulted."
         b.utterance("r01", 1, 2, text: "You're so stupid.")
         b.run.utterances[0].rubric = "Calm boundary."
         b.userItem("u1", seen: 1.1)
@@ -372,11 +372,11 @@ struct JudgeTests {
         let runs = [b.run, { var r = none.run; r.scenario = "plain"; return r }()]
         let items = Judge.items(runs, metrics: Metrics.compute(runs, pricing: .mini))
         #expect(items.count == 3)                                   // the barge-in "Stop." is not judged
-        #expect(items[0].state == "She was just insulted." && items[0].rubric == "Calm boundary." && items[0].context.isEmpty)
+        #expect(items[0].state == "Dee was just insulted." && items[0].rubric == "Calm boundary." && items[0].context.isEmpty)
         #expect(items[1].context.map(\.who) == ["User", "Dee", "User"] && items[1].family == "dna")
         #expect(items[2].state == Judge.neutralState && items[2].family == "acoustic")
         let msg = Judge.userMessage(items[1])
-        #expect(msg.contains("Dee's state: She was just insulted.") && msg.contains("Dee (the reply to grade): Mostly watched the window."))
+        #expect(msg.contains("Dee's state: Dee was just insulted.") && msg.contains("Dee (the reply to grade): Mostly watched the window."))
         #expect(!Judge.system.contains("DEE DNA v2"))               // blind to the DNA text
     }
 

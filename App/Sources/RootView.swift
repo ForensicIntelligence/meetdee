@@ -20,7 +20,7 @@ struct RootView: View {
             FaceView(inputs: model.faceInputs)
                 .ignoresSafeArea()
             // Touch: pets, pokes, taps on an eye. Sits above the face, below the chrome.
-            TouchCaptureView(onSample: { model.touched($0) }, onTwoFingerHold: openSettings)
+            TouchCaptureView(onSample: { model.touched($0) }, onTwoFingerHold: openSettings, persona: model.activePreset)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -63,9 +63,9 @@ struct RootView: View {
         .padding(.top, 12)
     }
 
-    /// Release too: why she can't talk right now (no key, refused key, offline, rate
+    /// Release too: why Dee can't talk right now (no key, refused key, offline, rate
     /// limited), a short notice (key saved / refused), or the one-time AI-voice
-    /// disclosure. Her face keeps living underneath (the "cloud off" look).
+    /// disclosure. Dee's face keeps living underneath (the "cloud off" look).
     @ViewBuilder private var cloudChip: some View {
         let line: (text: String, symbol: String, urgent: Bool)? = {
             if let d = model.disclosure { return (d, "waveform", false) }
@@ -89,7 +89,7 @@ struct RootView: View {
         }
     }
 
-    /// Whether she is listening: "Say “Hey Dee”" while dormant (tap to talk), a soft
+    /// Whether Dee is listening: "Say “Hey Dee”" while dormant (tap to talk), a soft
     /// "Listening" while a conversation window is open. Release too.
     @ViewBuilder private var wakeChip: some View {
         let s = model.wakeStatus

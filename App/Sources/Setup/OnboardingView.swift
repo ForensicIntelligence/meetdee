@@ -5,9 +5,10 @@ import DeeLocal
 import DeeWake
 import SwiftUI
 
-/// First launch (providers-wake-onboarding §5): what Dee is, how to talk to her, what
-/// she sees, privacy and cost, the permission cards, then the provider, wake phrase,
-/// voice and speak-first. Nothing here uses the mic, camera or network on its own:
+/// First launch (providers-wake-onboarding §5): what Dee is, how to talk with the
+/// companion, what Dee sees, privacy and cost, the permission cards, then the provider,
+/// the companion (persona), wake phrase, voice and speak-first. Every pronoun is the
+/// chosen persona's. Nothing here uses the mic, camera or network on its own:
 /// each permission is asked from its card, and the network only on "Check key" /
 /// "Test connection".
 struct OnboardingView: View {
@@ -15,6 +16,9 @@ struct OnboardingView: View {
     var onDone: () -> Void
     @State private var flow: OnboardingFlow
     @State private var asking = false
+    /// Who the user is meeting (the chosen persona: the default for a fresh install).
+    private var p: PersonaPreset { store.persona }
+    private var t: PronounText { store.persona.text }
 
     init(store: ProviderStore, startAt: OnboardingStep = .meet, onDone: @escaping () -> Void) {
         self.store = store
@@ -63,23 +67,26 @@ struct OnboardingView: View {
         case .micPermission, .speechPermission, .cameraPermission, .localNetworkPermission:
             if let kind = flow.step.permission { permissionCard(kind) }
         case .provider:
-            header("Who does her thinking?", "Pick how Dee hears, thinks and speaks. You can change this any time in her settings.")
+            header("Who does \(t.their) thinking?", "Pick how \(p.name) hears, thinks and speaks. You can change this any time in the settings.")
             ProviderSetupView(store: store)
                 .onChange(of: store.status(.brain)) { _, _ in refresh() }
                 .onChange(of: store.status(.openAI)) { _, _ in refresh() }
                 .onChange(of: store.status(.stt)) { _, _ in refresh() }
                 .onChange(of: store.status(.tts)) { _, _ in refresh() }
+        case .persona:
+            header("Choose your companion", "Each has a name, an age, a personality, a sense of humour and a voice of their own. You can switch later in the settings; your people and memories stay.")
+            PersonaPicker(store: store)
         case .wakePhrase:
-            header("Her wake phrase", "Say it to start a conversation. Until she hears it, nothing leaves your iPhone.")
+            header("\(t.Their) wake phrase", "Say it to start a conversation. Until \(t.they("hear")) it, nothing leaves your iPhone.")
             WakePhraseEditor(store: store)
         case .voice:
-            header("Her voice", nil)
+            header("\(t.Their) voice", nil)
             VoicePicker(store: store)
         case .speakFirst:
-            header("Speak first?", "When she sees someone she knows arrive, Dee can say hello first — that opens one short conversation by itself.")
-            Toggle("Speak first when she sees someone", isOn: $store.speakFirst)
+            header("Speak first?", "When \(t.they("see")) someone \(t.they) \(p.pronouns.verb("know")) arrive, \(p.name) can say hello first — that opens one short conversation by itself.")
+            Toggle("Speak first when \(t.they("see")) someone", isOn: $store.speakFirst)
                 .accessibilityIdentifier("speakFirstToggle")
-            Text("Off by default: she waits for her wake phrase or a tap.").font(.footnote).foregroundStyle(.secondary)
+            Text("Off by default: \(t.they("wait")) for \(t.their) wake phrase or a tap.").font(.footnote).foregroundStyle(.secondary)
         case .done:
             done
         }
@@ -91,41 +98,41 @@ struct OnboardingView: View {
                 .frame(height: 200)
                 .frame(maxWidth: .infinity)
                 .accessibilityHidden(true)
-            header("Meet Dee", "A little robot who lives in your iPhone. Only her eyes show — she talks, listens, has moods and a personality of her own, and remembers the people she meets. All of that is her “Dee DNA”, and it grows with you.")
+            header("Meet \(p.name)", "A companion who lives in your iPhone. Only \(t.their) eyes show — \(t.they("talk")), \(p.pronouns.verb("listen")), \(p.pronouns.have) moods and a personality of \(t.their) own, and \(p.pronouns.verb("remember")) the people \(t.they) \(p.pronouns.verb("meet")). All of that is \(t.their) “Dee DNA”, and it grows with you.")
         }
     }
 
     private var talking: some View {
         VStack(alignment: .leading, spacing: 16) {
-            header("Talking with her", nil)
-            bullet("waveform", "Say her wake phrase", "“Hey Dee” (or your own) starts a conversation. You can ask in one breath: “Hey Dee, what time is it?”. Or tap the screen outside her eyes.")
+            header("Talking with \(t.them)", nil)
+            bullet("waveform", "Say \(t.their) wake phrase", "“\(store.wakePhraseText)” (or your own) starts a conversation. You can ask in one breath: “\(store.wakePhraseText), what time is it?”. Or tap the screen outside \(t.their) eyes.")
             bullet("ellipsis.bubble", "Just talk", "While a conversation is open you don't need the phrase. It ends a minute after you both go quiet.")
             bullet("moon.zzz", "“Go to sleep” · “That's all”", "Ends the conversation right away. “Stop listening” works too.")
-            bullet("hand.raised", "Interrupt any time", "Talk over her and she stops to listen. Say “keep going” and she carries on.")
-            bullet("iphone.gen3", "Keep Dee open", "She listens only while her app is open — ideally on a charger. The screen stays on with her.")
+            bullet("hand.raised", "Interrupt any time", "Talk over \(t.them) and \(t.they("stop")) to listen. Say “keep going” and \(t.they("carry")) on.")
+            bullet("iphone.gen3", "Keep Dee open", "\(t.They("listen")) only while Dee is open — ideally on a charger. The screen stays on.")
         }
     }
 
     private var seeing: some View {
         VStack(alignment: .leading, spacing: 16) {
-            header("What she sees", nil)
-            bullet("eye", "Your face", "Her eyes follow you, and she can recognise friends she has met.")
-            bullet("lock.iphone", "Stays on your iPhone", "Camera video and faces are processed on the device — never recorded, never sent. Only a few words about what she notices (“a cup you're showing her”) go to her AI during a conversation.")
+            header("What \(t.they("see"))", nil)
+            bullet("eye", "Your face", "\(t.Their) eyes follow you, and \(t.they) can recognise friends \(t.they) \(p.pronouns.have) met.")
+            bullet("lock.iphone", "Stays on your iPhone", "Camera video and faces are processed on the device — never recorded, never sent. Only a few words about what \(t.they("notice")) (“a cup you're showing \(t.them)”) go to \(t.their) AI during a conversation.")
         }
     }
 
     private var privacy: some View {
         VStack(alignment: .leading, spacing: 16) {
-            header("Privacy and cost", "Her memories and Dee DNA store stay on this iPhone in every mode. What goes where depends on the mode you pick next:")
-            bullet("cloud", "OpenAI for everything", "During a conversation, her audio and the Dee DNA for each reply go to OpenAI (kept up to 30 days for abuse checks). Paid per use by your own OpenAI key.")
-            bullet("desktopcomputer", "Your Mac's brain, OpenAI's voice", "Your words and her voice go to OpenAI; the thinking, Dee DNA and memories go only to your own server. OpenAI speech is paid by your key; your server is free.")
+            header("Privacy and cost", "\(t.Their) memories and Dee DNA store stay on this iPhone in every mode. What goes where depends on the mode you pick next:")
+            bullet("cloud", "OpenAI for everything", "During a conversation, the audio and the Dee DNA for each reply go to OpenAI (kept up to 30 days for abuse checks). Paid per use by your own OpenAI key.")
+            bullet("desktopcomputer", "Your Mac's brain, OpenAI's voice", "Your words and \(t.their) voice go to OpenAI; the thinking, Dee DNA and memories go only to your own server. OpenAI speech is paid by your key; your server is free.")
             bullet("house", "Your own network for everything", "Nothing goes to OpenAI. Your server (or this iPhone) hears, thinks and speaks. Free.")
-            bullet("ear", "Her wake phrase", "Always listened for on this iPhone only, in every mode. Before she hears it, no audio leaves the phone.")
+            bullet("ear", "\(t.Their) wake phrase", "Always listened for on this iPhone only, in every mode. Before it is heard, no audio leaves the phone.")
         }
     }
 
     private func permissionCard(_ kind: PermissionKind) -> some View {
-        let card = Permissions.card(kind)
+        let card = Permissions.card(kind, persona: p)
         let state = flow.state(kind)
         return VStack(alignment: .leading, spacing: 18) {
             Image(systemName: card.symbol).font(.system(size: 44)).foregroundStyle(Color.deeEye).accessibilityHidden(true)
@@ -161,9 +168,9 @@ struct OnboardingView: View {
     private var done: some View {
         VStack(alignment: .leading, spacing: 16) {
             header(flow.providerReady ? "All set" : "Almost there",
-                   flow.providerReady ? "Say “\(store.wakePhraseText)” or tap the screen to talk to her." : nil)
+                   flow.providerReady ? "Say “\(store.wakePhraseText)” or tap the screen to talk to \(t.them)." : nil)
             if !flow.providerReady {
-                Text("Dee needs a working provider first: go back to “Who does her thinking?” and check your key or test your server.")
+                Text("\(p.name) needs a working provider first: go back to “Who does \(t.their) thinking?” and check your key or test your server.")
                     .foregroundStyle(.orange)
                 Button("Go to the provider step") {
                     while flow.step != .provider, flow.canBack { flow.back() }
@@ -184,7 +191,7 @@ struct OnboardingView: View {
             if flow.canSkip {
                 Button("Skip") { withAnimation { flow.skip() }; refresh() }
                     .foregroundStyle(.secondary)
-                    .accessibilityHint("Goes straight to choosing who does her thinking")
+                    .accessibilityHint("Goes straight to choosing who does \(t.their) thinking")
                     .accessibilityIdentifier("onboardingSkip")
             }
             if flow.step == .done {

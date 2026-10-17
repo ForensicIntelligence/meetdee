@@ -1,5 +1,7 @@
 # Dee 0.6 — app: onboarding, in-app settings, wake window
 
+**Developer:** Forensic Intelligence
+
 Implements the app part of `docs/contracts-0.6/providers-wake-onboarding.md` (§4, §5). This file explains the decisions; the contract stays binding.
 
 ## Phases
@@ -65,12 +67,12 @@ Gates:
 - Initiatives, Cortex cues, curiosity, `sayAside`, event lines (touch, wave, sound) and the AI-voice disclosure all wait for an open window. With "Speak first" on, a recognised friend opens one greeting window per arrival. The disclosure is only for modes 1 and 2.
 - **Voice commands:**
   - `stopListening` / `sleep` close the window at once.
-  - "change your wake phrase to X" → `WakePhraseChange`: she repeats it and asks. A yes within 20 s saves it to prefs and the ear. An invalid phrase gets her reason.
+  - "change your wake phrase to X" → `WakePhraseChange`: Dee repeats it and asks. A yes within 20 s saves it to prefs and the ear. An invalid phrase gets Dee's reason.
   - Commands work after a custom phrase (`WakeMatcher.stripLeading`).
-- **Screen:** `isIdleTimerDisabled` is on in `.dee` and off in the background and during onboarding. While dormant her eyes show the soft "not listening" look, dimmer after 2 minutes without activity.
+- **Screen:** `isIdleTimerDisabled` is on in `.dee` and off in the background and during onboarding. While dormant Dee's eyes show the soft "not listening" look, dimmer after 2 minutes without activity.
 
 ## Status chips
-- `wakeState` shows "Say “Hey Dee” or tap", "Waking up…" or "Listening"; tapping it wakes her.
+- `wakeState` shows "Say “Hey Dee” or tap", "Waking up…" or "Listening"; tapping it wakes Dee.
 - The chip above it shows, in priority order: disclosure, notice, provider problem (taps open settings), ear problem ("I can't hear my wake phrase — tap me to talk"), cloud status.
 
 ## Tests
@@ -79,6 +81,6 @@ Gates:
 - DeeBrain:
   - `V06BrainTests`: the StandaloneHost window rule, W1 on transcripts, `WakePhraseChange`, `Options(timing:)`, DeePrefs K1 and migration with 0 requests.
   - `WakeControllerTests`: eyes before connect, preroll frame, 60 s idle close, TV-bed false wake, goodbye before disconnect, new conversation after 300 s, greeting, lost ear, candidate.
-  - `WakeVoiceIntegrationTests`: a real CloudVoice. While dormant there are 0 sockets and 0 mints; with every request failing she still wakes.
-- `BrainLoopTests.speechNotForHerIsNotAnswered` is now the W1 regression: "Dee, are you awake?" in a server transcript no longer wakes her.
-- UI test ids: `onboardingNext`, `onboardingSkip`, `onboardingDone`, `providerOpenAI`, `providerLanBrain`, `providerLan`, `apiKeyField`, `serverAddressField`, `testConnection`, `settingsButton`, `wakeState`. The UITests file isn't owned by app; the change is proposed in `scratchpad/pw-app-to-uitests.patch`.
+  - `WakeVoiceIntegrationTests`: a real CloudVoice. While dormant there are 0 sockets and 0 mints; with every request failing Dee still wakes.
+- `BrainLoopTests.speechNotForHerIsNotAnswered` is now the W1 regression: "Dee, are you awake?" in a server transcript no longer wakes Dee.
+- UI test ids: `onboardingNext`, `onboardingSkip`, `onboardingDone`, `providerOpenAI`, `providerLanBrain`, `providerLan`, `apiKeyField`, `serverAddressField`, `testConnection`, `settingsButton`, `wakeState`.

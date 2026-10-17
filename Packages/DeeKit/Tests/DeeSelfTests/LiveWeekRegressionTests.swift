@@ -50,7 +50,7 @@ import Testing
         }
 
         /// John says `text` (4 s after the last step, as live); Dee answers `reply`.
-        /// Returns the cue she answered from.
+        /// Returns the cue Dee answered from.
         @discardableResult
         func say(_ text: String, loudnessDB: Double = -32, reply: String) async -> String {
             now += 4
@@ -122,7 +122,7 @@ import Testing
         #expect(first.contains(Self.followUp), "\(first)")
         #expect(!Self.mood(first).contains("lonely"), "\(first)")
 
-        // Her reply did not name the interview; John answers anyway, without naming it.
+        // Dee's reply did not name the interview; John answers anyway, without naming it.
         let mark = dee.effects.count
         let second = await dee.say("It went really well actually! They want a second round next week.",
                                    reply: "Oh wow, that's amazing news! I'm so proud of you, John.")

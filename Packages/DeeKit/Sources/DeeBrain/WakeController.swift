@@ -10,7 +10,7 @@ public protocol WakeControllerHost: AnyObject {
     func wakeEyes()
     /// The distinct "not listening" look (soft idle drift) + optional soft local chime.
     func listeningOffEyes()
-    /// A candidate match: she perks up a little (no state change, no network).
+    /// A candidate match: Dee perks up a little (no state change, no network).
     func perkUp()
     /// Clear `sleeping`, stamp lastEngagedAt.
     func woken(by source: WakeSource)
@@ -21,7 +21,7 @@ public protocol WakeControllerHost: AnyObject {
     func connect(resume: Bool, uplinkFrom: Int64?)
     /// `CloudVoice.sleep()`: close the uplink and the socket, stop reconnects.
     func disconnect()
-    /// Her local goodbye (a clip, never the network).
+    /// Dee's local goodbye (a clip, never the network).
     func sayGoodbye()
     func show(problem: String)
     /// The ear is back: drop its problem.
@@ -148,7 +148,7 @@ public final class WakeController {
     public func providerChanged() { input(.providerChanged) }
     public func tick(busy: Busy) { input(.tick(busy: busy)) }
 
-    /// A response she produced in this window (reply, initiative, greeting).
+    /// A response Dee produced in this window (reply, initiative, greeting).
     public func responseStarted() {
         guard !window.isDormant else { return }
         responses += 1

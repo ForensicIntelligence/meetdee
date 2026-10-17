@@ -1,3 +1,4 @@
+import DeeCore
 import DeeSense
 import SwiftUI
 import UIKit
@@ -7,9 +8,11 @@ import UIKit
 /// gestures don't expose `majorRadius`, so this is a thin UIKit layer.
 struct TouchCaptureView: UIViewRepresentable {
     var onSample: @MainActor (TouchSample) -> Void
-    /// A two-finger long-press (0.8 s) opens her settings. The one-finger 0.8 s press
+    /// A two-finger long-press (0.8 s) opens Dee's settings. The one-finger 0.8 s press
     /// stays the hug (`TouchInterpreter` `.hold`): the recognizer never cancels touches.
     var onTwoFingerHold: @MainActor () -> Void = {}
+    /// The current persona (VoiceOver label and hint).
+    var persona: PersonaPreset = PersonaCatalog.classic
 
     func makeUIView(context: Context) -> CaptureView {
         let view = CaptureView()
@@ -18,8 +21,7 @@ struct TouchCaptureView: UIViewRepresentable {
         view.backgroundColor = .clear
         view.isAccessibilityElement = true
         view.onTwoFingerHold = onTwoFingerHold
-        view.accessibilityLabel = "Dee"
-        view.accessibilityHint = "Tap to talk to her. Stroke gently to pet her. Tap an eye to make her blink. Hold with two fingers for her settings."
+        Self.label(view, persona)
         let hold = UILongPressGestureRecognizer(target: view, action: #selector(CaptureView.twoFingerHold(_:)))
         hold.numberOfTouchesRequired = 2
         hold.minimumPressDuration = 0.8
@@ -30,7 +32,15 @@ struct TouchCaptureView: UIViewRepresentable {
         return view
     }
 
+    /// "Mira", "Tap to talk to her. …" in the persona's pronouns.
+    static func label(_ view: UIView, _ p: PersonaPreset) {
+        let t = p.text
+        view.accessibilityLabel = p.name
+        view.accessibilityHint = "Tap to talk to \(t.them). Stroke gently to pet \(t.them). Tap an eye to make \(t.them) blink. Hold with two fingers for the settings."
+    }
+
     func updateUIView(_ view: CaptureView, context: Context) {
+        Self.label(view, persona)
         view.onSample = onSample
         view.onTwoFingerHold = onTwoFingerHold
     }

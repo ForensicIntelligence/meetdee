@@ -2,10 +2,10 @@ import DeeCore
 import DeeWake
 import Foundation
 
-/// "Change your wake phrase to X" by voice (providers-wake-onboarding §4): she repeats
+/// "Change your wake phrase to X" by voice (providers-wake-onboarding §4): Dee repeats
 /// the phrase and asks; "yes" within `confirmWindow` saves it, "no" keeps the old one,
 /// anything else (or silence past the window) drops the proposal. An invalid phrase is
-/// refused at once with her reason. Pure: the host speaks the lines (local clips or the
+/// refused at once with Dee's reason. Pure: the host speaks the lines (local clips or the
 /// open session) and persists the saved phrase.
 public struct WakePhraseChange: Sendable, Equatable {
     public static let confirmWindow: TimeInterval = 20
@@ -18,9 +18,9 @@ public struct WakePhraseChange: Sendable, Equatable {
     public enum Prompt: Sendable, Equatable {
         /// Asks to confirm: "My wake phrase will be “X”. Is that right?"
         case confirm(WakePhrase, line: String)
-        /// Refused at once with her reason.
+        /// Refused at once with Dee's reason.
         case invalid(line: String)
-        /// The phrase she already has.
+        /// The phrase Dee already has.
         case unchanged(line: String)
     }
 

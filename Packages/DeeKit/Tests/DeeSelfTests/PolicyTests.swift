@@ -61,7 +61,7 @@ import Testing
         for c in clean { #expect(Self.lint(c, file: "x").isEmpty, "false positive: \(c)") }
     }
 
-    /// DeeSelf (Dee DNA included) only describes her; it never talks to the network
+    /// DeeSelf (Dee DNA included) only describes Dee; it never talks to the network
     /// (review F9: DeeRealtime is the one module that does).
     @Test func deeSelfDoesNotImportFaceVoiceSenseOrRealtime() throws {
         for f in try Self.swiftFiles() {

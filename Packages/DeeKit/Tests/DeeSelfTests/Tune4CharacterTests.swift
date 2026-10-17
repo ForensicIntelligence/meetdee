@@ -85,7 +85,7 @@ struct Tune4CharacterTests {
     /// t2-reunion-morning, live tune 3: the server split "Good morning." / "Did you sleep
     /// well?"; reply 1 (with "Do: Greet them warmly and … it's been 2 days") was cancelled
     /// unheard, and its `.deeTurnFinished` ended the reunion turn, so reply 2's DNA had no
-    /// greeting Do line and she said "I don't sleep like you do…". Both live orders of the
+    /// greeting Do line and Dee said "I don't sleep like you do…". Both live orders of the
     /// transcript and the cancel are replayed.
     @Test(arguments: [true, false])
     func liveReunionMorningGreetingSurvivesACancelledReply(transcriptFirst: Bool) throws {

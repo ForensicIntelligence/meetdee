@@ -14,7 +14,7 @@ extension EmotionEngine {
     ///
     /// Feelings are read as **deviations from this Dee's own baseline** (set by
     /// personality and age), so a naturally curious Dee at rest is *not* "curious":
-    /// at rest she looks content, neutral or dreamy (as energy drains through the
+    /// at rest Dee looks content, neutral or dreamy (as energy drains through the
     /// day). Traits colour the reading — the same gratitude looks proud on a
     /// confident Dee and shy on an insecure one; the same boredom looks
     /// unimpressed on an assertive one.
@@ -91,11 +91,11 @@ extension EmotionEngine {
 
     /// A momentary reaction to one stimulus. It sits *above* mood and can
     /// contradict it: a joke makes even an angry Dee giggle, a kind word or a
-    /// gentle touch while she's upset gets a shy or relieved look. nil when the
+    /// gentle touch while Dee's upset gets a shy or relieved look. nil when the
     /// stimulus isn't notable.
     ///
     /// - Parameters:
-    ///   - before: feelings just before the stimulus ("was she upset?").
+    ///   - before: feelings just before the stimulus ("was Dee upset?").
     ///   - after: feelings just after it.
     public static func reflex(to a: Appraisal, before: Feelings, after: Feelings, personality: Personality, age: Double?) -> Emotion? {
         let p = effective(personality, age: age)
@@ -118,7 +118,7 @@ extension EmotionEngine {
                 return after[.affection] > 0.7 ? .love : .content
             case let .pokes(count):
                 // `count` is the burst total. A few pokes are a game ("hey!"),
-                // unless she's already cross; ~6 grate; 10+ make her angry.
+                // unless Dee's already cross; ~6 grate; 10+ make Dee angry.
                 if count >= 10 { return .angry }
                 if count >= 6 { return before[.anger] > 0.3 ? .angry : .grumpy }
                 return before[.anger] > 0.2 || p[.playfulness] < 0.35 ? .skeptical : .playful

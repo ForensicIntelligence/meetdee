@@ -2,7 +2,7 @@ import DeeMemory
 import DeeSense
 import Foundation
 
-/// Who Dee is talking to, and what she remembers about them.
+/// Who Dee is talking to, and what Dee remembers about them.
 ///
 /// Deliberately conservative — a companion that confuses people, or tells one
 /// person another's secrets, is worse than one that asks:

@@ -23,7 +23,7 @@ import Foundation
 ///   only — never an `Intention` row;
 /// - *repair*: `.repair` intentions jump the queue (priority 1, relevance 1); while a
 ///   rupture is open (`ruptured` / `repairing`) nothing else is aimed;
-/// - *learn*: an interest > 0.6 that she knows < 2 things about (episodes on the subject,
+/// - *learn*: an interest > 0.6 that Dee knows < 2 things about (episodes on the subject,
 ///   or the `facts` signal) → `.learn`, 2 steps (one short question each);
 /// - *share*: a completed learn intention queues a `.share` about the same subject;
 /// - *skill*: ≥ 2 misreads of one situation with one person in 7 days → `.skill`, done after
@@ -37,7 +37,7 @@ import Foundation
 /// **Score** `p = priority × relevance × timing × (0.5 + urgeToTalk)`; relevance 1 for a
 /// subject match (topic or focus), 0.6 for a person match, 0.3 otherwise.
 /// - On a user turn (`.heard`) the best option with p > 0.35 is raised as the aim note
-///   (timing 1; general curiosity topics excluded — she answers what was said).
+///   (timing 1; general curiosity topics excluded — Dee answers what was said).
 /// - Idle (`.tick`, floor idle, someone present, mutual gaze, awake, ≥ 3 s after anyone
 ///   spoke): the best option with p > 0.6 (0.85 with a busy hypothesis; +0.1 after an
 ///   `askedTooMuch` lesson for the person; never with `wantsQuiet` or a stated busy) becomes an initiative
@@ -192,7 +192,7 @@ public struct IntentionBoard: SubReducer {
     /// mode picks a reply's notes before its words arrive). Withdrawn on the next step
     /// if no cue took it, so it never rides on a later initiative.
     var preAim: UUID?
-    /// Her sentences heard since the last `.deeTurnFinished` (follow-through reads them
+    /// Dee's sentences heard since the last `.deeTurnFinished` (follow-through reads them
     /// when the finished text is empty, and a reply with none was never delivered).
     var saidThisTurn: [String] = []
     /// What each aim issued since the last `.deeTurnFinished` changed, so an undelivered
@@ -510,7 +510,7 @@ public struct IntentionBoard: SubReducer {
     /// Learner performs the ritual itself: the mannerism, a canned line for the morning
     /// hello and welcome home (which then counts as the arrival greeting), and the
     /// goodnight aim on the same step (review finding 15: an aim created here, a step
-    /// later, made her say goodnight a second time when they kept talking).
+    /// later, made Dee say goodnight a second time when they kept talking).
     mutating func ritual(_ s: Signal, _ m: inout Moment, _ rng: inout Rand) -> [Effect] {
         guard let trigger = s.label.flatMap(Ritual.Trigger.init(rawValue:)), trigger != .goodnight else { return [] }
         // The morning hello / welcome home ritual *was* the greeting: consume the
@@ -635,7 +635,7 @@ public struct IntentionBoard: SubReducer {
         Set(Self.boundaries(m, person: nil).map(\.text) + forgotten.map(\.text))
     }
 
-    /// Live intentions on a topic the user asked her not to bring up are dropped silently.
+    /// Live intentions on a topic the user asked Dee not to bring up are dropped silently.
     mutating func dropBoundaryTopics(_ m: inout Moment) -> [Effect] {
         var fx: [Effect] = []
         for i in m.ongoing.intentions.indices where m.ongoing.intentions[i].isLive {
@@ -759,7 +759,7 @@ public struct IntentionBoard: SubReducer {
         Self.selfMotivatedLive(m) < Ongoing.maxSelfMotivated && (lastBirth.map { m.now.timeIntervalSince($0) >= Self.birthSpacing } ?? true)
     }
 
-    /// What she knows about `s`: the `facts` signal, else episodes on the subject.
+    /// What Dee knows about `s`: the `facts` signal, else episodes on the subject.
     func known(_ s: Subject, _ m: Moment) -> Int {
         let facts = knownFacts.filter { $0.subject.overlaps(s) }.map(\.count).max() ?? 0
         let episodes = m.enduring.episodeIndex.filter { $0.topics.contains { $0.overlaps(s) } }.count
@@ -899,7 +899,7 @@ public struct IntentionBoard: SubReducer {
             // A reply being built is their turn even before its words arrive (fast mode).
             guard m.ongoing.turnsThisConversation >= 1 || replyPending else { return false }
             if m.ongoing.followUpsThisConversation > 0, !followedUpThisConversation.contains(it.id) { return false }
-            // The arrival grace keeps her from pouncing as they walk in; once they have
+            // The arrival grace keeps Dee from pouncing as they walk in; once they have
             // spoken, their first turn is the natural place to ask (with the reunion note).
             if !userTurn, let a = arrivedAt, now.timeIntervalSince(a) < Self.arrivalGrace { return false }
         }
@@ -1072,7 +1072,7 @@ public struct IntentionBoard: SubReducer {
 
     // MARK: Initiative
 
-    /// The threshold for speaking first now, or nil when she should not.
+    /// The threshold for speaking first now, or nil when Dee should not.
     func initiativeThreshold(_ m: Moment) -> Double? {
         let now = m.now
         let live = m.ongoing.hypotheses.filter { now < $0.expires }

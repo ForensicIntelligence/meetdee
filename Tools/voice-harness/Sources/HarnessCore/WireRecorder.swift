@@ -9,7 +9,7 @@ import Foundation
 ///   conversation for each (the "every response carries the DNA" check);
 /// - `events: true` (the real brain owns `CloudVoice.brainEvents`, so the runner
 ///   cannot read them): user items, responses (kind, items, transcript, usage),
-///   her transcripts, errors and the items the session deleted as her echo.
+///   Dee's transcripts, errors and the items the session deleted as Dee's echo.
 ///
 /// Response kinds come from the wire itself: a `response.create` whose fresh DNA
 /// says "You are speaking first." is an initiative, one after a
@@ -34,7 +34,7 @@ public struct WireRecorder: Sendable {
     public static let summaryPurpose = "dee_rollover_summary"
     public static let cannedKey = "dee_canned"
     /// The session's own deletes use this event id prefix: user items it withdrew
-    /// (her echo, or speech the brain dropped as not for her) and, since tune 1,
+    /// (Dee's echo, or speech the brain dropped as not for Dee) and, since tune 1,
     /// its own superseded `dna_…` items, which are never user items.
     public static let sessionDeletePrefix = "dee_del_"
 
@@ -120,7 +120,7 @@ public struct WireRecorder: Sendable {
         case "conversation.item.delete":
             guard let id = o["item_id"] as? String else { return [] }
             c.liveDNA[id] = nil
-            // Her own items (a reset's cleanup of a reply) are never echo (tune6 T5-7).
+            // Dee's own items (a reset's cleanup of a reply) are never echo (tune6 T5-7).
             if events, !id.hasPrefix("dna_"), (o["event_id"] as? String)?.hasPrefix(Self.sessionDeletePrefix) == true,
                record.response(forItem: id) == nil, !Self.wasAnswered(id, record) {
                 echoRejected.insert(id)
@@ -156,7 +156,7 @@ public struct WireRecorder: Sendable {
 
     /// A user item that was committed and then answered (an in-band
     /// `response.create` went out after its commit) and is deleted later is history
-    /// cleanup (`resetConversation` on a new conversation), not her echo: it stays.
+    /// cleanup (`resetConversation` on a new conversation), not Dee's echo: it stays.
     static func wasAnswered(_ id: String, _ record: RunRecord) -> Bool {
         guard let committed = record.userItems.first(where: { $0.itemID == id })?.committedAt else { return false }
         return (record.responseCreates ?? []).contains { !$0.outOfBand && $0.at >= committed }

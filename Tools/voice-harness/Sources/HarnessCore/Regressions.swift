@@ -17,7 +17,7 @@ public struct Regressions: Codable, Sendable, Equatable {
         public var index: Int
         /// What went wrong now.
         public var problems: [String]
-        /// What she said then, and now.
+        /// What Dee said then, and now.
         public var baselineReply: String?
         public var reply: String?
     }

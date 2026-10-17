@@ -191,7 +191,7 @@ extension LoopRig {
         #expect(!rig.voiceEvents.contains(.bargeIn) && !rig.voiceEvents.contains(.speakingStarted))
         #expect(rig.itemPlayed("item_a1") == nil)
         #expect(rig.voice.floorHold == nil)
-        // No echo of hers in the room, nothing "playing" for the session.
+        // No echo of Dee's in the room, nothing "playing" for the session.
         #expect(await rig.voice.initiative(instructions: "Say hi.") == .sent)
         rig.voice.shutdown()
     }
@@ -232,8 +232,25 @@ extension LoopRig {
         rig.voice.shutdown()
     }
 
+    /// 0.6 wrap check (port 8000, modes 2/3): a LAN model's cold first token took
+    /// 8.5 s; the 8 s cap dropped the held reply and the turn went unanswered. With
+    /// the cascaded timing the hold lasts as long as the first audio may.
+    @Test func aLANHoldOutlastsTheRealtimeCap() async throws {
+        let rig = try LoopRig(speculativeMax: TimingProfile.cascaded(stt: .onDevice).speculativeMax)
+        let spec = Collector(rig.voice.speculativeEvents)
+        try await rig.start()
+        try rig.quiet(0.3)
+        try await rig.speculativeTurn()
+        try rig.quiet(CloudVoice.speculativeMax + 1.0)
+        await rig.settle()
+        #expect(rig.voice.speculative != nil, "the held LAN reply was dropped at the realtime cap")
+        #expect(!spec.all.contains { if case .discarded(_, _, _, true, "timeout") = $0 { true } else { false } })
+        #expect(TimingProfile.realtime.speculativeMax == CloudVoice.speculativeMax)
+        rig.voice.shutdown()
+    }
+
     /// The user starts talking while a reply is held: it is speech over silence
-    /// (accepted at once, no pause — nothing of hers is playing).
+    /// (accepted at once, no pause — nothing of Dee's is playing).
     @Test func speechOverAHeldReplyIsSpeechOverSilence() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -274,11 +291,11 @@ extension LoopRig {
 // MARK: - (2) The server's tail after our quick commit; empty transcripts
 
 @Suite(.serialized) struct HoldTailTests {
-    /// t2-backchannel-echo10 bc01 (live 89.30–90.80): "Go on." paused her; the
+    /// t2-backchannel-echo10 bc01 (live 89.30–90.80): "Go on." paused Dee; the
     /// voice committed it at 90.17; the server's VAD ended "the rest" as its own
     /// item I9wISW (speech_stopped end 0.13 s after the commit, committed at once,
-    /// transcript "" at 90.79), and that empty item flushed her (2,285 ms). Now the
-    /// tail is part of the burst: she goes on, it is a backchannel for the brain,
+    /// transcript "" at 90.79), and that empty item flushed Dee (2,285 ms). Now the
+    /// tail is part of the burst: Dee goes on, it is a backchannel for the brain,
     /// its "" never reaches the brain, and it leaves the conversation.
     @Test func theServersEmptyTailAfterOurCommitIsPartOfTheBurst() async throws {
         let rig = try LoopRig()
@@ -296,7 +313,7 @@ extension LoopRig {
         try rig.quiet(0.08)
         rig.deltas("item_u2", ["Go", " on", "."])
         let resumed = try await rig.stepUntil(0.5) { rig.voice.floorHold == nil }
-        #expect(resumed != nil, "she never went on")
+        #expect(resumed != nil, "Dee never went on")
         #expect(rig.voice.wasBackchannel(itemID: "item_tail") && rig.voice.wasBackchannel(itemID: "item_u2"))
         #expect(holds.all.contains { if case .resumed(let items, _, "words") = $0 { Set(items) == ["item_u2", "item_tail"] } else { false } },
                 "\(holds.all)")
@@ -352,8 +369,8 @@ extension LoopRig {
         rig.voice.shutdown()
     }
 
-    /// An empty transcript never ends a hold: nothing was said in it — she goes
-    /// on (live, an empty item cut her).
+    /// An empty transcript never ends a hold: nothing was said in it — Dee goes
+    /// on (live, an empty item cut Dee).
     @Test func anEmptyTranscriptNeverEndsAHold() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -363,7 +380,7 @@ extension LoopRig {
         try rig.quiet(0.2)
         rig.push(Srv.userTranscript("item_u2", ""))
         let resumed = try await rig.stepUntil(0.5) { rig.voice.floorHold == nil }
-        #expect(resumed != nil, "an empty item kept her paused")
+        #expect(resumed != nil, "an empty item kept Dee paused")
         try rig.quiet(6.5)
         await rig.settle()
         #expect(rig.itemPlayed("item_a1").map { !$0.cut } == true)
@@ -378,8 +395,8 @@ extension LoopRig {
 @Suite(.serialized) struct MisheardGoOnTests {
     /// t2-backchannel-echo20 bc01 (live 89.58–90.99): "Go on." (0.58 s) was
     /// committed by the voice at 90.47; the server's tail stopped 0.09 s later;
-    /// the deltas said "Jeron." at 90.78 and she was flushed at 90.99 — before
-    /// its transcript. Now "Jeron." is how a soft "go on" comes back: she goes on.
+    /// the deltas said "Jeron." at 90.78 and Dee was flushed at 90.99 — before
+    /// its transcript. Now "Jeron." is how a soft "go on" comes back: Dee goes on.
     @Test func goOnHeardAsJeronLetsHerGoOn() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -392,7 +409,7 @@ extension LoopRig {
         try rig.quiet(0.14)
         rig.deltas("item_u2", ["J", "eron", "."])
         let resumed = try await rig.stepUntil(0.5) { rig.voice.floorHold == nil }
-        #expect(resumed != nil, "she stayed paused for \"Jeron.\"")
+        #expect(resumed != nil, "Dee stayed paused for \"Jeron.\"")
         #expect(rig.voice.wasBackchannel(itemID: "item_u2"))
         try rig.quiet(6.5)
         await rig.settle()
@@ -410,7 +427,7 @@ extension LoopRig {
         #expect(try await rig.stepUntil(0.6) { !rig.sent("input_audio_buffer.commit").isEmpty } != nil)
         rig.push(Srv.committed("item_u2"))
         try rig.quiet(0.12)
-        // Tune 7 (T6-3): "Hmpf." is now a misheard fragment (a backchannel over her voice);
+        // Tune 7 (T6-3): "Hmpf." is now a misheard fragment (a backchannel over Dee's voice);
         // words that clearly are not "go on" still wait for the transcript.
         rig.deltas("item_u2", ["I'm", " cold", "."])
         try rig.quiet(0.3)

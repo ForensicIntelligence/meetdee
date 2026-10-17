@@ -1,18 +1,18 @@
 import Foundation
 
-/// What woke her.
+/// What woke Dee.
 public enum WakeSource: String, Sendable, Equatable, Codable {
     /// The wake phrase, heard on the device.
     case phrase
     /// A tap outside the eyes / the "Tap to talk" chip.
     case tap
-    /// "Speak first when she sees someone": one greeting window for a newly arrived
+    /// "Speak first when Dee sees someone": one greeting window for a newly arrived
     /// known person.
     case greeting
 }
 
 /// What keeps an open window from timing out (TurnPolicy.initiativeAllowed inputs).
-/// `someoneTalking` must be the turn policy's notion of a person talking to her now
+/// `someoneTalking` must be the turn policy's notion of a person talking to Dee now
 /// (EarCore's bed-proof voice with a turn in progress), never raw speech energy.
 public struct Busy: Sendable, Equatable {
     public var replyOutstanding: Bool
@@ -47,7 +47,7 @@ public struct ConversationWindow: Sendable, Equatable {
         /// Connecting. `onsetFrame` is the wake utterance's start on the 24 kHz capture
         /// clock (phrase onset, or the tap time); nil = from now (greeting).
         case waking(source: WakeSource, onsetFrame: Int64?, at: TimeInterval)
-        /// `lastAccepted` = the last accepted turn / her reply to one / phrase / tap.
+        /// `lastAccepted` = the last accepted turn / Dee's reply to one / phrase / tap.
         case open(lastAccepted: TimeInterval, openedAt: TimeInterval)
     }
 
@@ -61,9 +61,9 @@ public struct ConversationWindow: Sendable, Equatable {
         case greetingDue
         case connected
         case connectFailed(String)
-        /// A user turn her HeardRule answered or held (not ignored / echo / misheard).
+        /// A user turn Dee's HeardRule answered or held (not ignored / echo / misheard).
         case acceptedTurn
-        /// Her reply ended; `toAccepted` = it answered an accepted turn (initiatives and
+        /// Dee's reply ended; `toAccepted` = it answered an accepted turn (initiatives and
         /// replies to unanswered initiatives don't keep the window open).
         case replyEnded(toAccepted: Bool)
         case tick(busy: Busy)
@@ -90,7 +90,7 @@ public struct ConversationWindow: Sendable, Equatable {
         /// The greeting window: one initiative allowed.
         case allowInitiative
         case closeUplink
-        /// Play her local goodbye clip (no network).
+        /// Play Dee's local goodbye clip (no network).
         case sayGoodbye
         /// `CloudVoice.sleep()`: close the socket, stop reconnect/rollover, restart the ear.
         case disconnect
@@ -277,8 +277,8 @@ public struct ConversationWindow: Sendable, Equatable {
     static let connectTimeoutText = "I couldn't connect in time — try again"
 }
 
-/// The one engagement rule every host calls (contract §4): an open window means she
-/// is engaged and addressed; outside it nothing is answered. Her name in a server or
+/// The one engagement rule every host calls (contract §4): an open window means Dee
+/// is engaged and addressed; outside it nothing is answered. Dee's name in a server or
 /// LAN transcript never changes this (W1).
 public enum Engagement {
     public static func answers(window: ConversationWindow.State) -> Bool {

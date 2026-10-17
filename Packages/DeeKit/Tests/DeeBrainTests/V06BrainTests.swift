@@ -29,7 +29,7 @@ import Testing
         WakeHit(onsetFrame: 48_000, onsetFromFinal: false, detectedFrame: 60_000, matched: "hey dee", tier: .exact)
     }
 
-    /// W1: while dormant, a server transcript with her name or the phrase changes nothing.
+    /// W1: while dormant, a server transcript with Dee's name or the phrase changes nothing.
     @Test func dormantIgnoresEverythingIncludingHerName() async throws {
         let h = try await Self.host(phrase: true)
         for text in ["Hey Dee, what time is it?", "Dee, are you awake?", "Wake up!", "go to sleep"] {
@@ -77,7 +77,7 @@ import Testing
         #expect(h.answersOnCommit)
         h.engaged = false
         #expect(!h.answersOnCommit)
-        #expect(await h.heard(Self.turn("Dee, are you awake?")) == .ignored, "her name no longer re-engages her (W1)")
+        #expect(await h.heard(Self.turn("Dee, are you awake?")) == .ignored, "Dee's name no longer re-engages Dee (W1)")
         #expect(!h.engaged)
         #expect(h.window(.closeCommand).isEmpty, "the window is not driven in always-open mode")
     }
@@ -242,7 +242,7 @@ import Testing
     }
 }
 
-/// W1 lint: no host may wake or gate on her name in a server transcript again
+/// W1 lint: no host may wake or gate on Dee's name in a server transcript again
 /// (`SpokenCommand.addressesDee` stays only as information for the harness).
 @Suite struct W1LintTests {
     static let repo = URL(fileURLWithPath: #filePath).resolvingSymlinksInPath()

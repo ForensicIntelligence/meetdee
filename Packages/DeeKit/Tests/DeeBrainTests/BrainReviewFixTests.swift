@@ -34,7 +34,7 @@ import Testing
         hush.shutdown()
     }
 
-    /// Correctness #2: speech that was not for her leaves the realtime conversation,
+    /// Correctness #2: speech that was not for Dee leaves the realtime conversation,
     /// and its words never reach a reconnect's seed.
     @Test func ignoredSpeechLeavesTheConversationAndTheSeed() async throws {
         let rig = try await BrainRig(engaged: false)
@@ -60,7 +60,7 @@ import Testing
     }
 
     /// Correctness #12: a reply asked for at the commit is taken back (unheard) when
-    /// the words turn out not to be for her.
+    /// the words turn out not to be for Dee.
     @Test func aFastReplyToSpeechNotForHerIsTakenBack() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -136,7 +136,7 @@ import Testing
         rig.brain.inject(.sentenceStarted(itemID: "item_a1", index: 0, text: "Once upon a time."))
         rig.push(Srv.responseDone("resp_1"))
         try? await Task.sleep(for: .milliseconds(400))
-        #expect(rig.host.replies.first?.contains(.turnCompleted) == false, "still playing: still her turn")
+        #expect(rig.host.replies.first?.contains(.turnCompleted) == false, "still playing: still Dee's turn")
         rig.brain.inject(.itemPlayed(itemID: "item_a1", playedMs: 30_000, cut: false))
         #expect(await rig.until { rig.host.replies.first?.last == .turnCompleted })
         rig.shutdown()
@@ -226,7 +226,7 @@ import Testing
         rig.reply("resp_1", "item_a1", ms: 300, text: "Hi there.")
         await rig.settle()
         for _ in 0..<100 where rig.host.replies.first?.last != .turnCompleted {
-            try rig.step()                                      // she says it; the turn ends
+            try rig.step()                                      // Dee says it; the turn ends
             await Task.yield()
         }
         #expect(await rig.until { rig.host.replies.first?.last == .turnCompleted })

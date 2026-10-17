@@ -70,7 +70,7 @@ Every flaw the judges raised is fixed in place. §15 lists each fix.
 
 Example walk-through: the brief's "shown something you made".
 1. `.sight(back: ["painting"], novel)` and `.heard("look what I made")` arrive. `Attention` moves focus to `painting` (back camera). `Interpreter` sets `user.goal = .shareCreation`.
-2. The `Beats` sub-reducer starts the **examine** beat: gaze drops and narrows toward the back camera, and her `thinking` mannerism plays.
+2. The `Beats` sub-reducer starts the **examine** beat: gaze drops and narrows toward the back camera, and Dee's `thinking` mannerism plays.
 3. Recall finds the episode "John is learning watercolor", so the **recognise** step plays (`doubleTake`), then **brighten** (expression `excited`, intensity +0.2).
 4. `CueWriter` emits the mood sentence plus `(You remember: they're learning watercolor.)` and `(Ask about one choice they made in it.)`.
 5. The beat runs while the model prepares its reply, so that wait reads as examining.
@@ -313,12 +313,12 @@ public struct Facet: Sendable, Equatable, Codable, Identifiable {
 
 public struct Lesson: Sendable, Equatable, Codable, Identifiable {
     public enum Situation: String, Sendable, Codable {
-        case moodGuess          // she guessed a mood, was corrected
+        case moodGuess          // Dee guessed a mood, was corrected
         case tookLiterally      // "I was joking"
         case wrongReferent      // "no, the other one"
-        case interruptedThem    // she spoke over a slow speaker
+        case interruptedThem    // Dee spoke over a slow speaker
         case jokeFlopped        // playful reply → flat/negative
-        case askedTooMuch       // busy/quiet signals after her questions
+        case askedTooMuch       // busy/quiet signals after Dee's questions
     }
     public var id: UUID
     public var person: PersonID?                         // nil = general lesson
@@ -453,7 +453,7 @@ public struct GazeIntent: Sendable, Equatable {
 - **Bands:** `positive` (happy, joy, love, excited, giddy, playful, proud, content, relieved, hopeful, awe, smug, mischievous, shy, dreamy), `neutral` (neutral, curious, thinking, surprised, confused, skeptical, determined, bored, sleepy, dizzy, pleading), `negLow` (sad, hurt, worried, lonely, scared, overwhelmed), `negHigh` (angry, grumpy, unimpressed). Band distance: positive–neutral 1, neutral–negLow 1, negLow–negHigh 1, positive–negLow 2, positive–negHigh 2, neutral–negHigh 1.
 - **The mood band** comes from `mind.valence` and anger: anger > 0.4 or regard < −0.5 gives `negHigh`; valence < −0.25 gives `negLow`; valence > 0.2 gives `positive`; anything else is `neutral`.
 - **When to substitute:** only when the band distance is 2 **and** none of these holds:
-  - a reflex in the tag's band fired within 4 s (she can laugh while upset);
+  - a reflex in the tag's band fired within 4 s (Dee can laugh while upset);
   - the tag is positive and `regard > 0.3` (affection coexisting with frustration, the brief's own example);
   - the tag is `smug` or `mischievous` while mood is `negHigh` (wry).
 - **The substitute** is the nearest emotion in the mood band by a fixed table, e.g. `happy`→`unimpressed`, `love`→`hurt`, `excited`→`skeptical`. Face, voice and the on-screen transcript all use the substitute.
@@ -755,11 +755,11 @@ TurnPredictor reuses the existing YIN f0 and the dB ring buffer.
 Rate limit: ≤15 per minute.
 
 **Silence model**, after Dee's turn:
-- **pendingQuestion** (her last sentence ended in "?"):
+- **pendingQuestion** (Dee's last sentence ended in "?"):
   - at 6 s, gaze returns to the user with a small tilt;
-  - at 14 s, she lets it go: no re-ask, and the intention becomes `.dropped` if it was an aim.
+  - at 14 s, Dee lets it go: no re-ask, and the intention becomes `.dropped` if it was an aim.
 - **comfortable** (user present, regard > 0.1, last hesitation < 0.3, no pending question): curiosity gaps × (1 + `silenceComfort`), idle director at half rate.
-- **awkward** (\|yaw\| > 30° within 2 s of her line and no reply in 4 s): `awkwardness += 0.15`. The silence is not filled.
+- **awkward** (\|yaw\| > 30° within 2 s of Dee's line and no reply in 4 s): `awkwardness += 0.15`. The silence is not filled.
 
 **`silenceComfort` learning:** +0.05 each time the user starts the next topic after a silence > 10 s; −0.05 when the user says "hello?" or similar. Clamped to 0…1.
 
@@ -789,7 +789,7 @@ Rate limit: ≤15 per minute.
 - the chosen referent's salience × 0.3, and the next candidate is used;
 - it counts as a misread of kind `wrongReferent`.
 
-**Mutual gaze:** \|yaw\| < 15° and pitch > −10° held for 1 s. The initiative threshold requires mutual gaze or speech within the last 10 s, so she does not talk at the back of someone's head. If yaw is unavailable, face presence within the last 3 s substitutes.
+**Mutual gaze:** \|yaw\| < 15° and pitch > −10° held for 1 s. The initiative threshold requires mutual gaze or speech within the last 10 s, so Dee does not talk at the back of someone's head. If yaw is unavailable, face presence within the last 3 s substitutes.
 
 **Common ground:** a note names a referent as news ("you just noticed a…") if `!sharedWithUser`, and as shared ("that guitar") otherwise.
 
@@ -874,7 +874,7 @@ A **misread record** stores `(person, at, situation, topic)`. No text.
 | `jokeFlopped` | `humorReceptiveness` EWMA update; `playGate` threshold +0.1 | `(Keep it low-key.)` |
 | `askedTooMuch` | initiative threshold +0.1 for that person; curiosity gap ×1.3 | (none) |
 
-**Lifecycle:** each reflection applies `evidence × 0.95` per week. Lessons are retired below 1. A lesson whose situation stops recurring for 5 conversations loses one evidence. The top lesson for the identified person enters the self block ("Lately you've learned…"), which is her grounded account of what changed.
+**Lifecycle:** each reflection applies `evidence × 0.95` per week. Lessons are retired below 1. A lesson whose situation stops recurring for 5 conversations loses one evidence. The top lesson for the identified person enters the self block ("Lately you've learned…"), which is Dee's grounded account of what changed.
 
 ### 7.8 Relationship repair and boundaries (`RepairKeeper`)
 
@@ -1107,11 +1107,11 @@ CREATE TABLE digest (day TEXT, person_id TEXT, conversations INTEGER, low_salien
 - the reflection input.
 
 "Never stored" is about this device. Since 0.6 the realtime model hears and answers
-her, so while she is online the provider (OpenAI) receives the user's audio and
-transcripts, her replies, the session instructions and each turn's Dee DNA (her personality,
-feelings, self and relationship, the person's name, a few words about what she sees,
+Dee, so while Dee is online the provider (OpenAI) receives the user's audio and
+transcripts, Dee's replies, the session instructions and each turn's Dee DNA (Dee's personality,
+feelings, self and relationship, the person's name, a few words about what Dee sees,
 recalled facts and memories; `docs/DNA.md`). All microphone audio is streamed while
-she is online, whoever is talking. API data is not used for
+Dee is online, whoever is talking. API data is not used for
 training; the provider keeps abuse-monitoring logs for up to 30 days. Camera frames,
 face prints, the MindCode and these tables never leave the device.
 
@@ -1223,7 +1223,7 @@ scenario("interview follow-through", seed: 7) {
 4. **Took literally:**
    - "you're useless lol" twice across sessions with "I was joking" → `Lesson(.tookLiterally)`.
    - A third tease produces a smaller anger rise than the first (asserted on the snapshot delta) and the "jokes with a straight face" note.
-5. **Remains recognisably herself** (60 simulated days, random seeded interactions, 3 people):
+5. **Remains recognisably Dee** (60 simulated days, random seeded interactions, 3 people):
    - values never change;
    - humour style is unchanged;
    - the signature repertoire is unchanged;
@@ -1279,12 +1279,12 @@ scenario("interview follow-through", seed: 7) {
 
 | Step | Theme | Scope | Visible result |
 |---|---|---|---|
-| **0.5.1** | **One Moment + self-model core** | `DeeSelf` target. Types. `Cortex` with `FloorKeeper` and `Stance.resolve`. `Projector`. Delete `spokenEmotion`/`refreshEmotion`/`flash`. `CueWriter` (golden parity plus notes infrastructure). Tag reconciliation. `SelfSeeder` (values, humour, signature repertoire). `SelfStore` v1 plus migrations. `SelfBlock` plus `Persona.selfLines`/`ruleLines`. `SentenceChunker` parenthesis filter. **Neglect removal and bond freeze (§9).** | Face and voice always agree. Her own consistent thinking and amused mannerisms. She knows her values and humour. No penalty for absence. |
-| **0.5.2** | **Coordinated listening** | `TurnPredictor` plus `setQuietInterval`/`pauseScale`. `VoiceEvent.pause`. `Listener` (preview face, visual backchannels, hesitation, silence model). `FaceInputs.listen*`. Gaze priority (listening/speaking aversion, ready face). `Beats` (examine/recognize/brighten run while the reply is prepared). Clipped-speaker apology with seeded variants. Debug feature logging for calibration. | Her face reacts while you talk, she nods at pauses, waits through "um", and answers faster when you're clearly done. |
-| **0.5.3** | **Memory that changes behaviour** | `Interpreter` (hypotheses, corrections, `PlanDetector`, `RepairDetector`). `IntentionBoard` (curiosity candidates, follow-ups, follow-through). `EpisodeBuilder` plus recall note. `Learner` (lessons, profiles, interests). Deterministic `Reflector`. Scenarios 1–4, 9. | "How did the interview go?" She stops guessing your mood after being corrected, and remembers what you showed her. |
-| **0.5.4** | Shared attention | `SenseUpdate.head`, mutual-gaze gating, referents, `glanceNow`, deixis notes, triadic gaze, common-ground wording. Scenario 9 (full). | "What's this?" works. She looks where you're showing her and asks when unsure. |
-| **0.5.5** | Repair and boundaries | `RepairKeeper`, awkwardness, user/Dee boundaries, `CuriosityDirector.avoid`. Scenarios 7–8. | She makes up gracefully, respects "don't ask me about that", and stands up for herself once. |
-| **0.5.6** | Taste, humour, play | Tastes with hysteresis, gradual reveal, gags, rituals, `humorReceptiveness`, `playGate`. Scenarios 5, 6, 11. | Quirks of her own that emerge over weeks. Running jokes that retire. Morning rituals. |
+| **0.5.1** | **One Moment + self-model core** | `DeeSelf` target. Types. `Cortex` with `FloorKeeper` and `Stance.resolve`. `Projector`. Delete `spokenEmotion`/`refreshEmotion`/`flash`. `CueWriter` (golden parity plus notes infrastructure). Tag reconciliation. `SelfSeeder` (values, humour, signature repertoire). `SelfStore` v1 plus migrations. `SelfBlock` plus `Persona.selfLines`/`ruleLines`. `SentenceChunker` parenthesis filter. **Neglect removal and bond freeze (§9).** | Face and voice always agree. Dee's own consistent thinking and amused mannerisms. Dee knows Dee's values and humour. No penalty for absence. |
+| **0.5.2** | **Coordinated listening** | `TurnPredictor` plus `setQuietInterval`/`pauseScale`. `VoiceEvent.pause`. `Listener` (preview face, visual backchannels, hesitation, silence model). `FaceInputs.listen*`. Gaze priority (listening/speaking aversion, ready face). `Beats` (examine/recognize/brighten run while the reply is prepared). Clipped-speaker apology with seeded variants. Debug feature logging for calibration. | Dee's face reacts while you talk, Dee nods at pauses, waits through "um", and answers faster when you're clearly done. |
+| **0.5.3** | **Memory that changes behaviour** | `Interpreter` (hypotheses, corrections, `PlanDetector`, `RepairDetector`). `IntentionBoard` (curiosity candidates, follow-ups, follow-through). `EpisodeBuilder` plus recall note. `Learner` (lessons, profiles, interests). Deterministic `Reflector`. Scenarios 1–4, 9. | "How did the interview go?" Dee stops guessing your mood after being corrected, and remembers what you showed Dee. |
+| **0.5.4** | Shared attention | `SenseUpdate.head`, mutual-gaze gating, referents, `glanceNow`, deixis notes, triadic gaze, common-ground wording. Scenario 9 (full). | "What's this?" works. Dee looks where you're showing Dee and asks when unsure. |
+| **0.5.5** | Repair and boundaries | `RepairKeeper`, awkwardness, user/Dee boundaries, `CuriosityDirector.avoid`. Scenarios 7–8. | Dee makes up gracefully, respects "don't ask me about that", and stands up for Dee's own feelings once. |
+| **0.5.6** | Taste, humour, play | Tastes with hysteresis, gradual reveal, gags, rituals, `humorReceptiveness`, `playGate`. Scenarios 5, 6, 11. | Quirks of Dee's own that emerge over weeks. Running jokes that retire. Morning rituals. |
 | **0.5.7** | Optional extras + evaluation | AEC-dependent features behind a flag (vocal backchannel clip with own-voice masking, graded barge-in duck/resume on acknowledgements). LLM polish reflection (GBNF plumbing, cancellation, latency gate). 60-day simulation report (follow-through rate, misread recurrence, identity similarity, token overhead) in DEVLOG. | Only after device proof. |
 
 Ordering rationale: the brief's top three (self-model, coordinated listening, memory that changes behaviour) are 0.5.1–0.5.3. Unlike cognitive's pure-refactor S1, 0.5.1 ships visible behaviour (agreeing channels, mannerisms, self block, absence fix).

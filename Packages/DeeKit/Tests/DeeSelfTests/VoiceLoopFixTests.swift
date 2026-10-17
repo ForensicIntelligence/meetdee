@@ -8,8 +8,8 @@ import Testing
 /// speech must never close or steal the user's turn.
 /// - the "sorry, go on" line is never said while the user holds the floor or Dee is
 ///   yielding to them; it waits for an idle floor and is dropped once they talk;
-/// - a sound of hers during their turn (a laugh, a canned line) does not end it, so
-///   their next words don't read as them interrupting her;
+/// - a sound of Dee's during their turn (a laugh, a canned line) does not end it, so
+///   their next words don't read as them interrupting Dee;
 /// - a pause after a barge-in is the user's turn, not a yield that times out to idle
 ///   while they are still talking.
 @Suite struct VoiceLoopFixTests {
@@ -22,12 +22,12 @@ import Testing
         r.step(.partial("so I went to the"), at: 0)
         r.step(.pause(turnEnd: 0.2, hesitation: 0.6), at: 1)
         r.step(.speakingStarted, at: 1.2)   // a giggle at a tickle
-        #expect(r.m.momentary.floor.isUserTurn, "her laugh is an interjection, not her turn")
+        #expect(r.m.momentary.floor.isUserTurn, "Dee's laugh is an interjection, not Dee's turn")
         r.step(.speakingFinished, at: 1.8)
         #expect(r.m.momentary.floor.isUserTurn)
         r.step(.partial("so I went to the store"), at: 2)
         #expect(r.m.momentary.floor == .userSpeaking(since: Kit.t0), "the same turn carries on")
-        #expect(!r.m.momentary.floorEvents.contains(.deeInterrupted), "carrying on is not being interrupted by her")
+        #expect(!r.m.momentary.floorEvents.contains(.deeInterrupted), "carrying on is not being interrupted by Dee")
     }
 
     /// Review M2: words that never reach the Cortex as `.heard` (a spoken "stop") must
@@ -129,7 +129,7 @@ import Testing
         replying.m.momentary.floor = .deeThinking(since: Kit.t0.addingTimeInterval(1))
         replying.step(.promptSubmitted, at: 1)
         replying.m.momentary.floor = .idle
-        #expect(Self.say(replying.step(.tick, at: 2)).isEmpty, "her reply came first")
+        #expect(Self.say(replying.step(.tick, at: 2)).isEmpty, "Dee's reply came first")
     }
 
     @Test func floorFreeMeansIdleOnly() {
@@ -143,8 +143,8 @@ import Testing
 
     // MARK: Whole Cortex
 
-    /// She starts, they talk over her within a second, she stops: no line over them.
-    /// If they then say nothing, the floor idles and she invites them to go on.
+    /// Dee starts, they talk over Dee within a second, Dee stops: no line over them.
+    /// If they then say nothing, the floor idles and Dee invites them to go on.
     @Test func cortexNeverApologisesOverTheUser() {
         var cx = Kit.cortex()
         let mind = Kit.snap()

@@ -2,7 +2,7 @@ import Foundation
 
 /// A short, self-contained bit of face acting, layered over whatever the current
 /// expression is. A `giggle` turns the eyes into bouncing `∩` arches even when Dee
-/// is sad or cross: reflexes sit above mood, which is what makes her feel alive.
+/// is sad or cross: reflexes sit above mood, which is what makes Dee feel alive.
 public enum Performance: String, CaseIterable, Sendable, Equatable {
     case wink, blinkLeft, blinkRight, yawn, eyeRoll, doubleTake, nod, headShake, giggle,
          squint, lookAround, startle, sigh, bounce, shiver, contentSquint, dizzySpin
@@ -144,7 +144,7 @@ struct Pose: Sendable, Equatable {
     var tremble = 0.0, wobble = 0.0, giggle = 0.0
     var brightness = 0.0, sparkles = 0.0
     /// 0…1: warms the eye colour toward a soft gold, so a laugh over a red or blue mood
-    /// reads as "laughing despite herself" rather than "angry laughing".
+    /// reads as "laughing despite the mood" rather than "angry laughing".
     var warmth = 0.0
 
     /// The gold a laugh warms toward, and how far it gets at full warmth.

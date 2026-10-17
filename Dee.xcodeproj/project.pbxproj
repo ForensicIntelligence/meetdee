@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		12BB122548C7495354038EAE /* DeeWake in Frameworks */ = {isa = PBXBuildFile; productRef = EE0A2AA85CC5F3BB6DAFD6E5 /* DeeWake */; };
+		220ACF5CD301AEDADF2BD67C /* DeeWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC524674EDCEE91204A2AB1C /* DeeWalkthroughUITests.swift */; };
 		2AF73E602A67CFFF5B442C12 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2DF0CE7C10303CCE5D198FE /* OnboardingView.swift */; };
 		369C4E1F2E2276FF7C20C98C /* ProviderSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E4B61FB1A2F301AC556BB56 /* ProviderSetupView.swift */; };
 		3821DCF96F7A386E94238C18 /* DeeRealtime in Frameworks */ = {isa = PBXBuildFile; productRef = 35FCEA8B1BECD5682BEE4B6F /* DeeRealtime */; };
@@ -15,6 +16,7 @@
 		3C0A32887FD3DD0A46D22097 /* DeeSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFC81261C45C667B3B1A40AA /* DeeSettingsView.swift */; };
 		3DC1EC206CB81591B54AC017 /* DeeMind in Frameworks */ = {isa = PBXBuildFile; productRef = 5581B8B759883D61DF0FE17A /* DeeMind */; };
 		42AE015202E71923D0CE0616 /* DeeMemory in Frameworks */ = {isa = PBXBuildFile; productRef = B156030922FC6F8FF7022499 /* DeeMemory */; };
+		49C6B6C347DBA64011FB2916 /* PersonaViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74289F3597E600AECB140D64 /* PersonaViews.swift */; };
 		5D40746F1073F9B889BEFD68 /* DeeSelf in Frameworks */ = {isa = PBXBuildFile; productRef = 963B183318FCA001FB84EE12 /* DeeSelf */; };
 		662A02C1AE969AC30AF0EBA4 /* DeeLocal in Frameworks */ = {isa = PBXBuildFile; productRef = B03CCE84EBC0F0BE4DDCC436 /* DeeLocal */; };
 		7569556BE796EEEF994FF20E /* People.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82EC0AB257D309D92D308629 /* People.swift */; };
@@ -58,6 +60,7 @@
 		41F8D442E8DE0C002A99F618 /* DeeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeApp.swift; sourceTree = "<group>"; };
 		56B575153F6003FC3CBF2D88 /* Dee.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Dee.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5F4F399DAEE1329ED89288AA /* DeeUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = DeeUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		74289F3597E600AECB140D64 /* PersonaViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonaViews.swift; sourceTree = "<group>"; };
 		7FBB47104B11C803FA359C5F /* VoiceStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceStack.swift; sourceTree = "<group>"; };
 		82EC0AB257D309D92D308629 /* People.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = People.swift; sourceTree = "<group>"; };
 		863D83D1BDC0BF76A99DA86A /* DeeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeUITests.swift; sourceTree = "<group>"; };
@@ -73,6 +76,7 @@
 		D2DF0CE7C10303CCE5D198FE /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		DA49FD262B211F323A24FFEA /* ProviderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderStore.swift; sourceTree = "<group>"; };
 		E5C13F486626CF27D30FA280 /* SelfDriver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelfDriver.swift; sourceTree = "<group>"; };
+		EC524674EDCEE91204A2AB1C /* DeeWalkthroughUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeeWalkthroughUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -112,6 +116,7 @@
 				C36D20784B714F90FCCCEC4B /* ConnectionTest.swift */,
 				CFC81261C45C667B3B1A40AA /* DeeSettingsView.swift */,
 				D2DF0CE7C10303CCE5D198FE /* OnboardingView.swift */,
+				74289F3597E600AECB140D64 /* PersonaViews.swift */,
 				8E4B61FB1A2F301AC556BB56 /* ProviderSetupView.swift */,
 				9F839102B6E693D08E66E2EF /* SetupPieces.swift */,
 			);
@@ -151,6 +156,7 @@
 			isa = PBXGroup;
 			children = (
 				863D83D1BDC0BF76A99DA86A /* DeeUITests.swift */,
+				EC524674EDCEE91204A2AB1C /* DeeWalkthroughUITests.swift */,
 			);
 			path = UITests;
 			sourceTree = "<group>";
@@ -295,6 +301,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A329143E9DADE0DFE7350D8C /* DeeUITests.swift in Sources */,
+				220ACF5CD301AEDADF2BD67C /* DeeWalkthroughUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -309,6 +316,7 @@
 				2AF73E602A67CFFF5B442C12 /* OnboardingView.swift in Sources */,
 				7569556BE796EEEF994FF20E /* People.swift in Sources */,
 				EBBA3491946136901E374B4D /* Permissions.swift in Sources */,
+				49C6B6C347DBA64011FB2916 /* PersonaViews.swift in Sources */,
 				E40CFE4608B4C33908E6A695 /* Projector.swift in Sources */,
 				369C4E1F2E2276FF7C20C98C /* ProviderSetupView.swift in Sources */,
 				B3DF65EF06F5392CF96F2C2C /* ProviderStore.swift in Sources */,
@@ -343,14 +351,14 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Dee;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Dee can read and add calendar events when you talk about your plans. To answer, she looks at up to two weeks of your calendar, and the titles and times of up to 8 events she finds go to her AI service (OpenAI or your own server, whichever you chose) so she can tell you.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Dee uses the cameras to see you and the things around you: her eyes follow your face, she recognises friends she has met, and she gets curious about what she sees. Video is processed on this device and is never recorded or sent anywhere; only a few words about what she notices (\"a cup you are showing her\") go to her AI service during a conversation so she can talk about it.";
-				INFOPLIST_KEY_NSContactsUsageDescription = "Dee can look up a contact's phone, email or birthday when you ask her to. The contact you ask about goes to her AI service (OpenAI or your own server, whichever you chose) so she can tell you.";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Dee connects to the AI server you set up on your home network (for example Ollama or LM Studio on your Mac), if you choose one. She talks only to the address you enter.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Dee can tell you roughly where you are (town and area) when you ask. That place name goes to her AI service (OpenAI or your own server, whichever you chose) so she can say it.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dee listens on this iPhone for her wake phrase (“Hey Dee”, or the one you chose). Listening for it happens only on the device and never leaves the phone. Once she wakes, what her microphone hears during that conversation goes to the AI service you chose in her setup (OpenAI, or your own server on your network) until the conversation ends. Sounds such as laughter or a doorbell are also recognised on this device.";
-				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dee can read and add reminders when you talk about your to-dos. To answer, the titles of up to 10 of your open reminders go to her AI service (OpenAI or your own server, whichever you chose) so she can tell you.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Dee hears her wake phrase with Apple's speech recognition on this iPhone only — nothing is sent anywhere to listen for it. If you choose “on this iPhone” for her hearing, your words in a conversation are transcribed on the device too.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Dee can read and add calendar events when you talk about your plans. To answer, Dee looks at up to two weeks of your calendar, and the titles and times of up to 8 events found go to the AI service you chose (OpenAI or your own server) so Dee can tell you.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Dee uses the cameras to see you and the things around you: the eyes follow your face, friends you have introduced are recognised, and Dee gets curious about what is in view. Video is processed on this device and is never recorded or sent anywhere; only a few words about what Dee notices (\"a cup you are showing\") go to the AI service you chose during a conversation so Dee can talk about it.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Dee can look up a contact's phone, email or birthday when you ask. The contact you ask about goes to the AI service you chose (OpenAI or your own server) so Dee can tell you.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Dee connects to the AI server you set up on your home network (for example Ollama or LM Studio on your Mac), if you choose one. Dee talks only to the address you enter.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Dee can tell you roughly where you are (town and area) when you ask. That place name goes to the AI service you chose (OpenAI or your own server) so Dee can say it.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dee listens on this iPhone for your companion's wake phrase (like “Hey Mira”, or the one you chose). Listening for it happens only on the device and never leaves the phone. Once Dee wakes, what the microphone hears during that conversation goes to the AI service you chose in setup (OpenAI, or your own server on your network) until the conversation ends. Sounds such as laughter or a doorbell are also recognised on this device.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dee can read and add reminders when you talk about your to-dos. To answer, the titles of up to 10 of your open reminders go to the AI service you chose (OpenAI or your own server) so Dee can tell you.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Dee hears the wake phrase with Apple's speech recognition on this iPhone only — nothing is sent anywhere to listen for it. If you choose “on this iPhone” for hearing, your words in a conversation are transcribed on the device too.";
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -377,14 +385,14 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Dee;
-				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Dee can read and add calendar events when you talk about your plans. To answer, she looks at up to two weeks of your calendar, and the titles and times of up to 8 events she finds go to her AI service (OpenAI or your own server, whichever you chose) so she can tell you.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Dee uses the cameras to see you and the things around you: her eyes follow your face, she recognises friends she has met, and she gets curious about what she sees. Video is processed on this device and is never recorded or sent anywhere; only a few words about what she notices (\"a cup you are showing her\") go to her AI service during a conversation so she can talk about it.";
-				INFOPLIST_KEY_NSContactsUsageDescription = "Dee can look up a contact's phone, email or birthday when you ask her to. The contact you ask about goes to her AI service (OpenAI or your own server, whichever you chose) so she can tell you.";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Dee connects to the AI server you set up on your home network (for example Ollama or LM Studio on your Mac), if you choose one. She talks only to the address you enter.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Dee can tell you roughly where you are (town and area) when you ask. That place name goes to her AI service (OpenAI or your own server, whichever you chose) so she can say it.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dee listens on this iPhone for her wake phrase (“Hey Dee”, or the one you chose). Listening for it happens only on the device and never leaves the phone. Once she wakes, what her microphone hears during that conversation goes to the AI service you chose in her setup (OpenAI, or your own server on your network) until the conversation ends. Sounds such as laughter or a doorbell are also recognised on this device.";
-				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dee can read and add reminders when you talk about your to-dos. To answer, the titles of up to 10 of your open reminders go to her AI service (OpenAI or your own server, whichever you chose) so she can tell you.";
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Dee hears her wake phrase with Apple's speech recognition on this iPhone only — nothing is sent anywhere to listen for it. If you choose “on this iPhone” for her hearing, your words in a conversation are transcribed on the device too.";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Dee can read and add calendar events when you talk about your plans. To answer, Dee looks at up to two weeks of your calendar, and the titles and times of up to 8 events found go to the AI service you chose (OpenAI or your own server) so Dee can tell you.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Dee uses the cameras to see you and the things around you: the eyes follow your face, friends you have introduced are recognised, and Dee gets curious about what is in view. Video is processed on this device and is never recorded or sent anywhere; only a few words about what Dee notices (\"a cup you are showing\") go to the AI service you chose during a conversation so Dee can talk about it.";
+				INFOPLIST_KEY_NSContactsUsageDescription = "Dee can look up a contact's phone, email or birthday when you ask. The contact you ask about goes to the AI service you chose (OpenAI or your own server) so Dee can tell you.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Dee connects to the AI server you set up on your home network (for example Ollama or LM Studio on your Mac), if you choose one. Dee talks only to the address you enter.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Dee can tell you roughly where you are (town and area) when you ask. That place name goes to the AI service you chose (OpenAI or your own server) so Dee can say it.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Dee listens on this iPhone for your companion's wake phrase (like “Hey Mira”, or the one you chose). Listening for it happens only on the device and never leaves the phone. Once Dee wakes, what the microphone hears during that conversation goes to the AI service you chose in setup (OpenAI, or your own server on your network) until the conversation ends. Sounds such as laughter or a doorbell are also recognised on this device.";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dee can read and add reminders when you talk about your to-dos. To answer, the titles of up to 10 of your open reminders go to the AI service you chose (OpenAI or your own server) so Dee can tell you.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Dee hears the wake phrase with Apple's speech recognition on this iPhone only — nothing is sent anywhere to listen for it. If you choose “on this iPhone” for hearing, your words in a conversation are transcribed on the device too.";
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleLightContent;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";

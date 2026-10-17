@@ -144,7 +144,7 @@ public struct UplinkMap: Sendable, Equatable {
 ///   finishes with `heard` = its midpoint was played; sentences not started get
 ///   no event.
 /// Placement and the heard rule are `DeeRealtime.HeardRule`, the one the session
-/// trims its history by (`BargeInOutcome.Truncation.heardSentences`), so what she
+/// trims its history by (`BargeInOutcome.Truncation.heardSentences`), so what Dee
 /// "said" here and what the server remembers never disagree.
 /// Sentences that arrive after playback passed them are reported at once.
 public struct SentenceClock: Sendable {
@@ -305,7 +305,7 @@ struct ReplyGate: Sendable, Equatable {
     private var guardUntil = -Double.infinity
     private var requestedSinceStop = true
 
-    /// Her audio was cut and the server told (`bargeIn` with what was played).
+    /// Dee's audio was cut and the server told (`bargeIn` with what was played).
     mutating func closeAfterCut() {
         isOpen = false
         cutNotified = true

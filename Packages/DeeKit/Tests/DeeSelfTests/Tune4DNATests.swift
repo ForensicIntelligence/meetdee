@@ -10,7 +10,7 @@ struct Tune4DNATests {
     typealias C = Tune3CharacterTests
 
     /// What the harness / app hand `dnaInputs` on a reply at `t` (as `Tune3DNATests`),
-    /// with the brain's count of her replies heard so far.
+    /// with the brain's count of Dee's replies heard so far.
     static func render(_ cx: Cortex, at t: Date, index: Int, heardReplies: Int?) -> String {
         let person = PersonInputs(id: Kit.john, name: "Alex", firstMet: Kit.t0, encounters: 2, lastSeen: t)
         let body = BodyInputs(someoneHere: true, lastUserTurnAt: t, lastContact: person.lastSeen)
@@ -21,7 +21,7 @@ struct Tune4DNATests {
     /// t2-reunion-morning, live tune 3: the server split "Good morning." / "Did you sleep
     /// well?"; reply 1 (with the greeting) was cancelled before a word of it was heard,
     /// and reply 2's DNA had lost the Do line: "I don't sleep like you do…", no hello, no
-    /// "two days". The greeting now stays until a reply of hers was actually heard.
+    /// "two days". The greeting now stays until a reply of Dee's was actually heard.
     @Test func liveReunionMorningSplitKeepsTheGreetingUntilHeard() throws {
         let mind = Kit.snap()
         let t0 = Kit.t0
@@ -62,7 +62,7 @@ struct Tune4DNATests {
         a.moment.ongoing.reunionTurn = false
         a.moment.ongoing.turnsThisConversation = 2
         a.turn.heardReplies = 0
-        #expect(DNAAssembler.assemble(a).guidance.rules.contains(.g5), "two turns, nothing of hers heard")
+        #expect(DNAAssembler.assemble(a).guidance.rules.contains(.g5), "two turns, nothing of Dee's heard")
         a.turn.heardReplies = 1
         #expect(!DNAAssembler.assemble(a).guidance.rules.contains(.g5), "a reply was heard")
         a.turn.heardReplies = nil

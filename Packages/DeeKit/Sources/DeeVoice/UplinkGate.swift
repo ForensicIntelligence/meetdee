@@ -102,7 +102,7 @@ public struct RoomBed: Sendable, Equatable {
 /// block at or above `barDB` opens the gate for itself and `hangover` after it,
 /// so words, the gaps between them and soft word ends go through whole; the
 /// gain ramps (`attack` / `release`) so nothing clicks. Without a bar (the bed
-/// isn't known yet) everything goes through unchanged. Her echo louder than the
+/// isn't known yet) everything goes through unchanged. Dee's echo louder than the
 /// bar opens it like the user: barge-in and echo decisions see exactly what
 /// they saw before; only the bed below the bar is quieter.
 public struct UplinkGate: Sendable, Equatable {

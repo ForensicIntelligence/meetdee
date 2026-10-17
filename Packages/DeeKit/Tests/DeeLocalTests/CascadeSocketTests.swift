@@ -21,10 +21,12 @@ import DeeMockServer
         #expect(rig.log.sentences == ["Your dog is Biscuit.", "He is a beagle!"])
         #expect(rig.voice.texts == ["Your dog is Biscuit.", "He is a beagle!"])
         let t = rig.frames.types
-        // committed before any transcript; response.created only at the first token.
+        // committed before any transcript; response.created at once (OpenAI's order: the session
+        // can cancel it by id before the first token, 0.6 LAN verify), well before the 0.4 s first token.
         #expect(t.firstIndex(of: "input_audio_buffer.committed")! < t.firstIndex(of: "conversation.item.input_audio_transcription.completed")!)
         let created = try #require(rig.frames.first("response.created"))
-        #expect(created.at.timeIntervalSince(sent) >= 0.35)
+        #expect(created.at.timeIntervalSince(sent) < 0.3)
+        #expect(t.firstIndex(of: "response.created")! < t.firstIndex(of: "response.output_item.added")!)
         // transcript delta of each sentence comes right before its audio.
         let firstTranscript = t.firstIndex(of: "response.output_audio_transcript.delta")!
         let firstAudio = t.firstIndex(of: "response.output_audio.delta")!
@@ -38,11 +40,13 @@ import DeeMockServer
         #expect(msgs.first?["role"] as? String == "system")
         let stable = msgs[1]["content"] as? String ?? ""
         #expect(msgs[1]["role"] as? String == "system")
-        #expect(stable.contains("1 IDENTITY") && stable.contains("9 HOW TO RESPOND") && !stable.contains("3 FEELINGS"))
+        // Section 9 changes per response (CacheDNASplit): it rides with the turn, not the cached prefix.
+        #expect(stable.contains("1 IDENTITY") && !stable.contains("9 HOW TO RESPOND") && !stable.contains("3 FEELINGS"))
         let last = try #require(msgs.last)
         #expect(last["role"] as? String == "user")
         let lastText = last["content"] as? String ?? ""
-        #expect(lastText.contains("3 FEELINGS NOW") && lastText.contains("8 THIS TURN") && lastText.hasSuffix("what's my dog's name"))
+        #expect(lastText.contains("3 FEELINGS NOW") && lastText.contains("8 THIS TURN") && lastText.contains("9 HOW TO RESPOND")
+                && lastText.hasSuffix("what's my dog's name"))
         #expect(!lastText.contains("1 IDENTITY"))
         // Exactly one system message carries the stable DNA (the DNA item itself is never a message).
         #expect(msgs.filter { ($0["content"] as? String ?? "").contains("DEE DNA") }.count == 1)
@@ -185,7 +189,7 @@ import DeeMockServer
         #expect(rig.voice.deliveries.first?.instructions?.contains("Voice: sleepy.") == true)
     }
 
-    /// LM Studio answers an unknown model with the loaded one: an error, never her words.
+    /// LM Studio answers an unknown model with the loaded one: an error, never Dee's words.
     @Test func modelMismatchIsAProblem() async throws {
         let rig = try await CascadeRig.make(cases: [.lmStudio, .modelFallback], options: { $0.model = "missing-model" })
         defer { Task { await rig.stop() } }
@@ -199,7 +203,7 @@ import DeeMockServer
         #expect(p == .modelMismatch(host: rig.server.baseURL.host! + ":\(rig.server.port)", asked: "missing-model", got: "qwen3.8:27b-mlx-bf16"))
     }
 
-    /// History: her text is cut to what was heard after a barge-in; at most N messages + a summary.
+    /// History: Dee's text is cut to what was heard after a barge-in; at most N messages + a summary.
     @Test func historyKeepsHeardTextOnly() async throws {
         let rig = try await CascadeRig.make(options: { $0.historyLimit = 4 }, chat: { _, i in
             i == 0 ? .text("First sentence here. Second sentence that was never heard.") : .text("Ok.")
@@ -228,7 +232,7 @@ import DeeMockServer
         #expect(last.contains { ($0["content"] as? String ?? "").hasPrefix("EARLIER IN THIS CONVERSATION") })
     }
 
-    /// Unreachable server → a provider-named problem with the Ollama hint; the response fails, nothing else is tried.
+    /// Unreachable server → a provider-named problem asking whether it runs; the response fails, nothing else is tried.
     @Test func unreachableServerIsNamed() async throws {
         let hearing = FakeHearing()
         let recorder = TransportRecorder()
@@ -246,7 +250,9 @@ import DeeMockServer
         #expect(log.done.first?.status == "failed")
         let p = try #require(await firstProblem(socket))
         #expect(p == .unreachable(host: "127.0.0.1:9", vendor: .ollama))
-        #expect(p.message.contains("OLLAMA_HOST=0.0.0.0"))
+        // A stopped server is not an Ollama bound to localhost: the plain question, no "Expose" claim.
+        #expect(p.message == "Can't reach the AI server at 127.0.0.1:9 — is it running?")
+        #expect(!p.message.contains("Expose"))
         #expect(recorder.records.allSatisfy { !$0.isOpenAI })
         await session.close()
     }

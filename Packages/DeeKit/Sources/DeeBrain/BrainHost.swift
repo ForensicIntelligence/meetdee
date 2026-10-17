@@ -36,7 +36,7 @@ public enum HeardVerdict: Sendable, Equatable {
     /// A spoken command the app carried out ("stop", "goodnight", "start over"):
     /// never answered by the model. The app has already stopped any reply.
     case handled
-    /// Not for her (asleep or nobody engaged, and not addressed by name).
+    /// Not for Dee (asleep or nobody engaged, and not addressed by name).
     case ignored
 
     /// The case alone (traces never carry an appraisal).
@@ -99,8 +99,8 @@ public struct BrainReply: Sendable {
 /// (`StandaloneHost`). All on the main actor; nothing here touches audio.
 @MainActor
 public protocol BrainHost: AnyObject {
-    /// Answer speech at its commit (fast path): she is engaged and awake. Otherwise
-    /// the brain waits for the words and `heard` decides (her name wakes her).
+    /// Answer speech at its commit (fast path): Dee is engaged and awake. Otherwise
+    /// the brain waits for the words and `heard` decides (Dee's name wakes Dee).
     var answersOnCommit: Bool { get }
     /// The Mind's running voice baseline (`Mind.voiceBaseline`, refreshed after each hear).
     var voiceBaseline: Appraiser.VoiceBaseline { get }
@@ -118,8 +118,8 @@ public protocol BrainHost: AnyObject {
     func brainStartedReply(_ reply: BrainReply)
     /// Thinking mode changed for this conversation (on/off).
     func thinkingModeChanged(_ on: Bool)
-    /// They talked over her and she stopped for it, and the brain is answering them
-    /// (tune 3: CloudVoice pauses her reply for a barge-in and emits `.bargeIn` only
+    /// They talked over Dee and Dee stopped for it, and the brain is answering them
+    /// (tune 3: CloudVoice pauses Dee's reply for a barge-in and emits `.bargeIn` only
     /// when it ends the pause itself; when the brain's answer ends it, this is the
     /// signal). Sense it (`Percept.bargeIn`); never stop anything here — the reply
     /// being started is the answer to it.

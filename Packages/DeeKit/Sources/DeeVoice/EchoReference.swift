@@ -8,23 +8,23 @@ import Foundation
 ///
 /// - **Delay.** Every `learnEvery` mic bins, over the last `window`, it searches
 ///   lags of `minLag`…`maxLag` (plus the route's output latency) for the best
-///   correlation between her (reverb-smeared) envelope and the mic's excess over
+///   correlation between Dee's (reverb-smeared) envelope and the mic's excess over
 ///   the noise floor. A clear match (`confident`) sets the delay.
 /// - **Gain.** With a clear match, the median mic/reference ratio at that delay
 ///   (blended in dB). Without one (the echo is lost in the room, or the user talks
-///   over her), the first estimate is a high percentile of the same ratio, so a
-///   room where her echo never shows learns "echo ≈ nothing" and a noisy room with
+///   over Dee), the first estimate is a high percentile of the same ratio, so a
+///   room where Dee's echo never shows learns "echo ≈ nothing" and a noisy room with
 ///   a faint echo still errs on the safe side. Later, a low-correlation window may
 ///   only *lower* a known gain, and only when the echo clearly vanished (≥ 10 dB):
 ///   double talk never talks the model into a smaller echo.
 ///
 /// `predicted(at:)` is the echo energy expected in the mic bin ending at `t`:
-/// gain × her smeared envelope at the learned delay (± `jitter`), or over the whole
+/// gain × Dee's smeared envelope at the learned delay (± `jitter`), or over the whole
 /// lag range before a delay is known. Before a gain is learned, `prior` (0 dB)
-/// stands in: in her first moments everything she could explain counts as her. An onset whose energy this explains is her playback; the
-/// user's voice over her shows up as energy well above it.
+/// stands in: in Dee's first moments everything Dee could explain counts as Dee. An onset whose energy this explains is Dee's playback; the
+/// user's voice over Dee shows up as energy well above it.
 public struct EchoReference: Sendable {
-    /// One bin of her rendered output: mean square over `EchoReference.bin`
+    /// One bin of Dee's rendered output: mean square over `EchoReference.bin`
     /// seconds ending at `t` (graph clock, render time).
     public struct Bin: Sendable, Equatable {
         public var t: Double
@@ -44,19 +44,19 @@ public struct EchoReference: Sendable {
     public static let maxLag = 0.20
     /// Bins searched around the delay when predicting (render / capture jitter).
     static let jitterBins = 2
-    /// Her room reverb: the smeared envelope decays this much per bin (≈ RT60 0.4 s).
+    /// Dee's room reverb: the smeared envelope decays this much per bin (≈ RT60 0.4 s).
     static let reverbDecayDBPerBin = 1.5
     /// Learning window (bins).
     static let windowBins = 150
     static let learnEvery = 3
-    /// Her output counts as "speaking" at this level (dBFS mean square).
+    /// Dee's output counts as "speaking" at this level (dBFS mean square).
     static let activeDB = -50.0
-    /// Bins of her speaking a learning window needs.
+    /// Bins of Dee speaking a learning window needs.
     static let minActiveBins = 15
     /// Correlation that counts as a clear echo match.
     public static let confidentCorrelation = 0.6
     static let gainBlend = 0.3
-    /// Percentile of mic / reference taken as her echo gain with a clear match: her
+    /// Percentile of mic / reference taken as Dee's echo gain with a clear match: Dee's
     /// room reverb makes the ratio swing; the gain must cover its peaks.
     static let confidentPercentile = 0.5
     /// Percentile of the ratio taken when the echo isn't clearly visible.
@@ -73,7 +73,7 @@ public struct EchoReference: Sendable {
     private var lastRefTime = -Double.infinity
 
     private var mic = [Double](repeating: 0, count: EchoReference.capacity)
-    /// The mic's excess over the floor in bins her voice can't reach (the room
+    /// The mic's excess over the floor in bins Dee's voice can't reach (the room
     /// wobbling on its own), for `idleExcess`.
     private var idle = [Double](repeating: 0, count: EchoReference.idleBins)
     private var idleHead = 0
@@ -81,7 +81,7 @@ public struct EchoReference: Sendable {
     static let idleBins = 300
     static let idlePercentile = 0.9
 
-    /// The room's typical excess over its floor with her out of the room (energy):
+    /// The room's typical excess over its floor with Dee out of the room (energy):
     /// subtracted before an uncorrelated echo estimate.
     var idleExcess: Double {
         guard idleCount >= 50 else { return 0 }
@@ -113,7 +113,7 @@ public struct EchoReference: Sendable {
         self.prior = prior
     }
 
-    /// Reference arrived recently (her player is rendering).
+    /// Reference arrived recently (Dee's player is rendering).
     public func hasReference(at t: Double) -> Bool { t - lastRefTime < 1.0 }
 
     /// The learned gain in dB (nil until learned).
@@ -169,7 +169,7 @@ public struct EchoReference: Sendable {
         }
         mic[slot(i)] = excess
         micLast = i
-        // Her envelope can't reach this bin (nothing of hers in the whole lag
+        // Dee's envelope can't reach this bin (nothing of Dee's in the whole lag
         // range): the room's own excess over its floor.
         if reach(i) < pow(10, Self.activeDB / 10) * 0.01 {
             idle[idleHead] = excess
@@ -185,8 +185,8 @@ public struct EchoReference: Sendable {
 
     // MARK: Prediction
 
-    /// Echo gain assumed before one is learned (energy ratio; 0 dB: her echo may
-    /// be as loud as she is). Only her very first moments ever use it.
+    /// Echo gain assumed before one is learned (energy ratio; 0 dB: Dee's echo may
+    /// be as loud as Dee is). Only Dee's very first moments ever use it.
     public var prior: Double? = 1.0
 
     /// Expected echo energy in the mic bin ending at `t` (nil: not learned and no prior).
@@ -201,7 +201,7 @@ public struct EchoReference: Sendable {
         return gain * reach(from: a, to: b)
     }
 
-    /// Her smeared envelope that can reach the mic bins ending in `(from, to]`
+    /// Dee's smeared envelope that can reach the mic bins ending in `(from, to]`
     /// (mean energy, before the echo gain): what any gain, learned later,
     /// multiplies.
     public func reach(from a: Double, to b: Double) -> Double {
@@ -212,7 +212,7 @@ public struct EchoReference: Sendable {
         return sum / Double(hi - lo + 1)
     }
 
-    /// Her smeared envelope that can reach mic bin `i`: max over the lag window.
+    /// Dee's smeared envelope that can reach mic bin `i`: max over the lag window.
     private func reach(_ i: Int64) -> Double {
         let (lo, hi): (Int64, Int64)
         if let delay {
@@ -244,8 +244,8 @@ public struct EchoReference: Sendable {
         var lag = minLagBins
         var anyActive = false
         while lag <= maxLagBins {
-            // Correlation inside her speech only: an echo follows her syllables;
-            // someone who merely starts talking when she does doesn't.
+            // Correlation inside Dee's speech only: an echo follows Dee's syllables;
+            // someone who merely starts talking when Dee does doesn't.
             var sx = 0.0, sy = 0.0, sxx = 0.0, syy = 0.0, sxy = 0.0
             var count = 0
             for i in first...newest {
@@ -271,13 +271,13 @@ public struct EchoReference: Sendable {
             delay = Double(best.lag) * Self.bin
             guard let g = ratio(window: first...newest, lag: best.lag, percentile: Self.confidentPercentile) else { return }
             if let old = gain, old > 0, g > 0, g < old {
-                // Louder at once (never under-predict her), quieter slowly.
+                // Louder at once (never under-predict Dee), quieter slowly.
                 gain = pow(10, (Level.powerDB(old) * (1 - Self.gainBlend) + Level.powerDB(g) * Self.gainBlend) / 10)
             } else {
                 gain = g
             }
         } else {
-            // A first estimate only once her audio has been playing long enough for
+            // A first estimate only once Dee's audio has been playing long enough for
             // an echo at any delay in range to have arrived.
             if gain == nil {
                 var covered = 0
@@ -286,7 +286,7 @@ public struct EchoReference: Sendable {
             }
             let lagForRatio = delay.map { Int64(($0 / Self.bin).rounded()) } ?? best.lag
             // The room alone wobbles above its floor too (a fan's beat, a TV): what
-            // the mic shows with her out of the room is not her echo.
+            // the mic shows with Dee out of the room is not Dee's echo.
             guard let g = ratio(window: first...newest, lag: lagForRatio, percentile: Self.uncertainPercentile, jitter: true,
                                 minus: idleExcess) else { return }
             if let old = gain {
@@ -294,15 +294,15 @@ public struct EchoReference: Sendable {
                     gain = pow(10, (Level.powerDB(max(old, 1e-16)) * (1 - Self.gainBlend) + Level.powerDB(max(g, 1e-16)) * Self.gainBlend) / 10)
                 }
             } else {
-                // A loud echo would correlate with her: a loud, uncorrelated mic is
+                // A loud echo would correlate with Dee: a loud, uncorrelated mic is
                 // the user (or the room), so a first estimate without a match is
-                // capped — her echo is at most this, or it would have shown.
+                // capped — Dee's echo is at most this, or it would have shown.
                 gain = min(g, pow(10, Self.uncorrelatedCeilingDB / 10))
             }
         }
     }
 
-    /// Percentile of mic / reference over the window's bins where she clearly spoke.
+    /// Percentile of mic / reference over the window's bins where Dee clearly spoke.
     private func ratio(window: ClosedRange<Int64>, lag: Int64, percentile: Double, jitter: Bool = false,
                        minus idle: Double = 0) -> Double? {
         let active = pow(10, Self.activeDB / 10)
@@ -336,7 +336,7 @@ public struct EchoReference: Sendable {
 
     private func refValue(_ i: Int64) -> Double {
         guard let last = refLast, i <= last, last - i < Int64(Self.capacity) else {
-            // After her last bin: her envelope keeps decaying.
+            // After Dee's last bin: Dee's envelope keeps decaying.
             if let last = refLast, i > last, i - last < Int64(Self.capacity) {
                 return smear * pow(10, -Self.reverbDecayDBPerBin * Double(i - last) / 10)
             }

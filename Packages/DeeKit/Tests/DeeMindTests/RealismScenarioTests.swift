@@ -174,7 +174,7 @@ import Testing
         let fortnight = EmotionEngine.catchUp(s, to: Self.t0 + 14 * Self.day)
         #expect(fortnight.feelings[.affection] >= s.feelings[.affection], "time away carries no relationship penalty")
         #expect(fortnight.feelings[.trust] >= s.feelings[.trust])
-        #expect(fortnight.feelings[.loneliness] > 0.9, "she can still be lonely")
+        #expect(fortnight.feelings[.loneliness] > 0.9, "Dee can still be lonely")
     }
 
     // S6 / B3

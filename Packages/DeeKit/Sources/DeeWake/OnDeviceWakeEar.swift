@@ -7,7 +7,7 @@ import Synchronization
 /// recogniser's results; `consume` keeps the energy ring, asks for a final after a
 /// 0.3 s pause and feeds the recogniser. If the ear can't run (permission, assets,
 /// heat) it publishes the availability and stays quiet — never server recognition,
-/// never streaming everything; a tap still wakes her.
+/// never streaming everything; a tap still wakes Dee.
 public final class OnDeviceWakeEar: WakeEar {
     public static let user = "wake"
 

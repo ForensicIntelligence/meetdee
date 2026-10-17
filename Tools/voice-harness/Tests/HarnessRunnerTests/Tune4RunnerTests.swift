@@ -11,7 +11,7 @@ import Testing
 struct Tune4RunnerTests {
     /// Tune-3 live note: `HarnessHost` used the protocol's no-op `bargedIn()`, so a
     /// barge-in the brain answered never reached the Cortex. It must be sensed.
-    /// Tune 5 F1 (live 20261010-011423: 0/3 questions asked over her answered): the app
+    /// Tune 5 F1 (live 20261010-011423: 0/3 questions asked over Dee answered): the app
     /// now senses `.bargeInAnswered`, which keeps the floor bookkeeping (cut off) but asks
     /// for no `.stopSpeaking`, so the answer the brain just started is not cancelled.
     @Test @MainActor func aBargeInTheBrainAnsweredIsSensedAndDoesNotStopItsAnswer() async throws {
@@ -29,7 +29,7 @@ struct Tune4RunnerTests {
         #expect(notes.contains("brain bargedIn") && !notes.contains("cortex stopSpeaking"))
     }
 
-    /// The other path is unchanged: a plain `.bargeIn` (voice's own barge-in) still stops her.
+    /// The other path is unchanged: a plain `.bargeIn` (voice's own barge-in) still stops Dee.
     @Test @MainActor func aPlainBargeInStillStops() async throws {
         let host = try await HarnessHost(mind: try Mind(databaseURL: nil), memory: try MemoryStore(databaseURL: nil),
                                          selfStore: try SelfStore(url: nil), person: PersonID(), clock: HarnessClock())

@@ -67,7 +67,7 @@ extension Cortex {
                   moodHistory: c.rings.history, causes: c.rings.causes, moment: moment, stance: stance,
                   episodes: episodeLines(person: person?.id ?? moment.ongoing.person, at: now), person: person, body: body,
                   appraisal: appraisal, daily: c.daily, shareMemories: c.shareMemories, userTextCorpus: c.userTextCorpus,
-                  guardCorpus: c.guardCorpus)
+                  guardCorpus: c.guardCorpus, persona: identity)
     }
 
     /// The Dee DNA snapshot for the next response (see `dnaInputs`).

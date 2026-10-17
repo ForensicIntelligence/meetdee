@@ -6,7 +6,7 @@ import Testing
 @testable import DeeBrain
 
 /// Tune 11 regression review (scratchpad/tune11-review.md). The tune-11 early-words trim
-/// (T10-4) let a turn begun just after her voice ended (`commandWindow`, live latency-clean
+/// (T10-4) let a turn begun just after Dee's voice ended (`commandWindow`, live latency-clean
 /// q07: 0.18 s after) decide on its first deltas — and marked its words checked, so its
 /// settled words were never looked at and the gate no longer waited for them. At 89d0c0f
 /// the settled words decided such a turn: "…call my mom, and." (fillers t03/t04's held
@@ -21,7 +21,7 @@ import Testing
         let rig = try await BrainRig()
         try await rig.start()
         try rig.quiet(0.6)
-        rig.brain.inject(.itemPlayed(itemID: "item_a0", playedMs: 2400, cut: false))   // her voice just ended
+        rig.brain.inject(.itemPlayed(itemID: "item_a0", playedMs: 2400, cut: false))   // Dee's voice just ended
         rig.push(Srv.speechStarted("item_u1", ms: 100))
         try rig.talk(1.6)
         try rig.quiet(0.23)
@@ -41,8 +41,8 @@ import Testing
             try? await Task.sleep(for: .milliseconds(20))
         }
         #expect(rig.brain.trace.contains(.held("trailing")), "\(rig.brain.trace)")
-        #expect(T4.released(rig) == nil, "her reply to an unfinished turn was released: \(rig.brain.trace)")
-        #expect(T4.peak(rig, from: start) < 0.05, "not a sample of her reply was heard")
+        #expect(T4.released(rig) == nil, "Dee's reply to an unfinished turn was released: \(rig.brain.trace)")
+        #expect(T4.peak(rig, from: start) < 0.05, "not a sample of Dee's reply was heard")
         rig.shutdown()
     }
 }

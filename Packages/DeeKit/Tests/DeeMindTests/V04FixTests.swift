@@ -154,7 +154,7 @@ import Testing
         d.note(.touched("pet"), at: Self.t0 + 5)
         d.note(.deeSpoke, at: Self.t0 + 6)
         #expect(d.nextPrompt(at: Self.t0 + 10, snapshot: Self.calm, userPresent: true, busy: false)?.contains("petting") != true)
-        // A touch after she spoke still gets its remark.
+        // A touch after Dee spoke still gets its remark.
         d.note(.touched("pet"), at: Self.t0 + 11)
         #expect(d.nextPrompt(at: Self.t0 + 12, snapshot: Self.calm, userPresent: true, busy: false)?.contains("petting") == true)
     }
@@ -205,12 +205,12 @@ import Testing
         d.noteSound("door creak", unexpected: true, loudness: 0.3, at: Self.t0)
         #expect(d.nextPrompt(at: Self.t0 + 1, snapshot: Self.calm, userPresent: false, busy: false) == nil)
         // Asleep for only a minute: still nothing, even when it's alarming —
-        // and it stays that way after the noise wakes her.
+        // and it stays that way after the noise wakes Dee.
         d.asleepSince = Self.t0 + 100
         d.note(.heard(sound: "glass breaking", unexpected: true), at: Self.t0 + 160)
         d.asleepSince = nil
         #expect(d.nextPrompt(at: Self.t0 + 161, snapshot: Self.calm, userPresent: false, busy: false) == nil)
-        // Asleep for 4 minutes and something alarming: she calls out.
+        // Asleep for 4 minutes and something alarming: Dee calls out.
         d.asleepSince = Self.t0 + 100
         d.note(.heard(sound: "glass breaking", unexpected: true), at: Self.t0 + 340)
         let p = d.nextPrompt(at: Self.t0 + 341, snapshot: Self.calm, userPresent: false, busy: false)
@@ -230,7 +230,7 @@ import Testing
             let f = EmotionEngine.catchUp(fond, to: Self.t0 + days * Self.day)
             #expect(f.feelings[.affection] >= fond.feelings[.affection], "\(days) d: affection")
             #expect(f.feelings[.trust] >= fond.feelings[.trust], "\(days) d: trust")
-            #expect(f.feelings[.loneliness] > 0.3, "she can still be lonely")
+            #expect(f.feelings[.loneliness] > 0.3, "Dee can still be lonely")
             let h = EmotionEngine.catchUp(hurt, to: Self.t0 + days * Self.day)
             #expect(h.feelings[.affection] > hurt.feelings[.affection], "recovers upward after a quarrel")
             #expect(h.feelings[.trust] > hurt.feelings[.trust])
@@ -266,7 +266,7 @@ import Testing
             let greet = d.nextPrompt(at: Self.t0 + 1, snapshot: lonely, userPresent: true, busy: false)?.lowercased() ?? ""
             #expect(!greet.isEmpty)
             for w in banned { #expect(!greet.contains(w), "\(greet)") }
-            // …and general initiatives while she's still lonely.
+            // …and general initiatives while Dee's still lonely.
             var e = Self.present(seed: seed)
             let p = e.nextPrompt(at: Self.t0 + 61, snapshot: lonely, userPresent: true, busy: false)?.lowercased() ?? ""
             for w in banned { #expect(!p.contains(w), "\(p)") }

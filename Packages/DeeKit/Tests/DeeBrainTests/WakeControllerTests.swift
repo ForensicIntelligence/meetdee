@@ -91,7 +91,7 @@ final class RecordingWakeHost: WakeControllerHost {
         c.connected()
         for _ in 0..<3 {
             clock.t += 20
-            c.replyEnded(toAccepted: false)   // her initiatives / replies to unanswered ones
+            c.replyEnded(toAccepted: false)   // Dee's initiatives / replies to unanswered ones
             c.tick(busy: .idle)
         }
         #expect(c.isDormant, "closed at 60 s")
@@ -140,7 +140,7 @@ final class RecordingWakeHost: WakeControllerHost {
         #expect(c.isDormant)
         #expect(h.calls.contains { $0.hasPrefix("problem:") })
         #expect(!h.calls.contains { $0.hasPrefix("connect") })
-        // A tap still wakes her.
+        // A tap still wakes Dee.
         c.tapToTalk(captureFrame: nil)
         #expect(h.calls.contains { $0.hasPrefix("connect") })
     }
@@ -157,7 +157,7 @@ final class RecordingWakeHost: WakeControllerHost {
 }
 
 /// W1 / W2 with a real CloudVoice: dormant = no socket, no key mint; a local hit wakes
-/// her even when every network call fails; the eyes come first.
+/// Dee even when every network call fails; the eyes come first.
 @MainActor
 @Suite struct WakeVoiceIntegrationTests {
     final class Mints: @unchecked Sendable {

@@ -43,7 +43,7 @@ import Testing
         #expect([.playful, .skeptical].contains(Self.reflex(.touch(.pokes(count: 5)))))
         #expect(Self.reflex(.touch(.pokes(count: 6))) == .grumpy)
         #expect(Self.reflex(.touch(.pokes(count: 10))) == .angry)
-        #expect(Self.reflex(.touch(.pokes(count: 3)), from: Self.angry) == .skeptical, "no game when she's already cross")
+        #expect(Self.reflex(.touch(.pokes(count: 3)), from: Self.angry) == .skeptical, "no game when Dee's already cross")
         let meek = Personality([.confidence: 0.1, .assertiveness: 0.1])
         #expect(Self.reflex(.touch(.slap(force: 0.7)), personality: meek) == .scared)
         #expect([.hurt, .angry].contains(Self.reflex(.touch(.slap(force: 0.7)))))
@@ -89,8 +89,8 @@ import Testing
         #expect([.angry, .grumpy, .hurt].contains(cross.emotion), "mood is bad: \(cross.emotion) \(ExpressionTests.top(cross.code.feelings, cross.code.personality))")
         t += 5
         let laugh = await mind.hear("hahahaha just kidding, that was a joke", at: t).snapshot
-        #expect([.giddy, .joy].contains(laugh.reflex), "she laughs anyway: \(String(describing: laugh.reflex))")
-        #expect(laugh.code.feelings[.anger] < cross.code.feelings[.anger], "and it softens her a little")
+        #expect([.giddy, .joy].contains(laugh.reflex), "Dee laughs anyway: \(String(describing: laugh.reflex))")
+        #expect(laugh.code.feelings[.anger] < cross.code.feelings[.anger], "and it softens Dee a little")
         // The reflex is momentary.
         let later = await mind.tick(at: t + Mind.reflexDuration + 1, userPresent: true, asleep: false)
         #expect(later.reflex == nil)

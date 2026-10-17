@@ -12,12 +12,12 @@ import Testing
 /// and session (BrainRig), in 20 ms microphone steps.
 @MainActor
 @Suite(.serialized) struct Tune4BrainTests {
-    /// Largest output sample since `from` (her audio is a 0.3 tone; silence is 0).
+    /// Largest output sample since `from` (Dee's audio is a 0.3 tone; silence is 0).
     static func peak(_ rig: BrainRig, from: Int) -> Float {
         rig.output.count > from ? rig.output[from...].map(abs).max() ?? 0 : 0
     }
 
-    /// The first output sample index at or after `from` that carries her audio.
+    /// The first output sample index at or after `from` that carries Dee's audio.
     static func firstAudio(_ rig: BrainRig, from: Int) -> Int? {
         guard rig.output.count > from else { return nil }
         return rig.output[from...].firstIndex { abs($0) > 0.05 }
@@ -62,10 +62,10 @@ import Testing
     // MARK: Collisions (tune3-live §F1)
 
     /// t2-backchannel-fan15 l05, verbatim timing: "I couldn't sleep last night." ended
-    /// 32.50, commit 32.69, her reply ready 33.06–33.22, the user went on at 33.09
+    /// 32.50, commit 32.69, Dee's reply ready 33.06–33.22, the user went on at 33.09
     /// ("I kept going over a conversation with my brother…"), the server's
-    /// speech_started reached the brain at 33.48. Live she talked over them for 705 ms.
-    /// Now her held reply is dropped unheard and the next commit answers the whole turn.
+    /// speech_started reached the brain at 33.48. Live Dee talked over them for 705 ms.
+    /// Now Dee's held reply is dropped unheard and the next commit answers the whole turn.
     @Test func liveL05ResumeIsNeverTalkedOver() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -83,7 +83,7 @@ import Testing
         rig.push(Srv.speechStarted("item_u2", ms: 2500))
         #expect(await rig.until { rig.brain.trace.contains(.speculationDropped("speech")) }, "\(rig.brain.trace)")
         try rig.talk(1.5)
-        #expect(Self.peak(rig, from: start) < 0.05, "not a sample of her reply was heard")
+        #expect(Self.peak(rig, from: start) < 0.05, "not a sample of Dee's reply was heard")
         #expect(rig.trail().contains("response.cancel") || rig.trail().contains("truncate:item_a1"), "\(rig.trail())")
         // The rest of the turn: one answer for both parts.
         try rig.quiet(0.2)
@@ -95,10 +95,10 @@ import Testing
         rig.shutdown()
     }
 
-    /// t2-joke-echo30 j01: "Why did the scarecrow win an award?" committed 16.29, her
+    /// t2-joke-echo30 j01: "Why did the scarecrow win an award?" committed 16.29, Dee's
     /// audio arrived 16.86 while the teller had already gone on ("Because he was
-    /// outstanding in his field!", onset ≈ 16.8, speech_started 17.01). Live she said
-    /// the punchline over them. The local voice holds her until the server's start drops it.
+    /// outstanding in his field!", onset ≈ 16.8, speech_started 17.01). Live Dee said
+    /// the punchline over them. The local voice holds Dee until the server's start drops it.
     @Test func liveJ01PunchlineIsNotStolen() async throws {
         let rig = try await BrainRig()
         try await rig.start()
@@ -108,7 +108,7 @@ import Testing
         try rig.quiet(0.5)                                            // ≈ 0.68 s after the end
         try rig.talk(0.06)                                            // the punchline starts…
         Self.audio(rig, "resp_1", "item_a1", ms: 800, text: "Because he was outstanding in his field!")
-        try rig.talk(0.2)                                             // …her audio is ready now
+        try rig.talk(0.2)                                             // …Dee's audio is ready now
         await rig.settle()
         #expect(Self.peak(rig, from: start) < 0.05, "held while they talk")
         rig.push(Srv.speechStarted("item_j2", ms: 2300))
@@ -120,7 +120,7 @@ import Testing
 
     // MARK: Ordinary turns stay fast
 
-    /// The common case (latency-clean): her audio is ready before the window ends; it
+    /// The common case (latency-clean): Dee's audio is ready before the window ends; it
     /// plays once `confirmWindow` of quiet has passed since their last voiced frame —
     /// not later — and nothing is cancelled.
     @Test func aFinishedTurnPlaysAtTheEndOfTheWindow() async throws {
@@ -135,7 +135,7 @@ import Testing
         Self.audio(rig, "resp_1", "item_a1", ms: 1500, text: "Blue, like a little sky.")
         try await Self.stepUntil(rig, 1.5) { Self.released(rig) != nil }
         try rig.quiet(0.3)
-        let first = try #require(Self.firstAudio(rig, from: end), "she answered")
+        let first = try #require(Self.firstAudio(rig, from: end), "Dee answered")
         let after = Double(first - end) / BrainRig.rate
         #expect(after >= TurnPolicy.confirmWindow - 0.06 && after <= TurnPolicy.confirmWindow + 0.2, "first audio \(after) s after the end")
         let r = try #require(Self.released(rig))
@@ -145,8 +145,8 @@ import Testing
     }
 
     /// Audio that comes after the window is confirmed already: it plays as it arrives.
-    /// Tune 6: the gate is let go when her first audio is in (never before: a resume
-    /// between an early release and her audio was unguarded), at once — the quiet run
+    /// Tune 6: the gate is let go when Dee's first audio is in (never before: a resume
+    /// between an early release and Dee's audio was unguarded), at once — the quiet run
     /// has held since long before.
     @Test func lateAudioIsNotHeld() async throws {
         let rig = try await BrainRig()
@@ -154,7 +154,7 @@ import Testing
         try rig.quiet(0.6)
         try await Self.turn(rig, "item_u1", talk: 1.0, lag: 0.2)
         try await Self.stepUntil(rig, 1.2) { false }
-        #expect(Self.released(rig) == nil, "nothing to let go of before her audio")
+        #expect(Self.released(rig) == nil, "nothing to let go of before Dee's audio")
         let at = rig.output.count
         Self.audio(rig, "resp_1", "item_a1", ms: 600, text: "Sure.")
         await rig.settle()
@@ -184,7 +184,7 @@ import Testing
     }
 
     /// A TV or a clattering kitchen (t2-drops-tv15): local sound the server never calls
-    /// speech holds her at most `confirmMax` (+ `voiceHoldExtra` while EarCore calls it
+    /// speech holds Dee at most `confirmMax` (+ `voiceHoldExtra` while EarCore calls it
     /// a voice, tune 5) after the commit.
     @Test func localSoundAloneHoldsHerAtMostConfirmMax() async throws {
         let rig = try await BrainRig()
@@ -221,7 +221,7 @@ import Testing
 
     /// kitchen15 l02, verbatim: "That sounds like a classic "meeting energy drain"
     /// situation. Friday at 4:30? Oof. And a filing system nobody was going to use?…"
-    /// She stops before the fourth sentence (never mid-word).
+    /// Dee stops before the fourth sentence (never mid-word).
     @Test func liveKitchenL02StopsBeforeTheFourthSentence() async throws {
         let rig = try await BrainRig(tune: { $0.speculative = false })
         try await rig.start()
@@ -235,7 +235,7 @@ import Testing
             rig.brain.inject(.sentenceStarted(itemID: "item_a1", index: i, text: s))
             await rig.settle()
             // Tune 7 (T6-6): the cap is the turn's own budget — this DNA's Length line allows
-            // two sentences, so she now stops before the third ("Oof."), not the fourth.
+            // two sentences, so Dee now stops before the third ("Oof."), not the fourth.
             #expect(rig.brain.trace.contains(.sentenceCapStop) == (i >= 2), "sentence \(i + 1)")
         }
         rig.shutdown()
@@ -267,7 +267,7 @@ import Testing
 
     /// Live: "Good morning." / "Did you sleep well?" split; reply 1 was cancelled before
     /// a word was heard, and reply 2's DNA had lost the greeting. The brain counts only
-    /// replies of hers that were heard (`TurnContext.heardReplies`).
+    /// replies of Dee's that were heard (`TurnContext.heardReplies`).
     @Test func liveReunionMorningOnlyAHeardReplyCounts() async throws {
         let rig = try await BrainRig(tune: { $0.speculative = false })
         try await rig.start()
@@ -350,7 +350,7 @@ import Testing
 
     /// t2-joke-echo30 j01 (tune 3 and tune 4 live): server_vad committed "Want to hear a
     /// joke?" on its own, so "Why did the scarecrow win an award?" was not seen as a
-    /// set-up, and she said the punchline over the teller (resumed 1.04 s after the end).
+    /// set-up, and Dee said the punchline over the teller (resumed 1.04 s after the end).
     @Test func liveJ01AnnouncedJokeOneTurnBefore() {
         #expect(TurnPolicy.held("Why did the scarecrow win an award?", after: "Want to hear a joke?") == .riddle)
         #expect(TurnPolicy.held("Why did the scarecrow win an award?") == nil)

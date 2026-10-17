@@ -42,11 +42,11 @@ import Testing
         #expect(TurnPolicy.onCommit(c) == .respondFast, "a stranger's first turn is fast too (tune 3)")
         c = base
         c.sinceHerVoice = -0.5
-        // Tune 2: over her voice waits for its first settled words only (a
-        // backchannel must not cut her), never for the full transcript.
-        #expect(TurnPolicy.onCommit(c) == .waitForPartial, "talked over her")
+        // Tune 2: over Dee's voice waits for its first settled words only (a
+        // backchannel must not cut Dee), never for the full transcript.
+        #expect(TurnPolicy.onCommit(c) == .waitForPartial, "talked over Dee")
         c.sinceHerVoice = 0.2
-        #expect(TurnPolicy.onCommit(c) == .waitForPartial, "overlapping her echo tail")
+        #expect(TurnPolicy.onCommit(c) == .waitForPartial, "overlapping Dee's echo tail")
         c.signals.repair = .strained
         #expect(TurnPolicy.onCommit(c) == .waitForWords, "a DNA.md exact case still waits for the words")
         c.signals.repair = .fine

@@ -38,6 +38,9 @@ public enum ProviderIssue: Error, Sendable, Equatable, Hashable {
     /// Mode 2: the realtime transcription mint/session was refused (400/404). No fallback.
     case transcriptionUnavailable
     case onDeviceSpeechUnavailable(ProviderPartKind)
+    /// Mode 3: audio is reaching on-device hearing but no voice evidence comes back for it
+    /// (no EarCore verdicts, no speech-detector results), so no turn can ever start.
+    case noVoiceEvidence
     case rateLimited(ProviderLabel)
 
     /// The chip / onboarding text.
@@ -49,8 +52,13 @@ public enum ProviderIssue: Error, Sendable, Equatable, Hashable {
         case .noModelChosen(let host): "Pick a model on \(host) in my settings"
         case .invalidAddress(let text): "\"\(text)\" isn't an address I understand"
         case .localNetworkDenied: "Dee needs Local Network access — Settings › Privacy & Security › Local Network"
-        case .unreachable(let host, let vendor), .timedOut(let host, let vendor):
-            "I can't reach the AI server at \(host). " + Self.listenHint(vendor)
+        // A refused or silent server looks the same from the phone whether it is stopped or
+        // listening only on its own machine, so the message asks the plain question; the
+        // "listen on your network" hints (`listenHint`) live in setup, not here.
+        case .unreachable(let host, _): "Can't reach the AI server at \(host) — is it running?"
+        case .timedOut(let host, _): "The AI server at \(host) isn't answering — is it running?"
+        case .noVoiceEvidence:
+            "I can't tell when you're talking — this iPhone's hearing isn't picking up any voice"
         case .lanNeedsKey(let host): "The AI server at \(host) wants a key"
         case .modelMissing(let host, let model): "\(host) doesn't have \(model)"
         case .modelLoading(_, let model): "The AI server is loading \(model)…"

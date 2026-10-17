@@ -26,21 +26,21 @@ struct TranscriptItem: Identifiable, Equatable {
 /// The app's I/O shell around Dee's one mind.
 ///
 /// Every stimulus — speech, pauses, touch, gestures, sights, sounds, who's there,
-/// her own sentences — becomes a `Percept` for the Cortex (DeeSelf), which keeps one
+/// Dee's own sentences — becomes a `Percept` for the Cortex (DeeSelf), which keeps one
 /// shared interpretation of the moment (`Stance`). The face, the voice style, the
 /// gaze, the little performances and the Dee DNA sent with every response are all
 /// projected from that one state, so they can never disagree.
 ///
-/// v0.6: her ears, thinking and voice are one realtime session (`CloudVoice`) — OpenAI
+/// v0.6: Dee's ears, thinking and voice are one realtime session (`CloudVoice`) — OpenAI
 /// gpt-realtime (mode 1) or the in-process cascade of a LAN brain with OpenAI or LAN /
 /// on-device speech (modes 2/3, `DeeLocal`) — driven by `RealtimeBrain` (DeeBrain).
-/// She is DORMANT until her wake phrase is heard ON THIS iPHONE (`WakeController` +
+/// Dee is DORMANT until Dee's wake phrase is heard ON THIS iPHONE (`WakeController` +
 /// the on-device ear; never a server transcript), a tap, or the opt-in greeting: no
-/// socket, no request, no audio leaves the phone before that (W1/W2). The brain decides when she answers spoken
+/// socket, no request, no audio leaves the phone before that (W1/W2). The brain decides when Dee answers spoken
 /// turns and calls back here (`BrainHost`) for the words' normal path (commands,
 /// "is this for me?", people, Mind, Cortex) and for the DNA inputs. Initiatives,
 /// event lines and typed text still start here (`startTurn` → `brain.respond`).
-/// Offline she stays alive — eyes, touch, camera — with a visible "no connection".
+/// Offline Dee stays alive — eyes, touch, camera — with a visible "no connection".
 @Observable @MainActor
 final class DeeModel {
     enum LoadState: Equatable {
@@ -65,15 +65,15 @@ final class DeeModel {
 
     // Brain
     private(set) var loadState: LoadState = .idle
-    /// What is wrong with her cloud voice, in words for the status chip (Release too).
+    /// What is wrong with Dee's cloud voice, in words for the status chip (Release too).
     var cloudStatus: CloudStatus? { CloudStatus(voiceProblem) }
-    /// Why her provider can't be built (no key, no server…), in words for the chip.
+    /// Why Dee's provider can't be built (no key, no server…), in words for the chip.
     private(set) var providerProblem: String?
-    /// The wake ear's problem (permission, assets, too warm) — she stays dormant; a tap still wakes her.
+    /// The wake ear's problem (permission, assets, too warm) — Dee stays dormant; a tap still wakes Dee.
     private(set) var earProblem: String?
     /// A short notice next to the chip (a pasted key was refused, a setting needs a relaunch).
     private(set) var notice: String?
-    /// The one-time AI-voice disclosure, shown while she says it.
+    /// The one-time AI-voice disclosure, shown while Dee says it.
     private(set) var disclosure: String?
     private(set) var transcript: [TranscriptItem] = []
     private(set) var thinkingMode = false
@@ -116,16 +116,16 @@ final class DeeModel {
     private(set) var isSpeaking = false
     private(set) var voiceReady = false
     private(set) var microphoneAllowed = true
-    /// What is wrong with her ears or voice, for the screen (audit C11): permission
+    /// What is wrong with Dee's ears or voice, for the screen (audit C11): permission
     /// off, the speech model still downloading, recognition or audio failing.
     private(set) var voiceProblem: VoiceProblem?
-    /// Her ears are the cloud voice: no on-device speech recognition to wait for.
+    /// Dee's ears are the cloud voice: no on-device speech recognition to wait for.
     private var voiceHealth: VoiceHealth = {
         var health = VoiceHealth()
         health.onDeviceSpeech = false
         return health
     }()
-    /// The user's turn as her ears saw it (who holds the floor, audit C3).
+    /// The user's turn as Dee's ears saw it (who holds the floor, audit C3).
     private var userFloor = UserFloor()
     private var lastPartialForwarded = Date.distantPast
     private var absentSince: Date? = Date()
@@ -134,20 +134,25 @@ final class DeeModel {
     private var curiosity = CuriosityDirector()
     private var lastInitiativeAt = Date.distantPast
 
-    /// Whatever writes her replies: the cloud realtime brain (`makeReplyEngine`).
-    /// Without a key or a connection Dee is silent but alive: she sees, hears sounds,
-    /// feels and reacts with her face.
+    /// Whatever writes Dee's replies: the cloud realtime brain (`makeReplyEngine`).
+    /// Without a key or a connection Dee is silent but alive: Dee sees, hears sounds,
+    /// feels and reacts with Dee's face.
     private var brain: (any ReplyEngine)?
     private var realtime: RealtimeBrain?
     private var responseTask: Task<Void, Never>?
     private var persona = Persona()
+    /// The persona preset Dee is right now (applied to the Mind and the self). Classic
+    /// Dee for installs from before the presets, until the user picks another.
+    private(set) var activePreset: PersonaPreset = PersonaCatalog.classic
+    /// User-facing pronoun text for the current persona ("Mira is listening").
+    var personaText: PronounText { activePreset.text }
     private let camera = CameraSense()
-    /// Her voice, model and "share memories" (from the provider config and prefs).
+    /// Dee's voice, model and "share memories" (from the provider config and prefs).
     private var settings: CloudSettings
     /// In-app preferences (no secrets) and the Keychain.
     let prefs = DeePrefs()
     let secrets = KeychainSecrets()
-    /// Her ears and voice for the current provider: rebuilt only while DORMANT
+    /// Dee's ears and voice for the current provider: rebuilt only while DORMANT
     /// (`applyProvider`). It never answers by itself; the brain asks it to.
     private var stack: VoiceStack
     private var voice: CloudVoice { stack.voice }
@@ -156,7 +161,7 @@ final class DeeModel {
     private var wakeEar: (any WakeEar)?
     private var awakeTask: Task<Void, Never>?
     private var problemTask: Task<Void, Never>?
-    /// "Change your wake phrase to X" waiting for her confirmation.
+    /// "Change your wake phrase to X" waiting for Dee's confirmation.
     private var phraseChange = WakePhraseChange()
     /// Speak-first: one greeting per arrival.
     private var greetedThisArrival = false
@@ -169,7 +174,7 @@ final class DeeModel {
     private(set) var settingsRequested = false
     /// The session's current speech speed (mood), so it is only updated on a change.
     private var sessionSpeed = 1.0
-    /// For the DNA (§1.8): the last touch and when she last woke.
+    /// For the DNA (§1.8): the last touch and when Dee last woke.
     private var lastTouch: TouchInput?
     private var lastWokeAt: Date?
     /// The Mind's voice baseline, refreshed after each heard turn.
@@ -187,9 +192,9 @@ final class DeeModel {
     private var pendingNotes: [String] = []
 
     // Turns (audit C1–C3, C8, C9)
-    /// When someone last engaged Dee: in view, or spoke to her by name. She answers
-    /// whatever she hears until `engagedGrace` after that; later only speech that
-    /// addresses her ("Dee, …", "wake up"), so a TV or people talking to each other
+    /// When someone last engaged Dee: in view, or spoke to Dee by name. Dee answers
+    /// whatever Dee hears until `engagedGrace` after that; later only speech that
+    /// addresses Dee ("Dee, …", "wake up"), so a TV or people talking to each other
     /// get no answers. Listening itself never depends on the face (C1).
     private var lastEngagedAt = Date()
     /// Dee's current (or last) reply — how much of it was heard, whether it gives
@@ -210,21 +215,25 @@ final class DeeModel {
     init() {
         let prefs = DeePrefs()
         let config = prefs.providerConfig
+        let preset = prefs.persona
+        activePreset = preset
+        persona = Persona(preset: preset)
+        OnDeviceVoice.personaRule.withLock { $0 = preset.appleVoice }
         settings = CloudSettings(voice: config?.voice ?? "marin", model: config?.openAIModel ?? "gpt-realtime-2.1-mini",
-                                 shareMemories: prefs.shareMemories)
+                                 shareMemories: prefs.shareMemories, persona: Persona(preset: preset))
         // Building the stack makes no request: everything waits for a window.
-        stack = VoiceStack.make(config, secrets: KeychainSecrets())
+        stack = VoiceStack.make(config, secrets: KeychainSecrets(), persona: preset)
         wake = WakeController(phrase: prefs.wakePhrase, ear: nil, mode: config?.mode.rawValue ?? "none",
                               usage: prefs.usage)
         providerProblem = stack.issue?.message
         wake.persistUsage = { [prefs] u in prefs.usage = u }
     }
 
-    /// How long nobody may be in view before Dee falls asleep, and how long she
+    /// How long nobody may be in view before Dee falls asleep, and how long Dee
     /// must sleep before the next visit counts as a new conversation.
     static let sleepAfter: TimeInterval = 180
     static let newConversationAfterSleeping: TimeInterval = 300
-    /// How long after the last face (or her name) Dee still answers anything she hears.
+    /// How long after the last face (or Dee's name) Dee still answers anything Dee hears.
     static let engagedGrace: TimeInterval = 60
 
     // MARK: - Projection (face / voice from the one Stance)
@@ -253,8 +262,8 @@ final class DeeModel {
         }
         if let perkedAt, Date().timeIntervalSince(perkedAt) < 0.8 { inputs.readyFace = max(inputs.readyFace, 0.7) }
         if let status = cloudStatus, status.cloudOff, !sleeping {
-            // No cloud voice: a quieter, slightly puzzled look (her eyes, touch and
-            // camera stay alive; only her words are away).
+            // No cloud voice: a quieter, slightly puzzled look (Dee's eyes, touch and
+            // camera stay alive; only Dee's words are away).
             inputs.lidSoften = max(inputs.lidSoften, 0.3)
             inputs.tilt = inputs.tilt == 0 ? 0.18 : inputs.tilt
             inputs.tint = FaceColor(0.55, 0.62, 0.72)
@@ -295,8 +304,11 @@ final class DeeModel {
         stanceVersion &+= 1
         performanceCounter += 1
         if let p = Projector.performance(driver.stance, id: performanceCounter) { performance = p }
-        // Her speaking speed follows her mood (the session applies it between turns).
-        let speed = voiceStyle.sessionSpeed
+        // Dee's speaking speed follows Dee's mood (the session applies it between turns).
+        // A persona preset speaks at its own pace, moved by the mood around it
+        // (Classic Dee: the mood curve alone, as tuned).
+        let mood = voiceStyle.sessionSpeed
+        let speed = activePreset.realtimeSpeed.map { min(1.3, max(0.75, $0 * mood)) } ?? mood
         if abs(speed - sessionSpeed) >= 0.04 {
             sessionSpeed = speed
             Task { [voice] in await voice.session.updateSession(speed: speed) }
@@ -358,9 +370,10 @@ final class DeeModel {
         guard !started else { return }
         started = true
         await openMind()
+        let reseed = await syncMindPersona()
         people = People()
         if let snap = mindSnapshot {
-            selfDriver = await SelfDriver.open(memory: people?.store, snapshot: snap)
+            selfDriver = await SelfDriver.open(memory: people?.store, snapshot: snap, preset: activePreset, reseed: reseed)
         }
         wirePeople()
         startMoodClock()
@@ -399,7 +412,7 @@ final class DeeModel {
     }
 
     /// Apple on-device recognition on the existing mic tap (VPIO stays on). The only
-    /// thing that may wake her by voice (W1).
+    /// thing that may wake Dee by voice (W1).
     private func startWakeEar() async {
         let ear = OnDeviceWakeEar()
         wakeEar = ear
@@ -433,7 +446,7 @@ final class DeeModel {
         }
     }
 
-    /// Her body is ready at once (there is no model to load); the brain starts its
+    /// Dee's body is ready at once (there is no model to load); the brain starts its
     /// first conversation.
     func loadIfNeeded() async {
         guard loadState == .idle else { return }
@@ -452,7 +465,9 @@ final class DeeModel {
     /// The brain: RealtimeBrain on `voice`, with the memory tools (unless memories
     /// are private) and the device tools.
     private func makeReplyEngine() -> RealtimeBrain {
-        RealtimeBrain(voice: voice, host: self, toolbox: toolbox(), options: RealtimeBrain.Options(timing: stack.timing))
+        var options = RealtimeBrain.Options(timing: stack.timing)
+        options.persona = persona
+        return RealtimeBrain(voice: voice, host: self, toolbox: toolbox(), options: options)
     }
 
     private func toolbox() -> BrainToolbox {
@@ -472,13 +487,17 @@ final class DeeModel {
     /// closes first). Never touches the network (W2).
     func settingsChanged() async {
         let config = prefs.providerConfig
+        // A new persona (onboarding's companion step or the settings' Companion switch):
+        // Mind, self and voice follow; the session is rebuilt with its instructions.
+        let personaChanged = prefs.persona.id != activePreset.id
+        if personaChanged { await switchPersona(to: prefs.persona) }
         let fresh = CloudSettings(voice: config?.voice ?? "marin", model: config?.openAIModel ?? "gpt-realtime-2.1-mini",
-                                  shareMemories: prefs.shareMemories)
+                                  shareMemories: prefs.shareMemories, persona: persona)
         let shareChanged = fresh.shareMemories != settings.shareMemories
         settings = fresh
         if prefs.wakePhrase != wake.phrase { await wake.setPhrase(prefs.wakePhrase) }
         // A new provider — or the same one that couldn't work before (a key just added).
-        if config != stack.config || stack.issue != nil { await applyProvider(config) }
+        if config != stack.config || stack.issue != nil || personaChanged { await applyProvider(config) }
         else if shareChanged { await realtime?.setToolbox(toolbox()) }
         await applyAgeSettings()
         if started, backgroundedAt == nil {
@@ -487,18 +506,18 @@ final class DeeModel {
         }
     }
 
-    /// Rebuilds her voice and brain for `config` (closing a window first).
+    /// Rebuilds Dee's voice and brain for `config` (closing a window first).
     func applyProvider(_ config: ProviderConfig?) async {
         if !wake.isDormant { wake.providerChanged() }
         guard started else {
-            stack = VoiceStack.make(config, secrets: secrets)
+            stack = VoiceStack.make(config, secrets: secrets, persona: activePreset)
             providerProblem = stack.issue?.message
             wake.mode = config?.mode.rawValue ?? "none"
             return
         }
         stop(hush: true)
         voice.shutdown()
-        stack = VoiceStack.make(config, secrets: secrets)
+        stack = VoiceStack.make(config, secrets: secrets, persona: activePreset)
         providerProblem = stack.issue?.message
         wake.mode = config?.mode.rawValue ?? "none"
         voiceReady = false
@@ -507,7 +526,7 @@ final class DeeModel {
         statusLine = stack.statusLine
     }
 
-    /// Onboarding again: she goes dormant and stops listening until it is done.
+    /// Onboarding again: Dee goes dormant and stops listening until it is done.
     func leaveForOnboarding() async {
         if !wake.isDormant { wake.providerChanged() }
         voice.listeningEnabled = false
@@ -548,17 +567,17 @@ final class DeeModel {
         case .dormant:
             if earProblem != nil {
                 return WakeStatus(text: "Tap me to talk", symbol: "hand.tap", open: false,
-                                  accessibility: "She can't hear her wake phrase. Tap to talk.")
+                                  accessibility: "\(personaText.They) can't hear \(personaText.their) wake phrase. Tap to talk.")
             }
             return WakeStatus(text: "Say “\(phrase)” or tap", symbol: "ear", open: false,
                               accessibility: "Not listening. Say \(phrase), or tap to talk.")
         }
     }
 
-    /// A working provider and her body ready.
+    /// A working provider and Dee's body ready.
     var canWake: Bool { loadState == .ready && stack.issue == nil }
 
-    /// A tap outside her eyes, or the chip.
+    /// A tap outside Dee's eyes, or the chip.
     func tapToTalk() {
         guard canWake, wake.isDormant else {
             if stack.issue != nil { requestSettings() }
@@ -628,6 +647,56 @@ final class DeeModel {
         }
     }
 
+    // MARK: - Persona (persona spec §11.8–§11.9)
+
+    /// Brings the Mind in line with the chosen persona (prefs) at launch. An install from
+    /// before the presets has no choice and a Classic Mind: nothing changes. Returns
+    /// whether the self must be reseeded (the Mind was switched).
+    private func syncMindPersona() async -> Bool {
+        guard let mind else { return false }
+        let wanted = prefs.persona
+        activePreset = wanted
+        persona = Persona(preset: wanted)
+        guard await mind.personaID != wanted.id else { return false }
+        Self.writeAgeDefaults(for: wanted)
+        await mind.apply(wanted)
+        accept(await mind.snapshot())
+        return true
+    }
+
+    /// A persona switch while Dee runs: personality, feelings and mood are the preset's
+    /// (learned drift is discarded, as the confirmation says); relationship counters,
+    /// people, memories, episodes, lessons, boundaries, gags and rituals are kept;
+    /// values, humour, mannerisms and innate tastes are reseeded; age is the preset's.
+    /// The voice and wake phrase were already set by the settings (unless custom).
+    private func switchPersona(to preset: PersonaPreset) async {
+        activePreset = preset
+        persona = Persona(preset: preset)
+        OnDeviceVoice.personaRule.withLock { $0 = preset.appleVoice }
+        guard let mind else { return }
+        Self.writeAgeDefaults(for: preset)
+        if let driver = selfDriver { for e in await driver.flush() where !isPersist(e) { execute(e) } }
+        await mind.apply(preset)
+        let snap = await mind.snapshot()
+        accept(snap)
+        if let driver = await SelfDriver.open(memory: people?.store, snapshot: snap, preset: preset, reseed: true) {
+            selfDriver = driver
+        }
+        sense(.tick)
+    }
+
+    /// The age options the settings show, set to the preset's (age on, ageing off,
+    /// real-time rate), so `applyAgeSettings` agrees with `Mind.apply`. Classic: untouched.
+    static func writeAgeDefaults(for preset: PersonaPreset) {
+        guard let age = preset.age else { return }
+        let d = UserDefaults.standard
+        d.set(true, forKey: "ageEnabled")
+        d.set(false, forKey: "agingEnabled")
+        d.set(String(age), forKey: "startAge")
+        d.set(String(AgeSettings.adultYearsPerDay), forKey: "yearsPerDay")
+        d.set(Double(age), forKey: "appliedStartAge")
+    }
+
     /// Reads the age options from the Settings app.
     func applyAgeSettings() async {
         guard let mind else { return }
@@ -636,10 +705,10 @@ final class DeeModel {
         let original = settings
         let enabled = d.bool(forKey: "ageEnabled")
         let aging = d.bool(forKey: "agingEnabled")
-        let start = max(0, min(120, Double(d.string(forKey: "startAge") ?? "") ?? 6))
-        let rate = Double(d.string(forKey: "yearsPerDay") ?? "") ?? 0.1
+        let start = max(0, min(120, Double(d.string(forKey: "startAge") ?? "") ?? Double(activePreset.age ?? 6)))
+        let rate = Double(d.string(forKey: "yearsPerDay") ?? "") ?? (activePreset.age == nil ? 0.1 : AgeSettings.adultYearsPerDay)
         // Compare with what was last *applied from Settings*, not with Dee's live
-        // age — otherwise turning ageing off would snap an aged Dee back to her
+        // age — otherwise turning ageing off would snap an aged Dee back to Dee's
         // starting age on the next launch.
         let appliedStart = d.object(forKey: "appliedStartAge") as? Double
         if enabled != settings.enabled || start != appliedStart {
@@ -699,7 +768,7 @@ final class DeeModel {
             updateListening()
         } else if backgroundedAt == nil {
             backgroundedAt = Date()
-            // No background wake (no background mic): the window closes, she goes dormant.
+            // No background wake (no background mic): the window closes, Dee goes dormant.
             wake.backgrounded()
             voice.listeningEnabled = false
             UIApplication.shared.isIdleTimerDisabled = false
@@ -733,7 +802,7 @@ final class DeeModel {
     /// The microphone runs whenever Dee is loaded and in the foreground: DORMANT it
     /// feeds only the on-device wake ear (nothing is sent: CloudVoice has no socket and
     /// no uplink until a window opens); in a window it also feeds the uplink. *Whether*
-    /// she answers is the window's rule (`Engagement.answers`).
+    /// Dee answers is the window's rule (`Engagement.answers`).
     private func updateListening() {
         let on = loadState == .ready && backgroundedAt == nil
         voice.listeningEnabled = on
@@ -741,14 +810,14 @@ final class DeeModel {
         refreshVoiceProblem()
     }
 
-    /// Someone is with Dee: in view, or was (or said her name) within `engagedGrace`.
+    /// Someone is with Dee: in view, or was (or said Dee's name) within `engagedGrace`.
     var isEngaged: Bool { someoneHere || Date().timeIntervalSince(lastEngagedAt) < Self.engagedGrace }
 
     /// The user has the floor: talking, mid-pause with words not yet delivered, or
-    /// Dee has just yielded to them. Her own sounds — initiatives, events, laughs,
-    /// canned lines — wait (audit C3: any speech she starts closes the user's turn).
+    /// Dee has just yielded to them. Dee's own sounds — initiatives, events, laughs,
+    /// canned lines — wait (audit C3: any speech Dee starts closes the user's turn).
     /// Raw voice activity counts only while someone is engaged (a TV in an empty
-    /// room must not keep her awake), and a Cortex floor left at "user speaking" by
+    /// room must not keep Dee awake), and a Cortex floor left at "user speaking" by
     /// words that never reached it as `.heard` (a command) does not (`UserFloor`).
     private var userHoldsFloor: Bool {
         let floor = selfDriver?.stance.floor
@@ -757,7 +826,7 @@ final class DeeModel {
                                cortexUserTurn: floor?.isUserTurn ?? false, cortexYielding: yielding)
     }
 
-    /// The window woke her (her phrase heard on the device, a tap, a greeting).
+    /// The window woke Dee (Dee's phrase heard on the device, a tap, a greeting).
     func wokenByVoice() {
         lastEngagedAt = Date()
         guard sleeping else { return }
@@ -770,10 +839,10 @@ final class DeeModel {
 
     private func refreshVoiceProblem() {
         // No connection (no key, refused key, network down) is shown like any
-        // other problem with her ears or voice.
+        // other problem with Dee's ears or voice.
         voiceHealth.cloudVoice(voice.problem)
         var problem = voiceHealth.problem(at: Date())
-        // Her ears close while she talks: not a reason to start saying they aren't ready.
+        // Dee's ears close while Dee talks: not a reason to start saying they aren't ready.
         if problem == .preparingEars, isSpeaking, voiceProblem != .preparingEars { problem = nil }
         guard problem != voiceProblem else { return }
         voiceProblem = problem
@@ -796,16 +865,16 @@ final class DeeModel {
             }
         case .partial(let text):
             if !voiceHealth.earsOpened || voiceProblem != nil { voiceHealth.earsWorking(); refreshVoiceProblem() }
-            // Outside a window nothing is for her — not even her name in a server
-            // transcript (W1: only the on-device ear wakes her).
+            // Outside a window nothing is for Dee — not even Dee's name in a server
+            // transcript (W1: only the on-device ear wakes Dee).
             guard wake.answers else { return }
             lastActivityAt = Date()
             heard = text
             userFloor.partial(at: Date())
-            // The user started talking: an initiative or event line she has not started
+            // The user started talking: an initiative or event line Dee has not started
             // saying gives way.
             yieldToUser()
-            // Forward partials at ≤ 2 Hz: the listening face previews her reaction.
+            // Forward partials at ≤ 2 Hz: the listening face previews Dee's reaction.
             if Date().timeIntervalSince(lastPartialForwarded) >= 0.5 {
                 lastPartialForwarded = Date()
                 sense(.partial(text))
@@ -816,7 +885,7 @@ final class DeeModel {
             sense(.pause(turnEnd: turnEnd, hesitation: hesitation))
         case .heard:
             // Their turn is over whatever becomes of the words (answered, a command,
-            // not for her): the floor is no longer theirs (M2). The words themselves
+            // not for Dee): the floor is no longer theirs (M2). The words themselves
             // reach the brain as the server's transcript, which runs `heard(_:)`
             // below; this event never starts or stops a reply (the reply to it was
             // usually requested at the commit, before these words arrived).
@@ -1007,7 +1076,7 @@ final class DeeModel {
     private func handle(_ event: People.Event) {
         switch event {
         case .recognised(let person):
-            // A friend she knows: start a conversation that remembers them, and say hi —
+            // A friend Dee knows: start a conversation that remembers them, and say hi —
             // inside an open window; while dormant only with "Speak first" on (one
             // greeting window per arrival).
             guard loadState == .ready, !isResponding, !isSpeaking else { return }
@@ -1038,8 +1107,8 @@ final class DeeModel {
         }
     }
 
-    /// The persona for a new conversation: who Dee is talking to, what she
-    /// remembers about them, and her self block (frozen for the conversation).
+    /// The persona for a new conversation: who Dee is talking to, what Dee
+    /// remembers about them, and Dee's self block (frozen for the conversation).
     private func currentPersona() async -> Persona {
         var p = persona
         p.userName = people?.currentName
@@ -1161,7 +1230,7 @@ final class DeeModel {
                 self.refreshVoiceProblem()
                 self.withdrawSilentReply()
                 if ticks % 4 == 0 { self.considerInitiative() }
-                // Never fall asleep on someone talking off-camera, or just after they said her name.
+                // Never fall asleep on someone talking off-camera, or just after they said Dee's name.
                 guard !self.isResponding, !self.isSpeaking, !self.userHoldsFloor, let since = self.absentSince else { continue }
                 if Date().timeIntervalSince(max(since, self.lastEngagedAt)) >= Self.sleepAfter, !self.sleeping {
                     self.people?.newSession()
@@ -1173,7 +1242,7 @@ final class DeeModel {
     }
 
     /// The curiosity director covers novel sights, odd noises and greetings; the
-    /// Cortex's IntentionBoard covers follow-ups and her own intentions. They share
+    /// Cortex's IntentionBoard covers follow-ups and Dee's own intentions. They share
     /// one pacing clock so Dee never double-books a moment.
     private func considerInitiative() {
         guard loadState == .ready, backgroundedAt == nil, !sleeping, let snap = mindSnapshot else { return }
@@ -1200,11 +1269,11 @@ final class DeeModel {
     }
 
     /// Spoken commands handled without the language model. Whole utterances only
-    /// (audit C8: "don't stop", "it's so quiet" used to silence her), and "stop" only
+    /// (audit C8: "don't stop", "it's so quiet" used to silence Dee), and "stop" only
     /// while there is something to stop.
     private func command(in text: String) -> Bool {
         let talking = isSpeaking || isResponding || Date().timeIntervalSince(lastStoppedAt) < 3
-        // Her confirmation question about a new wake phrase gets its yes / no first.
+        // Dee's confirmation question about a new wake phrase gets its yes / no first.
         if let outcome = phraseChange.answer(text, current: wake.phrase, at: Date()) {
             switch outcome {
             case .saved(let p, let line):
@@ -1217,7 +1286,8 @@ final class DeeModel {
             return true
         }
         let matcher = wake.matcher
-        switch SpokenCommand.match(text, deeIsTalking: talking, stripLeading: { matcher.stripLeading($0) }) {
+        switch SpokenCommand.match(text, deeIsTalking: talking, stripLeading: { matcher.stripLeading($0) },
+                                   names: activePreset.isClassic ? [] : activePreset.addressingWords) {
         case .changeWakePhrase(let raw)?:
             switch phraseChange.propose(raw, current: wake.phrase, at: Date()) {
             case .confirm(_, let line), .invalid(let line), .unchanged(let line):
@@ -1226,7 +1296,7 @@ final class DeeModel {
             return true
         case .stopListening?:
             stop(hush: true)
-            // Closes the window now: her local goodbye clip, then the socket closes.
+            // Closes the window now: Dee's local goodbye clip, then the socket closes.
             wake.closeCommand()
             return true
         case .newConversation?:
@@ -1272,7 +1342,7 @@ final class DeeModel {
             curiosity.note(.userSpoke, at: Date())
             if sleeping { sleeping = false; asleepSince = nil }
             if command(in: text) { return }
-            // Debug keyboard: typing to a dormant Dee wakes her like a tap.
+            // Debug keyboard: typing to a dormant Dee wakes Dee like a tap.
             if wake.isDormant { tapToTalk() }
             isUser = true
         case .event(let a, let line):
@@ -1308,8 +1378,8 @@ final class DeeModel {
             startTurn(user: utterance)
             return
         }
-        // Her own initiatives and non-verbal events never start over the user (C3,
-        // gate 1 of 3: at send time) or while she is busy; they still land emotionally.
+        // Dee's own initiatives and non-verbal events never start over the user (C3,
+        // gate 1 of 3: at send time) or while Dee is busy; they still land emotionally.
         // v0.6: and only inside an open conversation window (never a reason to connect).
         if !wake.initiativeAllowed || isResponding || isSpeaking || ledger.awaitingVoice || userHoldsFloor
             || (realtime?.isBusy ?? false) {
@@ -1319,7 +1389,7 @@ final class DeeModel {
         startTurn(text: text, appraisal: appraisal, kind: kind)
     }
 
-    /// Starts one turn the app asked for: typed words (`user`), or her initiative /
+    /// Starts one turn the app asked for: typed words (`user`), or Dee's initiative /
     /// an event line (`text`). Spoken turns are started by the brain itself
     /// (`brainStartedReply`).
     private func startTurn(user: QueuedUtterance? = nil, text: String = "", appraisal: Appraisal? = nil,
@@ -1346,7 +1416,7 @@ final class DeeModel {
             } else if let appraisal {
                 await react(appraisal)
             }
-            // Gate 2 of 3 for her initiatives and event lines: the user started talking
+            // Gate 2 of 3 for Dee's initiatives and event lines: the user started talking
             // while it was prepared (L1).
             if ledger.mustGiveWay(userHoldsFloor: userHoldsFloor) { stopReply(hush: false) }
             guard ledger.isLive(id) else {
@@ -1375,7 +1445,7 @@ final class DeeModel {
         return appraisal
     }
 
-    /// One reply's events. Her audio is the session's: the voice plays it and
+    /// One reply's events. Dee's audio is the session's: the voice plays it and
     /// reports `.speakingStarted` / `.speakingFinished`; the events here are its
     /// transcript, placed on what was actually played.
     private func consume(_ events: AsyncThrowingStream<ReplyEvent, Error>, id: Int, answersUser: Bool) async {
@@ -1391,7 +1461,7 @@ final class DeeModel {
         }
         do {
             for try await event in events {
-                // What she did say was said, even after the reply was stopped or
+                // What Dee did say was said, even after the reply was stopped or
                 // superseded: the Cortex hears it (the session's history holds it too).
                 if case .sentenceFinished(let sentence, true) = event {
                     sense(.deeSaid(tag: nil, sentence: sentence))
@@ -1400,7 +1470,7 @@ final class DeeModel {
                 switch event {
                 case .content(let s):
                     if ledger.mustGiveWay(userHoldsFloor: userHoldsFloor) {
-                        // Gate 3 of 3 for initiatives and event lines, until her voice
+                        // Gate 3 of 3 for initiatives and event lines, until Dee's voice
                         // starts: the user started talking (C3).
                         stopReply(hush: false)
                         continue
@@ -1434,7 +1504,7 @@ final class DeeModel {
             transcript.append(TranscriptItem(kind: .note, text: error.localizedDescription))
         }
         sense(.deeTurnFinished(text: full))
-        // Only her replies to accepted turns keep the window open (not initiatives).
+        // Only Dee's replies to accepted turns keep the window open (not initiatives).
         wake.replyEnded(toAccepted: answersUser)
         await endTurn(id)
     }
@@ -1445,7 +1515,7 @@ final class DeeModel {
         for i in transcript.indices where transcript[i].isStreaming { transcript[i].isStreaming = false }
         if let stopped = ledger.generationEnded(id, voiceSpeaking: isSpeaking, at: Date()) { await settle(stopped) }
         // Another reply may have started meanwhile (the brain answers spoken turns
-        // on its own): only the current one decides whether she is responding.
+        // on its own): only the current one decides whether Dee is responding.
         if ledger.reply?.id == id || ledger.reply == nil { isResponding = false }
         discloseIfStillOwed()
         if freshStartPending {
@@ -1461,7 +1531,7 @@ final class DeeModel {
     // MARK: - What was actually said (audit C9)
 
     /// A one-off line (canned reply, the sorry line). Its audio is not a reply's (L2).
-    /// The brain has the session speak it out of band in her voice (docs/DNA.md
+    /// The brain has the session speak it out of band in Dee's voice (docs/DNA.md
     /// §4.2); offline, or over the user, it is dropped.
     private func sayAside(_ line: String, style: VoiceStyle) {
         // Through the open session only: never a reason to connect (W2).
@@ -1476,7 +1546,7 @@ final class DeeModel {
 
     private var voiceDisclosed: Bool { UserDefaults.standard.bool(forKey: CloudSettings.Key.disclosed) }
 
-    /// The caption, the first time anything in her AI voice plays (a reply, a laugh,
+    /// The caption, the first time anything in Dee's AI voice plays (a reply, a laugh,
     /// a canned line) while the spoken disclosure is still owed.
     private func showDisclosureCaption() {
         // OpenAI's policy, for OpenAI voices only (modes 1 and 2).
@@ -1484,7 +1554,7 @@ final class DeeModel {
         disclosure = AIVoiceDisclosure.caption
     }
 
-    /// After a turn: she says the disclosure line at the next quiet moment, until it
+    /// After a turn: Dee says the disclosure line at the next quiet moment, until it
     /// has actually been played through; only then is it remembered as done.
     private func discloseIfStillOwed() {
         guard stack.speaksWithOpenAI, wake.isOpen, !voiceDisclosed, !disclosing, disclosure != nil, let realtime else { return }
@@ -1501,7 +1571,7 @@ final class DeeModel {
         }
     }
 
-    /// A short laugh, as an aside — not while a reply waits for her voice: her voice
+    /// A short laugh, as an aside — not while a reply waits for Dee's voice: Dee's voice
     /// drops held initiative speech for anything else, and a reply still being
     /// synthesised should not start with a giggle.
     private func laughAside(intensity: Double) {
@@ -1511,7 +1581,7 @@ final class DeeModel {
         voice.laugh(intensity: intensity, age: mindSnapshot?.age, energy: mindSnapshot?.mood.energy ?? 0.7)
     }
 
-    /// Stops Dee's current reply where it is: her voice (the session is told how
+    /// Stops Dee's current reply where it is: Dee's voice (the session is told how
     /// much was played) and the brain.
     private func stopReply(hush: Bool) {
         switch ledger.stop(hush: hush, at: Date()) {
@@ -1540,12 +1610,12 @@ final class DeeModel {
     }
 
     /// The user started talking while Dee's initiative or event line was still being
-    /// written or held for her voice: it gives way before her first word (C3).
+    /// written or held for Dee's voice: it gives way before Dee's first word (C3).
     private func yieldToUser() {
         if ledger.mustGiveWay(userHoldsFloor: true) { stopReply(hush: false) }
     }
 
-    /// A finished reply her voice never started (it held an initiative and dropped
+    /// A finished reply Dee's voice never started (it held an initiative and dropped
     /// it, or synthesis failed) is withdrawn, so history doesn't keep unsaid words.
     private func withdrawSilentReply() {
         if ledger.isSilentTooLong(at: Date()) { stopReply(hush: false) }
@@ -1553,19 +1623,19 @@ final class DeeModel {
 
     func stop() { stop(hush: false) }
 
-    /// Stops her voice. Through the brain when there is one, so its next request
+    /// Stops Dee's voice. Through the brain when there is one, so its next request
     /// waits out the stop (`RealtimeBrain.stopVoice`).
     private func stopVoice() {
         if let realtime { realtime.stopVoice() } else { voice.stopSpeaking() }
     }
 
-    /// - Parameter hush: the user asked for quiet (palm, "stop"): what she was
+    /// - Parameter hush: the user asked for quiet (palm, "stop"): what Dee was
     ///   answering is not carried over to their next words.
     private func stop(hush: Bool) {
         lastStoppedAt = Date()
         stopReply(hush: hush)
         stopVoice()
-        // A barge-in keeps the words that interrupted her; a hush drops what came before it.
+        // A barge-in keeps the words that interrupted Dee; a hush drops what came before it.
         if let realtime {
             Task { await realtime.cancel(hush: hush) }
         } else if let brain {
@@ -1582,7 +1652,7 @@ final class DeeModel {
         heard = ""
         ledger.newConversation()
         queuedUtterance = nil
-        // The next turn waits for the fresh start: a turn woken by her name must not
+        // The next turn waits for the fresh start: a turn woken by Dee's name must not
         // have its history wiped while it is being answered (L3).
         let before = settling
         settling = Task { await before?.value; await self.startConversation(brain) }
@@ -1604,8 +1674,8 @@ final class DeeModel {
 // MARK: - BrainHost (what RealtimeBrain needs from the app)
 
 extension DeeModel: BrainHost {
-    /// Answer at the commit only when someone is with her and she is awake; else the
-    /// brain waits for the words and `heard` decides (her name wakes her, a TV doesn't).
+    /// Answer at the commit only when someone is with Dee and Dee is awake; else the
+    /// brain waits for the words and `heard` decides (Dee's name wakes Dee, a TV doesn't).
     var answersOnCommit: Bool {
         // v0.6: the one rule every host shares — an open window means engaged and addressed.
         loadState == .ready && backgroundedAt == nil && wake.answers
@@ -1626,8 +1696,8 @@ extension DeeModel: BrainHost {
         if case .voice = turn.source {
             userFloor.closed(at: Date())
             if !voiceHealth.earsOpened || voiceProblem != nil { voiceHealth.earsWorking(); refreshVoiceProblem() }
-            // W1: a server / LAN transcript never wakes her or changes engagement —
-            // outside an open window nothing is answered, her name included.
+            // W1: a server / LAN transcript never wakes Dee or changes engagement —
+            // outside an open window nothing is answered, Dee's name included.
             guard wake.answers, loadState == .ready, backgroundedAt == nil else {
                 transcript.append(TranscriptItem(kind: .note, text: "Not answered (no conversation window open)"))
                 return .ignored
@@ -1708,12 +1778,12 @@ extension DeeModel: BrainHost {
         }
     }
 
-    /// They talked over her, she paused, and the brain's answer ended the pause (the
+    /// They talked over Dee, Dee paused, and the brain's answer ended the pause (the
     /// voice emits `.bargeIn` only when it ends a pause itself). Sensed only: the
     /// reply the brain is starting is the answer, so nothing is stopped here. It is
     /// `.bargeInAnswered`, never `.bargeIn`: the Cortex answers `.bargeIn` with
     /// `.stopSpeaking`, and `stop()` cancelled that very answer (tune 5 F1: every
-    /// question asked over her went unanswered). A spoken "stop" still stops her
+    /// question asked over Dee went unanswered). A spoken "stop" still stops Dee
     /// (the command path, `heard`).
     func bargedIn() {
         sense(.bargeInAnswered)

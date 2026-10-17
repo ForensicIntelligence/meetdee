@@ -2,7 +2,7 @@ import Testing
 @testable import DeeCore
 
 /// Tune 2 (tune1-live.md §F-DNA): stop requests with a lead-in or a "for a second" are
-/// the stop command while she talks, never conversation for the model to take offence at.
+/// the stop command while Dee talks, never conversation for the model to take offence at.
 struct Tune2CommandTests {
     @Test(arguments: ["Wait, stop talking for a second.", "Hold on, be quiet for a sec.", "Can you stop talking for a second?",
                       "Sorry, stop.", "Dee, could you be quiet for a moment please?", "hang on, shh"])

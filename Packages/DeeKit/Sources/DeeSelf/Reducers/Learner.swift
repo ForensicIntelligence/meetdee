@@ -87,6 +87,10 @@ import Foundation
 /// `"tasteCrystallised"` (subject, value = polarity), `"ritual"` (label = trigger), `"reunion"`.
 /// Signals read: `"misread"`, `"laughter"`, `"moodConfirmed"`, `"episode"`.
 public struct Learner: SubReducer {
+    /// A persona preset's coined ritual lines (persona spec §4–§9 "Rituals"): said the
+    /// first time a ritual is performed; later performances use `ritualPhrases`. Empty
+    /// for Classic Dee. Set through `Cortex.identity`.
+    public var presetRituals: [Ritual.Trigger: String] = [:]
     public static let name = "Learner"
 
     // MARK: Constants
@@ -261,7 +265,7 @@ public struct Learner: SubReducer {
     /// Subjects already counted as a taste exposure this conversation (a flush mid-
     /// conversation must not count the same conversation twice).
     var exposedThisConversation: [Subject] = []
-    /// Subjects met on a distress turn this conversation: never a taste exposure (her
+    /// Subjects met on a distress turn this conversation: never a taste exposure (Dee's
     /// "taste" must not come from their grief).
     var tainted: [Subject] = []
     /// Last contact per person before this launch (`Carried.lastContact`), for the reunion.
@@ -278,7 +282,7 @@ public struct Learner: SubReducer {
     /// actually heard (tune 2 live: a reply cancelled as the server split "Hi, Dee." /
     /// "How was your day?" consumed it, and the reply they heard had none).
     var reunionIssued = false
-    /// Her sentences heard since the last `.deeTurnFinished`.
+    /// Dee's sentences heard since the last `.deeTurnFinished`.
     var saidSinceTurnEnd = 0
     /// Last contact per person before the current conversation started (carried
     /// contact, or this launch's last sighting): `Cortex.lastContact(before:)`.
@@ -480,9 +484,9 @@ public struct Learner: SubReducer {
             }
         }
 
-        // Interests and taste exposures (never for a topic they asked her to drop). A
+        // Interests and taste exposures (never for a topic they asked Dee to drop). A
         // distress turn lends no valence to anything: what they are upset about is not
-        // something she dislikes (review finding 1).
+        // something Dee dislikes (review finding 1).
         let distressed = a.distress >= Self.distressTurn || m.ongoing.distressLive(at: now)
         met.removeAll { now.timeIntervalSince($0.at) > Self.exposureWindow }
         if distressed {
@@ -522,8 +526,8 @@ public struct Learner: SubReducer {
         fx += considerCallback(&m, &rng)
         let hostility = m.inbox(for: Self.name).last { $0.name == "hostility" && $0.owner == Interpreter.name }?.value ?? a.hostility
         carryReunion(hostile: hostility >= RepairKeeper.hostileAt || a.threat >= RepairKeeper.hostileAt, &m)
-        // Their first turn of the reunion is heard; it ends with her heard reply, or with
-        // their next turn when she never tried one. After a reply cancelled unheard, their
+        // Their first turn of the reunion is heard; it ends with Dee's heard reply, or with
+        // their next turn when Dee never tried one. After a reply cancelled unheard, their
         // next fragment is still the reunion turn (split "Good morning." / "Did you sleep well?").
         if m.ongoing.reunionTurn {
             if reunionTurnHeard, !reunionReplyUnheard { m.ongoing.reunionTurn = false; reunionTurnHeard = false } else { reunionTurnHeard = true }
@@ -770,7 +774,7 @@ public struct Learner: SubReducer {
 
     /// A subject Dee may hold a taste about (review finding 1): never people, health,
     /// death or other sensitive subjects; from conversation topics only within the
-    /// seeder's taste categories (animals, nature, music, machines), from what she sees
+    /// seeder's taste categories (animals, nature, music, machines), from what Dee sees
     /// or hears otherwise.
     public static func tasteable(_ s: Subject, sensed: Bool) -> Bool {
         guard !notTastes.contains(s.text), !SensitiveSubjects.contains(s) else { return false }
@@ -870,7 +874,7 @@ public struct Learner: SubReducer {
         if target * sign >= 0 {
             f.polarity = target
         } else if f.contrary >= flipAfter {
-            // A real change of heart: the new sign, latent again until she says so.
+            // A real change of heart: the new sign, latent again until Dee says so.
             f.polarity = target
             f.contrary = 0
             f.revealedAt = nil
@@ -975,10 +979,11 @@ public struct Learner: SubReducer {
             m.signal("ritual", id: r.id, label: trigger.rawValue, by: Self.name)
             if trigger == .goodnight {
                 // Raised now, with the reply to their goodnight, not a step later (a
-                // late aim made her say goodnight twice when they kept talking).
+                // late aim made Dee say goodnight twice when they kept talking).
                 m.ongoing.noteCandidates.removeAll { $0.owner == Self.name && $0.kind == .intention }
                 m.ongoing.raise(.intention(nextAction: Self.goodnightAction, intention: r.id), by: Self.name)
-            } else if case .idle = m.momentary.floor, let line = Self.phrase(r, humour: m.enduring.humour) {
+            } else if case .idle = m.momentary.floor,
+                      let line = (r.count == 1 ? presetRituals[trigger] : nil) ?? Self.phrase(r, humour: m.enduring.humour) {
                 fx.append(.say(line))
             }
         }

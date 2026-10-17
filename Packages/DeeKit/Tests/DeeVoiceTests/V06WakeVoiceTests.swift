@@ -86,7 +86,7 @@ final class WakeRig: @unchecked Sendable {
         for f in Signal.frames(x, size: Int(Self.rate * 0.02)) { try step(f) }
     }
 
-    /// A long stretch of room life while she sleeps: talk, TV-ish tones, silence;
+    /// A long stretch of room life while Dee sleeps: talk, TV-ish tones, silence;
     /// the session's clock runs too (its reconnect / rollover timers would fire).
     func liveARoom(seconds: Double) async throws {
         var t = 0.0
@@ -466,7 +466,7 @@ final class WakeRig: @unchecked Sendable {
 // MARK: - The cascaded event order (CascadeSocket: transcript before audio per sentence)
 
 extension LoopRig {
-    /// Her reply as `CascadeSocket` emits it: `response.created` at the first token,
+    /// Dee's reply as `CascadeSocket` emits it: `response.created` at the first token,
     /// then per sentence its transcript delta **then** its audio.
     func cascadedReply(_ sentences: [(String, Int)], resp: String = "resp_1", item: String = "item_a1") async throws {
         push(Srv.speechStarted("item_u1", ms: 100), Srv.speechStopped("item_u1", ms: 200), Srv.committed("item_u1"))
@@ -488,7 +488,7 @@ extension LoopRig {
 }
 
 @Suite(.serialized) struct V06CascadedOrderTests {
-    /// "Keep going" over her cascaded reply: paused at once, goes on from there, plays whole.
+    /// "Keep going" over Dee's cascaded reply: paused at once, goes on from there, plays whole.
     @Test func aBackchannelContinuesHer() async throws {
         let rig = try LoopRig()
         try await rig.start()
@@ -519,7 +519,7 @@ extension LoopRig {
         rig.voice.shutdown()
     }
 
-    /// A real interruption over a cascaded reply ends it where she paused: the
+    /// A real interruption over a cascaded reply ends it where Dee paused: the
     /// emulator gets the truncate at the heard point and the cut is reported.
     @Test func aBargeInStopsHer() async throws {
         let rig = try LoopRig()
