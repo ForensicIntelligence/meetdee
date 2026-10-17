@@ -29,8 +29,8 @@ final class EchoTenRoom: @unchecked Sendable {
     private var user: [Float] = []            // 48 kHz, on the mic's sample clock
     private var seed: UInt64 = 900
 
-    init(gainDB: Double = -10, delayMs: Double = 80) throws {
-        rig = try LoopRig()
+    init(gainDB: Double = -10, delayMs: Double = 80, duckOnOnset: Bool? = nil) throws {
+        rig = try LoopRig(duckOnOnset: duckOnOnset)
         gain = Float(pow(10, gainDB / 20))
         delay = Int(delayMs / 1000 * LoopRig.rate)
         irReversed = Array(Self.upsample(try HarnessFixture.wav("ir/room.wav")).reversed())

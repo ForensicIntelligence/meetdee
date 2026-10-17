@@ -42,23 +42,29 @@ public struct RunRecord: Codable, Sendable, Equatable {
         public var forbidMention: [String]?
         /// A listener's backchannel said while Dee talks (tune 2).
         public var backchannel: Bool?
+        /// Calm: a non-speech sound (cough, laugh, breath…) said over Dee; nil: by fixture.
+        public var nonspeech: Bool?
 
         public init(index: Int, step: Int, fixture: String, role: UtteranceRole, text: String, start: Double,
                     onset: Double, endOfSpeech: Double, spans: [Interval], expect: Scenario.Expect,
                     expectMention: [String]? = nil, turnEnd: Double? = nil, continues: Int? = nil, rubric: String? = nil,
-                    probe: Scenario.Probe? = nil, forbidMention: [String]? = nil, backchannel: Bool? = nil) {
+                    probe: Scenario.Probe? = nil, forbidMention: [String]? = nil, backchannel: Bool? = nil,
+                    nonspeech: Bool? = nil) {
             self.index = index; self.step = step; self.fixture = fixture; self.role = role; self.text = text
             self.start = start; self.onset = onset; self.endOfSpeech = endOfSpeech; self.spans = spans
             self.expect = expect; self.expectMention = expectMention; self.turnEnd = turnEnd
             self.continues = continues; self.rubric = rubric; self.probe = probe; self.forbidMention = forbidMention
-            self.backchannel = backchannel
+            self.backchannel = backchannel; self.nonspeech = nonspeech
         }
 
-        /// A backchannel ("keep going", "go on", "mm-hm") said over Dee: Dee keeps
-        /// talking. Older records (no flag) are read by fixture.
+        /// A backchannel ("keep going", "go on", "mm-hm") or a non-speech sound said
+        /// over Dee: Dee keeps talking. Older records (no flag) are read by fixture.
         public var isBackchannel: Bool {
-            role == .bargeIn && (backchannel ?? TurnShape.isBackchannel(fixture))
+            role == .bargeIn && (backchannel ?? (TurnShape.isBackchannel(fixture) || TurnShape.isNonspeech(fixture)))
         }
+
+        /// Calm: a non-speech sound over Dee.
+        public var isNonspeech: Bool { role == .bargeIn && (nonspeech ?? TurnShape.isNonspeech(fixture)) }
 
         /// Inside a mid-turn pause (after onset, before the end of speech, not voiced).
         public func inPause(_ t: Double) -> Bool {
@@ -200,13 +206,17 @@ public struct RunRecord: Codable, Sendable, Equatable {
         /// A listener's backchannel (Dee should keep talking). nil in older records:
         /// read by fixture (`TurnShape.isBackchannel`).
         public var backchannel: Bool?
+        /// Calm: a non-speech sound (nil: by fixture).
+        public var nonspeech: Bool?
         public init(step: Int, baseFixture: String, fixture: String, targetAtMs: Double, replyItem: String?,
-                    replyStarted: Double?, onset: Double, stoppedAt: Double?, outcome: BargeOutcome, backchannel: Bool? = nil) {
+                    replyStarted: Double?, onset: Double, stoppedAt: Double?, outcome: BargeOutcome, backchannel: Bool? = nil,
+                    nonspeech: Bool? = nil) {
             self.step = step; self.baseFixture = baseFixture; self.fixture = fixture; self.targetAtMs = targetAtMs
             self.replyItem = replyItem; self.replyStarted = replyStarted; self.onset = onset
-            self.stoppedAt = stoppedAt; self.outcome = outcome; self.backchannel = backchannel
+            self.stoppedAt = stoppedAt; self.outcome = outcome; self.backchannel = backchannel; self.nonspeech = nonspeech
         }
-        public var isBackchannel: Bool { backchannel ?? TurnShape.isBackchannel(fixture) }
+        public var isBackchannel: Bool { backchannel ?? (TurnShape.isBackchannel(fixture) || TurnShape.isNonspeech(fixture)) }
+        public var isNonspeech: Bool { nonspeech ?? TurnShape.isNonspeech(fixture) }
         /// Onset to silence: the pause when there was one (what the listener hears),
         /// else the flush.
         public var latency: Double? {
@@ -251,9 +261,23 @@ public struct RunRecord: Codable, Sendable, Equatable {
         public var start: Double
         public var marks: [String: Double]
         public var details: [String]
-        public init(id: Int, start: Double, marks: [String: Double], details: [String]) {
-            self.id = id; self.start = start; self.marks = marks; self.details = details
+        /// Calm: every mark with a detail, with its time (harness clock): CloudVoice's
+        /// notes as written (`duck …`, `hold … why=…`, `resumed … (…)`) and the other
+        /// stages as "<stage>: <detail>" (`barge_in: <item>`). nil in older reports.
+        public var events: [Note]?
+        public init(id: Int, start: Double, marks: [String: Double], details: [String], events: [Note]? = nil) {
+            self.id = id; self.start = start; self.marks = marks; self.details = details; self.events = events
         }
+    }
+
+    /// Calm: CloudVoice's floor decisions over Dee's reply, in time order (the §6.1
+    /// contract strings); nil when the record has no timed notes (a report before calm:
+    /// scored approximately).
+    public var floorEvents: [FloorEvent]? {
+        guard timeline.contains(where: { $0.events != nil }) else { return nil }
+        let notes = timeline.flatMap { $0.events ?? [] }
+        return notes.enumerated().compactMap { k, n in FloorEvent.parse(n).map { (k, $0) } }
+            .sorted { $0.1.t != $1.1.t ? $0.1.t < $1.1.t : $0.0 < $1.0 }.map(\.1)
     }
 
     /// One socket the session opened (the harness taps every connection).
@@ -380,6 +404,9 @@ public struct RunRecord: Codable, Sendable, Equatable {
     public var audioBytesBeforeWake: Int?
     /// Local provider measurements (chat requests, TTFT, sentence gaps, …).
     public var providerStats: [String: Double]?
+    /// Calm: the voice ducked on an onset over Dee (`CloudVoice.duckOnOnset`, after
+    /// `DEE_DUCK_ON_ONSET`); nil: before calm.
+    public var duckOnOnset: Bool?
 
     public struct TransportCall: Codable, Sendable, Equatable {
         public var t: Double
@@ -420,5 +447,80 @@ public struct RunRecord: Codable, Sendable, Equatable {
             item.firstSeen <= u.endOfSpeech + window && item.firstSeen >= u.onset - Self.itemLead && end > u.onset + 0.1
         }
         return candidates.min { abs($0.onset - item.firstSeen) < abs($1.onset - item.firstSeen) }
+    }
+}
+
+
+/// Calm: one floor decision CloudVoice noted (contract §6.1):
+///
+///     duck <item|-> gain=<dB> via=<onset|detector|final>
+///     sustained <item|-> all=<s> pitched=<s>
+///     hold <item|-> why=<sustained|stopword|answer|brain|localOnly|legacy>
+///     unduck <item|-> (<resume|wordsWait|noItem|duckMax|ambient|label>)
+///     resumed <item> (<words|brain|echo|tail|nowords>)
+///     barge_in: <item>                          (the reply was cut; at the pause's start)
+///     ambient <item> reason=<tvItemSustain>
+///
+/// Also read: 0.6.0's `hold <item>` (why `legacy`), `hold <item> (words)` (why `words`),
+/// the tune-7 probe (`probe <item>` is a hold, `probe over` a resume).
+public struct FloorEvent: Codable, Sendable, Equatable {
+    public enum Kind: String, Codable, Sendable {
+        /// Dee's level dipped (Dee keeps talking).
+        case duck
+        case unduck
+        /// The user's voice was sustained: a ducked hold escalates.
+        case sustained
+        /// Dee went silent (player held).
+        case hold
+        /// Dee went on from where Dee paused.
+        case resumed
+        /// The reply ended (cut); time = when Dee went silent for it.
+        case cut
+        /// A ducked item's words were dropped as the room's (TV), never answered.
+        case ambient
+    }
+    public var t: Double
+    public var kind: Kind
+    public var item: String?
+    /// `why` / `via` / the parenthesized reason.
+    public var why: String?
+
+    public init(t: Double, kind: Kind, item: String? = nil, why: String? = nil) {
+        self.t = t; self.kind = kind; self.item = item; self.why = why
+    }
+
+    /// Dee audibly gives way (dip or pause).
+    public var isYield: Bool { kind == .duck || kind == .hold }
+
+    public static func parse(_ note: RunRecord.Note) -> FloorEvent? {
+        let text = note.text.trimmingCharacters(in: .whitespaces)
+        let words = text.split(separator: " ").map(String.init)
+        guard let head = words.first else { return nil }
+        func item(_ i: Int) -> String? { i < words.count && words[i] != "-" ? words[i] : nil }
+        func field(_ key: String) -> String? {
+            words.first { $0.hasPrefix(key + "=") }.map { String($0.dropFirst(key.count + 1)) }
+        }
+        func paren() -> String? {
+            guard let a = text.lastIndex(of: "("), let b = text.lastIndex(of: ")"), a < b else { return nil }
+            return String(text[text.index(after: a)..<b])
+        }
+        switch head {
+        case "duck": return .init(t: note.t, kind: .duck, item: item(1), why: field("via"))
+        case "unduck": return .init(t: note.t, kind: .unduck, item: item(1), why: paren())
+        case "sustained": return .init(t: note.t, kind: .sustained, item: item(1))
+        case "ambient": return .init(t: note.t, kind: .ambient, item: item(1), why: field("reason"))
+        case "resumed": return .init(t: note.t, kind: .resumed, item: item(1), why: paren())
+        case "barge_in:": return .init(t: note.t, kind: .cut, item: item(1))
+        case "hold":
+            // "hold ended by the voice <item>" precedes a cut (the cut is its own event).
+            if words.count > 1, words[1] == "ended" { return nil }
+            let why = field("why") ?? (paren() == "words" ? "words" : "legacy")
+            return .init(t: note.t, kind: .hold, item: item(1), why: why)
+        case "probe":
+            if words.count > 1, words[1] == "over" { return .init(t: note.t, kind: .resumed, why: "probe") }
+            if words.count > 1, words[1] == "confirmed" { return nil }
+            return .init(t: note.t, kind: .hold, item: nil, why: "probe")
+        default: return nil
+        }
     }
 }

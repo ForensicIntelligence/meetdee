@@ -55,6 +55,20 @@ public struct Metrics: Codable, Sendable, Equatable {
         /// Tune 10: what went wrong for this utterance (empty: handled correctly).
         /// The `regressions` report section compares these against a baseline run.
         public var problems: [String] = []
+        /// Calm (said over Dee): onset → Dee first gave way (dip or pause), onset → Dee
+        /// fully silent (s); seconds Dee was paused / ducked in the event's window; the
+        /// reply was cut; an audible pause (≥ `audiblePause` s) or a stop started in
+        /// [onset − `floorLead`, EoS + `falsePauseTail`]. `floorApproximate`: no timed
+        /// notes (a report before calm): hold ≈ onset + 0.15 s, no ducks.
+        public var yield: Double? = nil
+        public var silence: Double? = nil
+        public var pausedSeconds: Double? = nil
+        public var duckedSeconds: Double? = nil
+        public var stopped: Bool? = nil
+        public var audiblePause: Bool? = nil
+        public var floorApproximate: Bool? = nil
+        /// Calm: a non-speech sound over Dee.
+        public var nonspeech: Bool? = nil
     }
 
     public struct Leak: Codable, Sendable, Equatable {
@@ -227,6 +241,76 @@ public struct Metrics: Codable, Sendable, Equatable {
 
     public var collisions: [Collision] = []
 
+    // MARK: Calm (floor decisions over Dee's reply; `addFloor`)
+
+    /// Runs scored without timed notes (reports before calm): approximate.
+    public var floorApproximateRuns: [String] = []
+    /// `false_pause`: short non-speech sounds + single-clause continuers over Dee
+    /// (applicable: Dee's reply still playing at their onset), and those with an
+    /// audible pause or a stop in their window; stops on a short sound (must be 0).
+    public var falsePauseEvents = 0
+    public var falsePauseApplicable = 0
+    public var falsePauses = 0
+    public var falsePauseStops = 0
+    public var falsePauseSoundStops = 0
+    public var falsePauseList: [String] = []
+    /// `false_pause_long`: long sounds (a laughing / coughing fit).
+    public var longSoundApplicable = 0
+    public var longSoundPauses = 0
+    public var longSoundStops = 0
+    public var longSoundPauseSeconds: [Double] = []
+    public var longSoundList: [String] = []
+    /// `duck_time`: duck → unduck of the short events (s).
+    public var duckTimes: [Double] = []
+    public var duckTimeP90: Double?
+    /// `barge_in` (calm: yield): onset → first dip or pause for scripted interruptions.
+    public var yieldLatencies: [Double] = []
+    public var yieldP50: Double?
+    public var yieldP90: Double?
+    public var yieldApplicable = 0
+    public var yieldMissed = 0
+    public var yieldMissList: [String] = []
+    public var yieldMissRate: Double?
+    /// `silence`: onset → Dee fully silent; multi-word interruptions and lone stop words.
+    public var silenceMulti: [Double] = []
+    public var silenceMultiP90: Double?
+    public var silenceLone: [Double] = []
+    public var silenceLoneP90: Double?
+    /// Interruptions that never made Dee silent within `bargeMissAfter`.
+    public var silenceMissList: [String] = []
+    /// Stop / command fixtures (c01 c03 c04 c06 c07 c08 …) over Dee: the reply ended
+    /// (Dee silent within `stopEndWithin` of their onset and never went on).
+    public var stopCommands = 0
+    public var stopCommandsEnded = 0
+    public var stopCommandMisses: [String] = []
+    /// Calm round 2 (D1): end of the stop / command phrase → Dee fully silent, for the
+    /// fixtures in `FixtureCatalog.stopWordEnds` (0 when Dee was silent before it ended).
+    public var silenceStopWord: [Double] = []
+    public var silenceStopWordP90: Double?
+    public var silenceStopWordList: [String] = []
+    /// Round 2: sounds / continuers whose "stop" was Dee's own reply limit
+    /// (`sentenceCapStop` / `tokenLimitStop` at the flush): scored as carried on.
+    public var ownCapEnds: [String] = []
+    /// Round 2: … and Dee then answered the sound / continuer as a turn: still a stop.
+    public var answeredAfterOwnCap: [String] = []
+    /// Round 2: sound fixtures the server transcribed as words (round 1: a TTS "cough"
+    /// that said "Cough, cough."): Dee stopping on those is right, so a fixture here
+    /// needs re-rendering before its event is trusted.
+    public var soundsHeardAsWords: [String] = []
+    /// `false_barge`: pauses / cuts / ducks while Dee plays with no scripted user audio
+    /// within ±`falseBargeMargin` s (and not for a scripted utterance's item), per condition.
+    public struct FalseBarge: Codable, Sendable, Equatable {
+        public var deeMinutes = 0.0
+        public var pauses = 0
+        public var stops = 0
+        public var ducks = 0
+        public var list: [String] = []
+        public init() {}
+        public var pausesPer10: Double? { deeMinutes > 0 ? Double(pauses) / deeMinutes * 10 : nil }
+        public var ducksPerMinute: Double? { deeMinutes > 0 ? Double(ducks) / deeMinutes : nil }
+    }
+    public var falseBarge: [String: FalseBarge] = [:]
+
     /// User items that belong to no scripted utterance and no echo-only window:
     /// the server (and CloudVoice) took room noise or TV for a turn.
     public struct Phantom: Codable, Sendable, Equatable {
@@ -238,6 +322,11 @@ public struct Metrics: Codable, Sendable, Equatable {
         public var answered: Bool
     }
     public var phantoms: [Phantom] = []
+    /// Round 3 (information): phantom turns answered while Dee was idle, by condition
+    /// (`tv…` rooms: Dee answered the TV).
+    public var idleAnswers: [IdleAnswer] = []
+    /// Dee-idle seconds per condition (run time not covered by Dee's playback).
+    public var idleSeconds: [String: Double] = [:]
 
     public var werEdits = 0
     public var werWords = 0
@@ -300,9 +389,48 @@ public struct Metrics: Codable, Sendable, Equatable {
         return continued && cap
     }
 
-    /// A barge-in's outcome as scored: `endedAtSentenceCap` counts as continued (`.missed`).
+    /// A barge-in's outcome as scored: `endedAtSentenceCap` and (round 2) an
+    /// unanswered `ownCapEnd` count as continued (`.missed`).
     public static func scoredOutcome(_ run: RunRecord, _ b: RunRecord.BargeIn) -> RunRecord.BargeOutcome {
-        endedAtSentenceCap(run, b) ? .missed : b.outcome
+        endedAtSentenceCap(run, b) || ownCapExempt(run, b) ? .missed : b.outcome
+    }
+
+    /// Calm round 2: Dee's own reply limits. The brain stops Dee before a sentence over
+    /// the cap or one the token limit cut short (`RealtimeBrain`: `sentenceCapStop`,
+    /// `tokenLimitStop`, then `stopHerself()`); under a duck that shows as `hold … why=brain`
+    /// and a cut at the same instant.
+    public static let ownCapMarks: Set<String> = ["sentenceCapStop", "tokenLimitStop"]
+
+    /// Round 2: the time of the own-cap mark that caused a sound's / continuer's
+    /// `.stopped` flush (a mark `capMarkLead` before to `capMarkLag` after it), or nil.
+    /// Only records with timed floor notes (calm): there the voice's own decisions are
+    /// visible, so the tune-14 `backchannel("continued")` proof is not needed. A voice
+    /// pause earlier in the event still counts (`false_pause`), only the cap cut is Dee's.
+    public static func ownCapEnd(_ run: RunRecord, _ b: RunRecord.BargeIn) -> Double? {
+        guard b.isBackchannel, b.outcome == .stopped, let stop = b.stoppedAt, run.floorEvents != nil else { return nil }
+        return (run.brainTrace ?? []).first {
+            ownCapMarks.contains($0.text) && $0.t >= stop - capMarkLead && $0.t <= stop + capMarkLag
+        }?.t
+    }
+
+    /// Round 2: after an own-cap end, Dee answered the sound / continuer as a turn: a
+    /// fresh reply started after the cap and within `backchannelWatch` of the event's
+    /// end of speech, before anything else was scripted (live: ns09 «» after a cap end,
+    /// a 5.9 s reply to a laugh).
+    public static func answeredAfterOwnCap(_ run: RunRecord, _ b: RunRecord.BargeIn, capAt: Double) -> Bool {
+        let u = run.utterances.first { $0.role == .bargeIn && $0.step == b.step && $0.fixture == b.fixture && abs($0.onset - b.onset) < 1e-6 }
+        let eos = u?.endOfSpeech ?? b.onset
+        let next = run.utterances.map(\.onset).filter { $0 > b.onset + 1e-6 }.min() ?? .infinity
+        let until = min(max(eos, capAt) + backchannelWatch, next)
+        return run.responses.contains { r in
+            r.kind == "reply" && (r.startedAt.map { $0 > capAt && $0 <= until } ?? false)
+        }
+    }
+
+    /// Round 2: an own-cap end that Dee did not then answer: scored as carried on.
+    public static func ownCapExempt(_ run: RunRecord, _ b: RunRecord.BargeIn) -> Bool {
+        guard let cap = ownCapEnd(run, b) else { return false }
+        return !answeredAfterOwnCap(run, b, capAt: cap)
     }
 
     /// An interrupting question must be answered within this of its end of speech:
@@ -332,7 +460,8 @@ public struct Metrics: Codable, Sendable, Equatable {
     public static func compute(_ runs: [RunRecord], pricing: Pricing) -> Metrics {
         var m = Metrics()
         m.scenarios = runs.map(\.scenario)
-        for run in runs { m.add(run) }
+        // Round 3 (C3): real interruptions are scored stopped by D1/D2, not onset + 2 s.
+        for run in runs { m.add(Self.rescoredStops(run)) }
         m.latencyP50 = Stats.percentile(m.latencies, 0.5)
         m.latencyP90 = Stats.percentile(m.latencies, 0.9)
         m.latencyMainP50 = Stats.percentile(m.latencyMain, 0.5)
@@ -351,6 +480,13 @@ public struct Metrics: Codable, Sendable, Equatable {
         m.interruptAnswerP90 = Stats.percentile(m.interruptAnswerLatencies, 0.9)
         m.replyLengthRate = m.replies > 0 ? Double(m.repliesWithinThree) / Double(m.replies) : nil
         m.wer = m.werWords > 0 ? Double(m.werEdits) / Double(m.werWords) : nil
+        m.duckTimeP90 = Stats.percentile(m.duckTimes, 0.9)
+        m.yieldP50 = Stats.percentile(m.yieldLatencies, 0.5)
+        m.yieldP90 = Stats.percentile(m.yieldLatencies, 0.9)
+        m.yieldMissRate = m.yieldApplicable > 0 ? Double(m.yieldMissed) / Double(m.yieldApplicable) : nil
+        m.silenceMultiP90 = Stats.percentile(m.silenceMulti, 0.9)
+        m.silenceLoneP90 = Stats.percentile(m.silenceLone, 0.9)
+        m.silenceStopWordP90 = Stats.percentile(m.silenceStopWord, 0.9)
         m.cost = CostSummary.of(runs, pricing: pricing)
         return m
     }
@@ -434,7 +570,11 @@ public struct Metrics: Codable, Sendable, Equatable {
                items.contains(where: { ($0.committedAt ?? .infinity) > cont.onset }) {
                 reference += " " + cont.text
             }
-            if !texts.isEmpty {
+            if u.isNonspeech {
+                // A sound has no words: whatever the server transcribed is no WER sample.
+                r.nonspeech = true
+                if !texts.isEmpty { r.transcript = texts.joined(separator: " ") }
+            } else if !texts.isEmpty {
                 r.transcript = texts.joined(separator: " ")
                 let s = WER.score(reference: reference, hypothesis: r.transcript!)
                 r.werEdits = s.edits; r.werWords = s.words
@@ -519,8 +659,19 @@ public struct Metrics: Codable, Sendable, Equatable {
             }
             phantoms.append(Phantom(scenario: run.scenario, itemID: item.itemID, at: item.firstSeen,
                                     transcript: item.transcript, answered: answered))
+            if answered, Self.idle(run, at: item.firstSeen) {
+                idleAnswers.append(IdleAnswer(scenario: run.scenario, condition: Self.condition(of: run), at: item.firstSeen,
+                                              transcript: item.transcript))
+            }
         }
 
+        do {
+            let spans = run.playback.compactMap { p -> (Double, Double)? in p.started.map { ($0, p.ended ?? max(run.duration, $0)) } }
+                .sorted { $0.0 < $1.0 }
+            var talking = 0.0, reach = -Double.infinity
+            for (a, b) in spans { let a2 = max(a, reach); if b > a2 { talking += b - a2 }; reach = max(reach, b) }
+            idleSeconds[Self.condition(of: run), default: 0] += max(0, run.duration - talking)
+        }
         for turn in run.timeline {
             // `speaking_started` (CloudVoice, graph clock); the player's own
             // `first_audio_played` is off the graph clock in manual rendering.
@@ -530,9 +681,11 @@ public struct Metrics: Codable, Sendable, Equatable {
         }
 
         for b in run.bargeIns {
+            // Calm: sounds are scored by `false_pause` (0 stops), not as word backchannels.
+            if b.isNonspeech { continue }
             if b.isBackchannel {
                 backchannels += 1
-                if Self.endedAtSentenceCap(run, b) { backchannelCapEnds.append("\(run.scenario):\(b.fixture)") }
+                if Self.endedAtSentenceCap(run, b) || Self.ownCapExempt(run, b) { backchannelCapEnds.append("\(run.scenario):\(b.fixture)") }
                 switch Self.scoredOutcome(run, b) {
                 case .notApplicable: break
                 case .missed: backchannelsApplicable += 1          // Dee kept talking: right
@@ -649,6 +802,7 @@ public struct Metrics: Codable, Sendable, Equatable {
             collisions.append(Collision(scenario: run.scenario, itemID: s.item, at: s.t, fixture: u.fixture,
                                         kind: run.kind(ofItem: s.item)))
         }
+        addFloor(run, from: firstRow)
         addProblems(run, from: firstRow)
     }
 
@@ -666,7 +820,9 @@ public struct Metrics: Codable, Sendable, Equatable {
             if r.mentionOK == false { p.append("missed the \((r.probe ?? .memory).rawValue)") }
             if let f = r.forbidden { p.append("said \"\(f.joined(separator: "\", \""))\"") }
             if let b = run.bargeIns.first(where: { $0.step == u.step && $0.fixture == u.fixture }) {
-                if b.isBackchannel, Self.scoredOutcome(run, b) == .stopped { p.append("stopped on a backchannel") }
+                if b.isBackchannel, Self.scoredOutcome(run, b) == .stopped {
+                    p.append(b.isNonspeech ? "stopped on a sound" : "stopped on a backchannel")
+                }
                 if !b.isBackchannel, u.expect != .reply, b.outcome == .missed { p.append("kept talking over the barge-in") }
             }
             if collisions.contains(where: { c in c.scenario == run.scenario && u.spans.contains { c.at > $0.start + 0.02 && c.at < $0.end } }) {
@@ -771,5 +927,282 @@ public struct Metrics: Codable, Sendable, Equatable {
                 lostAfterDisruption.append("\(run.scenario):\(u.fixture)")
             }
         }
+    }
+}
+
+// MARK: - Calm: floor decisions over Dee's reply
+
+extension Metrics {
+    /// A decision this long before an event's onset is still the event's (server onsets
+    /// are back-dated; EarCore's lookback).
+    public static let floorLead = 0.2
+    /// `false_pause` watches an event until this long after its end of speech.
+    public static let falsePauseTail = 2.0
+    /// A pause at least this long is audible.
+    public static let audiblePause = 0.10
+    /// `false_barge`: no scripted user audio within this of a pause / cut / duck.
+    public static let falseBargeMargin = 0.3
+    /// A stop / command fixture must have Dee silent this soon after its stop phrase
+    /// ends (round 2; its onset when `FixtureCatalog.stopWordEnds` has none), for good.
+    public static let stopEndWithin = 1.5
+
+    /// Round 2: the absolute time a stop fixture's stop phrase ended (nil: not a stop
+    /// fixture, or no utterance row to read the spans from).
+    public static func stopWordEnd(_ fixture: String, utterance u: RunRecord.Utterance?) -> Double? {
+        guard let kind = FixtureCatalog.stopWordEnds[fixture], let u else { return nil }
+        switch kind {
+        case .endOfSpeech: return u.endOfSpeech
+        case .firstSpan: return u.spans.first?.end ?? u.endOfSpeech
+        case .afterOnset(let d): return min(u.onset + d, u.endOfSpeech)
+        }
+    }
+    /// Approximate scoring of a report without timed notes: 0.6.0 paused Dee this long
+    /// after every onset over Dee's voice.
+    public static let approximateHoldAfter = 0.15
+
+    /// The condition a run ran under, from its record: `clean`, `<bed><snr>` (`tv15`,
+    /// `tvlong10`), `echo<dB>` (`echo20`).
+    public static func condition(of run: RunRecord) -> String {
+        if let e = run.echo { return String(format: "echo%.0f", -e.gainDB) }
+        if let n = run.noise { return String(format: "%@%.0f", n.bed, n.snrDb) }
+        return "clean"
+    }
+
+    /// What CloudVoice did with Dee's voice around one event.
+    public struct Floor: Sendable, Equatable {
+        /// First dip or pause, first pause (absolute times).
+        public var yieldAt: Double?
+        public var silenceAt: Double?
+        /// Pauses that started in the window: start, length (s), ended in a cut.
+        public var pauses: [(start: Double, length: Double, cut: Bool)] = []
+        public var duckedSeconds = 0.0
+        /// Duck → unduck lengths (ducks that ended by an unduck).
+        public var duckTimes: [Double] = []
+        public var cut = false
+        public var pausedSeconds: Double { pauses.reduce(0) { $0 + ($1.cut ? 0 : $1.length) } }
+        /// An audible pause (≥ `audiblePause`) or a cut started in the window.
+        public var audible: Bool { pauses.contains { $0.cut || $0.length >= Metrics.audiblePause - 1e-9 } }
+        public init() {}
+        public static func == (a: Floor, b: Floor) -> Bool {
+            a.yieldAt == b.yieldAt && a.silenceAt == b.silenceAt && a.duckedSeconds == b.duckedSeconds
+                && a.duckTimes == b.duckTimes && a.cut == b.cut && a.pauses.count == b.pauses.count
+                && zip(a.pauses, b.pauses).allSatisfy { $0.start == $1.start && $0.length == $1.length && $0.cut == $1.cut }
+        }
+    }
+
+    /// The floor decisions for one event: yields / pauses / ducks that started in
+    /// [`from`, `to`); the first yield and pause up to `firstUntil`.
+    public static func floor(_ events: [FloorEvent], run: RunRecord, from: Double, to: Double, firstUntil: Double) -> Floor {
+        var f = Floor()
+        f.yieldAt = events.first { $0.isYield && $0.t >= from && $0.t <= firstUntil }?.t
+        // Round 3 review (correct F3): Dee's silence is the first hold Dee did not resume from (a
+        // hold → hold run counts from its first) — a pause Dee went on from is no silence.
+        f.silenceAt = events.indices.first { i in
+            let e = events[i]
+            guard e.kind == .hold, e.t >= from, e.t <= max(firstUntil, to) else { return false }
+            return events[(i + 1)...].first(where: { $0.kind == .resumed || $0.kind == .cut })?.kind != .resumed
+        }.map { events[$0].t }
+        let runEnd = max(run.duration, events.last?.t ?? 0)
+        for (i, e) in events.enumerated() where e.t >= from && e.t < to {
+            let rest = events[(i + 1)...]
+            switch e.kind {
+            case .hold:
+                if let end = rest.first(where: { $0.kind == .resumed || $0.kind == .cut || $0.kind == .hold }) {
+                    if end.kind == .cut {
+                        let flush = run.playback.filter { $0.flushed == true && ($0.ended ?? -1) >= e.t }.compactMap(\.ended).min()
+                        f.pauses.append((e.t, (flush ?? runEnd) - e.t, true))
+                        f.cut = true
+                    } else {
+                        f.pauses.append((e.t, end.t - e.t, false))
+                    }
+                } else {
+                    let playing = run.playback.filter { ($0.started ?? .infinity) <= e.t && ($0.ended ?? .infinity) >= e.t }
+                    f.pauses.append((e.t, (playing.compactMap(\.ended).max() ?? runEnd) - e.t, false))
+                }
+            case .duck:
+                let end = rest.first { $0.kind == .unduck || $0.kind == .hold || $0.kind == .cut }
+                f.duckedSeconds += (end?.t ?? runEnd) - e.t
+                if let end, end.kind == .unduck { f.duckTimes.append(end.t - e.t) }
+            case .cut:
+                f.cut = true
+            default:
+                break
+            }
+        }
+        return f
+    }
+
+    /// 0.6.0 behaviour for a report without timed notes: every onset over Dee paused
+    /// Dee at once (at the `.barge_in` mark when one was kept, else onset + 0.15 s).
+    static func approximateFloor(_ b: RunRecord.BargeIn) -> Floor {
+        var f = Floor()
+        guard b.outcome != .notApplicable else { return f }
+        let hold = b.pausedAt ?? (b.outcome == .stopped ? b.stoppedAt : nil) ?? b.onset + approximateHoldAfter
+        f.yieldAt = hold
+        f.silenceAt = hold
+        f.cut = b.outcome == .stopped
+        f.pauses = [(hold, f.cut ? (b.stoppedAt ?? hold) - hold : audiblePause, f.cut)]
+        return f
+    }
+
+    mutating func addFloor(_ run: RunRecord, from firstRow: Int) {
+        let events = run.floorEvents
+        if events == nil, !run.bargeIns.isEmpty { floorApproximateRuns.append(run.scenario) }
+        for b in run.bargeIns {
+            let u = run.utterances.first(where: { $0.role == .bargeIn && $0.step == b.step && $0.fixture == b.fixture
+                                                  && abs($0.onset - b.onset) < 1e-6 })
+                ?? run.utterances.first(where: { $0.role == .bargeIn && $0.step == b.step && $0.fixture == b.fixture })
+            let row = u.flatMap { u in utterances[firstRow...].lastIndex(where: { $0.index == u.index }) }
+            let onset = u?.onset ?? b.onset
+            let eos = u?.endOfSpeech ?? b.onset
+            let applicable = b.outcome != .notApplicable
+            let next = run.utterances.map(\.onset).filter { $0 > onset + 1e-6 }.min() ?? .infinity
+            let from = onset - Self.floorLead
+            let to = min(eos + Self.falsePauseTail, next - Self.floorLead)
+            var f = events.map { Self.floor($0, run: run, from: from, to: to, firstUntil: onset + Self.bargeMissAfter) }
+                ?? Self.approximateFloor(b)
+            let tag = "\(run.scenario):\(b.fixture)"
+            // Round 2: Dee's own sentence / token cap ended the reply over a sound or a
+            // continuer: that cut is Dee's, not a pause for the user (unless Dee then
+            // answered the event, which stays a stop).
+            if b.isBackchannel, let cap = Self.ownCapEnd(run, b) {
+                if Self.answeredAfterOwnCap(run, b, capAt: cap) {
+                    answeredAfterOwnCap.append(tag)
+                } else {
+                    ownCapEnds.append(tag)
+                    f.pauses.removeAll { $0.cut && $0.start >= cap - Self.capMarkLead - 0.05 }
+                    f.cut = f.pauses.contains { $0.cut }
+                }
+            }
+            let scoredStop = Self.scoredOutcome(run, b) == .stopped
+            let stopped = applicable && (scoredStop || (f.cut && b.isBackchannel && !Self.endedAtSentenceCap(run, b)))
+            if let row {
+                if applicable {
+                    utterances[row].yield = f.yieldAt.map { max(0, $0 - onset) }
+                    utterances[row].silence = f.silenceAt.map { max(0, $0 - onset) }
+                    utterances[row].pausedSeconds = events == nil ? nil : f.pausedSeconds
+                    utterances[row].duckedSeconds = events == nil ? nil : f.duckedSeconds
+                    utterances[row].stopped = stopped
+                    utterances[row].audiblePause = f.audible || stopped
+                }
+                if events == nil { utterances[row].floorApproximate = true }
+            }
+
+            if b.isBackchannel {
+                let sound = b.isNonspeech
+                if sound, let u {
+                    for item in run.userItems where run.utterance(forItem: item) == u {
+                        if let t = item.transcript, SoundWords.hasWords(t) { soundsHeardAsWords.append("\(tag) «\(t)»") }
+                    }
+                }
+                let long = sound && TurnShape.soundClass(b.fixture) == .long
+                if long {
+                    guard applicable else { continue }
+                    longSoundApplicable += 1
+                    if f.audible || stopped {
+                        longSoundPauses += 1
+                        longSoundList.append(tag + (stopped ? " (stop)" : String(format: " (pause %.2f s)", f.pausedSeconds)))
+                    }
+                    if stopped { longSoundStops += 1 }
+                    if events != nil, !f.pauses.isEmpty { longSoundPauseSeconds.append(f.pausedSeconds) }
+                    continue
+                }
+                guard sound || FixtureCatalog.singleClauseContinuers.contains(b.fixture) else { continue }
+                falsePauseEvents += 1
+                guard applicable else { continue }
+                falsePauseApplicable += 1
+                duckTimes += f.duckTimes
+                if f.audible || stopped {
+                    falsePauses += 1
+                    let what = stopped ? (answeredAfterOwnCap.last == tag ? "answered after Dee's own cap end" : "stop")
+                        : (events == nil ? "pause, approximate" : String(format: "pause %.2f s", f.pausedSeconds))
+                    falsePauseList.append("\(tag) (\(what))")
+                    if !stopped, let row { utterances[row].problems.append(sound ? "paused on a sound" : "paused on a continuer") }
+                }
+                if stopped {
+                    falsePauseStops += 1
+                    if sound { falsePauseSoundStops += 1 }
+                }
+                continue
+            }
+
+            // A scripted interruption: Dee gives way (dip or pause), then goes silent.
+            guard applicable else { continue }
+            yieldApplicable += 1
+            var y = events == nil ? nil : f.yieldAt.map { max(0, $0 - onset) }
+            if y == nil, b.outcome == .stopped, let l = b.latency { y = l }
+            if let y, y <= Self.bargeMissAfter + 1e-9 { yieldLatencies.append(y) } else {
+                yieldMissed += 1
+                yieldMissList.append(tag)
+            }
+            let silence: Double? = b.outcome == .stopped
+                ? ((events == nil ? nil : f.silenceAt.map { max(0, $0 - onset) }) ?? b.latency) : nil
+            // Round 3: Dee went silent, but after the stop deadline (`stopDeadline`).
+            let late = events == nil ? nil : Self.lateSilence(b)
+            if let silence {
+                if FixtureCatalog.loneStopWords.contains(b.fixture) { silenceLone.append(silence) } else { silenceMulti.append(silence) }
+            } else {
+                silenceMissList.append(tag + (late.map { String(format: " (silent after %.2f s)", $0) } ?? ""))
+            }
+            // Round 2 (D1): the stop / command phrase's end → Dee fully silent.
+            let stopEnd = Self.stopWordEnd(b.fixture, utterance: u)
+            if let stopEnd {
+                if let silence = silence ?? late {
+                    let after = max(0, onset + silence - stopEnd)
+                    silenceStopWord.append(after)
+                    if after > 1.0 + 1e-9 { silenceStopWordList.append(tag + String(format: " (%.2f s)", after)) }
+                } else {
+                    silenceStopWordList.append(tag + " (never silent)")
+                }
+            }
+            if FixtureCatalog.spec(b.fixture)?.category == .command {
+                stopCommands += 1
+                // Silent for good within `stopEndWithin` of the stop phrase's end (its
+                // onset for a command without one).
+                let base = stopEnd ?? onset
+                if let silence, onset + silence - base <= Self.stopEndWithin + 1e-9 { stopCommandsEnded += 1 } else {
+                    stopCommandMisses.append(tag + ((silence ?? late).map { String(format: " (silent after %.2f s)", $0) } ?? " (never ended)"))
+                }
+            }
+        }
+        addFalseBarge(run, events: events)
+    }
+
+    /// Pauses, cuts and ducks of Dee's reply that no scripted user audio explains.
+    mutating func addFalseBarge(_ run: RunRecord, events: [FloorEvent]?) {
+        guard let events else { return }
+        let cond = Self.condition(of: run)
+        var fb = falseBarge[cond] ?? FalseBarge()
+        // Dee's talking time: the union of played items.
+        let spans = run.playback.compactMap { p -> (Double, Double)? in
+            guard let s = p.started else { return nil }
+            return (s, p.ended ?? max(run.duration, s))
+        }.sorted { $0.0 < $1.0 }
+        var merged: [(Double, Double)] = []
+        for s in spans {
+            if let last = merged.last, s.0 <= last.1 { merged[merged.count - 1].1 = max(last.1, s.1) } else { merged.append(s) }
+        }
+        fb.deeMinutes += merged.reduce(0) { $0 + ($1.1 - $1.0) } / 60
+        func playing(_ t: Double) -> Bool { merged.contains { t >= $0.0 && t <= $0.1 + 0.05 } }
+        func scripted(_ t: Double) -> Bool {
+            run.utterances.contains { t >= $0.onset - Self.falseBargeMargin && t <= $0.endOfSpeech + Self.falseBargeMargin }
+        }
+        func scriptedItem(_ item: String?) -> Bool {
+            guard let item, let u = run.userItems.first(where: { $0.itemID == item }) else { return false }
+            return run.utterance(forItem: u) != nil
+        }
+        for e in events where e.kind == .hold || e.kind == .cut || e.kind == .duck {
+            guard playing(e.t), !scripted(e.t), !scriptedItem(e.item) else { continue }
+            switch e.kind {
+            case .duck: fb.ducks += 1
+            case .hold:
+                fb.pauses += 1
+                fb.list.append(String(format: "%@ pause %.2f s (%@)", run.scenario, e.t, e.why ?? "-"))
+            default:
+                fb.stops += 1
+                fb.list.append(String(format: "%@ cut %.2f s", run.scenario, e.t))
+            }
+        }
+        falseBarge[cond] = fb
     }
 }

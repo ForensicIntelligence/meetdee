@@ -108,7 +108,7 @@ import Testing
     /// paused only by its words at 26.00 (1.56 s). Now the echo-prone "Yeah." arms no grace
     /// and the question's onset pauses Dee at once.
     @Test func aPhantomYeahEarlyInHerReplyArmsNoGrace() async throws {
-        let rig = try LoopRig()
+        let rig = try LoopRig(duckOnOnset: false)   // calm off: `resumeGrace` is tied to a paused hold's resume
         _ = rig.graph.setManualFacts(aecActive: false, outputLatency: 0)
         let holds = Collector(rig.voice.holdEvents)
         try await pausedAndResumed(rig, at: 0.3, words: ["Yeah", "."], text: "Yeah.")
@@ -124,7 +124,7 @@ import Testing
     /// A real "Keep going." (two words) early in Dee's reply still arms the grace: "I'm
     /// listening." right after never pauses Dee again (tune 6).
     @Test func twoWordsEarlyStillArmTheGrace() async throws {
-        let rig = try LoopRig()
+        let rig = try LoopRig(duckOnOnset: false)   // calm off: `resumeGrace` is tied to a paused hold's resume
         _ = rig.graph.setManualFacts(aecActive: false, outputLatency: 0)
         try await pausedAndResumed(rig, at: 0.3, words: ["Keep", " going", "."], text: "Keep going.")
         let paused = try await nextOnsetPausesHer(rig)
@@ -135,7 +135,7 @@ import Testing
     /// A one-word "Mm-hm." later in Dee's reply (live: real ones began ≥ 1.5 s in) is theirs:
     /// the grace holds.
     @Test func oneWordLaterInHerReplyArmsTheGrace() async throws {
-        let rig = try LoopRig()
+        let rig = try LoopRig(duckOnOnset: false)   // calm off: `resumeGrace` is tied to a paused hold's resume
         _ = rig.graph.setManualFacts(aecActive: false, outputLatency: 0)
         try await pausedAndResumed(rig, at: CloudVoice.echoOnsetWindow + 0.4, words: ["Mm", "-hm", "."], text: "Mm-hm.")
         let paused = try await nextOnsetPausesHer(rig)
@@ -145,7 +145,7 @@ import Testing
 
     /// With echo cancellation on, a "Yeah." early in Dee's reply is theirs: the grace holds.
     @Test func withEchoCancellationAnEarlyYeahArmsTheGrace() async throws {
-        let rig = try LoopRig()
+        let rig = try LoopRig(duckOnOnset: false)   // calm off: `resumeGrace` is tied to a paused hold's resume
         _ = rig.graph.setManualFacts(aecActive: true, outputLatency: 0)
         try await pausedAndResumed(rig, at: 0.3, words: ["Yeah", "."], text: "Yeah.")
         let paused = try await nextOnsetPausesHer(rig)

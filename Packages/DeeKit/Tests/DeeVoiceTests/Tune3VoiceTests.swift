@@ -170,7 +170,8 @@ extension LoopRig {
     /// within 0.6 s of their last sound — without the server's speech_stopped.
     @Test(arguments: [("Go on.", ["Go", " on", "."], 0.58), ("Mm-hm.", ["Mm", "-hm", "."], 0.89)])
     func aShortBackchannelResumesHerWithinSixTenthsOfASecond(text: String, words: [String], seconds: Double) async throws {
-        let rig = try LoopRig()
+        // Pins 0.6.0's pause for a continuer (calm round 2 never pauses for one: Round2ContinuerTests).
+        let rig = try LoopRig(duckOnOnset: false)
         let holds = Collector(rig.voice.holdEvents)
         try await rig.start()
         try await rig.pausedBy("item_u2", talk: seconds)
@@ -268,8 +269,11 @@ extension LoopRig {
     /// "Mm, … what about the moon?": "Mm." is committed in the pause and its words
     /// say "go on" — but they talked on, and no item holds that yet. Dee waits
     /// for it (`holdUncoveredWait`); its words are a real turn: Dee never resumes.
-    @Test func moreWordsAfterAQuickCommitAreWaitedFor() async throws {
-        let rig = try LoopRig()
+    /// Calm (round 2): Dee is ducked, not paused, for "Mm"; the new item is judged against
+    /// Dee's echo first (review F1) and joins the hold with its words, which then pause Dee.
+    @Test(arguments: [false, true])
+    func moreWordsAfterAQuickCommitAreWaitedFor(calm: Bool) async throws {
+        let rig = try LoopRig(duckOnOnset: calm)
         let holds = Collector(rig.voice.holdEvents)
         try await rig.start()
         try await rig.pausedBy("item_u2", talk: 0.4)
@@ -286,13 +290,14 @@ extension LoopRig {
         await rig.settle()
         try rig.quiet(0.1)
         await rig.settle()
-        #expect(rig.voice.floorHold?.items == ["item_u2", "item_u3"])
+        if !calm { #expect(rig.voice.floorHold?.items == ["item_u2", "item_u3"]) }
         // Long speech: the server's own stop and commit.
         rig.push(Srv.speechStopped("item_u3", ms: rig.uplinkMsNow - 300), Srv.committed("item_u3"),
                  Srv.userTranscript("item_u3", "What about the moon?"))
         await rig.settle()
         try rig.quiet(0.2)
         #expect(rig.voice.floorHold?.wordsAt != nil)
+        if calm { #expect(rig.voice.floorHold?.items == ["item_u2", "item_u3"] && rig.voice.floorHold?.phase == .paused) }
         #expect(!holds.all.contains { if case .resumed = $0 { true } else { false } })
         rig.voice.shutdown()
     }

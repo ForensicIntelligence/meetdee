@@ -217,7 +217,10 @@ import Testing
         #expect(deletes.count == 1)
         if case .itemDelete(let id, _)? = deletes.first { #expect(id == "item_echo") }
         #expect(!h.log.contains { if case .userCommitted("item_echo", _) = $0 { true } else { false } })
-        #expect(!h.log.contains { if case .userTranscript("item_echo", _) = $0 { true } else { false } })
+        // Calm round 2 review (correct F3): the words of an echo-rejected item still reach the voice
+        // (a stop-led question in it is rescued there); the voice never forwards them, and the
+        // session neither logs nor answers them (below).
+        #expect(h.log.all.filter { if case .userTranscript("item_echo", _) = $0 { true } else { false } }.count == 1)
         #expect(!h.log.contains { if case .userSpeechStopped("item_echo", _) = $0 { true } else { false } })
         #expect(h.log.contains(.echoRejected(itemID: "item_echo")))
         #expect(h.sentCount("response.create") == 1)   // no reply

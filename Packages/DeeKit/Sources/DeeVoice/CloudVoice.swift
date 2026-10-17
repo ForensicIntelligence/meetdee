@@ -95,6 +95,18 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// there; anything else ends the reply where Dee paused. Off: every
         /// barge-in cuts Dee at once (the words never matter).
         public var holdOnBargeIn = true
+        /// Calm (spec "calm", mode 1): onset evidence over Dee's reply *ducks* Dee
+        /// (−12 dB; −6 dB in a TV room) instead of pausing Dee; Dee pauses only for
+        /// sustained voice, a stop / command word, words that aren't "go on", or the
+        /// brain's reply (`FloorHold.Phase`). nil (the default): on for the OpenAI
+        /// provider (mode 1), off for a LAN one (modes 2 / 3), unless
+        /// `DEE_DUCK_ON_ONSET=0|1` (`CalmTuning.duckOverride`) says otherwise. An explicit
+        /// value wins. Needs `holdOnBargeIn`. Off: the 0.6.0 behaviour, byte for byte.
+        public var duckOnOnset: Bool?
+        /// `duckOnOnset` as it applies (see there).
+        public var ducksOnOnset: Bool {
+            holdOnBargeIn && (duckOnOnset ?? CalmTuning.duckOverride() ?? provider.isOpenAI)
+        }
         /// v0.6 (contract §4): start DORMANT — no socket, no uplink, no key mint,
         /// no clip rendering — until `wake(onsetFrame:)`. The app: true. Off (the
         /// harness's "conversation always open"): connects at `start()` exactly as v0.5.
@@ -188,6 +200,14 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// The brain said "go on" while more of the burst was still coming: Dee
         /// goes on once they are quiet and no item waits for its words.
         var goOn = false
+        /// Round 3 review: the items the brain's go-on was for (those with words when it said so).
+        var goOnItems: Set<String> = []
+        /// Round 3 review (regress F1): items our own quick commit closed (the user may talk on in
+        /// the next item: one utterance).
+        var ownSplit: Set<String> = []
+        /// Round 3 review (regress F2): the sustain test fired while a go-on was known and was
+        /// ignored; the ear's sustain test is armed again once something new is being said.
+        var sustainIgnored = false
         /// Tune 12: when each item's speech began and ended (graph clock: the server's
         /// times mapped to ours, or when it said so).
         var starts: [String: Double] = [:]
@@ -212,6 +232,88 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             followsContinuer(item) && Backchannel.isContinuerTail(words, sound: sound)
         }
 
+        /// Round 3: `item` is still being said — the server has neither ended nor committed it,
+        /// and neither did we (tails aside).
+        func isOpen(_ item: String) -> Bool {
+            !tails.contains(item) && ends[item] == nil && closedAt[item] == nil && !(item == itemID && committed)
+        }
+        /// Round 3: an item of the hold is still being said.
+        var hasOpenItem: Bool { items.contains(where: isOpen) }
+        /// Round 3 (TV room, live calm-ask-tv15 q03): an item of the hold is still being said, or
+        /// was closed less than `late` ago and has no words yet — the utterance is not all in.
+        func tvPending(at t: Double, late: Double) -> Bool {
+            items.contains { item in
+                if tails.contains(item) { return false }
+                if isOpen(item) { return true }
+                guard final[item] == nil, partial[item] == nil else { return false }
+                return t - (closedAt[item] ?? ends[item] ?? t) < late - 1e-9
+            }
+        }
+        /// Round 3 (live t2-backchannel-echo20 c02): their words already said "go on" — the brain
+        /// did (`goOn`), or every item's full words so far do: Dee's sustain test never pauses
+        /// Dee over them ("Don't stop." … more of it still being said).
+        ///
+        /// Round 3 review (regress F2 / correct F1: «Okay.» or «Keep going.», then at once a 2 s
+        /// question in a new item — no pause, then `unduck (duckMax)` filed the question as a
+        /// backchannel): the go-on covers only what was said so far. An item without words yet,
+        /// one still being said whose words so far are not "go on", or one the brain's go-on never
+        /// saw (`goOnItems`) is something new: the sustain pause stands for it.
+        var goOnKnown: Bool {
+            for item in items where !tails.contains(item) {
+                guard let raw = final[item] ?? partial[item] else { return false }     // no words yet
+                let w = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                let unseen = goOn && !goOnItems.contains(item)
+                if w.isEmpty {
+                    if isOpen(item) { return false }
+                    continue
+                }
+                let goesOn = wordsGoOn(item, w, final: final[item] != nil) || continuerTail(item, w, sound: sounds[item])
+                if !goesOn, isOpen(item) || unseen { return false }
+            }
+            if goOn { return true }
+            guard items.contains(where: { final[$0].map { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ?? false })
+            else { return false }
+            return verdict(settled: true, quiet: true) == .resume
+        }
+
+        /// Round 3 review (correct F1): an item the brain's go-on never saw has words that are
+        /// not "go on" (a question after «Keep going.»): they decide by their words, the
+        /// brain's go-on does not cover them.
+        var answerAfterGoOn: Bool {
+            guard goOn else { return false }
+            return items.contains { item in
+                guard !tails.contains(item), !goOnItems.contains(item),
+                      let w = final[item]?.trimmingCharacters(in: .whitespacesAndNewlines), !w.isEmpty else { return false }
+                return !wordsGoOn(item, w, final: true) && !continuerTail(item, w, sound: sounds[item])
+            }
+        }
+
+        /// Round 3 review (regress F1): the hold's items grouped into utterances. An item joins
+        /// the one before it only when our own quick commit closed that one (`ownSplit`) and it
+        /// began within `CalmTuning.splitJoinGap` of that commit: one utterance we split (live
+        /// calm-ask-tv15 q03, «What?» | «time is it?»). Items the server split itself (its VAD
+        /// heard a pause: the TV talking on, phrase after phrase) stay apart.
+        var utterances: [[String]] {
+            var out: [[String]] = []
+            var prev: String?
+            for item in items where !tails.contains(item) {
+                if let p = prev, ownSplit.contains(p), var last = out.popLast() {
+                    let close = closedAt[p] ?? ends[p]
+                    if let start = starts[item], let close, start - close > CalmTuning.splitJoinGap + 1e-9 {
+                        out.append(last)
+                        out.append([item])
+                    } else {
+                        last.append(item)
+                        out.append(last)
+                    }
+                } else {
+                    out.append([item])
+                }
+                prev = item
+            }
+            return out
+        }
+
         /// Items still without any words (tails aside).
         var wordless: [String] { items.filter { final[$0] == nil && partial[$0] == nil && !tails.contains($0) } }
 
@@ -229,6 +331,51 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// yet, nothing announced; the user's voice or words confirm it (a hold from
         /// `since`), quiet ends it (Dee goes on, nothing happened).
         public internal(set) var probe = false
+
+        /// Calm: how Dee gives way. `.ducked`: Dee keeps talking, quieter, while the sound
+        /// is judged — no deadline cuts the reply; it ends by escalation (`.paused`) or by
+        /// an unduck. `.paused`: Dee is silent (the 0.6.0 hold; its deadlines count from
+        /// `since`, the escalation).
+        public enum Phase: Sendable, Equatable { case ducked, paused }
+        public internal(set) var phase: Phase = .paused
+        /// Calm: when the duck began (graph clock).
+        public internal(set) var duckSince: Double?
+        /// Calm: the sustain test fired for this hold (`EarCore.Action.sustained`).
+        public internal(set) var sustained = false
+        /// Calm: why Dee paused ("sustained", "stopword", "answer", "brain", "localOnly",
+        /// "legacy"); nil while ducked.
+        public internal(set) var why: String?
+        /// Calm: the duck began in a TV room (`EarCore.tvRoom`).
+        public internal(set) var tvRoom = false
+        /// Calm round 2 review (correct F3): a stop word in this item, rejected as Dee's echo,
+        /// paused Dee (`rejectedCommand`); its full words, when they say more than the stop
+        /// ("Wait, what did you say about the moon?"), go to the brain as a turn
+        /// (`HoldEvent.rescued`). `rescued`: they did — the hold waits for the brain's answer.
+        public internal(set) var rescueItem: String?
+        public internal(set) var rescued = false
+        /// Calm: items said in a short burst (`CalmTuning.tokenBurstMax`): laugh tokens,
+        /// sound tags and fillers count as "go on" for them (`Backchannel.isHoldSoundToken`).
+        public internal(set) var tokenItems: Set<String> = []
+
+        /// `words`, said in `item`, mean "go on" here (the hold's words rule).
+        func wordsGoOn(_ item: String, _ words: String, final: Bool) -> Bool {
+            Backchannel.isBackchannel(words, inHold: shortItems.contains(item), final: final, sound: sounds[item])
+                || (tokenItems.contains(item) && Backchannel.isHoldSoundToken(words, sound: sounds[item]))
+        }
+
+        /// Calm: the items whose words so far hold a stop or command word or Dee's name
+        /// (`CalmTuning.hasCommandWord`). Round 2: the transcript deltas count as they come —
+        /// the first delta with "Stop" / "Wait" decides, never the settled or full words.
+        func commandItems(names: [String]) -> [String] {
+            items.filter { item in
+                if let w = final[item] { return CalmTuning.hasCommandWord(w, names: names) }
+                guard let w = partial[item] else { return false }
+                return CalmTuning.hasCommandWord(w, names: names, partial: true)
+            }
+        }
+
+        /// Calm: no item has any words yet (none came, or empty / failed transcripts).
+        var noWords: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
         public init(itemID: String?, since: Double) {
             self.since = since
@@ -255,8 +402,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             for item in items.dropLast() {
                 guard let w = (final[item] ?? partial[item])?.trimmingCharacters(in: .whitespacesAndNewlines),
                       !w.isEmpty else { continue }
-                if !Backchannel.isBackchannel(w, inHold: shortItems.contains(item), final: final[item] != nil,
-                                              sound: sounds[item]) { return false }
+                if !wordsGoOn(item, w, final: final[item] != nil) { return false }
             }
             return true
         }
@@ -305,8 +451,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     continue
                 }
                 allEmpty = false
-                if !Backchannel.isBackchannel(clean, inHold: shortItems.contains(item), final: isFinal, sound: sounds[item]),
-                   !continuerTail(item, clean, sound: sounds[item]) {
+                if !wordsGoOn(item, clean, final: isFinal), !continuerTail(item, clean, sound: sounds[item]) {
                     if isFinal || partialAnswers { return .answer }
                     pendingAnswer = true                            // its full words decide
                     continue
@@ -423,6 +568,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         /// The hold ended as a barge-in: Dee's reply ends where Dee paused.
         /// `byVoice`: no answer came, the voice ended it (`.bargeIn` was emitted).
         case ended(itemIDs: [String], byVoice: Bool)
+        /// Calm round 2 review (correct F3): the words of `itemID` — rejected as Dee's echo
+        /// (deleted from the conversation), whose stop word paused Dee — say more than the
+        /// stop: a turn of the user's. The brain answers `text` (Dee is paused for it).
+        case rescued(itemID: String, text: String)
     }
 
     /// A speculative reply (tune 4): requested before the turn is sure, its audio
@@ -478,6 +627,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     public let clips: ClipCache?
     public let timeline: TurnTimeline
     public let configuration: Configuration
+    /// Calm is on for this voice (`Configuration.ducksOnOnset`, resolved once).
+    public let duckOnOnset: Bool
 
     private let stream: AsyncStream<VoiceEvent>
     private let continuation: AsyncStream<VoiceEvent>.Continuation
@@ -616,6 +767,23 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         var voiceOverEchoItems: [String] = []
         /// The open response is held by `spec` (its audio is gated in the player).
         var responseGated = false
+        /// Calm: items of holds resolved by a resume or an unduck (graph clock; `holdClaims`),
+        /// and whether that hold had no words at all (their late words then go through
+        /// `holdForWords`: a late "Stop." still stops Dee).
+        var recentlyResolved: [String: (at: Double, wordless: Bool, tv: Bool)] = [:]
+        /// Calm round 2: items of a duck that was on when Dee ended the reply on Dee's own (a
+        /// sentence / token cap): never a barge-in; an empty transcript or a body sound there is
+        /// not answered (`holdClaims`). `empty`: their transcript came back empty. `failed`: their
+        /// transcription failed — a turn the brain answers from the audio, labelled or not.
+        var ownEndItems: [String: (at: Double, empty: Bool, sound: Bool, failed: Bool)] = [:]
+        /// Calm round 2: rejected items' transcript deltas so far (a stop word in them).
+        var rejectedPartial: [String: String] = [:]
+        /// Calm round 2: Dee's names the user may call Dee by (besides "Dee"): the persona's.
+        var names: [String] = []
+        /// Calm: items of ducks whose reply played out under them (`duckPlayedOut`).
+        var playedOutDucks: [String: Double] = [:]
+        /// Calm: items dropped as the TV (`ambient`; newest 32).
+        var ambientItems: [String] = []
 
         /// v0.6: not DORMANT (waking or awake). Connecting, reconnecting and the
         /// uplink only happen while true.
@@ -651,6 +819,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         self.clips = clips
         self.timeline = timeline
         self.configuration = configuration
+        let calm = configuration.ducksOnOnset
+        self.duckOnOnset = calm
         (stream, continuation) = AsyncStream<VoiceEvent>.makeStream(bufferingPolicy: .bufferingNewest(512))
         (brainEvents, brain) = AsyncStream<BrainEvent>.makeStream(bufferingPolicy: .unbounded)
         (holdEvents, holdContinuation) = AsyncStream<HoldEvent>.makeStream(bufferingPolicy: .bufferingNewest(64))
@@ -663,6 +833,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             s.awake = !dormant
             // DORMANT: sustained local voice never opens an uplink (there is no socket).
             s.core.wakeOnVoice = dormant ? false : configuration.wakeOnVoice
+            s.core.duckOnOnset = calm
         }
         if dormant { clips?.renderAllowed = false }
         graph.player.timeline = timeline                 // `.firstAudioPlayed` / `.flushed` land in the same turns
@@ -712,6 +883,15 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             // Tune 12: the split-off rest of a continuer — the hold's own rule.
             if s.hold?.followsContinuer(itemID) == true || s.continuerTailItems.contains(itemID),
                Backchannel.isContinuerTail(text, sound: s.hold?.sounds[itemID] ?? sound(itemID, s, at: t)) { return true }
+            // Calm (spec §4.1): a laugh, a sound tag or a filler, in a hold (either phase, or one
+            // Dee went on through), said in a short burst.
+            if duckOnOnset, s.hold?.items.contains(itemID) == true || s.backchannelItems.contains(itemID)
+                || s.recentlyResolved[itemID] != nil || s.ownEndItems[itemID] != nil {
+                let snd = s.hold?.sounds[itemID] ?? sound(itemID, s, at: t)
+                if (snd?.voiced ?? 0) <= CalmTuning.tokenBurstMax + 1e-9, Backchannel.isHoldSoundToken(text, sound: snd) {
+                    return true
+                }
+            }
             guard Backchannel.isBackchannel(text, inHold: true, sound: sound(itemID, s, at: t)) else { return false }
             if s.hold?.shortItems.contains(itemID) == true || s.shortHoldItems.contains(itemID)
                 || s.hold?.shortBursts.contains(itemID) == true { return true }
@@ -785,8 +965,84 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     }
 
     /// Dee's reply paused for the user right now (nil: not paused). While held Dee
-    /// is silent, nothing is cut yet, and `.bargeIn` hasn't been emitted.
+    /// is silent, nothing is cut yet, and `.bargeIn` hasn't been emitted. Calm: also a
+    /// ducked hold (`phase == .ducked`: Dee still talks, quieter, while their sound is judged).
     public var floorHold: FloorHold? { inner.withLock { $0.hold?.probe == true ? nil : $0.hold } }
+
+    /// Calm (spec §4.2, the `wordsFailed` race): `itemID` belongs to the current hold (a duck,
+    /// or a pause for a labelled sustained sound: `claimsNoWords`), or to one the voice
+    /// resolved by a resume or an unduck within `CalmTuning.recentlyResolvedTTL`: the voice
+    /// decides it — the brain never answers it for failed or empty words. Read synchronously,
+    /// so the outcome is the same whichever pump runs first. Always false with calm off.
+    public func holdClaims(itemID: String) -> Bool {
+        guard duckOnOnset else { return false }
+        let t = graph.now
+        return inner.withLock { s in
+            if let h = s.hold, !h.probe, h.items.contains(itemID) { return claimsNoWords(h, s, at: t) }
+            if let r = s.recentlyResolved[itemID], t - r.at <= CalmTuning.recentlyResolvedTTL + 1e-9 { return true }
+            // Round 2: Dee ended the reply on Dee's own over their sound — a laugh's empty words
+            // (live calm-sounds-clean ns09: answered with a 5.9 s reply) or a labelled sound is
+            // not a turn; failed words still are (the brain answers the audio, as in 0.6.0) —
+            // also with a cough or laugh label in the burst (round 2 review, regress F3: a cough,
+            // then "What time is it?" with failed words went unanswered). Until the words come,
+            // a labelled sound keeps the brain waiting for them.
+            if let o = s.ownEndItems[itemID], t - o.at <= CalmTuning.recentlyResolvedTTL + 1e-9 {
+                return o.empty || (o.sound && !o.failed)
+            }
+            // (A reply that played out under the duck leaves an ordinary turn: never claimed,
+            // so failed words are answered from the audio as in 0.6.0 — review F2.)
+            return false
+        }
+    }
+
+    /// Calm: a hold whose words never come is the voice's to end as Dee going on — a ducked
+    /// one (a short sound), or a pause for a sustained sound labelled a laugh / cough / sneeze /
+    /// breath (R5). Any other pause with no words ends as in 0.6.0: the brain answers the
+    /// audio (review F3: a sustained question whose transcription failed).
+    private func claimsNoWords(_ h: FloorHold, _ s: Inner, at t: Double) -> Bool {
+        if h.phase == .ducked { return true }
+        return h.why == "sustained" && soundLike(h, s, at: t)
+    }
+
+    /// Calm R5: the sustained burst of `h` had a body-sound label over it.
+    private func soundLike(_ h: FloorHold, _ s: Inner, at t: Double) -> Bool {
+        s.core.bodySound(from: (h.duckSince ?? h.since) - CalmTuning.sustainLookback, to: t)
+    }
+
+    /// Calm (spec §3.3): `itemID`, said in a ducked hold in a TV room, is the TV: its words
+    /// (`text`, so far) hold no stop or command word, the user's voice was never sustained,
+    /// and no item of the hold has a voice of its own at the TV bar
+    /// (`CalmTuning.itemSustain`, `itemSustainShare`) — or the voice already dropped it as
+    /// ambient. The brain never asks for a reply to it. Always false with calm off.
+    public func isAmbient(itemID: String, text: String) -> Bool {
+        guard duckOnOnset else { return false }
+        let t = graph.now
+        return inner.withLock { s in
+            if s.ambientItems.contains(itemID) { return true }
+            guard let h = s.hold, !h.probe, h.phase == .ducked, h.items.contains(itemID) else { return false }
+            // (A stop word or Dee's name counts only with the item's own voice over the TV.)
+            if CalmTuning.hasCommandWord(text, names: s.names), commandVoiced(itemID, h, s, at: t) { return false }
+            return ambientHold(h, s, at: t)
+        }
+    }
+
+    /// Calm: Dee's reply played out while `itemID`'s duck was on (within
+    /// `CalmTuning.recentlyResolvedTTL`): a "go on" for it needs no carry-on (Dee finished).
+    public func duckPlayedOut(itemID: String) -> Bool {
+        guard duckOnOnset else { return false }
+        let t = graph.now
+        return inner.withLock { s in
+            s.playedOutDucks[itemID].map { t - $0 <= CalmTuning.recentlyResolvedTTL + 1e-9 } ?? false
+        }
+    }
+
+    /// Calm round 2 (D2): the names the user may call Dee by besides "Dee" (the persona's,
+    /// "Mira"): said over a ducked Dee, they pause Dee like a stop word.
+    public func setAddressNames(_ names: [String]) {
+        let clean = names.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty && $0 != "dee" }
+        inner.withLock { $0.names = clean }
+    }
 
     /// Tune 7 (T6-4): Dee is paused for a probe right now (an onset over Dee that
     /// Dee's echo masks: the ear listens into Dee's silence). Not a hold yet: the brain
@@ -806,6 +1062,9 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             // it is in (`checkHold`: its words decide), never over them.
             if h.deferGoOn(talking: s.core.voiceActive(at: t)) {
                 s.hold?.goOn = true
+                // Round 3 review (correct F1): the go-on is for the words the brain heard — not for
+                // an item still without words (they may be asking something new in it).
+                s.hold?.goOnItems.formUnion(h.items.filter { h.final[$0] != nil || h.partial[$0] != nil })
                 // Tune 10 (T9-1): the brain heard "go on": no `holdAfterWords` cut
                 // for words it already judged (echo10 c05: "Be sneaking," then "going").
                 s.hold?.wordsAt = nil
@@ -1041,9 +1300,26 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         play(VoiceClip.laugh(intensity: intensity, variant: variant), deferWhileUserSpeaks: false)
     }
 
-    public func stopSpeaking() {
+    public func stopSpeaking() { stopSpeaking(ownEnd: false) }
+
+    /// `ownEnd`: Dee ends the reply on Dee's own (the brain's sentence or token cap), not
+    /// for the user. Calm round 2: a duck on then is released, not escalated — their sound
+    /// never cut Dee (no barge-in), and its empty or sound-only words are no turn
+    /// (`holdClaims`; live calm-sounds-clean ns09: a laugh answered with a 5.9 s reply).
+    public func stopSpeaking(ownEnd: Bool) {
         let t = graph.now
         inner.withLock { s in
+            if ownEnd, duckOnOnset, let h = s.hold, !h.probe, h.phase == .ducked {
+                s.hold = nil
+                graph.player.unduck()
+                s.core.unducked(at: t)
+                let sound = soundLike(h, s, at: t)
+                for item in h.items {
+                    s.ownEndItems[item] = (t, h.emptyWords.contains(item), sound, false)
+                    s.playedOutDucks[item] = t
+                }
+                mark(.note, detail: "unduck \(h.itemID ?? "-") (stopped)")
+            }
             s.core.initiativePending = false
             specCut(&s, why: "cut")
             if s.sessionPlaying {
@@ -1294,6 +1570,37 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         inner.withLock { s in apply(s.core.probeNow(item, at: t), &s) }
     }
 
+    /// Tests (calm): a duck for `item` now, as the ear's onset evidence would start one.
+    func duckForTesting(_ item: String?) {
+        let t = graph.now
+        inner.withLock { s in apply(s.core.duckNow(item, at: t), &s) }
+    }
+
+    /// Tests (calm): the duck released now (`why` in its note), as a deadline would.
+    func unduckForTesting(why: String) {
+        let t = graph.now
+        inner.withLock { s in unduck(&s, at: t, why: why) }
+    }
+
+    /// Tests (calm): our quick commit of the hold's open item now, as `checkHold` sends it after
+    /// a short burst (in a TV rig the bed keeps the ear from hearing the user quiet).
+    func quickCommitForTesting() {
+        let t = graph.now
+        inner.withLock { s in
+            guard let h = s.hold, let item = h.itemID, !h.committed, !h.commitSent else { return }
+            s.hold?.commitSent = true
+            s.hold?.commitAt = t
+            s.hold?.quickCommit = true
+            s.hold?.ownSplit.insert(item)
+            s.burstCommit = (t, false)
+            mark(.note, detail: "quick commit (hold) \(item)")
+            command(.commitSpeech)
+        }
+    }
+
+    /// Tests (calm): the ear's room bed.
+    var earBed: RoomBed { inner.withLock { $0.core.bed } }
+
     /// Items waiting for their words to decide them (tests, harness).
     var itemsAwaitingWords: Set<String> { inner.withLock { Set($0.wordsPending.keys) } }
 
@@ -1333,6 +1640,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             }
             checkHold(&s, at: t)
             flushTailDrops(&s, at: t)
+            if duckOnOnset, !s.recentlyResolved.isEmpty || !s.playedOutDucks.isEmpty || !s.ownEndItems.isEmpty {
+                let ttl = CalmTuning.recentlyResolvedTTL * 2
+                s.recentlyResolved = s.recentlyResolved.filter { t - $0.value.at <= ttl }
+                s.playedOutDucks = s.playedOutDucks.filter { t - $0.value <= ttl }
+                s.ownEndItems = s.ownEndItems.filter { t - $0.value.at <= ttl }
+            }
             if let sp = s.spec, t - sp.armedAt >= configuration.speculativeMax - 1e-9 {
                 discardSpec(&s, at: t, byVoice: true, why: "timeout")
             }
@@ -1373,6 +1686,14 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             s.continuerTailItems.append(item)
             if s.continuerTailItems.count > 16 { s.continuerTailItems.removeFirst(s.continuerTailItems.count - 16) }
         }
+        // Calm (§4.1): laugh tokens, sound tags and fillers count for items said in a short burst.
+        if duckOnOnset {
+            let tokens = Set(h.items.filter { !h.tails.contains($0) && (h.sounds[$0]?.voiced ?? 0) <= CalmTuning.tokenBurstMax + 1e-9 })
+            if tokens != h.tokenItems {
+                h.tokenItems = tokens
+                s.hold?.tokenItems = tokens
+            }
+        }
         // Words that are a continuer only in a hold: count when the burst was short.
         for item in h.items where !h.shortItems.contains(item) {
             guard let w = h.final[item] ?? h.partial[item], !Backchannel.isBackchannel(w),
@@ -1384,6 +1705,14 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             if s.shortHoldItems.count > 16 { s.shortHoldItems.removeFirst(s.shortHoldItems.count - 16) }
             mark(.note, detail: "hold-only continuer \(item) (short)")
         }
+        if h.sustainIgnored, h.phase == .ducked, !h.goOnKnown {
+            // Round 3 review (regress F2): the go-on no longer covers what they say (a new item,
+            // words not "go on"): the ear's sustain test may pause Dee for it after all.
+            h.sustainIgnored = false
+            s.hold?.sustainIgnored = false
+            s.core.rearmSustain()
+            mark(.note, detail: "sustain re-armed \(h.itemID ?? "-")")
+        }
         let lastSound = s.core.lastUserSoundTime
         let quiet = t - lastSound >= Self.holdCommitSilence
         if let item = h.itemID, !h.committed, !h.commitSent, h.wordsAt == nil, quiet {
@@ -1393,13 +1722,15 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             // yet: the same, at once.
             let stopped = h.speechStoppedAt != nil
             let quick = !stopped && h.earlierWordsGoOn
-                && (s.core.lastUserBurst(since: h.since - Self.holdBurstLookback, gap: Self.holdCommitSilence).map {
+                && (s.core.lastUserBurst(since: min(h.since, h.duckSince ?? h.since) - Self.holdBurstLookback,
+                                         gap: Self.holdCommitSilence).map {
                     $0.end - $0.start <= Self.holdQuickBurst + 1e-9 && $0.end > (h.commitAt ?? -.infinity)
                 } ?? false)
             if stopped || quick {
                 s.hold?.commitSent = true
                 s.hold?.commitAt = t
                 s.hold?.quickCommit = quick
+                if quick { s.hold?.ownSplit.insert(item) }
                 s.burstCommit = (t, false)
                 if quick { mark(.note, detail: "quick commit (hold) \(item)") }
                 command(.commitSpeech)
@@ -1418,6 +1749,10 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
         let wordsLate = quiet && h.committed && (h.commitAt.map { t - $0 >= Self.holdWordsLate - 1e-9 } ?? false)
         let partialAnswers = !h.quickCommit || (h.lastDeltaAt.map { t - $0 >= Self.holdFinalWait - 1e-9 } ?? true)
         let verdict = h.verdict(settled: settled, quiet: wordsLate, partialAnswers: partialAnswers)
+        if h.phase == .ducked {
+            checkDuck(&s, h, verdict: verdict, settled: settled, quietNow: quietNow, uncovered: uncovered, at: t)
+            return
+        }
         if h.goOn, verdict != .answer, quietNow, !uncovered, !h.deferGoOn(talking: s.core.voiceActive(at: t)) {
             resumeHold(&s, at: t, why: "brain")
             return
@@ -1431,21 +1766,328 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             // They meant it: the brain answers (`respond` ends Dee's reply where Dee
             // paused); if nobody does, `holdAfterWords` does — never while the
             // brain's go-on waits (tune 10, T9-1: the other deadlines still hold).
-            if h.wordsAt == nil, !h.goOn { s.hold?.wordsAt = t }
+            if h.wordsAt == nil, !h.goOn || (duckOnOnset && h.answerAfterGoOn) { s.hold?.wordsAt = t }
         case .wait:
             break
         }
         guard let h = s.hold else { return }
-        if t - h.since >= Self.holdMax - 1e-9
-                    || ((h.speechStoppedAt ?? (h.committed ? h.commitAt : nil)).map { t - $0 >= Self.holdWordsWait - 1e-9 } ?? false)
-                    || (h.wordsAt.map { t - $0 >= Self.holdAfterWords - 1e-9 } ?? false)
-                    || (h.itemID == nil && t - h.since >= Self.holdNoItem - 1e-9) {
+        let wordsWaitHit = (h.speechStoppedAt ?? (h.committed ? h.commitAt : nil)).map { t - $0 >= Self.holdWordsWait - 1e-9 } ?? false
+        let noItemHit = h.itemID == nil && !h.rescued && t - h.since >= Self.holdNoItem - 1e-9
+        let afterWordsHit = h.wordsAt.map { t - $0 >= Self.holdAfterWords - 1e-9 } ?? false
+        if t - h.since >= Self.holdMax - 1e-9 || wordsWaitHit || afterWordsHit || noItemHit {
+            if duckOnOnset, h.why == "sustained", h.noWords, wordsWaitHit || noItemHit, !afterWordsHit, soundLike(h, s, at: t) {
+                // Calm R5: paused for a sustained sound that never became words and was labelled
+                // a laugh / cough (a long laugh, a coughing fit): Dee goes on instead of ending
+                // the reply. Unlabelled, it may be a question whose words failed (review F3).
+                resumeHold(&s, at: t, why: "nowords")
+                return
+            }
             mark(.note, detail: "hold ended by the voice \(h.itemID ?? "-")")
             cutReply(&s, announce: true)
         }
     }
 
+    /// Calm: a ducked hold's escalations, releases and deadlines (spec R3 / R4). None of
+    /// them cuts Dee's reply: it pauses Dee (`escalate`) or lets Dee go on (`unduck`).
+    private func checkDuck(_ s: inout Inner, _ h: FloorHold, verdict: FloorHold.Verdict, settled: Bool,
+                           quietNow: Bool, uncovered: Bool, at t: Double) {
+        // (b) a stop or command word ("Wait,", "hold on", "Dee"), at its first delta — in a TV
+        // room only with the item's own voice over the TV (the TV says "Wait!" too).
+        if heardCommands(h, s, at: t).contains(where: { commandVoiced($0, h, s, at: t) }) {
+            escalate(&s, why: "stopword")
+            // Their words decide now, as in a pause (the reply ends no later than in 0.6.0).
+            if verdict == .answer, !h.goOn, s.hold?.wordsAt == nil { s.hold?.wordsAt = t }
+            return
+        }
+        if h.goOn, verdict != .answer, quietNow, !uncovered, !h.deferGoOn(talking: s.core.voiceActive(at: t)) {
+            unduck(&s, at: t, why: "resume", event: "brain")
+            return
+        }
+        switch verdict {
+        case .resume:
+            if quietNow, !uncovered {
+                unduck(&s, at: t, why: "resume", event: "words")
+                return
+            }
+        case .answer:
+            // (c) words that are not "go on" — unless it is only the TV talking (§3.3).
+            if ambientHold(h, s, at: t) {
+                // Round 3 (live calm-ask-tv15 q03: «What?» | «time is it?» split by the quick
+                // commit, all dropped as the TV while the rest was still being said): what looks
+                // like the TV so far is judged once the utterance is all in — no item still being
+                // said or waiting for its words — up to `duckMax`; Dee stays ducked meanwhile.
+                if t - (h.duckSince ?? h.since) < CalmTuning.duckMax - 1e-9, h.tvPending(at: t, late: Self.holdWordsLate) { break }
+                dropAmbient(&s, at: t)
+                return
+            }
+            // Round 2: partial words that may still become a continuer ("I'm still" of "I'm still
+            // listening.") wait for the full words while ducked — Dee keeps talking, ducked.
+            let mayGoOn = h.items.contains { item in
+                guard h.final[item] == nil, let p = h.partial[item]?.trimmingCharacters(in: .whitespaces), !p.isEmpty,
+                      let end = p.last, !".!?".contains(end) else { return false }
+                return Backchannel.mayBecomeBackchannel(p) && !Backchannel.isBackchannel(p)
+            }
+            // Round 3 review (correct F1): the brain's go-on covers only the items it saw; words
+            // that are not "go on" in a later item escalate as without it.
+            if !h.goOn || h.answerAfterGoOn, !mayGoOn {
+                escalate(&s, why: "answer")
+                if s.hold?.wordsAt == nil { s.hold?.wordsAt = t }
+                return
+            }
+        case .wait:
+            break
+        }
+        let since = h.duckSince ?? h.since
+        if t - since >= CalmTuning.duckMax - 1e-9 {
+            unduck(&s, at: t, why: "duckMax")
+            return
+        }
+        if h.itemID == nil, t - since >= CalmTuning.duckNoItem - 1e-9 {
+            unduck(&s, at: t, why: "noItem")
+            return
+        }
+        // (Never while they talk on after it: what they say now is in no item yet.)
+        if h.noWords, !h.sustained, quietNow, !uncovered, let c = h.speechStoppedAt ?? h.commitAt,
+           t - c >= CalmTuning.duckWordsWait - 1e-9 {
+            unduck(&s, at: t, why: "wordsWait")
+            return
+        }
+        // A cough / sneeze / laugh / breath label over the burst, with two words at most.
+        // Only once they are quiet (review F1): a cough or a laugh may start a real question.
+        // Round 3 (live t2-backchannel-echo20 c03: released in the comma pause of "Wait, stop
+        // talking for a second." — the stop word then came to no hold): never while the server
+        // still has an item of the hold open (they are still saying it).
+        if quietNow, !uncovered, !s.core.voiceActive(at: t), !h.hasOpenItem, s.core.serverOpen == nil,
+           Backchannel.words(h.text).count <= CalmTuning.labelMaxTokens,
+           s.core.bodySound(from: since - CalmTuning.sustainLookback, to: t) {
+            unduck(&s, at: t, why: "label")
+        }
+    }
+
+    /// Calm (§3.3): a ducked hold in a TV room that is only the TV: no sustained voice, no
+    /// stop or command word, and no item with a voice of its own at the TV bar.
+    private func ambientHold(_ h: FloorHold, _ s: Inner, at t: Double) -> Bool {
+        guard h.phase == .ducked, h.tvRoom, !h.sustained,
+              !heardCommands(h, s, at: t).contains(where: { commandVoiced($0, h, s, at: t) }) else { return false }
+        for utterance in h.utterances {
+            var voice = 0.0, span = 0.0, near = false
+            for item in utterance {
+                let until = min(t, h.closedAt[item] ?? t)
+                if ownVoice(item, s, until: until) { return false }
+                guard let v = s.core.itemSustain(itemID: item, until: until) else { continue }
+                // Round 3: a question with near-field evidence is theirs (a false answer to the TV
+                // rather than their question dropped).
+                if (h.final[item] ?? h.partial[item])?.contains("?") == true, Self.nearField(v) { return false }
+                if Self.nearField(v) { near = true }
+                voice += v.voice
+                span += v.span
+            }
+            // Round 3 (live calm-ask-tv15 q03, "What?" | "time is it?"): the items of one utterance
+            // the quick commit split, together, with a voice of their own over the TV. Round 3
+            // review (regress F1): only the items of one utterance we split (the TV's phrases the
+            // server split, q01 | q07 at +2 dB, summed to 0.28 s and cut Dee), and only with
+            // near-field evidence in it: summed voice alone does not tell a soft user from the TV
+            // (q03 at its own level and the TV's q03 as loud as its loud parts, split the same way,
+            // both pass the TV bar together).
+            if utterance.count > 1, near, voice >= CalmTuning.itemSustain - 1e-9,
+               voice >= CalmTuning.itemSustainShare * span - 1e-9 { return false }
+        }
+        return true
+    }
+
+    /// Round 3: near-field evidence in an item over the TV (`CalmTuning.commandPeakDB`): its
+    /// loudest near-end frame far over the bed's ceiling, with some voice at the TV bar.
+    static func nearField(_ v: (voice: Double, span: Double, peak: Double)) -> Bool {
+        v.peak >= CalmTuning.commandPeakDB - 1e-9 && v.voice >= CalmTuning.commandPeakVoice - 1e-9
+    }
+
+    /// Calm (TV room): `item` has a voice of its own over the TV — at the TV bar, at least
+    /// `CalmTuning.itemSustain` and `itemSustainShare` of its speech span.
+    private func ownVoice(_ item: String, _ s: Inner, until t: Double) -> Bool {
+        guard let v = s.core.itemSustain(itemID: item, until: t) else { return false }
+        return v.voice >= CalmTuning.itemSustain - 1e-9 && v.voice >= CalmTuning.itemSustainShare * v.span - 1e-9
+    }
+
+    /// Calm round 2 review (correct F2): the hold's items whose stop / command words are the
+    /// user's. With no echo cancellation the server often puts Dee's echo and the user's sound
+    /// in one item (live t2 echo10 c02: «That sounds like a classic. Don't stop.»): a command
+    /// word whose clause is only Dee's own recent words (`HerWords.isHerEcho`: Dee's "Wait till
+    /// you hear how it ends", then their "Mm-hm.") counts for nothing — as for an item left to
+    /// its words (`commandAtFirstDelta`) or a rejected one (`rejectedCommand`). With echo
+    /// cancellation the item is the user's sound (the ear's near-end evidence ducked Dee).
+    private func heardCommands(_ h: FloorHold, _ s: Inner, at t: Double) -> [String] {
+        let items = h.commandItems(names: s.names)
+        guard !s.core.aecActive, !items.isEmpty else { return items }
+        return items.filter { item in
+            let final = h.final[item] != nil
+            let text = h.final[item] ?? h.partial[item] ?? ""
+            let open = !final && !(text.last.map { ",.!?;:…—".contains($0) } ?? true)
+            let clauses = text.split(whereSeparator: { ",.!?;:…—".contains($0) }).map(String.init)
+            let commanding = clauses.indices.filter { i in
+                CalmTuning.hasCommandWord(clauses[i], names: s.names, partial: open && i == clauses.count - 1)
+            }
+            guard !commanding.isEmpty else { return true }
+            return commanding.contains { !s.herWords.isHerEcho(clauses[$0], at: t, strict: false, asks: false) }
+        }
+    }
+
+    /// Calm round 2: a stop / command word in `item` counts — always outside a TV room; in
+    /// one, only with `CalmTuning.commandVoice` of the item's own voice at the TV bar.
+    private func commandVoiced(_ item: String, _ h: FloorHold, _ s: Inner, at t: Double) -> Bool {
+        guard h.tvRoom else { return true }
+        guard let v = s.core.itemSustain(itemID: item, until: min(t, h.closedAt[item] ?? t)) else { return false }
+        // Round 3 (live calm-ask-tv15 c03): or near-field evidence — the user's short "Wait."
+        // the quick commit split off has 0.16 s at the TV bar, its peak far over the TV's.
+        return v.voice >= CalmTuning.commandVoice - 1e-9 || Self.nearField(v)
+    }
+
+    /// Calm round 2 (TV room): `text`, said in `item`, has no voice of its own over the TV —
+    /// a stop word / Dee's name without `CalmTuning.commandVoice` at the TV bar, other words
+    /// without `ownVoice`.
+    private func tvWords(_ item: String, _ text: String, _ s: Inner, at t: Double) -> Bool {
+        let v = s.core.itemSustain(itemID: item, until: t)
+        let command = CalmTuning.hasCommandWord(text, names: s.names)
+        // Round 3: a stop word, a name or a question with near-field evidence is theirs.
+        if command || text.contains("?"), let v, Self.nearField(v) { return false }
+        if command { return (v?.voice ?? 0) < CalmTuning.commandVoice - 1e-9 }
+        return !ownVoice(item, s, until: t)
+    }
+
+    /// Calm round 2: one item is the TV (no hold): out of the conversation, never answered.
+    private func dropAmbient(_ item: String, _ s: inout Inner, at t: Double) {
+        mark(.note, detail: "ambient \(item) reason=tvItemSustain")
+        if !s.ambientItems.contains(item) { s.ambientItems.append(item) }
+        if s.ambientItems.count > 32 { s.ambientItems.removeFirst(s.ambientItems.count - 32) }
+        if !s.tailDrops.contains(item) { s.tailDrops.append(item) }
+        flushTailDrops(&s, at: t)
+    }
+
+    /// Calm: the hold's items are the TV: out of the conversation (dropped once no reply
+    /// can be cancelled by it, as empty tails are), never answered; Dee goes on.
+    private func dropAmbient(_ s: inout Inner, at t: Double) {
+        guard let h = s.hold else { return }
+        for item in h.items {
+            mark(.note, detail: "ambient \(item) reason=tvItemSustain")
+            if !s.ambientItems.contains(item) { s.ambientItems.append(item) }
+            if !s.tailDrops.contains(item) { s.tailDrops.append(item) }
+        }
+        if s.ambientItems.count > 32 { s.ambientItems.removeFirst(s.ambientItems.count - 32) }
+        unduck(&s, at: t, why: "ambient")
+        flushTailDrops(&s, at: t)
+    }
+
+    /// Calm: a ducked hold becomes a pause (spec R3): Dee is silent now (5 ms fade from the
+    /// duck gain), the deadlines of a pause count from now, and the ear knows the user cut
+    /// this stretch. Every side effect of a 0.6.0 pause.
+    private func escalate(_ s: inout Inner, why: String) {
+        guard let h = s.hold, !h.probe, h.phase == .ducked else { return }
+        graph.player.hold()
+        s.hold?.phase = .paused
+        s.hold?.since = graph.now
+        s.hold?.why = why
+        if why == "sustained" { s.hold?.sustained = true }
+        s.core.escalated()
+        mark(.note, detail: "hold \(h.itemID ?? "-") why=\(why)")
+        holdContinuation.yield(.paused(itemID: h.itemID))
+    }
+
+    /// Calm: Dee back to full level (spec R4): the duck's sound decided nothing that stops
+    /// Dee. `resumeHold`'s shared tail, with its echo-prone check, but no `resumeGrace`
+    /// (that stays tied to a resume from a pause). `why`: resume, wordsWait, noItem,
+    /// duckMax, ambient, label. `event`: the `HoldEvent.resumed` reason for the brain (as a
+    /// resume's: "words", "brain", "echo"; "duck-<why>" when only the duck decided).
+    private func unduck(_ s: inout Inner, at t: Double, why: String, event: String? = nil) {
+        guard let h = s.hold, !h.probe, h.phase == .ducked else { return }
+        s.hold = nil
+        if h.commitSent, s.burstCommit != nil { s.burstCommit?.resumed = true } else { s.burstCommit = nil }
+        graph.player.unduck()
+        s.core.unducked(at: t)
+        mark(.note, detail: "unduck \(h.itemID ?? "-") (\(why))")
+        if why != "ambient" {
+            if echoProne(h, s) {
+                mark(.note, detail: "no grace: echo-prone \(h.items.joined(separator: ","))")
+                s.lastResumeAt = nil
+            }
+            s.backchannelItems.append(contentsOf: h.items)
+            if s.backchannelItems.count > 32 { s.backchannelItems.removeFirst(s.backchannelItems.count - 32) }
+        }
+        resolved(h, wordless: why != "ambient" && h.noWords, &s, at: t)
+        holdContinuation.yield(.resumed(itemIDs: h.items, text: h.text, why: event ?? "duck-\(why)"))
+    }
+
+    /// Calm: the hold's items are decided (`holdClaims`).
+    private func resolved(_ h: FloorHold, wordless: Bool, _ s: inout Inner, at t: Double) {
+        guard duckOnOnset else { return }
+        for item in h.items { s.recentlyResolved[item] = (t, wordless, h.tvRoom) }
+    }
+
+    /// Calm round 2: an item left to its words over Dee (`deferToWords`) whose first deltas
+    /// hold a stop word or Dee's name that Dee's own words don't explain is the user's now —
+    /// Dee pauses at once (`holdForWords`), without waiting for the words to settle.
+    private func commandAtFirstDelta(_ item: String, _ s: inout Inner, at t: Double) {
+        guard let pending = s.wordsPending[item], let p = s.wordsPartial[item],
+              CalmTuning.hasCommandWord(p.text, names: s.names, partial: true),
+              !isHerEcho(item, p.text, strict: pending.strict, &s, at: t) else { return }
+        mark(.note, detail: "words of \(item): the user (stop word)")
+        wordsDecided(item, user: true, &s)
+        holdForWords(item, text: p.text, partialAt: p.at, why: "stopword", &s)
+    }
+
+    /// Calm round 2 (live t2-backchannel-echo10 c03): a stop word in the deltas of an item
+    /// already rejected as Dee's echo — the echo model or the words judged it before the
+    /// stop word came — still pauses Dee when Dee's own recent words don't hold that word,
+    /// and it is a strong stop (`CalmTuning.isStrongStop`: "Stop talking…", "Wait.") or the
+    /// user's own voice was heard over Dee just now (`rejectedStopVoice` in the last
+    /// `rejectedStopWindow`). In a TV room, never (the TV says "Stop!" too).
+    private func rejectedCommand(_ item: String, delta: String, _ s: inout Inner, at t: Double) {
+        let text = (s.rejectedPartial[item] ?? "") + delta
+        s.rejectedPartial[item] = text
+        if s.rejectedPartial.count > 16, let old = s.rejectedPartial.keys.first(where: { $0 != item }) { s.rejectedPartial[old] = nil }
+        guard s.sessionPlaying, herVoiceQueued(s), !s.core.tvRoom, s.hold?.phase != .paused,
+              CalmTuning.hasCommandWord(text, names: s.names, partial: true),
+              !s.herWords.isHerEcho(text, at: t, strict: false, asks: false),
+              CalmTuning.isStrongStop(text, names: s.names)
+                || s.core.recentNearVoice(within: CalmTuning.rejectedStopWindow, at: t) >= CalmTuning.rejectedStopVoice - 1e-9
+        else { return }
+        s.rejectedPartial[item] = nil
+        mark(.note, detail: "stop word in rejected \(item)")
+        if s.hold?.phase == .ducked, s.hold?.probe != true {
+            escalate(&s, why: "stopword")
+            s.hold?.rescueItem = item
+        } else if s.hold == nil {
+            graph.player.hold()
+            var h = FloorHold(itemID: nil, since: graph.now)
+            h.why = "stopword"
+            h.rescueItem = item
+            s.hold = h
+            mark(.note, detail: "hold - why=stopword")
+            holdContinuation.yield(.paused(itemID: nil))
+        }
+    }
+
+    /// Calm round 2 review (correct F3): the full words of a rejected item whose stop word
+    /// paused Dee (`rejectedCommand`). Only a stop ("Stop talking for a second.") leaves the
+    /// hold to end the reply (`holdNoItem`), as before; words that say more ("Wait, what did
+    /// you say about the moon?") are the user's turn — the item itself is out of the
+    /// conversation, so the brain answers the words (`HoldEvent.rescued`), and the hold waits
+    /// for that answer like any hold whose words answer (`holdAfterWords`).
+    private func rescue(_ item: String, _ text: String, _ s: inout Inner, at t: Double) {
+        guard let h = s.hold, !h.probe, h.rescueItem == item, !h.rescued, h.phase == .paused else { return }
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty, !CalmTuning.isOnlyCommand(clean, names: s.names), !Backchannel.isBackchannel(clean) else { return }
+        s.hold?.rescued = true
+        if s.hold?.wordsAt == nil { s.hold?.wordsAt = t }
+        mark(.note, detail: "rescued words of \(item)")
+        holdContinuation.yield(.rescued(itemID: item, text: clean))
+    }
+
     // MARK: Wiring
+
+    /// Tests: a classifier result now, as the sound analyser would report it.
+    func classifiedForTesting(_ results: [(identifier: String, confidence: Double)], window: ClosedRange<Double>?) {
+        let t = graph.now
+        inner.withLock { s in apply(s.core.classified(results, window: window, at: t), &s) }
+    }
 
     private func wire() {
         graph.addMicConsumer { [weak self] buffer, t in self?.handleInput(buffer, at: t) }
@@ -1709,6 +2351,11 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 if s.hold?.probe == true {
                     graph.player.flush()
                     s.hold = nil
+                } else if let h = s.hold, h.phase == .ducked {
+                    // Calm: what was received still plays (full level); nothing to end.
+                    s.hold = nil
+                    graph.player.unduck()
+                    mark(.note, detail: "unduck \(h.itemID ?? "-") (resume)")
                 } else if s.hold != nil {
                     // Nothing more comes for Dee's reply: it ends where Dee paused.
                     graph.player.flush()
@@ -1798,13 +2445,19 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 if s.hold?.items.contains(item) == true {
                     s.hold?.partial[item, default: ""] += delta
                     s.hold?.lastDeltaAt = t
+                    // Calm round 2: a stop word or Dee's name pauses a ducked Dee at its first
+                    // delta (live "Stop." / "Wait." went silent only at +1.16–1.26 s, settled).
+                    if duckOnOnset, s.hold?.phase == .ducked,
+                       CalmTuning.hasCommandWord(s.hold?.partial[item] ?? "", names: s.names, partial: true) { checkHold(&s, at: t) }
                 }
                 if s.wordsPending[item] != nil {
                     s.wordsPending[item]?.events.append(e)
                     s.wordsPartial[item] = ((s.wordsPartial[item]?.text ?? "") + delta, t)
                     forward = false
+                    if duckOnOnset { commandAtFirstDelta(item, &s, at: t) }
                 } else if s.rejected.contains(item) {
                     forward = false
+                    if duckOnOnset { rejectedCommand(item, delta: delta, &s, at: t) }
                 } else if configuration.partialsFromTranscriptDeltas {
                     let text = (s.partials[item] ?? "") + delta
                     s.partials[item] = text
@@ -1818,6 +2471,17 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                     mark(.note, detail: "words of \(item): \(user ? "the user" : "Dee's echo")")
                     wordsDecided(item, user: user, &s)
                     if user { holdForWords(item, text: text, partialAt: nil, &s) }
+                }
+                if duckOnOnset, s.hold == nil, let r = s.recentlyResolved[item], r.wordless,
+                   t - r.at <= CalmTuning.recentlyResolvedTTL + 1e-9, !s.rejected.contains(item) {
+                    // Calm (R4): the duck went (no words in time); their late words still stop
+                    // Dee unless they say "go on" (`holdForWords`, as for any words over Dee).
+                    let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !clean.isEmpty, !Backchannel.isBackchannel(clean),
+                       !Backchannel.isHoldSoundToken(clean, sound: sound(item, s, at: t)) {
+                        s.recentlyResolved[item] = nil
+                        holdForWords(item, text: clean, partialAt: nil, &s)
+                    }
                 }
                 if let i = s.graceItems.firstIndex(of: item), s.wordsPending[item] == nil {
                     // Tune 6: an onset Dee talked on through (`resumeGrace`), decided the user's.
@@ -1837,10 +2501,12 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 }
                 if s.rejected.contains(item) {
                     forward = false
+                    if duckOnOnset { rescue(item, text, &s, at: t) }
                 } else {
                     mark(.transcript, detail: item)
                     apply(s.core.serverTranscript(itemID: item, text: text, at: t), &s)
                     let empty = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    if empty, s.ownEndItems[item] != nil { s.ownEndItems[item]?.empty = true }
                     if s.hold?.items.contains(item) == true {
                         s.hold?.final[item] = text
                         if empty { s.hold?.emptyWords.insert(item) }
@@ -1859,6 +2525,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 }
             case .userTranscriptFailed(let item, _):
                 s.partials[item] = nil
+                if s.ownEndItems[item] != nil { s.ownEndItems[item]?.failed = true }
                 if s.wordsPending[item] != nil { wordsDecided(item, user: false, &s) }
                 if s.rejected.contains(item) { forward = false }
                 if s.hold?.items.contains(item) == true {
@@ -2070,7 +2737,17 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                         s.finishDueAt = t + s.core.outputLatency + EarCore.echoTail
                     }
                 }
-                if !graph.player.isBusy { apply(s.core.playbackFinished(at: t), &s) }
+                if !graph.player.isBusy {
+                    apply(s.core.playbackFinished(at: t), &s)
+                    if let h = s.hold, !h.probe, h.phase == .ducked {
+                        // Calm: Dee's reply played out under the duck — nothing is left to give
+                        // way; their words are an ordinary turn (`duckPlayedOut`: no carry-on).
+                        s.hold = nil
+                        graph.player.unduck()
+                        for item in h.items { s.playedOutDucks[item] = t }
+                        mark(.note, detail: "unduck \(h.itemID ?? "-") (resume)")
+                    }
+                }
             }
         }
     }
@@ -2234,17 +2911,43 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 // Their voice in Dee's silence: the probe was them. A hold since the pause.
                 confirmProbe(item, &s)
                 if let item { accept(item, &s) }
+            case .bargeIn(let item) where duckOnOnset && s.hold != nil:
+                // Calm: the local-only run under a duck (R3 e) pauses Dee; it joins the hold.
+                if s.hold?.phase == .ducked { escalate(&s, why: item == nil ? "localOnly" : "legacy") }
+                if let item {
+                    s.hold?.add(item)
+                    accept(item, &s)
+                }
             case .bargeIn(let item):
                 if configuration.holdOnBargeIn, s.sessionPlaying, s.lastSessionItem != nil, s.hold == nil, herVoiceQueued(s) {
                     // Silent at once; whether Dee's reply ends here their words decide.
                     graph.player.hold()
-                    s.hold = FloorHold(itemID: item, since: graph.now)
-                    mark(.note, detail: "hold \(item ?? "-")")
+                    var h = FloorHold(itemID: item, since: graph.now)
+                    let why = duckOnOnset ? "localOnly" : "legacy"
+                    h.why = why
+                    s.hold = h
+                    mark(.note, detail: "hold \(item ?? "-") why=\(why)")
                     holdContinuation.yield(.paused(itemID: item))
                 } else {
                     cutReply(&s)
                 }
                 if let item { accept(item, &s) }
+            case .duck(let item, let via):
+                applyDuck(item, via: via, &s)
+            case .sustained(let item, let all, let pitched):
+                mark(.note, detail: "sustained \(item ?? "-") all=\(Self.secs(all)) pitched=\(Self.secs(pitched))")
+                guard let h = s.hold, !h.probe else { break }
+                if h.phase == .ducked, h.goOnKnown {
+                    // Round 3 (live t2-backchannel-echo20 c02: «Don't stop.», go-on deferred ×3,
+                    // then 1.20 s of voice paused Dee and the hold cut the reply): their words said
+                    // go on; what more they say decides by its words.
+                    mark(.note, detail: "sustained ignored: go-on \(h.itemID ?? "-")")
+                    // Round 3 review (regress F2): armed again for something new (`checkHold`).
+                    s.hold?.sustainIgnored = true
+                    break
+                }
+                s.hold?.sustained = true
+                if h.phase == .ducked { escalate(&s, why: "sustained") }
             case .yieldAside(let item):
                 if s.sessionPlaying || !s.sessionItems.isEmpty {
                     // Dee's reply was queued behind the aside: the user is talking, it goes too.
@@ -2254,6 +2957,13 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
                 }
                 if let item { accept(item, &s) }
             case .acceptOnset(let item):
+                if duckOnOnset, let h = s.hold, !h.probe, h.phase == .ducked, !h.items.contains(item),
+                   s.heldStarts[item] != nil {
+                    // Calm (review F1): a new item under the duck, judged the user's (not Dee's
+                    // echo): more of what they say over Dee, so it decides the hold too.
+                    s.hold?.add(item)
+                    s.hold?.starts[item] = s.core.itemOnset(item) ?? graph.now
+                }
                 accept(item, &s)
             case .rejectEcho(let item):
                 markRejected(item, &s)
@@ -2291,10 +3001,69 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             }
         }
         // Dee's next item never starts while an onset over Dee is being decided: if
-        // it is the user, Dee would begin a new sentence over them.
+        // it is the user, Dee would begin a new sentence over them. Calm (R6): not while
+        // ducked — Dee's next sentence starts at the duck gain.
         let boundary = s.sessionPlaying && s.core.deciding && s.core.pendingMayBeUser(at: graph.now)
+            && s.hold?.phase != .ducked
         if graph.player.holdAtBoundary != boundary { graph.player.holdAtBoundary = boundary }
     }
+
+    /// Calm (R1 / R2): onset evidence over Dee's reply ducks Dee — a `FloorHold` in phase
+    /// `.ducked`; Dee keeps talking at `CalmTuning.duckGainDB` (−6 dB in a TV room). A duck
+    /// that comes while a hold exists joins it; one right after Dee went on from a
+    /// backchannel (`resumeGrace`) talks on, as a barge-in there does.
+    private func applyDuck(_ item: String?, via: String, _ s: inout Inner) {
+        let now = graph.now
+        if s.hold?.probe == true {
+            // Their voice in Dee's silence (a probe): Dee is quiet already — a hold since the pause.
+            s.core.escalated()
+            confirmProbe(item, &s)
+            if let item { accept(item, &s) }
+        } else if s.hold != nil {
+            // A paused hold (their words paused Dee): the ear's duck is that pause.
+            if s.hold?.phase != .ducked { s.core.escalated() }
+            if let item {
+                s.hold?.add(item)
+                accept(item, &s)
+            }
+        } else if configuration.holdOnBargeIn, s.sessionPlaying, s.lastSessionItem != nil, herVoiceQueued(s) {
+            if let item, s.lastResumeAt.map({ now - $0 <= Self.resumeGrace + 1e-9 }) == true {
+                // Tune 6: just after Dee went on from "Keep going.": Dee talks on; its words decide.
+                apply(s.core.playbackResumed(at: now), &s)
+                if s.wordsPending[item] == nil { s.wordsPending[item] = (now, [], false) }
+                s.graceItems.append(item)
+                if s.graceItems.count > 16 { s.graceItems.removeFirst(s.graceItems.count - 16) }
+                mark(.note, detail: "after resume: words decide \(item)")
+                return
+            }
+            let tv = s.core.tvRoom
+            let gain = tv ? CalmTuning.duckGainTVDB : CalmTuning.duckGainDB
+            graph.player.duck(gainDB: gain)
+            var h = FloorHold(itemID: item, since: now)
+            h.phase = .ducked
+            h.duckSince = now
+            h.tvRoom = tv
+            if let item, s.backchannelItems.contains(item) || s.recentlyResolved[item] != nil {
+                // Round 3 (live t2-backchannel-echo20 c03): an item a duck was released for while
+                // they still said it (the local-only run of its rest) is this hold's again — not a
+                // backchannel Dee went on through; its words decide.
+                s.backchannelItems.removeAll { $0 == item }
+                s.recentlyResolved[item] = nil
+                h.starts[item] = s.core.itemOnset(item)
+            }
+            s.hold = h
+            mark(.note, detail: "duck \(item ?? "-") gain=\(Int(gain.rounded())) via=\(via)")
+            if let item { accept(item, &s) }
+        } else {
+            // Nothing of a reply to give way with (as a barge-in there): cut at once.
+            s.core.escalated()
+            cutReply(&s)
+            voice(.bargeIn, &s)
+            if let item { accept(item, &s) }
+        }
+    }
+
+    static func secs(_ v: Double) -> String { String(format: "%.2f", v) }
 
     /// The words of `item`, an item left to its words (`deferToWords`), are only Dee's echo.
     ///
@@ -2355,7 +3124,13 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// all): Dee goes on from exactly where Dee paused.
     private func resumeHold(_ s: inout Inner, at t: Double, why: String) {
         guard let h = s.hold else { return }
+        if h.phase == .ducked, !h.probe {
+            // Calm: Dee never paused — the duck is released instead.
+            unduck(&s, at: t, why: "resume", event: why)
+            return
+        }
         s.hold = nil
+        resolved(h, wordless: h.noWords, &s, at: t)
         if h.commitSent, s.burstCommit != nil { s.burstCommit?.resumed = true } else { s.burstCommit = nil }
         graph.player.resume()
         apply(s.core.playbackResumed(at: t), &s)
@@ -2421,7 +3196,7 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// Words Dee never said, over Dee's voice (an item Dee's echo opened): unless
     /// they say "go on", Dee goes quiet now and the brain answers them (which
     /// ends Dee's reply where Dee paused).
-    private func holdForWords(_ item: String, text: String, partialAt: Double?, _ s: inout Inner) {
+    private func holdForWords(_ item: String, text: String, partialAt: Double?, why: String = "answer", _ s: inout Inner) {
         if s.hold?.probe == true, s.sessionPlaying, !Backchannel.isBackchannel(text) {
             // Words Dee never said, while a probe has Dee paused: it is a hold since then.
             confirmProbe(item, &s)
@@ -2432,15 +3207,42 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
             }
             return
         }
+        if duckOnOnset, let h = s.hold, !h.probe, h.phase == .ducked, s.sessionPlaying, !h.items.contains(item),
+           !Backchannel.isBackchannel(text) {
+            // Calm round 2: Dee is ducked for another of their items; these words (an item left
+            // to its words, now theirs: "Mm, … what about the moon?") join that hold and decide
+            // it with it — its verdict pauses Dee for words that aren't "go on".
+            if s.core.tvRoom, tvWords(item, text, s, at: graph.now) {
+                dropAmbient(item, &s, at: graph.now)
+                return
+            }
+            s.hold?.add(item)
+            s.hold?.starts[item] = s.core.itemOnset(item) ?? graph.now
+            if let partialAt {
+                s.hold?.partial[item] = text
+                s.hold?.lastDeltaAt = partialAt
+            } else {
+                s.hold?.final[item] = text
+            }
+            if why == "stopword" { escalate(&s, why: why) } else { checkHold(&s, at: graph.now) }
+            return
+        }
         guard s.sessionPlaying, herVoiceQueued(s), s.hold == nil, !Backchannel.isBackchannel(text) else { return }
+        if duckOnOnset, s.core.tvRoom, tvWords(item, text, s, at: graph.now) {
+            // Calm round 2: words over Dee in a TV room with no voice of their own over the TV
+            // (an item left to its words, or late words after the duck went): the TV's.
+            dropAmbient(item, &s, at: graph.now)
+            return
+        }
         graph.player.hold()
         var h = FloorHold(itemID: item, since: graph.now)
         if let partialAt {
             h.partial[item] = text
             h.lastDeltaAt = partialAt
         }
+        h.why = duckOnOnset ? why : "legacy"
         s.hold = h
-        mark(.note, detail: "hold \(item) (words)")
+        mark(.note, detail: "hold \(item) (words) why=\(h.why ?? "legacy")")
         holdContinuation.yield(.paused(itemID: item))
     }
 
@@ -2501,6 +3303,8 @@ public final class CloudVoice: VoiceIO, @unchecked Sendable {
     /// hears `.bargeIn`. When the brain ends it (`respond`, `stopSpeaking`) it is
     /// already acting on their words: no event that would stop its new reply.
     private func cutReply(_ s: inout Inner, announce: Bool = false) {
+        // Calm: a ducked hold the brain's answer (or a stop) ends pauses first (R3 d).
+        if s.hold?.phase == .ducked, s.hold?.probe != true { escalate(&s, why: "brain") }
         s.core.initiativePending = false
         specCut(&s, why: "cut")
         graph.player.flush()

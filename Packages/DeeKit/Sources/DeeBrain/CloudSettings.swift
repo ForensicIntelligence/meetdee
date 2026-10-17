@@ -1,6 +1,7 @@
 import DeeCore
 import DeeRealtime
 import DeeSelf
+import DeeVoice
 import Foundation
 
 /// The cloud-voice settings (Dee's in-app settings; v0.6 keeps the old UserDefaults keys
@@ -96,6 +97,22 @@ public struct CloudSettings: Sendable, Equatable {
         guard let raw = env[silenceEnvironmentKey]?.trimmingCharacters(in: .whitespaces), let ms = Int(raw),
               silenceRange.contains(ms) else { return nil }
         return ms
+    }
+
+    /// Calm (spec "calm"): the voice ducks on an onset over Dee's reply instead of pausing
+    /// Dee (`CloudVoice.Configuration.duckOnOnset`). The A/B knob, read next to
+    /// `silenceEnvironmentKey`: `DEE_DUCK_ON_ONSET=0|1 voice-harness run|replay …`. Never set
+    /// in the app.
+    public static let duckEnvironmentKey = CalmTuning.duckEnvironmentKey
+    /// `DEE_SUSTAIN_VOICE=0.45…0.60` (replay A/B only): `CalmTuning.sustainVoice`.
+    public static let sustainEnvironmentKey = CalmTuning.sustainEnvironmentKey
+
+    /// Calm for a voice of `provider`: on in mode 1 (OpenAI), off in modes 2 / 3 (a LAN
+    /// provider) this round; `duckEnvironmentKey` overrides it. The same rule as a
+    /// `CloudVoice.Configuration` whose `duckOnOnset` is left nil.
+    public static func duckOnOnset(provider: ProviderLabel,
+                                   _ env: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
+        CalmTuning.duckOverride(env) ?? provider.isOpenAI
     }
 
     /// `silence_duration_ms` of this session (default 300; the harness knob may set it).

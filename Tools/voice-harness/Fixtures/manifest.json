@@ -1,5 +1,5 @@
 {
-  "generatedAt" : "2026-10-16T19:48:06Z",
+  "generatedAt" : "2026-10-17T03:58:01Z",
   "impulseResponses" : [
     {
       "file" : "ir/room.wav",
@@ -41,7 +41,7 @@
     {
       "file" : "noise/tvlong.wav",
       "id" : "tvlong",
-      "levelDB" : -29.998605488468716,
+      "levelDB" : -29.998595565985525,
       "provenance" : "Rendered with macOS `say` (voices Daniel, Samantha, Fred, Kathy, Moira, Karen; 12 original lines written for the harness), staggered and summed like Beds.tv, 120 s (HarnessCore Beds.tv, seed 0x7E1E). Wake-suite false-wake bed.",
       "seconds" : 119.95
     }
@@ -3433,6 +3433,638 @@
       "style" : "neutral",
       "text" : "Did you see her robe? It was the color of the sea.",
       "voice" : "Moira"
+    },
+    {
+      "activeLevelDB" : -24.00000016885064,
+      "category" : "nonspeech",
+      "class" : "short",
+      "endOfSpeechSample" : 11760,
+      "engine" : "dsp",
+      "file" : "utterances/ns01.wav",
+      "id" : "ns01",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 21600,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 11760,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "",
+      "voice" : "cough"
+    },
+    {
+      "activeLevelDB" : -23.99999996261328,
+      "category" : "nonspeech",
+      "class" : "short",
+      "endOfSpeechSample" : 18000,
+      "engine" : "dsp",
+      "file" : "utterances/ns02.wav",
+      "id" : "ns02",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 27840,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 18000,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "",
+      "voice" : "cough2"
+    },
+    {
+      "activeLevelDB" : -23.999999801026547,
+      "category" : "nonspeech",
+      "class" : "short",
+      "endOfSpeechSample" : 16080,
+      "engine" : "dsp",
+      "file" : "utterances/ns03.wav",
+      "id" : "ns03",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 25680,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 16080,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "",
+      "voice" : "throat"
+    },
+    {
+      "activeLevelDB" : -24.00031760084346,
+      "category" : "nonspeech",
+      "class" : "short",
+      "endOfSpeechSample" : 17520,
+      "engine" : "dsp",
+      "file" : "utterances/ns04.wav",
+      "id" : "ns04",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 27119,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17520,
+          "start" : 3840
+        }
+      ],
+      "style" : "neutral",
+      "text" : "",
+      "voice" : "breath"
+    },
+    {
+      "activeLevelDB" : -24.000000129620524,
+      "category" : "nonspeech",
+      "class" : "short",
+      "endOfSpeechSample" : 17040,
+      "engine" : "dsp",
+      "file" : "utterances/ns05.wav",
+      "id" : "ns05",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 26640,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17040,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "",
+      "voice" : "sigh"
+    },
+    {
+      "activeLevelDB" : -24.000000087716742,
+      "category" : "nonspeech",
+      "class" : "short",
+      "endOfSpeechSample" : 14400,
+      "engine" : "dsp",
+      "file" : "utterances/ns06.wav",
+      "id" : "ns06",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 24000,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 14400,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "",
+      "voice" : "hmm"
+    },
+    {
+      "activeLevelDB" : -23.99999983486358,
+      "category" : "nonspeech",
+      "class" : "short",
+      "endOfSpeechSample" : 17280,
+      "engine" : "dsp",
+      "file" : "utterances/ns07.wav",
+      "id" : "ns07",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 27600,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17280,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "",
+      "voice" : "laugh3"
+    },
+    {
+      "activeLevelDB" : -24.000000042278778,
+      "category" : "nonspeech",
+      "class" : "short",
+      "endOfSpeechSample" : 12720,
+      "engine" : "openai",
+      "file" : "utterances/ns08.wav",
+      "id" : "ns08",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 23040,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 12720,
+          "start" : 4320
+        }
+      ],
+      "style" : "laugh",
+      "text" : "Heh.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -24.000000314860745,
+      "category" : "nonspeech",
+      "class" : "short",
+      "endOfSpeechSample" : 17280,
+      "engine" : "openai",
+      "file" : "utterances/ns09.wav",
+      "id" : "ns09",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 27600,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17280,
+          "start" : 4320
+        }
+      ],
+      "style" : "laugh",
+      "text" : "Ha ha!",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -23.955478266938876,
+      "category" : "nonspeech",
+      "class" : "long",
+      "endOfSpeechSample" : 26880,
+      "engine" : "dsp",
+      "file" : "utterances/ns10.wav",
+      "id" : "ns10",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 37440,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 26880,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "",
+      "voice" : "laugh6"
+    },
+    {
+      "activeLevelDB" : -23.99999998794488,
+      "category" : "nonspeech",
+      "class" : "long",
+      "endOfSpeechSample" : 30000,
+      "engine" : "dsp",
+      "file" : "utterances/ns11.wav",
+      "id" : "ns11",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 39840,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 30000,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "",
+      "voice" : "coughfit"
+    },
+    {
+      "activeLevelDB" : -24.026982675657223,
+      "category" : "nonspeech",
+      "class" : "short",
+      "endOfSpeechSample" : 12480,
+      "engine" : "say",
+      "file" : "utterances/ns12.wav",
+      "id" : "ns12",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 22025,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 12480,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Khukh!",
+      "voice" : "Albert"
+    },
+    {
+      "activeLevelDB" : -24.000000094664436,
+      "category" : "nonspeech",
+      "class" : "short",
+      "endOfSpeechSample" : 32160,
+      "engine" : "say",
+      "file" : "utterances/ns13.wav",
+      "id" : "ns13",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 41808,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 14160,
+          "start" : 3600
+        },
+        {
+          "end" : 32160,
+          "start" : 23280
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Khukh! Khukh!",
+      "voice" : "Albert"
+    },
+    {
+      "activeLevelDB" : -24.000000240876123,
+      "category" : "nonspeech",
+      "class" : "long",
+      "endOfSpeechSample" : 39360,
+      "engine" : "say",
+      "file" : "utterances/ns14.wav",
+      "id" : "ns14",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 49021,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 26880,
+          "start" : 3600
+        },
+        {
+          "end" : 39360,
+          "start" : 31680
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hukh. Hukh. Hukh.",
+      "voice" : "Albert"
+    },
+    {
+      "activeLevelDB" : -23.881100698039262,
+      "category" : "backchannel",
+      "endOfSpeechSample" : 12960,
+      "engine" : "openai",
+      "file" : "utterances/bc03.wav",
+      "id" : "bc03",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 23520,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 12960,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Yeah.",
+      "voice" : "alloy"
+    },
+    {
+      "activeLevelDB" : -23.99999974013579,
+      "category" : "backchannel",
+      "endOfSpeechSample" : 16560,
+      "engine" : "say",
+      "file" : "utterances/bc04.wav",
+      "id" : "bc04",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 26880,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 16560,
+          "start" : 3600
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Uh-huh.",
+      "voice" : "Samantha"
+    },
+    {
+      "activeLevelDB" : -24.20656898574929,
+      "category" : "backchannel",
+      "endOfSpeechSample" : 14160,
+      "engine" : "openai",
+      "file" : "utterances/bc05.wav",
+      "id" : "bc05",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 24000,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 14160,
+          "start" : 3840
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Right.",
+      "voice" : "coral"
+    },
+    {
+      "activeLevelDB" : -23.999999715518577,
+      "category" : "backchannel",
+      "endOfSpeechSample" : 17520,
+      "engine" : "say",
+      "file" : "utterances/bc06.wav",
+      "id" : "bc06",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 27840,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17520,
+          "start" : 3840
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Okay.",
+      "voice" : "Daniel"
+    },
+    {
+      "activeLevelDB" : -24.204540295876168,
+      "category" : "backchannel",
+      "endOfSpeechSample" : 19680,
+      "engine" : "openai",
+      "file" : "utterances/bc07.wav",
+      "id" : "bc07",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 29520,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 19680,
+          "start" : 4080
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Mm.",
+      "voice" : "sage"
+    },
+    {
+      "activeLevelDB" : -24.000000094138706,
+      "category" : "backchannel",
+      "endOfSpeechSample" : 30000,
+      "engine" : "openai",
+      "file" : "utterances/bc08.wav",
+      "id" : "bc08",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 40320,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 30000,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Oh wow.",
+      "voice" : "shimmer"
+    },
+    {
+      "activeLevelDB" : -24.368749568633092,
+      "category" : "backchannel",
+      "endOfSpeechSample" : 56880,
+      "engine" : "openai",
+      "file" : "utterances/bc09.wav",
+      "id" : "bc09",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 66720,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 19440,
+          "start" : 4320
+        },
+        {
+          "end" : 30960,
+          "start" : 25680
+        },
+        {
+          "end" : 56880,
+          "start" : 44880
+        }
+      ],
+      "style" : "laugh",
+      "text" : "Haha, yeah.",
+      "voice" : "verse"
+    },
+    {
+      "activeLevelDB" : -31.793383760056972,
+      "category" : "backchannel",
+      "endOfSpeechSample" : 13680,
+      "engine" : "say",
+      "file" : "utterances/bc10.wav",
+      "id" : "bc10",
+      "onsetSample" : 3840,
+      "sampleRate" : 24000,
+      "samples" : 24240,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 13680,
+          "start" : 3840
+        }
+      ],
+      "style" : "soft",
+      "text" : "Yeah.",
+      "voice" : "Karen"
+    },
+    {
+      "activeLevelDB" : -32.00000029497966,
+      "category" : "backchannel",
+      "endOfSpeechSample" : 17040,
+      "engine" : "openai",
+      "file" : "utterances/bc11.wav",
+      "id" : "bc11",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 27360,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17040,
+          "start" : 4320
+        }
+      ],
+      "style" : "soft",
+      "text" : "Mm-hm.",
+      "voice" : "ballad"
+    },
+    {
+      "activeLevelDB" : -23.78470723337618,
+      "category" : "backchannel",
+      "endOfSpeechSample" : 18480,
+      "engine" : "openai",
+      "file" : "utterances/bc12.wav",
+      "id" : "bc12",
+      "onsetSample" : 4320,
+      "sampleRate" : 24000,
+      "samples" : 29520,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 18480,
+          "start" : 4320
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Okay.",
+      "voice" : "ash"
+    },
+    {
+      "activeLevelDB" : -23.999999982135137,
+      "category" : "command",
+      "endOfSpeechSample" : 49440,
+      "engine" : "openai",
+      "file" : "utterances/c07.wav",
+      "id" : "c07",
+      "onsetSample" : 4080,
+      "sampleRate" : 24000,
+      "samples" : 59760,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 19440,
+          "start" : 4080
+        },
+        {
+          "end" : 49440,
+          "start" : 28080
+        }
+      ],
+      "style" : "neutral",
+      "text" : "Hold on, what time is it?",
+      "voice" : "echo"
+    },
+    {
+      "activeLevelDB" : -16.99999987131528,
+      "category" : "command",
+      "endOfSpeechSample" : 17520,
+      "engine" : "openai",
+      "file" : "utterances/c08.wav",
+      "id" : "c08",
+      "onsetSample" : 3600,
+      "sampleRate" : 24000,
+      "samples" : 27840,
+      "scriptedPauses" : [
+
+      ],
+      "spans" : [
+        {
+          "end" : 17520,
+          "start" : 3600
+        }
+      ],
+      "style" : "loud",
+      "text" : "Wait.",
+      "voice" : "ash"
     }
   ],
   "version" : 1

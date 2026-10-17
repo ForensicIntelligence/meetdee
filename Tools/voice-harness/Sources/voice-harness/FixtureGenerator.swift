@@ -9,6 +9,8 @@ struct FixtureGenerator {
     let force: Bool
     let only: Set<String>?
     let maxUSD: Double
+    /// Calm: re-synthesize a DSP sound that fails the classifier through TTS (needs the key).
+    var resynth = false
     let log: (String) -> Void
 
     static let rate = 24_000
@@ -31,40 +33,92 @@ struct FixtureGenerator {
         let projected = Double(chars) / 4 * Pricing.ttsTextIn / 1e6 + Double(chars) / 15 / 60 * 1200 * Pricing.ttsAudioOut / 1e6
         log(String(format: "fixtures: %d specs, TTS projection ≈ $%.3f (cap $%.2f)", specs.count, projected, maxUSD))
         if needsTTS && projected > maxUSD { throw HarnessError("TTS projection over --max-usd") }
-        let key = needsTTS ? try KeyFile.load() : nil
+        var key = needsTTS ? try KeyFile.load() : nil
 
         var utterances: [String: FixtureManifest.Utterance] = [:]
         for u in existing?.utterances ?? [] { utterances[u.id] = u }
         for spec in specs {
             if !force, exists(spec), let old = utterances[spec.id], old.text == spec.text {
+                if old.soundClass != spec.soundClass { utterances[spec.id]?.soundClass = spec.soundClass }
                 continue
             }
             log("render \(spec.id) [\(spec.engine.rawValue) \(spec.voice) \(spec.style.rawValue)] “\(spec.text)”")
             var segments: [FixtureAssembler.Segment] = []
+            if spec.engine == .dsp {
+                // Calm: a synthesized non-speech sound (seeded; the recipe is the voice).
+                guard let x = Nonspeech.render(spec.voice, sampleRate: Self.rate) else {
+                    throw HarnessError("unknown nonspeech recipe \(spec.voice) for \(spec.id)")
+                }
+                segments.append(.audio(x))
+            }
             for part in spec.parts {
                 switch part {
                 case .pause(let s): segments.append(.pause(s))
                 case .words(let w):
                     let audio = spec.engine == .openai
                         ? try await tts(w, voice: spec.voice, style: spec.style, key: key!)
-                        : try say(w, voice: spec.voice, rate: spec.style.sayRate)
+                        : try say(w, voice: spec.voice, rate: spec.effectiveSayRate)
                     segments.append(.audio(audio))
                 }
             }
-            let a = FixtureAssembler.assemble(segments, sampleRate: Self.rate, levelDB: spec.style.levelDB)
+            var a = FixtureAssembler.assemble(segments, sampleRate: Self.rate, levelDB: spec.style.levelDB)
+            // Round 2: a rendering with no voiced span is silence (round 1's TTS bc10 came
+            // back as zeros and was scored as a continuer Dee carried on over). Never write it.
+            if a.spans.isEmpty {
+                throw HarnessError("\(spec.id) rendered as silence (no voiced span): not written; re-run `fixtures --only \(spec.id) --force`")
+            }
+            var engine = spec.engine, voice = spec.voice
+            // Calm: a sound Apple's classifier does not hear as meant is re-synthesized
+            // (TTS, `--resynth`). Round 2: the candidate is kept only if it passes the
+            // classifier bar, beats the current rendering AND speaks no words (offline
+            // on-device check, `ResynthDecision`); otherwise the seeded sound stays.
+            if spec.category == .nonspeech, let want = FixtureCatalog.expectedSoundLabel[spec.id],
+               let row = try? SoundCheck.row(id: spec.id, samples: a.samples), !row.ok {
+                if resynth, let fb = FixtureCatalog.soundFallbacks[spec.id] {
+                    if key == nil { key = try KeyFile.load() }
+                    let raw = try await tts(fb.text, voice: fb.voice, style: .neutral, key: key!, instructions: fb.instructions)
+                    let b = FixtureAssembler.assemble([.audio(raw)], sampleRate: Self.rate, levelDB: spec.style.levelDB)
+                    let r2 = try? SoundCheck.row(id: spec.id, samples: b.samples)
+                    let heard = await WordCheck.transcript(b.samples, sampleRate: Self.rate)
+                    switch ResynthDecision.decide(current: row.confidence ?? 0, candidate: r2?.confidence ?? 0,
+                                                  candidateTranscript: heard) {
+                    case .accept:
+                        log("  resynth \(spec.id) via TTS \(fb.voice): \(want) \(String(format: "%.2f → %.2f", row.confidence ?? 0, r2?.confidence ?? 0)), no words")
+                        a = b
+                        engine = .openai
+                        voice = fb.voice
+                    case .reject(let why):
+                        log("  resynth \(spec.id) via TTS rejected (\(why)); the seeded \(spec.engine.rawValue) sound is kept")
+                    }
+                } else {
+                    log("  \(spec.id) fails the classifier (\(want)); `fixtures --only \(spec.id) --force --resynth` re-synthesizes it")
+                }
+            }
             let file = "utterances/\(spec.id).wav"
             try WAV.write(a.samples, sampleRate: Self.rate, to: dir.appendingPathComponent(file))
             utterances[spec.id] = .init(
-                id: spec.id, file: file, category: spec.category, engine: spec.engine, voice: spec.voice, style: spec.style,
+                id: spec.id, file: file, category: spec.category, engine: engine, voice: voice, style: spec.style,
                 text: spec.text, sampleRate: Self.rate, samples: a.samples.count, onsetSample: a.onset,
                 endOfSpeechSample: a.endOfSpeech, spans: a.spans, scriptedPauses: spec.pauses,
-                activeLevelDB: DSP.activeLevelDB(a.samples, sampleRate: Self.rate))
+                activeLevelDB: DSP.activeLevelDB(a.samples, sampleRate: Self.rate), soundClass: spec.soundClass)
+            if spec.category == .nonspeech, let row = try? SoundCheck.row(id: spec.id, samples: a.samples) {
+                log("  sound check: " + SoundCheck.describe(row))
+                // Round 2: a sound that speaks words is not a sound (warn; `sounds` fails it).
+                if let heard = await WordCheck.transcript(a.samples, sampleRate: Self.rate), SoundWords.hasWords(heard) {
+                    log("  WARNING \(spec.id) is heard as words “\(heard)” by the on-device recogniser")
+                }
+            }
         }
 
         var beds = existing?.noise ?? []
+        // Round 2: `--force --only ids` re-renders those utterances only. Beds and the IR
+        // are re-rendered by a bare `--force` (or when missing): round 1's
+        // `--only ns01,… --force` silently re-rendered the TV beds (`say` output drifts
+        // in the last bits), changing tv15 / tvlong10 under a comparison.
+        let forceShared = force && only == nil
         func bed(_ id: String, provenance: String, _ make: () throws -> [Float]) throws {
             let file = "noise/\(id).wav"
-            if !force, beds.contains(where: { $0.id == id }), fm.fileExists(atPath: dir.appendingPathComponent(file).path) { return }
+            if !forceShared, beds.contains(where: { $0.id == id }), fm.fileExists(atPath: dir.appendingPathComponent(file).path) { return }
             log("bed \(id)")
             let x = try make()
             try WAV.write(x, sampleRate: Self.rate, to: dir.appendingPathComponent(file))
@@ -102,7 +156,7 @@ struct FixtureGenerator {
 
         var irs = existing?.impulseResponses ?? []
         let irFile = "ir/room.wav"
-        if force || !fm.fileExists(atPath: dir.appendingPathComponent(irFile).path) || irs.isEmpty {
+        if forceShared || !fm.fileExists(atPath: dir.appendingPathComponent(irFile).path) || irs.isEmpty {
             let h = Beds.roomImpulse(sampleRate: Self.rate)
             try WAV.write(h, sampleRate: Self.rate, to: dir.appendingPathComponent(irFile))
             irs = [.init(id: "room", file: irFile, seconds: Double(h.count) / Double(Self.rate), levelDB: DSP.db(DSP.rms(h)),
@@ -131,14 +185,14 @@ struct FixtureGenerator {
     }
 
     /// `gpt-4o-mini-tts`, raw 24 kHz PCM16.
-    func tts(_ text: String, voice: String, style: FixtureStyle, key: String) async throws -> [Float] {
+    func tts(_ text: String, voice: String, style: FixtureStyle, key: String, instructions: String? = nil) async throws -> [Float] {
         var req = URLRequest(url: URL(string: "https://api.openai.com/v1/audio/speech")!)
         req.httpMethod = "POST"
         req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.timeoutInterval = 60
         let body: [String: Any] = ["model": "gpt-4o-mini-tts", "input": text, "voice": voice,
-                                   "instructions": style.ttsInstructions, "response_format": "pcm"]
+                                   "instructions": instructions ?? style.ttsInstructions, "response_format": "pcm"]
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
         var lastError = ""
         for attempt in 0..<3 {

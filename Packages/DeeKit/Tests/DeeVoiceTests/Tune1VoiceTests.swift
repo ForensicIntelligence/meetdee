@@ -88,6 +88,18 @@ struct RoomSim {
     var probes: [Double] = []
     var probeEnds: [Double] = []
     var probing = false
+    /// Calm tests: a duck (`EarCore.duckNow`) at this sample; the echo model's learned frames
+    /// at that moment and at the end.
+    var duckAtSample: Int?
+    var learnAtDuck = 0
+    var learnAfterDuck = 0
+    /// Calm round 2: honour the ear's `.duck` (Dee's output ×`duckGain` from then on, its echo
+    /// too), as CloudVoice does; Dee keeps talking ducked whatever follows.
+    var honorDucks = false
+    var duckGain: Float = 0.25
+    var duckedFrom: Int?
+    /// The largest sustain measure seen while ducked (calibration).
+    var sustainPeak: (all: Double, pitched: Double) = (0, 0)
 
     enum ServerSpeech {
         case start(String, onsetSample: Int)
@@ -142,6 +154,11 @@ struct RoomSim {
             var out = Array(her[a..<b])
             if let c = cutAt { for i in 0..<out.count where a + i >= c { out[i] = 0 } }
             if let c = cutAt, c < b { for i in max(a, c)..<b { her[i] = 0 } }
+            if let d = duckedFrom, cutAt == nil {
+                for i in 0..<out.count where a + i >= d { out[i] *= duckGain }
+                for i in max(a, d)..<b { her[i] *= duckGain }
+                duckedFrom = b
+            }
             // Playback state, as the player reports it.
             let hasAudio = out.contains { $0 != 0 }
             if hasAudio, !playing, cutAt == nil {
@@ -191,6 +208,15 @@ struct RoomSim {
                 nextServer += 1
             }
             record(core.tick(at: t), at: t)
+            if let d = duckAtSample, d <= b {
+                duckAtSample = nil
+                learnAtDuck = core.spectralLearnFrames
+                record(core.duckNow(nil, at: t), at: t)
+            }
+            if core.isDucked { learnAfterDuck = core.spectralLearnFrames }
+            if honorDucks, core.isDucked, let m = core.sustainedMeasure(at: t) {
+                sustainPeak = (max(sustainPeak.all, m.all), max(sustainPeak.pitched, m.pitched))
+            }
             if let due = nextInitiative, t >= due {
                 core.initiativePending = true
                 nextInitiative = due + (initiativeEvery ?? 1)
@@ -217,6 +243,9 @@ struct RoomSim {
                 cutAt = Int(((t - Self.t0) * Self.rate).rounded())
             }
             if case .bargeIn = a { probing = false }
+            if honorDucks, case .duck = a, duckedFrom == nil {
+                duckedFrom = Int(((t - Self.t0) * Self.rate).rounded())
+            }
             if case .probe = a, honorProbes, cutAt == nil {
                 probes.append(t)
                 probing = true

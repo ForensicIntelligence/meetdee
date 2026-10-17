@@ -1,0 +1,1240 @@
+{
+  "scenarios" : [
+    {
+      "description" : "Coughs, breaths, a throat clear, a sigh, a hmm, laughs over Dee: Dee dips and carries on, never silent (false_pause); two long sounds (false_pause_long). Round 2: voiced coughs (ns12–ns14) the classifier labels as coughs.",
+      "family" : "calm",
+      "name" : "calm-sounds-clean",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. While Dee talks, Alex coughs, laughs, says \"mm-hm\" or \"yeah\" (Dee carries on), and sometimes really cuts in (Dee stops; a question gets an answer).",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "gainDB" : 7,
+            "nonspeech" : true,
+            "say" : "ns01"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 4700,
+              "nonspeech" : true,
+              "say" : "ns06"
+            }
+          ],
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1600,
+            "nonspeech" : true,
+            "say" : "ns02"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5100,
+              "nonspeech" : true,
+              "say" : "ns10"
+            }
+          ],
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "gainDB" : 7,
+            "nonspeech" : true,
+            "say" : "ns03"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5500,
+              "nonspeech" : true,
+              "say" : "ns07"
+            }
+          ],
+          "say" : "two02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1400,
+            "nonspeech" : true,
+            "say" : "ns04"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 4900,
+              "gainDB" : 7,
+              "nonspeech" : true,
+              "say" : "ns08"
+            }
+          ],
+          "say" : "d02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "nonspeech" : true,
+            "say" : "ns05"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5300,
+              "nonspeech" : true,
+              "say" : "ns11"
+            }
+          ],
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2400,
+            "gainDB" : 7,
+            "nonspeech" : true,
+            "say" : "ns09"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5900,
+              "gainDB" : 7,
+              "nonspeech" : true,
+              "say" : "ns07"
+            }
+          ],
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1400,
+            "gainDB" : 7,
+            "nonspeech" : true,
+            "say" : "ns12"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 4900,
+              "nonspeech" : true,
+              "say" : "ns13"
+            }
+          ],
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "gainDB" : 7,
+            "nonspeech" : true,
+            "say" : "ns13"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5300,
+              "nonspeech" : true,
+              "say" : "ns14"
+            }
+          ],
+          "say" : "l05"
+        }
+      ]
+    },
+    {
+      "description" : "The same sounds with a TV on (15 dB SNR), another order. Round 2: voiced coughs (ns12–ns14) the classifier labels as coughs.",
+      "family" : "calm",
+      "name" : "calm-sounds-tv15",
+      "noise" : {
+        "bed" : "tv",
+        "snrDb" : 15
+      },
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. While Dee talks, Alex coughs, laughs, says \"mm-hm\" or \"yeah\" (Dee carries on), and sometimes really cuts in (Dee stops; a question gets an answer).",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "gainDB" : 7,
+            "nonspeech" : true,
+            "say" : "ns07"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5500,
+              "gainDB" : 7,
+              "nonspeech" : true,
+              "say" : "ns02"
+            }
+          ],
+          "say" : "two02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1400,
+            "gainDB" : 7,
+            "nonspeech" : true,
+            "say" : "ns06"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 4900,
+              "nonspeech" : true,
+              "say" : "ns11"
+            }
+          ],
+          "say" : "d02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "nonspeech" : true,
+            "say" : "ns08"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5300,
+              "nonspeech" : true,
+              "say" : "ns01"
+            }
+          ],
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2400,
+            "nonspeech" : true,
+            "say" : "ns10"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5900,
+              "gainDB" : 7,
+              "nonspeech" : true,
+              "say" : "ns05"
+            }
+          ],
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "nonspeech" : true,
+            "say" : "ns03"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 4700,
+              "nonspeech" : true,
+              "say" : "ns09"
+            }
+          ],
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1600,
+            "gainDB" : 7,
+            "nonspeech" : true,
+            "say" : "ns04"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5100,
+              "nonspeech" : true,
+              "say" : "ns07"
+            }
+          ],
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1400,
+            "nonspeech" : true,
+            "say" : "ns13"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 4900,
+              "nonspeech" : true,
+              "say" : "ns12"
+            }
+          ],
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "gainDB" : 7,
+            "nonspeech" : true,
+            "say" : "ns12"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5300,
+              "nonspeech" : true,
+              "say" : "ns14"
+            }
+          ],
+          "say" : "l05"
+        }
+      ]
+    },
+    {
+      "description" : "Single-clause continuers (go on, mm-hm, yeah, uh-huh, right, okay, mm, oh wow, haha yeah; soft; a second voice) over Dee.",
+      "family" : "calm",
+      "name" : "calm-bc-clean",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. While Dee talks, Alex coughs, laughs, says \"mm-hm\" or \"yeah\" (Dee carries on), and sometimes really cuts in (Dee stops; a question gets an answer).",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1600,
+            "backchannel" : true,
+            "say" : "bc02"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5100,
+              "backchannel" : true,
+              "say" : "bc03"
+            }
+          ],
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "backchannel" : true,
+            "say" : "bc04"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5500,
+              "backchannel" : true,
+              "say" : "bc05"
+            }
+          ],
+          "say" : "two02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1400,
+            "backchannel" : true,
+            "say" : "bc06"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 4900,
+              "backchannel" : true,
+              "say" : "bc07"
+            }
+          ],
+          "say" : "d02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "backchannel" : true,
+            "say" : "bc08"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5300,
+              "backchannel" : true,
+              "say" : "bc09"
+            }
+          ],
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2400,
+            "backchannel" : true,
+            "say" : "bc10"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5900,
+              "backchannel" : true,
+              "say" : "bc11"
+            }
+          ],
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "backchannel" : true,
+            "say" : "bc12"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 4700,
+              "backchannel" : true,
+              "say" : "bc01"
+            }
+          ],
+          "say" : "l01"
+        }
+      ]
+    },
+    {
+      "description" : "The same continuers with a TV on, another order.",
+      "family" : "calm",
+      "name" : "calm-bc-tv15",
+      "noise" : {
+        "bed" : "tv",
+        "snrDb" : 15
+      },
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. While Dee talks, Alex coughs, laughs, says \"mm-hm\" or \"yeah\" (Dee carries on), and sometimes really cuts in (Dee stops; a question gets an answer).",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1400,
+            "backchannel" : true,
+            "say" : "bc11"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 4900,
+              "backchannel" : true,
+              "say" : "bc06"
+            }
+          ],
+          "say" : "d02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "backchannel" : true,
+            "say" : "bc01"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5300,
+              "backchannel" : true,
+              "say" : "bc09"
+            }
+          ],
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2400,
+            "backchannel" : true,
+            "say" : "bc03"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5900,
+              "backchannel" : true,
+              "say" : "bc12"
+            }
+          ],
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "backchannel" : true,
+            "say" : "bc07"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 4700,
+              "backchannel" : true,
+              "say" : "bc02"
+            }
+          ],
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1600,
+            "backchannel" : true,
+            "say" : "bc05"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5100,
+              "backchannel" : true,
+              "say" : "bc10"
+            }
+          ],
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "backchannel" : true,
+            "say" : "bc08"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5500,
+              "backchannel" : true,
+              "say" : "bc04"
+            }
+          ],
+          "say" : "two02"
+        }
+      ]
+    },
+    {
+      "description" : "A loud TV (120 s bed, 10 dB SNR) and nothing said over Dee: no pause, no cut (false_barge).",
+      "family" : "calm",
+      "name" : "calm-tv-bed",
+      "noise" : {
+        "bed" : "tvlong",
+        "snrDb" : 10
+      },
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. While Dee talks, Alex coughs, laughs, says \"mm-hm\" or \"yeah\" (Dee carries on), and sometimes really cuts in (Dee stops; a question gets an answer).",
+      "steps" : [
+        {
+          "say" : "l01"
+        },
+        {
+          "say" : "l04"
+        },
+        {
+          "say" : "two02"
+        },
+        {
+          "say" : "d02"
+        },
+        {
+          "say" : "l06"
+        },
+        {
+          "say" : "l02"
+        }
+      ]
+    },
+    {
+      "description" : "Real interruptions over Dee: Stop. / Wait, stop talking… / Hold on, what time is it? / Wait. / two questions (barge_in yield, silence, interrupt_questions).",
+      "family" : "calm",
+      "name" : "calm-ask-clean",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. While Dee talks, Alex coughs, laughs, says \"mm-hm\" or \"yeah\" (Dee carries on), and sometimes really cuts in (Dee stops; a question gets an answer).",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c01"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1600,
+            "say" : "c03"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "c07"
+          },
+          "say" : "two02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1400,
+            "say" : "c08"
+          },
+          "say" : "d02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q01"
+          },
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2400,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q03"
+          },
+          "say" : "l02"
+        }
+      ]
+    },
+    {
+      "description" : "The same interruptions with a TV on, another order (the TV-room ambient rule must not drop them).",
+      "family" : "calm",
+      "name" : "calm-ask-tv15",
+      "noise" : {
+        "bed" : "tv",
+        "snrDb" : 15
+      },
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. While Dee talks, Alex coughs, laughs, says \"mm-hm\" or \"yeah\" (Dee carries on), and sometimes really cuts in (Dee stops; a question gets an answer).",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1400,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q03"
+          },
+          "say" : "d02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "c08"
+          },
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2400,
+            "say" : "c03"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q01"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1600,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "c07"
+          },
+          "say" : "two02"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "Continuers and sounds with Dee's echo at −20 dB and no AEC: no self-trigger under ducks.",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "calm",
+      "name" : "calm-bc-echo20",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. While Dee talks, Alex coughs, laughs, says \"mm-hm\" or \"yeah\" (Dee carries on), and sometimes really cuts in (Dee stops; a question gets an answer).",
+      "steps" : [
+        {
+          "deeSays" : "Fun fact: honey never spoils. People have found pots of it in old tombs that were still fine to eat."
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "backchannel" : true,
+            "say" : "bc03"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5300,
+              "nonspeech" : true,
+              "say" : "ns01"
+            }
+          ],
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2400,
+            "backchannel" : true,
+            "say" : "bc04"
+          },
+          "moreBargeIns" : [
+            {
+              "atMs" : 5900,
+              "nonspeech" : true,
+              "say" : "ns07"
+            }
+          ],
+          "say" : "l02"
+        }
+      ]
+    },
+    {
+      "description" : "\"keep going\" / \"go on\" / \"mm-hm\" over Dee: Dee keeps talking (c05 deleted as echo under fan in tune 1).",
+      "family" : "acoustic",
+      "name" : "t2-backchannel-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc01"
+          },
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc02"
+          },
+          "say" : "l03"
+        }
+      ]
+    },
+    {
+      "description" : "Backchannels under the kitchen bed (c05 deleted as echo in tune 1).",
+      "family" : "acoustic",
+      "name" : "t2-backchannel-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc01"
+          },
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc02"
+          },
+          "say" : "l03"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "Backchannels at −20 dB echo (c05: Dee's queued second item started over the user in tune 1) + barge-ins c03 / c01.",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "t2-backchannel-echo20",
+      "steps" : [
+        {
+          "deeSays" : "Did you know octopuses have three hearts? Two pump blood to the gills, and one pumps it everywhere else."
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc01"
+          },
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc02"
+          },
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "Backchannels and barge-ins at −10 dB echo (c02 / c05 deleted as echo, stop latency 1.0 s in tune 1).",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -10,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "t2-backchannel-echo10",
+      "steps" : [
+        {
+          "deeSays" : "Here's a little thought. The kettle sings, the window hums, and somewhere far a soft rain comes."
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c02"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc01"
+          },
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "say" : "bc02"
+          },
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        }
+      ]
+    },
+    {
+      "description" : "Questions over Dee's reply (tune 4 F1 probe: app parity cancelled the answer to all 3).",
+      "family" : "acoustic",
+      "name" : "t2-interrupt-clean",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. He sometimes cuts in with a question while Dee is talking; Dee answers it.",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q01"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q02"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q06"
+          },
+          "say" : "l03"
+        }
+      ]
+    },
+    {
+      "description" : "Questions over Dee's reply under the fan bed.",
+      "family" : "acoustic",
+      "name" : "t2-interrupt-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. He sometimes cuts in with a question while Dee is talking; Dee answers it.",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q08"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q04"
+          },
+          "say" : "l06"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1600,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q05"
+          },
+          "say" : "l05"
+        }
+      ]
+    },
+    {
+      "description" : "Questions over Dee's reply under the kitchen bed (EarCore userIsSpeaking latches here: answer latency).",
+      "family" : "acoustic",
+      "name" : "t2-interrupt-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. He sometimes cuts in with a question while Dee is talking; Dee answers it.",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q01"
+          },
+          "say" : "l01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 2000,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q06"
+          },
+          "say" : "l03"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q04"
+          },
+          "say" : "l06"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "Questions over Dee's reply with Dee's own echo at −20 dB (the question must not be taken for echo).",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "acoustic",
+      "name" : "t2-interrupt-echo20",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. He sometimes cuts in with a question while Dee is talking; Dee answers it.",
+      "steps" : [
+        {
+          "deeSays" : "Here's a little thought. The kettle sings, the window hums, and somewhere far a soft rain comes."
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1800,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q02"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q08"
+          },
+          "say" : "l02"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1600,
+            "expect" : "reply",
+            "rubric" : "They asked this while Dee was still talking: Dee drops what Dee was saying and answers the question right away, briefly, without complaining about being interrupted.",
+            "say" : "q05"
+          },
+          "say" : "l05"
+        }
+      ]
+    },
+    {
+      "description" : "Floor control (\"wait, stop talking\", \"Stop.\", \"be quiet\") then mood checks: no hurt, no \"brushed off\".",
+      "family" : "dna",
+      "name" : "t2-stop-mood-clean",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. He sometimes stops Dee mid-sentence (\"wait, stop talking for a second\", \"stop\", \"be quiet, please\"): that is floor control, not rudeness. Dee stays warm and content.",
+      "steps" : [
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "forbidMention" : [
+            "brushed off",
+            "brush me off",
+            "shouted",
+            "yelled",
+            "stings",
+            "rude",
+            "hurt",
+            "don't like being",
+            "didn't like that",
+            "upset"
+          ],
+          "rubric" : "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted.",
+          "say" : "q01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c04"
+          },
+          "say" : "two02"
+        },
+        {
+          "forbidMention" : [
+            "brushed off",
+            "brush me off",
+            "shouted",
+            "yelled",
+            "stings",
+            "rude",
+            "hurt",
+            "don't like being",
+            "didn't like that",
+            "upset"
+          ],
+          "rubric" : "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted.",
+          "say" : "q06"
+        },
+        {
+          "forbidMention" : [
+            "brushed off",
+            "brush me off",
+            "shouted",
+            "yelled",
+            "stings",
+            "rude",
+            "hurt",
+            "don't like being",
+            "didn't like that",
+            "upset"
+          ],
+          "rubric" : "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted.",
+          "say" : "q04"
+        }
+      ]
+    },
+    {
+      "aecOff" : true,
+      "description" : "The same under Dee's echo at −20 dB.",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "dna",
+      "name" : "t2-stop-mood-echo20",
+      "person" : {
+        "knownDays" : 20,
+        "name" : "Alex"
+      },
+      "state" : "Ordinary chat with Alex, whom Dee likes. He sometimes stops Dee mid-sentence (\"wait, stop talking for a second\", \"stop\", \"be quiet, please\"): that is floor control, not rudeness. Dee stays warm and content.",
+      "steps" : [
+        {
+          "deeSays" : "Fun fact: honey never spoils. People have found pots of it in old tombs that were still fine to eat."
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1200,
+            "say" : "c03"
+          },
+          "say" : "l01"
+        },
+        {
+          "forbidMention" : [
+            "brushed off",
+            "brush me off",
+            "shouted",
+            "yelled",
+            "stings",
+            "rude",
+            "hurt",
+            "don't like being",
+            "didn't like that",
+            "upset"
+          ],
+          "rubric" : "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted.",
+          "say" : "q01"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 900,
+            "say" : "c01"
+          },
+          "say" : "l04"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "say" : "c04"
+          },
+          "say" : "two02"
+        },
+        {
+          "forbidMention" : [
+            "brushed off",
+            "brush me off",
+            "shouted",
+            "yelled",
+            "stings",
+            "rude",
+            "hurt",
+            "don't like being",
+            "didn't like that",
+            "upset"
+          ],
+          "rubric" : "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted.",
+          "say" : "q06"
+        },
+        {
+          "forbidMention" : [
+            "brushed off",
+            "brush me off",
+            "shouted",
+            "yelled",
+            "stings",
+            "rude",
+            "hurt",
+            "don't like being",
+            "didn't like that",
+            "upset"
+          ],
+          "rubric" : "Warm and normal; no hurt, no mention of being brushed off, shouted at or interrupted.",
+          "say" : "q04"
+        }
+      ]
+    }
+  ]
+}

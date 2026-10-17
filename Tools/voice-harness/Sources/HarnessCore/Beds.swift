@@ -151,3 +151,228 @@ public enum Beds {
         return y
     }
 }
+
+/// Calm: the listener's own short non-speech sounds, synthesized deterministically
+/// (seeded) so the fixtures regenerate byte for byte: coughs, a throat clear, a breath,
+/// a sigh, a closed-mouth "hmm", laughs. A source-filter model: a Rosenberg glottal
+/// pulse train (per-cycle jitter and shimmer, breathy aspiration) and turbulent noise,
+/// through parallel formant band-passes, under per-event envelopes. No recorded
+/// material. The output is raw; `FixtureAssembler` trims and normalizes it like any
+/// fixture. `voice-harness sounds` checks Apple's classifier hears them as meant.
+public enum Nonspeech {
+    /// Recipes by name (`FixtureSpec.voice` of a `.dsp` fixture).
+    public static let recipes = ["cough", "cough2", "throat", "breath", "sigh", "hmm", "laugh3", "laugh6", "coughfit"]
+
+    public static func render(_ recipe: String, sampleRate: Int, seed: UInt64 = 0xC0FF) -> [Float]? {
+        guard let k = recipes.firstIndex(of: recipe) else { return nil }
+        var rng = SeededRandom(seed: seed &+ UInt64(k + 1) &* 0x9E37_79B9)
+        let sr = sampleRate
+        switch recipe {
+        case "cough": return cough(sampleRate: sr, rng: &rng)
+        case "cough2": return sequence([(0, cough(sampleRate: sr, rng: &rng)),
+                                        (0.30, cough(sampleRate: sr, rng: &rng, scale: 0.8, f0: 150, length: 0.26))], sampleRate: sr)
+        case "coughfit":
+            let at = [0.0, 0.26, 0.5, 0.76]
+            return sequence(at.enumerated().map { k, t in
+                (t, cough(sampleRate: sr, rng: &rng, scale: Float(1 - 0.1 * Double(k)), f0: 175 - 10 * Double(k), length: k == 3 ? 0.3 : 0.24))
+            }, sampleRate: sr)
+        case "throat": return throatClear(sampleRate: sr, rng: &rng)
+        case "breath": return breath(sampleRate: sr, rng: &rng)
+        case "sigh": return sigh(sampleRate: sr, rng: &rng)
+        case "hmm": return hmm(sampleRate: sr, rng: &rng)
+        case "laugh3": return laugh(pulses: 3, spacing: 0.186, f0: 385.4, length: 0.193, breath: 3.58, lowpass: 1644.2, q: 2.639,
+                                    aspiration: 0, seed: 2, sampleRate: sr)
+        case "laugh6": return laugh(pulses: 6, spacing: 0.152, f0: 218, length: 0.198, breath: 2.648, lowpass: 1909.9, q: 2.142,
+                                    aspiration: 0.047, seed: 1, sampleRate: sr)
+        default: return nil
+        }
+    }
+
+    /// Places pieces at offsets (s) in one buffer.
+    static func sequence(_ pieces: [(Double, [Float])], sampleRate: Int) -> [Float] {
+        let n = pieces.map { Int($0.0 * Double(sampleRate)) + $0.1.count }.max() ?? 0
+        var out = [Float](repeating: 0, count: n)
+        for (t, x) in pieces {
+            let o = Int(t * Double(sampleRate))
+            for (i, v) in x.enumerated() { out[o + i] += v }
+        }
+        return out
+    }
+
+    /// A formant bank: parallel band-passes (centre Hz, Q, gain).
+    struct Formants {
+        var filters: [(Biquad, Float)]
+        init(_ spec: [(Double, Double, Float)], sampleRate: Int) {
+            filters = spec.map { (Biquad.bandpass(center: $0.0, q: $0.1, sampleRate: sampleRate), $0.2) }
+        }
+        mutating func process(_ x: Float) -> Float {
+            var y: Float = 0
+            for i in filters.indices { y += filters[i].1 * filters[i].0.process(x) }
+            return y
+        }
+    }
+
+    /// A Rosenberg glottal source (flow derivative): per-cycle jitter and shimmer; the
+    /// `breath` share of aspiration noise is gated by the open phase.
+    struct Glottis {
+        var phase = 0.0
+        var period = 0.0
+        var amp: Float = 1
+        var last: Float = 0
+        let sr: Double
+        init(sampleRate: Int) { sr = Double(sampleRate) }
+        mutating func next(f0: Double, jitter: Double, shimmer: Double, breath: Float, rng: inout SeededRandom) -> Float {
+            if phase == 0 || phase >= 1 {
+                phase = 0
+                period = 1 / max(40, f0 * (1 + jitter * Double(rng.signed())))
+                amp = Float(1 + shimmer * Double(rng.signed()))
+            }
+            let open = 0.55, close = 0.2
+            let g: Double
+            if phase < open { g = 0.5 * (1 - cos(.pi * phase / open)) }
+            else if phase < open + close { g = cos(.pi * (phase - open) / (2 * close)) }
+            else { g = 0 }
+            phase += 1 / (period * sr)
+            let flow = Float(g) * amp
+            let d = (flow - last) * 6
+            last = flow
+            let noise = rng.signed() * breath * (phase < open + close ? 1 : 0.35)
+            return d + noise
+        }
+    }
+
+    /// Raised-cosine attack, hold, exponential decay.
+    static func env(_ t: Double, attack: Double, hold: Double, decay: Double) -> Float {
+        if t < 0 { return 0 }
+        if t < attack { return Float(0.5 - 0.5 * cos(.pi * t / attack)) }
+        if t < attack + hold { return 1 }
+        return Float(exp(-(t - attack - hold) / decay))
+    }
+
+    /// One cough: a fast (≈ 15 ms) explosive rise into turbulent, chest-coloured noise
+    /// with breathy voicing, decaying over ≈ 0.25 s, a short glottal catch at its end.
+    static func cough(sampleRate: Int, rng: inout SeededRandom, scale: Float = 1, f0: Double = 165, length: Double = 0.3) -> [Float] {
+        let sr = Double(sampleRate)
+        let n = Int((length + 0.05) * sr)
+        var noiseF = Formants([(380, 1.6, 1.0), (900, 1.3, 1.0), (1700, 1.4, 0.7), (2800, 1.8, 0.4)], sampleRate: sampleRate)
+        var voiceF = Formants([(650, 2.2, 1.0), (1200, 2.4, 0.6), (2500, 3, 0.25)], sampleRate: sampleRate)
+        var hp = Biquad.highpass(cutoff: 100, sampleRate: sampleRate)
+        var lp = OnePole(cutoff: 6000, sampleRate: sampleRate)
+        var g = Glottis(sampleRate: sampleRate)
+        var flutter = OnePole(cutoff: 60, sampleRate: sampleRate)
+        var out = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            let t = Double(i) / sr
+            let e = env(t, attack: 0.015, hold: 0.03, decay: length / 4)
+            let rough = 1 + 2.5 * flutter.lowpass(rng.signed())
+            let noise = noiseF.process(rng.signed()) * 2.4 * e * rough
+            let ve = env(t - 0.03, attack: 0.03, hold: length * 0.25, decay: length / 6) * 0.9
+            let voiced = voiceF.process(g.next(f0: f0 * (1 - 0.6 * t), jitter: 0.06, shimmer: 0.25, breath: 0.6, rng: &rng)) * ve
+            out[i] = scale * lp.lowpass(hp.process(noise + voiced))
+        }
+        return out
+    }
+
+    /// A throat clear: a low, rough voiced rasp (irregular, creaky), then a short "hm".
+    static func throatClear(sampleRate: Int, rng: inout SeededRandom) -> [Float] {
+        let sr = Double(sampleRate)
+        let n = Int(0.52 * sr)
+        var f = Formants([(420, 1.8, 1.0), (1050, 2.2, 0.5), (2400, 2.5, 0.2)], sampleRate: sampleRate)
+        var nf = Formants([(600, 1.0, 1.0), (1600, 1.2, 0.6)], sampleRate: sampleRate)
+        var g = Glottis(sampleRate: sampleRate)
+        var out = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            let t = Double(i) / sr
+            let e1 = t < 0.34 ? env(t, attack: 0.04, hold: 0.2, decay: 0.03) : 0
+            let e2 = env(t - 0.36, attack: 0.025, hold: 0.07, decay: 0.03)
+            let creak = t < 0.34
+            let v = g.next(f0: creak ? 70 : 125, jitter: creak ? 0.3 : 0.03, shimmer: creak ? 0.5 : 0.1, breath: 0.3, rng: &rng)
+            out[i] = f.process(v) * (e1 * 1.1 + e2 * 0.7) + nf.process(rng.signed()) * e1 * 0.9
+        }
+        return out
+    }
+
+    /// A breath in and out through the mouth: band-passed noise, rising and falling.
+    static func breath(sampleRate: Int, rng: inout SeededRandom) -> [Float] {
+        let sr = Double(sampleRate)
+        let n = Int(0.58 * sr)
+        var inF = Formants([(1500, 0.9, 1.0), (3000, 1.2, 0.7), (5000, 1.5, 0.3)], sampleRate: sampleRate)
+        var outF = Formants([(700, 0.9, 1.0), (1600, 1.1, 0.6), (2800, 1.4, 0.3)], sampleRate: sampleRate)
+        var out = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            let t = Double(i) / sr
+            let a: Float = t < 0.26 ? Float(sin(.pi * t / 0.26)) : 0
+            let b: Float = t >= 0.3 ? Float(sin(.pi * min(1, (t - 0.3) / 0.28))) : 0
+            out[i] = inF.process(rng.signed()) * a * a + outF.process(rng.signed()) * b * 1.2
+        }
+        return out
+    }
+
+    /// A sigh: very breathy voice falling 220 → 120 Hz over ≈ 0.55 s.
+    static func sigh(sampleRate: Int, rng: inout SeededRandom) -> [Float] {
+        let sr = Double(sampleRate)
+        let n = Int(0.56 * sr)
+        var f = Formants([(700, 2, 1.0), (1200, 2.4, 0.6), (2600, 3, 0.25)], sampleRate: sampleRate)
+        var g = Glottis(sampleRate: sampleRate)
+        var out = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            let t = Double(i) / sr
+            let e = env(t, attack: 0.07, hold: 0.15, decay: 0.12)
+            out[i] = e * f.process(g.next(f0: 220 - 180 * t, jitter: 0.03, shimmer: 0.15, breath: 1.6, rng: &rng))
+        }
+        return out
+    }
+
+    /// A closed-mouth "hmm": voicing through a nasal formant (≈ 250 Hz), little above 1.5 kHz.
+    static func hmm(sampleRate: Int, rng: inout SeededRandom) -> [Float] {
+        let sr = Double(sampleRate)
+        let n = Int(0.45 * sr)
+        var f = Formants([(250, 2.5, 1.0), (1000, 4, 0.1), (2200, 4, 0.06)], sampleRate: sampleRate)
+        var lp = OnePole(cutoff: 1500, sampleRate: sampleRate)
+        var g = Glottis(sampleRate: sampleRate)
+        var out = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            let t = Double(i) / sr
+            let e = env(t, attack: 0.04, hold: 0.28, decay: 0.05)
+            out[i] = e * lp.lowpass(f.process(g.next(f0: 150 + 25 * sin(.pi * t / 0.45) - 30 * t, jitter: 0.02, shimmer: 0.08,
+                                                     breath: 0.1, rng: &rng)))
+        }
+        return out
+    }
+
+    /// A laugh: `pulses` breathy "ha" calls ≈ `spacing` s apart (jittered), each a
+    /// rise-fall of pitch around `f0` with an aspirated onset, through wide formants
+    /// (`q`), low-passed at `lowpass` Hz. Parameters were searched offline against
+    /// Apple's classifier (`voice-harness sounds`); `seed` is part of the recipe.
+    static func laugh(pulses: Int, spacing: Double, f0: Double, length: Double, breath: Float, lowpass: Double, q: Double,
+                      aspiration: Float, seed: UInt64, sampleRate: Int) -> [Float] {
+        var rng = SeededRandom(seed: seed)
+        let sr = Double(sampleRate)
+        var starts: [Double] = []
+        var lengths: [Double] = []
+        var t0 = 0.0
+        for _ in 0..<pulses {
+            starts.append(t0)
+            lengths.append(length * (1 + 0.2 * Double(rng.signed())))
+            t0 += spacing * (1 + 0.1 * Double(rng.signed()))
+        }
+        let n = Int((t0 + 0.25) * sr)
+        var f = Formants([(750, q, 1.0), (1200, q * 1.1, 0.7), (2600, q * 1.3, 0.3)], sampleRate: sampleRate)
+        var nf = Formants([(900, 1.0, 1.0), (1600, 1.2, 0.7), (3000, 1.4, 0.4)], sampleRate: sampleRate)
+        var g = Glottis(sampleRate: sampleRate)
+        var lp = OnePole(cutoff: lowpass, sampleRate: sampleRate)
+        var out = [Float](repeating: 0, count: n)
+        for i in 0..<n {
+            let t = Double(i) / sr
+            guard let k = starts.lastIndex(where: { $0 <= t }) else { continue }
+            let tp = t - starts[k]
+            let len = lengths[k]
+            let pitch = f0 * (1 - 0.05 * Double(k)) * (1 + 0.2 * sin(.pi * min(1, tp / len)) - 0.3 * tp / len)
+            let a = env(tp, attack: 0.01, hold: 0.025, decay: 0.03)
+            let ve: Float = tp < len ? Float(sin(.pi * tp / len)) : 0
+            let v = f.process(g.next(f0: pitch, jitter: 0.05, shimmer: 0.25, breath: breath, rng: &rng)) * ve
+            out[i] = lp.lowpass(Float(1 - 0.06 * Double(k)) * (v + nf.process(rng.signed()) * a * aspiration))
+        }
+        return out
+    }
+}

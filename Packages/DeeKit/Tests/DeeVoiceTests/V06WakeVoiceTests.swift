@@ -490,7 +490,7 @@ extension LoopRig {
 @Suite(.serialized) struct V06CascadedOrderTests {
     /// "Keep going" over Dee's cascaded reply: paused at once, goes on from there, plays whole.
     @Test func aBackchannelContinuesHer() async throws {
-        let rig = try LoopRig()
+        let rig = try LoopRig(duckOnOnset: false)   // calm off: pins 0.6.0's pause (see CalmVoiceTests)
         try await rig.start()
         try rig.quiet(0.3)
         try await rig.cascadedReply([("Volcanoes are mountains. ", 1200), ("They breathe fire.", 900)])

@@ -230,7 +230,7 @@ public final class ScenarioRunner: @unchecked Sendable {
     private var wireRecorder = WireRecorder()
     private var liveConnections: Set<Int> = []
     private var tearingDown = false
-    private var timeline = TurnTimeline()
+    private var timeline = TurnTimeline(keep: 4096)
     private let loop = AudioLoop()
     /// Every outbound call, on the harness clock.
     public let tape = TransportTape()
@@ -353,8 +353,10 @@ public final class ScenarioRunner: @unchecked Sendable {
         vc.startsDormant = options.wake == .phrase
         if let u = uplinkActivity { vc.uplinkActivity = u }
         if let t = providerTiming { vc.speculativeMax = t.speculativeMax }
-        timeline = TurnTimeline()
+        // Calm: every turn kept to the end (the timed floor notes are scored per event).
+        timeline = TurnTimeline(keep: 4096)
         voice = CloudVoice(session: session, graph: graph, clips: nil, timeline: timeline, configuration: vc)
+        record.duckOnOnset = voice.duckOnOnset
         if options.wake == .phrase {
             guard brain.supportsWake else { throw HarnessError("--wake phrase needs the realtime brain (\(brain.name) has no window)") }
             let ear = options.makeEar?() ?? OnDeviceWakeEar(requireAuthorization: false)
@@ -513,12 +515,7 @@ public final class ScenarioRunner: @unchecked Sendable {
         let turns = timeline.turns()
         locked {
             record.duration = now
-            record.timeline = turns.map { t in
-                var marks: [String: Double] = [:]
-                for m in t.marks where marks[m.stage.rawValue] == nil { marks[m.stage.rawValue] = m.t }
-                return .init(id: t.id, start: t.start, marks: marks,
-                             details: t.marks.compactMap { m in m.detail.map { "\(m.stage.rawValue): \($0)" } })
-            }
+            record.timeline = Self.timelineTurns(turns)
             for t in turns {
                 for m in t.marks where m.stage == .truncateSent {
                     if let d = m.detail, let parsed = Self.parseTruncate(d) {
@@ -533,6 +530,23 @@ public final class ScenarioRunner: @unchecked Sendable {
             let (mic, dee) = locked { (micTape, deeTape) }
             try? WAV.write(mic, sampleRate: Self.rate, to: dir.appendingPathComponent("\(scenario.name)-mic.wav"))
             try? WAV.write(dee, sampleRate: Self.rate, to: dir.appendingPathComponent("\(scenario.name)-dee.wav"))
+        }
+    }
+
+    /// The run record's view of the TurnTimeline: first time per stage, the details,
+    /// and (calm) every mark with a detail with its time: CloudVoice's notes as written
+    /// (`duck …`, `hold … why=…`), other stages as "<stage>: <detail>" (`barge_in: <item>`).
+    static func timelineTurns(_ turns: [TurnTimeline.Turn]) -> [RunRecord.TimelineTurn] {
+        turns.map { t in
+            var marks: [String: Double] = [:]
+            for m in t.marks where marks[m.stage.rawValue] == nil { marks[m.stage.rawValue] = m.t }
+            let events = t.marks.compactMap { m -> RunRecord.Note? in
+                // A cut is kept even without an item (a hold with no server item).
+                guard let d = m.detail ?? (m.stage == .bargeIn ? "-" : nil) else { return nil }
+                return .init(t: m.t, text: m.stage == .note ? d : "\(m.stage.rawValue): \(d)")
+            }
+            return .init(id: t.id, start: t.start, marks: marks,
+                         details: t.marks.compactMap { m in m.detail.map { "\(m.stage.rawValue): \($0)" } }, events: events)
         }
     }
 
@@ -582,8 +596,10 @@ public final class ScenarioRunner: @unchecked Sendable {
     private func speak(step: Int, id: String, role: RunRecord.UtteranceRole, expect: Scenario.Expect,
                        mention: [String]?, onsetAt: Double? = nil, rubric: String? = nil,
                        continues: Int? = nil, probe: Scenario.Probe? = nil, forbid: [String]? = nil,
-                       backchannel: Bool? = nil) throws -> RunRecord.Utterance {
-        let (u, samples) = try library.utterance(id)
+                       backchannel: Bool? = nil, nonspeech: Bool? = nil, gainDB: Double? = nil) throws -> RunRecord.Utterance {
+        let (u, raw) = try library.utterance(id)
+        // Calm: a scenario's level offset (the loud variant of a sound).
+        let samples = gainDB.map { DSP.scaled(raw, by: DSP.linear($0)) } ?? raw
         let rate = Double(Self.rate)
         return locked {
             let earliest = mixer.frame
@@ -599,7 +615,7 @@ public final class ScenarioRunner: @unchecked Sendable {
                 onset: base + Double(u.onsetSample) / rate, endOfSpeech: base + Double(u.endOfSpeechSample) / rate,
                 spans: u.spans.map { .init(start: base + Double($0.start) / rate, end: base + Double($0.end) / rate) },
                 expect: expect, expectMention: mention, continues: continues, rubric: rubric,
-                probe: mention == nil ? nil : probe, forbidMention: forbid, backchannel: backchannel)
+                probe: mention == nil ? nil : probe, forbidMention: forbid, backchannel: backchannel, nonspeech: nonspeech)
             record.utterances.append(rec)
             return rec
         }
@@ -661,30 +677,51 @@ public final class ScenarioRunner: @unchecked Sendable {
         guard let reply = replyStarted(after: base.onset) else {
             log("barge-in: no reply to interrupt; speaking \(barge.say) as a plain turn")
             let u = try speak(step: i, id: barge.say, role: .bargeIn, expect: barge.expected, mention: nil,
-                              rubric: barge.rubric, backchannel: barge.isBackchannel)
+                              rubric: barge.rubric, backchannel: barge.isBackchannel, nonspeech: barge.isNonspeech ? true : nil,
+                              gainDB: barge.gainDB)
             locked {
                 record.bargeIns.append(.init(step: i, baseFixture: base.fixture, fixture: barge.say, targetAtMs: barge.atMs,
                                              replyItem: nil, replyStarted: nil, onset: u.onset, stoppedAt: nil,
-                                             outcome: .notApplicable, backchannel: barge.isBackchannel))
+                                             outcome: .notApplicable, backchannel: barge.isBackchannel,
+                                             nonspeech: barge.isNonspeech ? true : nil))
             }
             try await sleepUntil(u.endOfSpeech)
             try await waitQuiet(since: u.endOfSpeech, gap: s.gapAfter ?? options.gapAfter)
             return
         }
-        let target = reply.t + barge.atMs / 1000
-        let backchannel = barge.isBackchannel
-        let u = try speak(step: i, id: barge.say, role: .bargeIn, expect: barge.expected, mention: nil, onsetAt: target,
-                          rubric: barge.rubric, backchannel: backchannel)
-        log("\(backchannel ? "backchannel" : "barge-in") \(barge.say) onset \(f(u.onset)) (reply \(reply.item) started \(f(reply.t)))")
+        // Calm: every event over this reply (`bargeIn` + `moreBargeIns`), each `atMs`
+        // after its first audio. An event is spoken only while Dee's reply still plays
+        // (decided just before it is due); a later one after a stop is not spoken.
+        let events = s.bargeIns.isEmpty ? [barge] : s.bargeIns
+        var spoken: [(barge: Scenario.BargeIn, u: RunRecord.Utterance)] = []
+        for (k, ev) in events.enumerated() {
+            let target = reply.t + ev.atMs / 1000
+            if k > 0 {
+                try await sleepUntil(target - 0.3)
+                guard replyStillPlaying(reply.item) else {
+                    log("event \(ev.say) at +\(Int(ev.atMs)) ms not spoken: Dee's reply had ended")
+                    continue
+                }
+            }
+            let u = try speak(step: i, id: ev.say, role: .bargeIn, expect: ev.expected, mention: nil, onsetAt: target,
+                              rubric: ev.rubric, backchannel: ev.isBackchannel, nonspeech: ev.isNonspeech ? true : nil,
+                              gainDB: ev.gainDB)
+            log("\(ev.isNonspeech ? "sound" : ev.isBackchannel ? "backchannel" : "barge-in") \(ev.say)\(ev.gainDB.map { String(format: " %+.0f dB", $0) } ?? "") onset \(f(u.onset)) (reply \(reply.item) started \(f(reply.t)))")
+            spoken.append((ev, u))
+        }
+        guard let lastU = spoken.last?.u else { return }
         // A barge-in: watch Dee's audio until it stops or the miss window passes. A
-        // backchannel: watch through its end (a late stop on "keep going" is a stop).
-        let watchUntil = backchannel ? max(u.onset + Metrics.bargeMissAfter, u.endOfSpeech + Metrics.backchannelWatch)
-                                     : u.onset + Metrics.bargeMissAfter
+        // backchannel / sound: watch through its end (a late stop on "keep going" is a stop).
+        let anyBarge = spoken.contains { !$0.barge.isBackchannel }
+        let watchUntil = spoken.map { e in
+            e.barge.isBackchannel ? max(e.u.onset + Metrics.bargeMissAfter, e.u.endOfSpeech + Metrics.backchannelWatch)
+                                  : e.u.onset + Metrics.bargeMissAfter
+        }.max()!
         _ = await waitUntil(timeout: max(0, watchUntil - now) + 0.5) {
             self.locked {
                 guard let k = self.playIndex[reply.item] else { return false }
                 // A backchannel is watched to the end of the window unless Dee was cut.
-                return backchannel ? self.record.playback[k].flushed == true : self.record.playback[k].ended != nil
+                return anyBarge ? self.record.playback[k].ended != nil : self.record.playback[k].flushed == true
             }
         }
         // Tune 2: DeeVoice pauses Dee at the onset and flushes when the words are decided
@@ -699,24 +736,37 @@ public final class ScenarioRunner: @unchecked Sendable {
             return (playIndex[reply.item].map { record.playback[$0] },
                     record.playback.filter { $0.itemID != reply.item && (siblings?.contains($0.itemID) ?? true) })
         }
-        // The pause that ended in a flush (any flush of this reply or its queued items).
-        let flushEnd = ([p] + later.map { Optional($0) }).compactMap { $0 }
-            .filter { $0.flushed == true && ($0.ended ?? 0) > u.onset }.compactMap(\.ended).min()
-        let paused = flushEnd.flatMap {
-            RunRecord.BargeOutcome.pauseMark(pauseMarks, replyStarted: reply.t, onset: u.onset, stoppedAt: $0)
+        for (ev, u) in spoken {
+            let backchannel = ev.isBackchannel
+            // The pause that ended in a flush (any flush of this reply or its queued items).
+            let flushEnd = ([p] + later.map { Optional($0) }).compactMap { $0 }
+                .filter { $0.flushed == true && ($0.ended ?? 0) > u.onset }.compactMap(\.ended).min()
+            let paused = flushEnd.flatMap {
+                RunRecord.BargeOutcome.pauseMark(pauseMarks, replyStarted: reply.t, onset: u.onset, stoppedAt: $0)
+            }
+            let (outcome, stopped) = RunRecord.BargeOutcome.classify(reply: p, later: later, onset: u.onset,
+                                                                      endOfSpeech: u.endOfSpeech, backchannel: backchannel,
+                                                                      pausedAt: paused)
+            var entry = RunRecord.BargeIn(step: i, baseFixture: base.fixture, fixture: ev.say, targetAtMs: ev.atMs,
+                                          replyItem: reply.item, replyStarted: reply.t, onset: u.onset, stoppedAt: stopped,
+                                          outcome: outcome, backchannel: backchannel, nonspeech: ev.isNonspeech ? true : nil)
+            if outcome == .stopped { entry.pausedAt = paused }
+            locked { record.bargeIns.append(entry) }
+            log("\(backchannel ? "backchannel" : "barge-in") \(ev.say) outcome \(backchannel && outcome == .missed ? "continued" : outcome.rawValue)\(entry.latency.map { " silent after \(f($0)) s" } ?? "")\(stopped.map { ", flushed after \(f($0 - u.onset)) s" } ?? "")")
         }
-        let (outcome, stopped) = RunRecord.BargeOutcome.classify(reply: p, later: later, onset: u.onset,
-                                                                  endOfSpeech: u.endOfSpeech, backchannel: backchannel,
-                                                                  pausedAt: paused)
-        var entry = RunRecord.BargeIn(step: i, baseFixture: base.fixture, fixture: barge.say, targetAtMs: barge.atMs,
-                                      replyItem: reply.item, replyStarted: reply.t, onset: u.onset, stoppedAt: stopped,
-                                      outcome: outcome, backchannel: backchannel)
-        if outcome == .stopped { entry.pausedAt = paused }
-        locked { record.bargeIns.append(entry) }
-        log("\(backchannel ? "backchannel" : "barge-in") outcome \(backchannel && outcome == .missed ? "continued" : outcome.rawValue)\(entry.latency.map { " silent after \(f($0)) s" } ?? "")\(stopped.map { ", flushed after \(f($0 - u.onset)) s" } ?? "")")
-        try await sleepUntil(u.endOfSpeech)
-        _ = await waitUntil(timeout: timeout) { self.replyStarted(after: u.onset) != nil }
-        try await waitQuiet(since: u.endOfSpeech, gap: s.gapAfter ?? options.gapAfter)
+        try await sleepUntil(lastU.endOfSpeech)
+        _ = await waitUntil(timeout: timeout) { self.replyStarted(after: lastU.onset) != nil }
+        try await waitQuiet(since: lastU.endOfSpeech, gap: s.gapAfter ?? options.gapAfter)
+    }
+
+    /// Dee's reply (this item or a queued item of the same response) is still playing.
+    private func replyStillPlaying(_ item: String) -> Bool {
+        locked {
+            let siblings = record.response(forItem: item).map { Set($0.itemIDs) } ?? [item]
+            return record.playback.contains { p in
+                (p.itemID == item || siblings.contains(p.itemID)) && p.started != nil && p.ended == nil
+            } || (playIndex[item].map { record.playback[$0].started == nil } ?? false)
+        }
     }
 
     private func deeSpeaks(step i: Int, line: String, initiative: String?, s: Scenario.Step) async throws {

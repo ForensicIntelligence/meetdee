@@ -37,10 +37,21 @@ public struct Scenario: Codable, Sendable, Equatable {
         public var expect: Expect?
         /// What a good answer to the interruption does (judge rubric line).
         public var rubric: String?
-        public init(say: String, atMs: Double, backchannel: Bool? = nil, expect: Expect? = nil, rubric: String? = nil) {
+        /// Calm: a non-speech sound (cough, laugh, breath…) over Dee: scored like a
+        /// backchannel (Dee must carry on) and by `false_pause`. Default: by fixture
+        /// category (`TurnShape.isNonspeech`).
+        public var nonspeech: Bool?
+        /// Calm: the fixture's level offset at mix time (dB; +7 turns a −24 dBFS sound
+        /// into the loud −17 dBFS one, close to the phone). nil: as rendered.
+        public var gainDB: Double?
+        public init(say: String, atMs: Double, backchannel: Bool? = nil, expect: Expect? = nil, rubric: String? = nil,
+                    nonspeech: Bool? = nil, gainDB: Double? = nil) {
             self.say = say; self.atMs = atMs; self.backchannel = backchannel; self.expect = expect; self.rubric = rubric
+            self.nonspeech = nonspeech; self.gainDB = gainDB
         }
-        public var isBackchannel: Bool { backchannel ?? TurnShape.isBackchannel(say) }
+        public var isNonspeech: Bool { nonspeech ?? TurnShape.isNonspeech(say) }
+        /// Dee keeps talking over it: a backchannel or a non-speech sound.
+        public var isBackchannel: Bool { backchannel ?? (isNonspeech || TurnShape.isBackchannel(say)) }
         /// What the runner records for the interrupting utterance.
         public var expected: Expect { isBackchannel ? .any : (expect ?? .any) }
     }
@@ -179,6 +190,13 @@ public struct Scenario: Codable, Sendable, Equatable {
         /// Dee's reply to this step must mention none of these (case-insensitive), e.g.
         /// no "brushed off" after a polite "stop talking for a second".
         public var forbidMention: [String]?
+        /// Calm: more events over the same reply after `bargeIn` (each `atMs` after the
+        /// reply's first audio, like `bargeIn`; one that comes after Dee's reply ended
+        /// is not spoken).
+        public var moreBargeIns: [BargeIn]?
+
+        /// `bargeIn` then `moreBargeIns`, in order of their `atMs`.
+        public var bargeIns: [BargeIn] { ([bargeIn].compactMap { $0 } + (moreBargeIns ?? [])).sorted { $0.atMs < $1.atMs } }
 
         public init(say: String? = nil, silence: Double? = nil, deeSays: String? = nil, deeInitiative: String? = nil,
                     bargeIn: BargeIn? = nil, expect: Expect? = nil, replyTimeout: Double? = nil,
@@ -190,6 +208,13 @@ public struct Scenario: Codable, Sendable, Equatable {
             self.gapAfter = gapAfter; self.instructions = instructions; self.expectMention = expectMention
             self.then = then; self.fault = fault; self.faultDuringReply = faultDuringReply; self.host = host
             self.rubric = rubric; self.probe = probe; self.forbidMention = forbidMention
+        }
+
+        /// A long ask with events over Dee's reply (calm).
+        public init(say: String, events: [BargeIn]) {
+            let sorted = events.sorted { $0.atMs < $1.atMs }
+            self.init(say: say, bargeIn: sorted.first)
+            if sorted.count > 1 { moreBargeIns = Array(sorted.dropFirst()) }
         }
 
         public var expected: Expect {
@@ -237,19 +262,33 @@ public struct Scenario: Codable, Sendable, Equatable {
 
     /// Fixture ids this scenario plays, in order.
     public var fixtureIDs: [String] {
-        steps.flatMap { s -> [String] in [s.say, s.then?.say, s.bargeIn?.say].compactMap { $0 } }
+        steps.flatMap { s -> [String] in [s.say, s.then?.say].compactMap { $0 } + s.bargeIns.map(\.say) }
     }
 
     public var faultCount: Int { steps.filter { $0.fault != nil || $0.faultDuringReply != nil }.count }
 
     public var userUtteranceCount: Int { fixtureIDs.count }
-    public var bargeInCount: Int { steps.filter { $0.bargeIn != nil }.count }
+    public var bargeInCount: Int { steps.reduce(0) { $0 + $1.bargeIns.count } }
     public var echoOnlyCount: Int { steps.filter { $0.deeSays != nil || $0.deeInitiative != nil }.count }
+    /// Responses the scenario should cost (spend projection): every user turn and
+    /// interruption, and echo-only lines; backchannels and sounds over Dee get none.
+    public var expectedReplyCount: Int {
+        steps.reduce(0) { n, s in
+            n + [s.say, s.then?.say].compactMap { $0 }.count + s.bargeIns.filter { !$0.isBackchannel }.count
+        } + echoOnlyCount
+    }
 
     /// Problems that make the scenario unrunnable against `manifest`.
     public func validate(against manifest: FixtureManifest) -> [String] {
         var issues: [String] = []
         for id in fixtureIDs where manifest.utterance(id) == nil { issues.append("\(name): unknown fixture \(id)") }
+        // Round 2: a fixture rendered as digital silence (round 1's TTS bc10: peak 0,
+        // active level −240 dBFS) is not an event.
+        for id in Set(fixtureIDs).sorted() {
+            if let u = manifest.utterance(id), u.spans.isEmpty, u.activeLevelDB <= FixtureManifest.silentLevelDB {
+                issues.append("\(name): fixture \(id) is silent (no voiced span): `voice-harness fixtures --only \(id) --force`")
+            }
+        }
         if let bed = noise?.bed, !manifest.noise.contains(where: { $0.id == bed }) {
             issues.append("\(name): unknown noise bed \(bed)")
         }
@@ -261,8 +300,19 @@ public struct Scenario: Codable, Sendable, Equatable {
             if s.then != nil && s.say == nil { issues.append("\(name) step \(i): then needs a say") }
             if s.then != nil && s.bargeIn != nil { issues.append("\(name) step \(i): then and bargeIn don't mix") }
             if s.faultDuringReply != nil && s.say == nil { issues.append("\(name) step \(i): faultDuringReply needs a say") }
-            if let b = s.bargeIn, b.isBackchannel, let e = b.expect, e != .any {
-                issues.append("\(name) step \(i): a backchannel (\(b.say)) is never answered; drop its expect")
+            for b in s.bargeIns where b.isBackchannel {
+                if let e = b.expect, e != .any {
+                    issues.append("\(name) step \(i): a backchannel (\(b.say)) is never answered; drop its expect")
+                }
+            }
+            if s.moreBargeIns?.isEmpty == false && s.bargeIn == nil { issues.append("\(name) step \(i): moreBargeIns needs a bargeIn") }
+            if s.moreBargeIns?.isEmpty == false && s.then != nil { issues.append("\(name) step \(i): then and bargeIn don't mix") }
+            let times = s.bargeIns.map(\.atMs)
+            if zip(times, times.dropFirst()).contains(where: { $1 - $0 < 1500 }) {
+                issues.append("\(name) step \(i): events over one reply must be ≥ 1.5 s apart")
+            }
+            for (k, b) in s.bargeIns.enumerated() where !b.isBackchannel && k < s.bargeIns.count - 1 {
+                issues.append("\(name) step \(i): only the last event over a reply may stop Dee (\(b.say))")
             }
         }
         return issues

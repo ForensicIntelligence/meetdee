@@ -228,6 +228,10 @@ public actor RealtimeSession {
     private var lastCommitted: String?
     private var committed: Set<String> = []
     private var rejected: Set<String> = []
+    /// Items rejected as Dee's echo (`rejectEcho`, newest 64): their transcript deltas still
+    /// reach the voice, which never forwards them — only a stop word in them counts there
+    /// (calm round 2: "Stop talking for a second." judged Dee's echo before its words came).
+    private var echoRejected: [String] = []
     private var deleteOnCommit: Set<String> = []
 
     private var splitters: [String: TranscriptSentences] = [:]
@@ -1059,6 +1063,8 @@ public actor RealtimeSession {
     public func rejectEcho(itemID: String) {
         guard !rejected.contains(itemID) else { return }
         withdraw(itemID)
+        echoRejected.append(itemID)
+        if echoRejected.count > 64 { echoRejected.removeFirst(echoRejected.count - 64) }
         emit(.echoRejected(itemID: itemID))
         if let t = track, t.kind == .reply, t.turnItemID == itemID, t.firstAudioAt == nil, !t.cancelRequested {
             // Dee was about to answer Dee's own voice.
@@ -1524,10 +1530,18 @@ public actor RealtimeSession {
             break
 
         case .inputTranscriptionDelta(let e):
-            guard !rejected.contains(e.itemID) else { return }
+            guard !rejected.contains(e.itemID) || echoRejected.contains(e.itemID) else { return }
             emit(.userTranscriptDelta(itemID: e.itemID, delta: e.delta))
         case .inputTranscriptionCompleted(let e):
-            guard !rejected.contains(e.itemID) else { return }
+            if rejected.contains(e.itemID) {
+                // Calm round 2 review (correct F3): an item rejected as Dee's echo whose stop
+                // word paused Dee may hold a question — its words go to the voice (which never
+                // forwards them; nothing is logged: the item is out of the conversation).
+                if echoRejected.contains(e.itemID) {
+                    emit(.userTranscript(itemID: e.itemID, text: e.transcript.trimmingCharacters(in: .whitespacesAndNewlines)))
+                }
+                return
+            }
             let text = e.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty {
                 wordless[e.itemID] = commitSeq[e.itemID] ?? 0
@@ -2184,7 +2198,7 @@ public actor RealtimeSession {
         awaitingCommit.removeAll(); speechStartMs.removeAll()
         lastCommitted = nil
         commitSeq.removeAll(); wordless.removeAll()
-        committed.removeAll(); rejected.removeAll(); deleteOnCommit.removeAll()
+        committed.removeAll(); rejected.removeAll(); echoRejected.removeAll(); deleteOnCommit.removeAll()
         splitters.removeAll(); spoken.removeAll(); callNames.removeAll()
         toolBatches.removeAll(); toolResults.removeAll(); seenCalls.removeAll()
         toolTasks.values.forEach { $0.cancel() }; toolTasks.removeAll()

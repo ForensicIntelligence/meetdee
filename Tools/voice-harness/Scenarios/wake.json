@@ -1,0 +1,174 @@
+{
+  "scenarios" : [
+    {
+      "description" : "\"Hey Dee, what time is it?\" in one breath: answered.",
+      "family" : "wake",
+      "leadIn" : 3,
+      "name" : "wk-onebreath-clean",
+      "steps" : [
+        {
+          "say" : "wq01"
+        },
+        {
+          "silence" : 2
+        },
+        {
+          "say" : "q02"
+        }
+      ],
+      "wake" : {
+
+      }
+    },
+    {
+      "description" : "One-breath questions on a fan bed.",
+      "family" : "wake",
+      "leadIn" : 3,
+      "name" : "wk-onebreath-fan15",
+      "noise" : {
+        "bed" : "fan",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "wq03"
+        },
+        {
+          "say" : "q05"
+        }
+      ],
+      "wake" : {
+
+      }
+    },
+    {
+      "description" : "\"Hey Dee.\" … pause … the question.",
+      "family" : "wake",
+      "leadIn" : 3,
+      "name" : "wk-pause-kitchen15",
+      "noise" : {
+        "bed" : "kitchen",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "say" : "wp01"
+        },
+        {
+          "say" : "q06"
+        }
+      ],
+      "wake" : {
+
+      }
+    },
+    {
+      "description" : "Answered, 65 s quiet (the window closes), then a re-wake and a follow-up.",
+      "family" : "wake",
+      "leadIn" : 3,
+      "name" : "wk-rewake-clean",
+      "steps" : [
+        {
+          "say" : "wq04"
+        },
+        {
+          "gapAfter" : 1,
+          "silence" : 65
+        },
+        {
+          "expect" : "any",
+          "say" : "wd07"
+        },
+        {
+          "say" : "q01"
+        }
+      ],
+      "wake" : {
+
+      }
+    },
+    {
+      "aecOff" : true,
+      "description" : "A backchannel in the first window turn: Dee keeps talking.",
+      "echo" : {
+        "delayMs" : 80,
+        "gainDB" : -20,
+        "reverb" : true
+      },
+      "family" : "wake",
+      "leadIn" : 3,
+      "name" : "wk-backchannel-echo20",
+      "steps" : [
+        {
+          "expect" : "any",
+          "say" : "wd11"
+        },
+        {
+          "bargeIn" : {
+            "atMs" : 1500,
+            "backchannel" : true,
+            "say" : "c05"
+          },
+          "say" : "l05"
+        }
+      ],
+      "wake" : {
+
+      }
+    },
+    {
+      "description" : "Woken, then only the TV: the window closes 60 s ± 2 after the wake, nothing answered.",
+      "family" : "wake",
+      "leadIn" : 3,
+      "name" : "wk-tv-window",
+      "noise" : {
+        "bed" : "tvlong",
+        "snrDb" : 15
+      },
+      "steps" : [
+        {
+          "expect" : "any",
+          "say" : "wd02"
+        },
+        {
+          "silence" : 75
+        }
+      ],
+      "wake" : {
+
+      }
+    },
+    {
+      "description" : "\"Okay, go to sleep.\" closes the window at once; a later question is not answered until a wake.",
+      "family" : "wake",
+      "leadIn" : 3,
+      "name" : "wk-close-command",
+      "steps" : [
+        {
+          "say" : "wq03"
+        },
+        {
+          "expect" : "any",
+          "say" : "wc01"
+        },
+        {
+          "silence" : 3
+        },
+        {
+          "expect" : "noReply",
+          "say" : "q04"
+        },
+        {
+          "expect" : "any",
+          "say" : "wd09"
+        },
+        {
+          "say" : "q04"
+        }
+      ],
+      "wake" : {
+
+      }
+    }
+  ]
+}

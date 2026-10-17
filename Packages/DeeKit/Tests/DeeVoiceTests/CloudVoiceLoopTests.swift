@@ -94,8 +94,10 @@ final class LoopRig: @unchecked Sendable {
     private let state = Mutex<(output: [Float], noise: UInt64)>(([], 1))
     static let rate = 48_000.0
 
+    /// `duckOnOnset`: calm (nil: the configuration's default — on for the OpenAI provider,
+    /// unless `DEE_DUCK_ON_ONSET` says otherwise).
     init(sockets: [FakeSocket] = [], clips: ClipCache? = nil, retryDelay: Double = 0.02,
-         speculativeMax: Double = CloudVoice.speculativeMax) throws {
+         speculativeMax: Double = CloudVoice.speculativeMax, duckOnOnset: Bool? = nil) throws {
         graph = try AudioGraph.manual(sampleRate: Self.rate, channels: 1)
         factory = FakeSocketFactory(sockets) { FakeSocket(request: $0, sessionID: "sess_\(Int.random(in: 1000...9999))") }
         var config = RealtimeSessionConfig()
@@ -105,6 +107,7 @@ final class LoopRig: @unchecked Sendable {
                                   socketFactory: factory.factory, clock: clock)
         var c = CloudVoice.Configuration()
         c.speculativeMax = speculativeMax
+        c.duckOnOnset = duckOnOnset
         c.autoTick = false
         c.classifySounds = false
         c.connectRetryDelays = [retryDelay]
@@ -307,7 +310,7 @@ final class LoopRig: @unchecked Sendable {
     /// known); their words are a real interruption, so the reply is cancelled and
     /// the server keeps exactly what was played; late audio never plays.
     @Test func bargeInTruncatesToWhatWasPlayed() async throws {
-        let rig = try LoopRig()
+        let rig = try LoopRig(duckOnOnset: false)   // calm off: pins 0.6.0's pause (see CalmVoiceTests)
         try await rig.start()
         try rig.quiet(0.3)
         rig.push(Srv.speechStarted("item_u1", ms: 100), Srv.speechStopped("item_u1", ms: 200), Srv.committed("item_u1"))

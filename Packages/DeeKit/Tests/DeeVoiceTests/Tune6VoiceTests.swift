@@ -105,7 +105,8 @@ import Testing
     /// Dee once more (tune5-voice.md, open item). Now Dee talks on; its words make
     /// it a backchannel; nothing is cut.
     @Test func imListeningJustAfterSheWentOnNeverPausesHer() async throws {
-        let rig = try LoopRig()
+        // Pins 0.6.0's pause and grace (calm round 2 ducks through a continuer instead).
+        let rig = try LoopRig(duckOnOnset: false)
         let holds = Collector(rig.voice.holdEvents)
         try await resumedByKeepGoing(rig)
         try rig.quiet(0.3)

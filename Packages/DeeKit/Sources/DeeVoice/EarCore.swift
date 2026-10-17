@@ -89,6 +89,15 @@ public struct EarCore: Sendable {
         /// The user's voice is (true) or is no longer (false) heard locally —
         /// ~0.3 s ahead of the server's `speech_started` (`RealtimeSession.setLocalSpeech`).
         case localSpeech(Bool)
+        /// Calm (`duckOnOnset`): the onset evidence that was a `.bargeIn` ducks Dee instead —
+        /// Dee keeps talking, quieter, while the sound is judged. The item is the user's
+        /// (accepted, as with `.bargeIn`); nothing is cut, no `.bargeIn` event follows.
+        /// `via`: "onset" (server onset + near-end voice), "detector" (`BargeInDetector`),
+        /// "final" (the decision at its stop / timeout).
+        case duck(itemID: String?, via: String)
+        /// Calm: while ducked, the user's voice went on (`sustainedVoice`): Dee pauses now
+        /// (the hold's escalation). Once per duck. `all` / `pitched`: the counted seconds.
+        case sustained(itemID: String?, all: Double, pitched: Double)
     }
 
     // MARK: Tunables
@@ -260,7 +269,7 @@ public struct EarCore: Sendable {
     public private(set) var vad = EnergyVAD()
     private var room = NoiseFloorTracker()
     /// The room's bed (fan, tap, TV) and its ceiling: the uplink gate's bar.
-    public private(set) var bed = RoomBed()
+    public internal(set) var bed = RoomBed()
     /// The uplink gate as seen at 40 ms (frames it would pass are not the bed).
     private var gateOpenUntil = -Double.infinity
     /// Dee's echo path, learned from Dee's rendered output against the microphone.
@@ -353,6 +362,25 @@ public struct EarCore: Sendable {
     /// Dee went on after a hold here: what the user said before it was decided
     /// already (a backchannel) and is no evidence for a new onset.
     private var resumedAt = -Double.infinity
+
+    // MARK: Calm (spec "calm", mode 1)
+
+    /// Onset evidence over Dee's reply ducks Dee (`.duck`) instead of pausing Dee
+    /// (`.bargeIn`); sustained voice then escalates (`.sustained`). Off: byte for byte the
+    /// 0.6.0 decisions. `CloudVoice` sets it from its configuration.
+    public var duckOnOnset = false
+    /// Calm: Dee is ducked since then (nil: not ducked), for `duckedItem`.
+    private var duckSince: Double?
+    private var duckedItem: String?
+    private var sustainFired = false
+    /// Calm: cough / sneeze / laughter / breathing labels while Dee spoke (newest 8):
+    /// kept only to release a duck (`bodySound`), they never trigger anything.
+    private var bodySounds: [ClosedRange<Double>] = []
+    /// Calm: an item's own voice at the sustain bar and its span, kept at its transcript.
+    private var itemTV: [String: (voice: Double, span: Double, peak: Double)] = [:]
+    private var itemTVOrder: [String] = []
+    /// Tests: frames the per-band echo model learned from.
+    private(set) var spectralLearnFrames = 0
 
     /// Listening as last reported (starts closed: only an opening is news).
     private var reportedListening = false
@@ -487,6 +515,186 @@ public struct EarCore: Sendable {
     /// `itemID` was rejected as echo.
     public func isRejected(_ itemID: String) -> Bool { rejected.contains(itemID) }
 
+    /// Calm: Dee is ducked (a `.duck` not yet escalated or released).
+    public var isDucked: Bool { duckSince != nil }
+
+    /// Calm: the room's bed is a TV (`RoomBed.tvLike`) or, round 2, a loud bed that comes and
+    /// goes like talk (its ceiling at `CalmTuning.loudBedDB` or louder and at least
+    /// `CalmTuning.tvSpreadDB` over its floor: a TV's loud parts cross the room bar, and the
+    /// voice-like share alone never found the TV live) — only with `duckOnOnset`. Round 2
+    /// review (regress F1): a steady bed (a fan, a kitchen's hum: 0.8–2.6 dB from floor to
+    /// ceiling) is no TV — nothing in it talks, so every word in such a room is the user's, and
+    /// a soft "What time is it?" there was dropped as the TV and never answered.
+    public var tvRoom: Bool {
+        guard duckOnOnset else { return false }
+        if bed.tvLike { return true }
+        guard let c = bed.ceilingDB, let f = bed.floorDB else { return false }
+        return c >= CalmTuning.loudBedDB - 1e-9 && c - f >= CalmTuning.tvSpreadDB - 1e-9
+    }
+
+    /// Calm: the bar the sustain measure and (in a TV room) the local-only path judge
+    /// with: in a TV room, never under the bed's ceiling + `tvCeilingMarginDB` (the room bar
+    /// is capped at floor + 9 dB, which a TV's loud parts pass); elsewhere nil (the user's
+    /// usual bar).
+    private func sustainBar() -> Double? {
+        guard tvRoom, let c = bed.ceilingDB else { return nil }
+        let extra = aecActive ? 0 : Self.noAECNearExtraDB
+        return max(roomBar(extra: extra), c + CalmTuning.tvCeilingMarginDB + extra)
+    }
+
+    /// A logged frame judged near-end against the sustain bar.
+    private func sustainJudge(_ f: FrameStat, bar: Double?) -> (near: Bool, pitched: Bool) {
+        let j = judge(f)
+        guard j.near else { return (false, false) }
+        if let bar, f.db < bar { return (false, false) }
+        return j
+    }
+
+    /// Calm (spec §2): the counted near-end voice of the user's burst under a duck: from
+    /// the burst's start (its earliest sounding frame back to `duckSince − sustainLookback`
+    /// with no gap over `sustainGap`; never before the last resume / unduck) to `t`; near
+    /// against the sustain bar, and the pitched part of it. `last`: the last near frame.
+    public func sustainedMeasure(at t: Double) -> (all: Double, pitched: Double, last: Double)? {
+        guard let since = duckSince else { return nil }
+        let floor = max(since - CalmTuning.sustainLookback, resumedAt)
+        guard let burst = lastUserBurst(since: floor, gap: CalmTuning.sustainGap) else { return nil }
+        let bar = sustainBar()
+        var all = 0.0, pitched = 0.0, last = -Double.infinity
+        for f in frames.reversed() {
+            if f.t - f.dt < burst.start - 1e-9 { break }
+            guard f.t <= t + 1e-9 else { continue }
+            let j = sustainJudge(f, bar: bar)
+            if j.near {
+                all += f.dt
+                last = max(last, f.t)
+            }
+            if j.pitched { pitched += f.dt }
+        }
+        return (all, pitched, last)
+    }
+
+    /// Calm: the user is still talking under the duck, and has talked long enough
+    /// (`sustainVoice`, `sustainPitched` of it pitched, the last near frame within `sustainLive`).
+    public func sustainedVoice(at t: Double) -> Bool {
+        guard let m = sustainedMeasure(at: t) else { return false }
+        return m.all >= CalmTuning.sustainVoice - 1e-9 && m.pitched >= CalmTuning.sustainPitched - 1e-9
+            && t - m.last <= CalmTuning.sustainLive + 1e-9
+    }
+
+    private mutating func checkSustain(at t: Double) -> [Action] {
+        guard duckOnOnset, duckSince != nil, !sustainFired, speaking else { return [] }
+        if sustainedVoice(at: t), let m = sustainedMeasure(at: t) {
+            sustainFired = true
+            return [.sustained(itemID: duckedItem, all: m.all, pitched: m.pitched)]
+        }
+        if let m = serverSustain(at: t) {
+            sustainFired = true
+            return [.sustained(itemID: duckedItem, all: m.all, pitched: m.pitched)]
+        }
+        return []
+    }
+
+    /// Calm round 2 (live t2-backchannel-echo10 c03: "Stop talking for a second." over Dee's
+    /// un-cancelled echo, ducked at +1.38 s, silent only at its words, +2.92 s): with no echo
+    /// cancellation Dee's echo hides the near-end voice the sustain test counts. There the
+    /// server's word stands in for the length: the ducked item's speech still open
+    /// `CalmTuning.sustainServerOpen` after its onset, with `sustainServerNear` of near-end
+    /// voice in the burst (`sustainedMeasure`: no gap over `sustainGap`) and the user still
+    /// talking (`sustainServerLive`). Nil: not (yet).
+    func serverSustain(at t: Double) -> (all: Double, pitched: Double)? {
+        guard !aecActive, let item = duckedItem, let it = items[item], it.end == nil,
+              t - it.onset >= CalmTuning.sustainServerOpen - 1e-9, let m = sustainedMeasure(at: t),
+              m.all >= CalmTuning.sustainServerNear - 1e-9, m.pitched >= CalmTuning.sustainServerNear / 2 - 1e-9,
+              t - m.last <= CalmTuning.sustainServerLive + 1e-9 else { return nil }
+        return (m.all, m.pitched)
+    }
+
+    /// Round 3 review (regress F2): the sustain test's `.sustained` was ignored (a known go-on);
+    /// something new is being said under the same duck now, so the test may fire again.
+    public mutating func rearmSustain() {
+        guard duckSince != nil else { return }
+        sustainFired = false
+    }
+
+    /// Tests: a duck now (as onset evidence for `itemID` would start one).
+    mutating func duckNow(_ itemID: String?, at t: Double) -> [Action] {
+        guard speaking, !bargedIn, duckSince == nil else { return [] }
+        duckSince = t
+        duckedItem = itemID
+        sustainFired = false
+        return [.duck(itemID: itemID, via: "onset")]
+    }
+
+    /// Calm: the duck became a pause (the hold escalated): the user cut this stretch now.
+    public mutating func escalated() {
+        guard duckSince != nil else { return }
+        duckSince = nil
+        duckedItem = nil
+        if speaking { bargedIn = true }
+    }
+
+    /// Calm: Dee is at full level again (the duck was released). What the user said under
+    /// it is decided (no evidence for a new onset); the stretch goes on (Dee never stopped:
+    /// no new onset guard).
+    public mutating func unducked(at t: Double) {
+        guard duckSince != nil else { return }
+        clearDuck()
+        resumedAt = t
+        evidenceAt = nil
+        lastAboveBar = -Double.infinity
+        barge.reset()
+    }
+
+    /// Calm: Dee is ducked for `itemID` (or for no item yet): its onset is the user's.
+    private func ducks(_ itemID: String) -> Bool {
+        duckSince != nil && (duckedItem == nil || duckedItem == itemID)
+    }
+
+    /// Calm round 2: the user's near-end voice (s) over the last `window` (graph clock).
+    public func recentNearVoice(within window: Double, at t: Double) -> Double {
+        nearEndVoice(from: t - window, to: t).all
+    }
+
+    /// The onset of a known item (graph clock).
+    public func itemOnset(_ itemID: String) -> Double? { items[itemID]?.onset }
+
+    private mutating func clearDuck() {
+        duckSince = nil
+        duckedItem = nil
+        sustainFired = false
+    }
+
+    /// Calm: a cough / sneeze / laughter / breathing label overlapped `from…to` (graph clock).
+    public func bodySound(from a: Double, to b: Double) -> Bool {
+        bodySounds.contains { $0.upperBound >= a - 1e-9 && $0.lowerBound <= b + 1e-9 }
+    }
+
+    /// Calm (spec §3.3): server item `itemID`'s own near-end voice at the sustain bar (the TV
+    /// bar in a TV room) from its onset to its end (or `until`), and its speech span. Kept
+    /// after its transcript. Nil when unknown.
+    ///
+    /// Round 3: `peak` — the loudest near-end frame of the item over the bed's ceiling (dB; −∞
+    /// with no bed or no near frame). A voice at the phone is near-field: its loudest syllable
+    /// stands far above a TV across the room even when its stressed part is short (live
+    /// calm-ask-tv15 c03: the user's "Wait." split off by the quick commit had 0.16 s at the TV
+    /// bar, peak +18.6 dB; TV speech as loud as the bed's loud parts peaks at +4…+11 dB).
+    public func itemSustain(itemID: String, until t: Double) -> (voice: Double, span: Double, peak: Double)? {
+        if let it = items[itemID] { return measureItemSustain(it, until: t) }
+        return itemTV[itemID]
+    }
+
+    private func measureItemSustain(_ it: ItemTimes, until t: Double) -> (voice: Double, span: Double, peak: Double) {
+        let b = min(it.end ?? t, t)
+        let bar = sustainBar()
+        let ceiling = bed.ceilingDB
+        var v = 0.0, peak = -Double.infinity
+        for f in frames where f.t - f.dt >= it.onset - 1e-9 && f.t <= b + 1e-9 {
+            if let c = ceiling, judge(f).near { peak = max(peak, f.db - c) }
+            if sustainJudge(f, bar: bar).near { v += f.dt }
+        }
+        return (v, max(0, b - it.onset), peak)
+    }
+
     // MARK: Gates
 
     public mutating func setListeningEnabled(_ on: Bool, at t: Double) -> [Action] {
@@ -502,6 +710,7 @@ public struct EarCore: Sendable {
             serverOpen = nil
             pending.removeAll()
             initiativePending = false
+            clearDuck()
             resetTurn()
         }
         return sync(at: t)
@@ -541,9 +750,11 @@ public struct EarCore: Sendable {
         // What of this frame Dee's playback can explain (before the echo gain).
         let reach = echo.hasReference(at: t) ? echo.reach(from: t - dt, to: t) : nil
         // Per band: a voice under Dee's loud echo still shows where Dee is quiet.
+        // Calm (R8): never learned while ducked (the user's sound is being judged).
+        let learn = her && speaking && !bargedIn && duckSince == nil && echo.confident && !lastFrameAbove
+        if learn { spectralLearnFrames += 1 }
         let spec = spectral.analyze(samples, rate: sampleRate, endingAt: t, delay: echo.delay,
-                                    broadbandGain: echo.gain ?? echo.prior,
-                                    learn: her && speaking && !bargedIn && echo.confident && !lastFrameAbove)
+                                    broadbandGain: echo.gain ?? echo.prior, learn: learn)
         // The room's own floor, learned while Dee's voice is out of the room (what
         // is left while Dee talks may be the user talking over Dee).
         if !her { room.add(db, at: t) }
@@ -552,7 +763,8 @@ public struct EarCore: Sendable {
         // be a soft voice: it never teaches the bed to be louder.
         if let bar = uplinkBarDB, db >= bar { gateOpenUntil = t + UplinkGate.hangover }
         let maybeVoice = bed.ceilingDB.map { db >= $0 + Self.bedLearnHeadroomDB } ?? false
-        if !her, uplinkBarDB == nil || (t > gateOpenUntil && !maybeVoice) {
+        let bedFrame = !her && (uplinkBarDB == nil || (t > gateOpenUntil && !maybeVoice))
+        if bedFrame {
             bed.add(db, duration: dt, at: t)
         } else {
             bed.advance(to: t)
@@ -585,6 +797,8 @@ public struct EarCore: Sendable {
             lowShare = Self.lowBandShare(samples, sampleRate: sampleRate)
             voiceLike = periodic && lowShare >= Self.voiceBandShare
         }
+        // Calm: the bed's share of voice-like frames (is it a TV?). Bookkeeping only.
+        if bedFrame, voiceLike { bed.markVoiceLike(duration: dt) }
         var stat = FrameStat(t: t, dt: dt, energy: energy, samples: samples.count, rate: sampleRate, peak: peak,
                              db: db, user: false, f0: f0, her: her, rawVoiced: heard, voiceLike: voiceLike,
                              sounding: false, reach: reach, floorDB: roomFloorDB,
@@ -697,6 +911,7 @@ public struct EarCore: Sendable {
         }
         actions += decide(at: t, final: nil)
         actions += localOnlyBargeIn(at: t)
+        actions += checkSustain(at: t)
         actions += checkProbe(at: t)
         actions += syncUplink(at: t)
         actions += syncLocalSpeech(at: t)
@@ -759,6 +974,7 @@ public struct EarCore: Sendable {
         guard speaking else { return [] }
         probeSince = nil
         probeWaits.removeAll()
+        clearDuck()
         bargedIn = false
         lastStretchBarged = false
         stretchStart = t
@@ -787,9 +1003,11 @@ public struct EarCore: Sendable {
         guard speaking else { return [] }
         probeSince = nil
         probeWaits.removeAll()
+        // Calm (review F3): a stretch that played out under a duck was the user's floor too.
+        lastStretchBarged = bargedIn || duckSince != nil
+        clearDuck()
         speaking = false
         playbackEnd = t
-        lastStretchBarged = bargedIn
         bargedIn = false
         ownLevel = 0
         lastLevelAt = -Double.infinity
@@ -815,7 +1033,9 @@ public struct EarCore: Sendable {
         remember(itemID, ItemTimes(onset: start, end: nil))
         // While the user is already cutting Dee off (or just did), whatever the
         // server hears is them.
-        let overPlayback = (speaking && !bargedIn) || (!speaking && !lastStretchBarged && start < tailEnd)
+        // Calm: under a duck the user has the floor for the item that ducked Dee; any other
+        // new item is still judged against Dee's echo (Dee keeps talking, ducked; review F1).
+        let overPlayback = (speaking && !bargedIn && !ducks(itemID)) || (!speaking && !lastStretchBarged && start < tailEnd)
         guard overPlayback else {
             serverOpen = itemID
             return syncUplink(at: t)
@@ -898,6 +1118,11 @@ public struct EarCore: Sendable {
         latest = max(latest, t)
         guard !rejected.contains(itemID) else { return [] }
         if let it = items[itemID] { keepSound(itemID, sound(from: it.onset, to: min(it.end ?? t, t))) }
+        if duckOnOnset, let it = items[itemID] {
+            if itemTV[itemID] == nil { itemTVOrder.append(itemID) }
+            itemTV[itemID] = measureItemSustain(it, until: t)
+            while itemTVOrder.count > 32 { itemTV[itemTVOrder.removeFirst()] = nil }
+        }
         let times = items.removeValue(forKey: itemID)
         itemOrder.removeAll { $0 == itemID }
         let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1141,6 +1366,13 @@ public struct EarCore: Sendable {
                                     window: ClosedRange<Double>? = nil, at t: Double) -> [Action] {
         let loudness = frames.reversed().prefix { t - $0.t <= Self.soundLoudnessWindow }.map(\.db).max() ?? vad.noiseFloorDB
         var candidates = Array(results.prefix(3))
+        // Calm: a body sound's label while Dee speaks is kept only to release a duck.
+        if duckOnOnset, speaking, results.prefix(3).contains(where: {
+            $0.confidence >= CalmTuning.labelConfidence - 1e-9 && Self.isBodySound($0.identifier)
+        }) {
+            bodySounds.append(window ?? ((t - Self.soundLoudnessWindow)...t))
+            if bodySounds.count > 8 { bodySounds.removeFirst(bodySounds.count - 8) }
+        }
         if candidates.contains(where: {
             let k = SoundCatalog.kind(of: $0.identifier)
             return (k == .laughter || k == .applause) && $0.confidence >= 0.4
@@ -1169,6 +1401,11 @@ public struct EarCore: Sendable {
             }
         }
         return []
+    }
+
+    /// Calm: a cough, a sneeze, a laugh or a breath (SoundAnalysis identifiers).
+    static func isBodySound(_ identifier: String) -> Bool {
+        ["cough", "sneeze", "breathing"].contains(identifier) || SoundCatalog.kind(of: identifier) == .laughter
     }
 
     // MARK: Internals
@@ -1224,7 +1461,9 @@ public struct EarCore: Sendable {
     /// before the server's onset to its end, or now).
     private func nearEndEvidence(for itemID: String, arrivedAt: Double, at t: Double, need: Double) -> Bool {
         let times = items[itemID]
-        let from = max((times?.onset ?? arrivedAt - 0.3) - 0.3, resumedAt)
+        var from = max((times?.onset ?? arrivedAt - 0.3) - 0.3, resumedAt)
+        // Calm (review F1): under a duck, the burst before a new item's arrival is the ducked item's.
+        if duckSince != nil, !ducks(itemID) { from = max(from, arrivedAt) }
         let to = (times?.end ?? t) + 0.1
         let v = nearEndVoice(from: from, to: to)
         return v.all >= need - 1e-9 && v.pitched >= Self.nearEndPitched - 1e-9
@@ -1245,21 +1484,31 @@ public struct EarCore: Sendable {
         var keep: [Pending] = []
         for p in pending {
             let isFinal = p.itemID == final
+            // Calm (review F1): a new item under a duck — the burst that ducked Dee is not
+            // evidence for it (its onset may map into that burst); only voice from its
+            // arrival on is (the user talking on is still talking then; Dee's echo is not them).
+            let since = duckSince != nil ? p.arrivedAt : p.arrivedAt - Self.evidenceLookback
             // Sustained local evidence; or the server heard speech too and there is
             // near-end voice in its window (two detectors agree: a short "Wait,").
-            let evidence = (evidenceAt.map { max($0, lastAboveBar) >= p.arrivedAt - Self.evidenceLookback } ?? false)
+            let evidence = (evidenceAt.map { max($0, lastAboveBar) >= since } ?? false)
                 || (echo.hasReference(at: t)
                     && nearEndEvidence(for: p.itemID, arrivedAt: p.arrivedAt, at: t, need: Self.corroboratedEvidence))
             if evidence {
+                let detector = evidenceAt.map { max($0, lastAboveBar) >= since } ?? false
                 evidenceAt = nil
                 barge.reset()
-                if speaking && !bargedIn {
-                    bargedIn = true                       // the user cut this stretch
-                    if asideOnly {
-                        actions.append(.yieldAside(itemID: p.itemID))
-                        actions.append(.acceptOnset(itemID: p.itemID))
+                if speaking && !bargedIn && duckSince == nil {
+                    if duckOnOnset && !asideOnly {
+                        // Calm: Dee gives way (quieter) while the sound is judged.
+                        actions += startDuck(p.itemID, via: detector ? "detector" : "onset", at: t, final: isFinal)
                     } else {
-                        actions += [.bargeIn(itemID: p.itemID), .emit(.bargeIn)]
+                        bargedIn = true                       // the user cut this stretch
+                        if asideOnly {
+                            actions.append(.yieldAside(itemID: p.itemID))
+                            actions.append(.acceptOnset(itemID: p.itemID))
+                        } else {
+                            actions += [.bargeIn(itemID: p.itemID), .emit(.bargeIn)]
+                        }
                     }
                 } else {
                     actions.append(.acceptOnset(itemID: p.itemID))
@@ -1268,7 +1517,7 @@ public struct EarCore: Sendable {
                 continue
             }
             if soundingAfterTail >= Self.userAfterTail - 1e-9 || (asideOnly && speaking && userHeldFloorAtAside)
-                || (speaking && bargedIn) || (!speaking && postRun >= Self.quickAnswer - 1e-9) {
+                || (speaking && (bargedIn || ducks(p.itemID))) || (!speaking && postRun >= Self.quickAnswer - 1e-9) {
                 actions.append(.acceptOnset(itemID: p.itemID))
                 serverOpen = isFinal ? nil : p.itemID
                 continue
@@ -1287,12 +1536,16 @@ public struct EarCore: Sendable {
                 // Voice Dee's playback doesn't explain: the user, never deleted as echo.
                 evidenceAt = nil
                 barge.reset()
-                if speaking && !bargedIn {
-                    bargedIn = true
-                    if asideOnly {
-                        actions += [.yieldAside(itemID: p.itemID), .acceptOnset(itemID: p.itemID)]
+                if speaking && !bargedIn && duckSince == nil {
+                    if duckOnOnset && !asideOnly {
+                        actions += startDuck(p.itemID, via: "final", at: t, final: true)
                     } else {
-                        actions += [.bargeIn(itemID: p.itemID), .emit(.bargeIn)]
+                        bargedIn = true
+                        if asideOnly {
+                            actions += [.yieldAside(itemID: p.itemID), .acceptOnset(itemID: p.itemID)]
+                        } else {
+                            actions += [.bargeIn(itemID: p.itemID), .emit(.bargeIn)]
+                        }
                     }
                 } else {
                     actions.append(.acceptOnset(itemID: p.itemID))
@@ -1334,6 +1587,17 @@ public struct EarCore: Sendable {
         return actions
     }
 
+    /// Calm: the duck for `itemID` (its onset evidence was there). At the decision of its
+    /// stop / timeout (`final`) the sustain test runs at once.
+    private mutating func startDuck(_ itemID: String, via: String, at t: Double, final: Bool) -> [Action] {
+        duckSince = t
+        duckedItem = itemID
+        sustainFired = false
+        var out: [Action] = [.duck(itemID: itemID, via: via)]
+        if final { out += checkSustain(at: t) }
+        return out
+    }
+
     /// Strong local evidence the server has not reported (yet): a long, continuous,
     /// pitched run of voice above the bar that is still going on.
     private mutating func localOnlyBargeIn(at t: Double) -> [Action] {
@@ -1345,11 +1609,27 @@ public struct EarCore: Sendable {
             bargedIn = true
             return [.yieldAside(itemID: nil)]
         }
+        // Calm round 2 (D2): the local-only run never pauses Dee. While ducked the sustain
+        // test decides (the run is part of its burst); in a TV room the run is the TV's
+        // (live calm-ask-tv15 94.92: 2.0 s of silence, then a cut, for a TV peak); elsewhere it
+        // ducks Dee like any onset evidence, and only sustained voice then pauses Dee.
+        if duckOnOnset, duckSince != nil || tvRoom { return [] }
         guard t - lastAboveBar <= Self.runGap + 1e-9,
               t - aboveRunStart >= Self.localOnlyRun - 1e-9,
               Double(aboveRunPitched) >= Self.localOnlyPitched * Double(max(aboveRunFrames, 1)),
               t - lastSocialSoundAt > Self.socialSuppress else { return [] }
         evidenceAt = nil
+        if duckOnOnset {
+            // Round 3 (live t2-backchannel-echo20 c03): the server's item still open is what this
+            // run is (a duck released in its comma pause, then this one): the duck is its, so
+            // its words — "Wait, stop…" at its first delta — decide it.
+            // (Not one we committed ourselves: the server talks on in an item it never announces.)
+            let open = serverOpen.flatMap { $0 == serverOpenCommitted || rejected.contains($0) ? nil : $0 }
+            duckSince = t
+            duckedItem = open
+            sustainFired = false
+            return [.duck(itemID: open, via: "localOnly")] + checkSustain(at: t)
+        }
         bargedIn = true
         return [.bargeIn(itemID: nil), .emit(.bargeIn)]
     }

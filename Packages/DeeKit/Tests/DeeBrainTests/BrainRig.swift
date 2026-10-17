@@ -127,7 +127,7 @@ final class BrainRig {
     init(identified: Bool = true, engaged: Bool = true, exactWords: Bool = false, tools: [any AgentTool] = [],
          sockets: [FakeSocket] = [], memory: MemoryStore? = nil, person: UUID? = nil,
          configure: (inout RealtimeSessionConfig) -> Void = { _ in },
-         tune: (inout RealtimeBrain.Options) -> Void = { _ in }) async throws {
+         tune: (inout RealtimeBrain.Options) -> Void = { _ in }, duckOnOnset: Bool? = nil) async throws {
         graph = try AudioGraph.manual(sampleRate: Self.rate, channels: 1)
         factory = FakeSocketFactory(sockets) { FakeSocket(request: $0, sessionID: "sess_\(Int.random(in: 1000...9999))") }
         var config = CloudSettings().sessionConfig()
@@ -139,6 +139,7 @@ final class BrainRig {
         c.autoTick = false
         c.classifySounds = false
         c.connectRetryDelays = [0.02]
+        c.duckOnOnset = duckOnOnset
         voice = CloudVoice(session: session, graph: graph, clips: nil, timeline: TurnTimeline(), configuration: c)
         let mind = try Mind(databaseURL: nil)
         host = await StandaloneHost(mind: mind, memory: memory, person: person ?? (identified ? UUID() : nil))

@@ -8,10 +8,15 @@ public enum FixtureEngine: String, Codable, Sendable {
     case openai
     /// macOS `say` (`--data-format=LEI16@24000`).
     case say
+    /// Calm: synthesized offline, seeded (`Nonspeech`): coughs, breaths, laughs. `voice`
+    /// names the recipe. No key, no cost.
+    case dsp
 }
 
 public enum FixtureStyle: String, Codable, Sendable, CaseIterable {
     case neutral, soft, loud, angry, child, fast
+    /// Calm: a short amused chuckle (TTS laugh fixtures ns08 / ns09, bc09).
+    case laugh
 
     /// `gpt-4o-mini-tts` delivery instructions.
     public var ttsInstructions: String {
@@ -22,13 +27,14 @@ public enum FixtureStyle: String, Codable, Sendable, CaseIterable {
         case .angry: "Speak angrily and impatiently, sharp and loud, clearly annoyed."
         case .child: "Speak like an excited seven-year-old child: high, bouncy, a bit breathless."
         case .fast: "Speak quickly, rushing through the words, with little pause between them."
+        case .laugh: "Laugh softly as you say it: a short, amused, breathy chuckle, like a listener reacting to something funny."
         }
     }
 
     /// Active speech level the segment is normalized to (dBFS): loudness variety on purpose.
     public var levelDB: Double {
         switch self {
-        case .neutral, .child, .fast: -24
+        case .neutral, .child, .fast, .laugh: -24
         case .soft: -32
         case .loud, .angry: -17
         }
@@ -71,7 +77,16 @@ public enum FixtureCategory: String, Codable, Sendable, CaseIterable {
     /// 0.6 wake suite: speech not addressed to Dee (near-miss words, Dee's name in a
     /// sentence): must never wake Dee. Not core.
     case unaddressed
+    /// Calm: a listener's non-speech sound said over Dee (cough, breath, throat clear,
+    /// sigh, closed-mouth "hmm", a laugh). Dee must carry on (scored like a backchannel,
+    /// `false_pause`). Not core.
+    case nonspeech
 }
+
+/// Calm: how long a non-speech sound is (`class` in the manifest). `short` (≤ 0.6 s)
+/// is gated by `false_pause` (≤ 5 % pauses, 0 stops); `long` (a laughing or coughing
+/// fit) by `false_pause_long` (0 stops; pauses reported).
+public enum NonspeechClass: String, Codable, Sendable { case short, long }
 
 /// One piece of a fixture: words, or a deliberate silence.
 public enum FixturePart: Codable, Sendable, Equatable {
@@ -103,12 +118,22 @@ public struct FixtureSpec: Codable, Sendable, Equatable {
     public var voice: String
     public var style: FixtureStyle
     public var parts: [FixturePart]
+    /// Calm: a `nonspeech` fixture's length class (nil otherwise).
+    public var soundClass: NonspeechClass?
+    /// Calm round 2: `say -r` override (wins over `style.sayRate`); the voiced coughs
+    /// (ns12–ns14) were tuned at one exact rate against Apple's classifier.
+    public var sayRate: Int?
 
     public init(_ id: String, _ category: FixtureCategory, _ engine: FixtureEngine, _ voice: String,
-                _ style: FixtureStyle = .neutral, _ parts: [FixturePart]) {
+                _ style: FixtureStyle = .neutral, _ parts: [FixturePart], soundClass: NonspeechClass? = nil,
+                sayRate: Int? = nil) {
         self.id = id; self.category = category; self.engine = engine
-        self.voice = voice; self.style = style; self.parts = parts
+        self.voice = voice; self.style = style; self.parts = parts; self.soundClass = soundClass
+        self.sayRate = sayRate
     }
+
+    /// The `say -r` rate this fixture renders at (nil: the voice's default).
+    public var effectiveSayRate: Int? { sayRate ?? style.sayRate }
 
     /// Ground-truth text: the words in order (pauses dropped).
     public var text: String {
@@ -279,14 +304,60 @@ public enum FixtureCatalog {
         .init("un10", .unaddressed, .openai, "echo", .neutral, [w("I need to compute the total before dinner.")]),
         .init("un11", .unaddressed, .openai, "ballad", .soft, [w("Had a hot head about it, then I hid the heater.")]),
         .init("un12", .unaddressed, .say, "Moira", .neutral, [w("Did you see her robe? It was the color of the sea.")]),
+
+        // Calm (too sensitive to interruptions): the listener's own short sounds over Dee.
+        // DSP ones are synthesized offline and seeded (`Nonspeech`, recipe = voice); no
+        // words, so no ground-truth text. Rendered at −24 dBFS; a scenario's
+        // `bargeIn.gainDB` +7 makes the loud (−17 dBFS, close to the phone) variant.
+        .init("ns01", .nonspeech, .dsp, "cough", .neutral, [], soundClass: .short),
+        .init("ns02", .nonspeech, .dsp, "cough2", .neutral, [], soundClass: .short),
+        .init("ns03", .nonspeech, .dsp, "throat", .neutral, [], soundClass: .short),
+        .init("ns04", .nonspeech, .dsp, "breath", .neutral, [], soundClass: .short),
+        .init("ns05", .nonspeech, .dsp, "sigh", .neutral, [], soundClass: .short),
+        .init("ns06", .nonspeech, .dsp, "hmm", .neutral, [], soundClass: .short),
+        .init("ns07", .nonspeech, .dsp, "laugh3", .neutral, [], soundClass: .short),
+        .init("ns08", .nonspeech, .openai, "alloy", .laugh, [w("Heh.")], soundClass: .short),
+        .init("ns09", .nonspeech, .openai, "coral", .laugh, [w("Ha ha!")], soundClass: .short),
+        .init("ns10", .nonspeech, .dsp, "laugh6", .neutral, [], soundClass: .long),
+        .init("ns11", .nonspeech, .dsp, "coughfit", .neutral, [], soundClass: .long),
+        // Calm round 2: coughs Apple's classifier hears as coughs. The seeded DSP coughs
+        // above score cough 0.00 ("hammer", "gunshot"); TTS asked for a cough spoke the
+        // words ("Cough, cough."). macOS `say` voice Albert (a raspy novelty voice) on a
+        // non-lexical "hukh" syllable, at the rate found by an offline search (free, no
+        // key), is heard as a cough (≥ 0.4) and as no words by the on-device
+        // recogniser (`voice-harness sounds`). The text is the `say` input, not words
+        // the user says: nonspeech fixtures have no ground truth.
+        .init("ns12", .nonspeech, .say, "Albert", .neutral, [w("Khukh!")], soundClass: .short, sayRate: 185),
+        .init("ns13", .nonspeech, .say, "Albert", .neutral, [w("Khukh! Khukh!")], soundClass: .short, sayRate: 185),
+        .init("ns14", .nonspeech, .say, "Albert", .neutral, [w("Hukh. Hukh. Hukh.")], soundClass: .long, sayRate: 250),
+        // More single-clause continuers over Dee (Dee keeps talking).
+        .init("bc03", .backchannel, .openai, "alloy", .neutral, [w("Yeah.")]),
+        .init("bc04", .backchannel, .say, "Samantha", .neutral, [w("Uh-huh.")]),
+        .init("bc05", .backchannel, .openai, "coral", .neutral, [w("Right.")]),
+        .init("bc06", .backchannel, .say, "Daniel", .neutral, [w("Okay.")]),
+        .init("bc07", .backchannel, .openai, "sage", .neutral, [w("Mm.")]),
+        .init("bc08", .backchannel, .openai, "shimmer", .neutral, [w("Oh wow.")]),
+        .init("bc09", .backchannel, .openai, "verse", .laugh, [w("Haha, yeah.")]),
+        // Round 2: bc10 was TTS coral soft, which came back as digital silence (peak 0):
+        // round 1 scored a silent "continuer" as carried on. `say` renders it offline.
+        .init("bc10", .backchannel, .say, "Karen", .soft, [w("Yeah.")]),
+        .init("bc11", .backchannel, .openai, "ballad", .soft, [w("Mm-hm.")]),
+        .init("bc12", .backchannel, .openai, "ash", .neutral, [w("Okay.")]),
+        // A question that opens with a stop phrase, and a lone stop word.
+        .init("c07", .command, .openai, "echo", .neutral, [w("Hold on, what time is it?")]),
+        .init("c08", .command, .openai, "ash", .loud, [w("Wait.")]),
     ]
+
+    /// Calm: the ids added for the calm suite (not core).
+    public static let calmExtras: Set<String> = ["c07", "c08"]
 
     /// Fixtures added for the tune-2 regression suite (not part of the 62).
     public static let extras: Set<String> = ["t04", "k08", "bc01", "bc02"]
 
     /// The 62 acoustic fixtures (every category but `continuation` / `backchannel`, no extras).
     public static var core: [FixtureSpec] {
-        all.filter { $0.category != .continuation && $0.category != .backchannel && !extras.contains($0.id) && !isWakeSuite($0) }
+        all.filter { $0.category != .continuation && $0.category != .backchannel && $0.category != .nonspeech
+            && !extras.contains($0.id) && !calmExtras.contains($0.id) && !isWakeSuite($0) }
     }
 
     /// 0.6 wake suite fixtures (`wd…`, `wq…`, `wp…`, `wc…`, custom phrases, `un…`): not core.
@@ -302,7 +373,73 @@ public enum FixtureCatalog {
     /// Said while Dee talks, these are a listener's backchannel, not a barge-in: Dee
     /// keeps talking (user decision, tune 2: "keep going" / "go on" / "mm-hm"). Scored
     /// by the `backchannel` gate, never by `barge_in`.
-    public static let backchannels: Set<String> = ["c02", "c05", "bc01", "bc02"]
+    public static let backchannels: Set<String> = ["c02", "c05", "bc01", "bc02", "bc03", "bc04", "bc05", "bc06", "bc07",
+                                                   "bc08", "bc09", "bc10", "bc11", "bc12"]
+
+    /// Calm: single-clause continuers ("Go on.", "Mm-hm.", "Yeah.", …): with the short
+    /// non-speech sounds they are the `false_pause` events (Dee must never fall silent).
+    public static let singleClauseContinuers: Set<String> = ["bc01", "bc02", "bc03", "bc04", "bc05", "bc06", "bc07",
+                                                             "bc08", "bc09", "bc10", "bc11", "bc12"]
+
+    /// Calm: lone stop words (`silence` p90 ≤ 1.1 s: the moment the reply ended at in 0.6.0).
+    public static let loneStopWords: Set<String> = ["c01", "c08"]
+
+    /// Calm round 2 (D1): where the stop / command phrase ends inside each stop fixture.
+    /// Dee must be fully silent within `Gates.Thresholds.stopWordSilenceP90` of it.
+    public enum StopWordEnd: Sendable, Equatable {
+        /// The fixture is the stop word ("Stop.", "Wait.").
+        case endOfSpeech
+        /// The stop phrase is the first voiced span ("Be quiet" | "please", "Hold on" |
+        /// "hold on", "Hold on" | "what time is it?").
+        case firstSpan
+        /// This long after the onset (one span: c03 "Wait, stop talking…", "Wait" by the
+        /// on-device recogniser's word timing, 0.12–0.57 s of the file, onset 0.17 s).
+        case afterOnset(Double)
+    }
+    public static let stopWordEnds: [String: StopWordEnd] = [
+        "c01": .endOfSpeech, "c08": .endOfSpeech, "c03": .afterOnset(0.40),
+        "c04": .firstSpan, "c06": .firstSpan, "c07": .firstSpan,
+    ]
+
+    /// Calm: the SoundAnalysis label family each DSP / TTS sound must get offline
+    /// (`voice-harness sounds`, confidence ≥ `soundCheckMin`) before any live run.
+    public static let expectedSoundLabel: [String: String] = [
+        "ns01": "cough", "ns02": "cough", "ns11": "cough",
+        "ns12": "cough", "ns13": "cough", "ns14": "cough",
+        "ns07": "laughter", "ns09": "laughter", "ns10": "laughter",
+    ]
+    public static let soundCheckMin = 0.4
+    /// Round 2: sounds known to miss their label (documented, not re-synthesized): the
+    /// seeded DSP coughs score cough 0.00 ("hammer", "slap", "insect": about 1,000 DSP
+    /// variants stayed under 0.02, so the classifier keys on vocal-tract detail a
+    /// source-filter recipe lacks) and TTS "Ha ha!" scores laughter 0.02. They stay in
+    /// the suite for EarCore's energy / pitch path; ns12–ns14 cover the cough label.
+    /// ns07 (DSP 3-pulse laugh) reaches laughter 0.57 only at one alignment of the
+    /// classifier's windows (median 0.09 over `SoundCheck.leads`); ns10 is the reliable
+    /// laugh (median 0.72).
+    public static let knownUnlabelled: Set<String> = ["ns01", "ns02", "ns11", "ns09", "ns07"]
+
+    /// Calm: how a DSP sound is re-synthesized when Apple's classifier does not hear it
+    /// as meant (`voice-harness fixtures --resynth`, needs the key, < $0.001 each):
+    /// gpt-4o-mini-tts with a no-words instruction; kept only if it classifies better.
+    /// (The seeded DSP coughs read as "gunshot / hammer" to `.version1`; the laughs pass.)
+    public struct SoundFallback: Sendable {
+        public var voice: String
+        public var text: String
+        public var instructions: String
+    }
+    public static let soundFallbacks: [String: SoundFallback] = [
+        "ns01": .init(voice: "ash", text: "*cough*",
+                      instructions: "Do not say any words. Make one short, dry, natural cough into your hand, like clearing a tickle in your chest."),
+        "ns02": .init(voice: "echo", text: "*cough cough*",
+                      instructions: "Do not say any words. Make two short natural coughs in a row, a little hoarse."),
+        "ns11": .init(voice: "ash", text: "*coughing fit*",
+                      instructions: "Do not say any words. Make a short coughing fit: four quick, real coughs in a row, about one second in all."),
+        "ns07": .init(voice: "coral", text: "Ha ha ha.",
+                      instructions: "Laugh briefly and naturally, three short breathy 'ha' sounds, amused. No other words."),
+        "ns10": .init(voice: "verse", text: "Ha ha ha ha ha ha!",
+                      instructions: "Burst out laughing for about a second, natural and breathy, six quick 'ha' sounds. No other words."),
+    ]
 
     public static func spec(_ id: String) -> FixtureSpec? { all.first { $0.id == id } }
 }
@@ -320,6 +457,12 @@ public enum TurnShape {
     /// A listener's backchannel ("keep going", "go on", "mm-hm"): Dee keeps talking.
     public static func isBackchannel(_ fixture: String) -> Bool { FixtureCatalog.backchannels.contains(fixture) }
 
+    /// Calm: a non-speech sound (cough, laugh, breath…): scored like a backchannel.
+    public static func isNonspeech(_ fixture: String) -> Bool { FixtureCatalog.spec(fixture)?.category == .nonspeech }
+
+    /// Calm: a non-speech sound's length class (nil: not a sound).
+    public static func soundClass(_ fixture: String) -> NonspeechClass? { FixtureCatalog.spec(fixture)?.soundClass }
+
     public static func bucket(_ fixture: String) -> Bucket {
         if holdsFloor(fixture) { return .none }
         return FixtureCatalog.spec(fixture)?.category == .filler ? .filler : .main
@@ -329,6 +472,8 @@ public enum TurnShape {
 // MARK: - Manifest (what was rendered)
 
 public struct FixtureManifest: Codable, Sendable {
+    /// Round 2: an utterance at or below this active level is digital silence.
+    public static let silentLevelDB = -90.0
     public struct Utterance: Codable, Sendable, Equatable {
         public var id: String
         public var file: String
@@ -349,14 +494,23 @@ public struct FixtureManifest: Codable, Sendable {
         /// Deliberate pauses in the script, seconds.
         public var scriptedPauses: [Double]
         public var activeLevelDB: Double
+        /// Calm: a `nonspeech` fixture's length class (`class`: short | long).
+        public var soundClass: NonspeechClass?
+
+        enum CodingKeys: String, CodingKey {
+            case id, file, category, engine, voice, style, text, sampleRate, samples, onsetSample, endOfSpeechSample, spans,
+                 scriptedPauses, activeLevelDB
+            case soundClass = "class"
+        }
 
         public init(id: String, file: String, category: FixtureCategory, engine: FixtureEngine, voice: String,
                     style: FixtureStyle, text: String, sampleRate: Int, samples: Int, onsetSample: Int,
-                    endOfSpeechSample: Int, spans: [DSP.Span], scriptedPauses: [Double], activeLevelDB: Double) {
+                    endOfSpeechSample: Int, spans: [DSP.Span], scriptedPauses: [Double], activeLevelDB: Double,
+                    soundClass: NonspeechClass? = nil) {
             self.id = id; self.file = file; self.category = category; self.engine = engine; self.voice = voice
             self.style = style; self.text = text; self.sampleRate = sampleRate; self.samples = samples
             self.onsetSample = onsetSample; self.endOfSpeechSample = endOfSpeechSample; self.spans = spans
-            self.scriptedPauses = scriptedPauses; self.activeLevelDB = activeLevelDB
+            self.scriptedPauses = scriptedPauses; self.activeLevelDB = activeLevelDB; self.soundClass = soundClass
         }
 
         public var duration: Double { Double(samples) / Double(sampleRate) }
@@ -438,5 +592,56 @@ public enum FixtureAssembler {
     public enum Segment: Sendable {
         case audio([Float])
         case pause(Double)
+    }
+}
+
+// MARK: - Calm round 2: a sound fixture must not speak words
+
+/// The round-1 resynth kept a gpt-4o-mini-tts "cough" that spoke the instruction as
+/// words ("Cough, cough.", "Puff, puff.", "Coughing fit."): the live server heard words
+/// and Dee was right to stop. A sound fixture's transcript may hold only non-lexical
+/// vocalizations (laughs, fillers, "mm-hm") and bracketed / asterisked sound tags.
+public enum SoundWords {
+    /// Vocalizations that are not words: a sound fixture may be heard as these.
+    public static let nonLexical: Set<String> = [
+        "uh", "uhh", "um", "umm", "uhm", "er", "erm", "ah", "ahh", "aah", "oh", "ohh", "ooh", "eh", "ehh",
+        "hm", "hmm", "hmmm", "mm", "mmm", "mhm", "mmhm", "mmhmm", "mm-hm", "mm-hmm", "uh-huh", "huh", "hah",
+        "ha", "haha", "hahaha", "heh", "hehe", "heheh", "ahem", "ugh", "achoo", "pff", "phew", "whew", "shh", "tsk",
+    ]
+
+    /// The lexical words of `transcript` (empty: no words). Sound tags such as
+    /// "[laughter]", "(coughs)" or "*cough*" are dropped first; then every token that is
+    /// not a `nonLexical` vocalization ("ha ha", "Mm-hm.") counts as a word.
+    public static func lexicalWords(in transcript: String) -> [String] {
+        var t = transcript
+        for (open, close) in [("[", "]"), ("(", ")"), ("*", "*")] {
+            while let a = t.range(of: open), let b = t.range(of: close, range: a.upperBound..<t.endIndex) {
+                t.removeSubrange(a.lowerBound..<b.upperBound)
+            }
+        }
+        let tokens = t.lowercased().split { !($0.isLetter || $0 == "-" || $0 == "'") }.map(String.init)
+        return tokens.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "-'")) }
+            .filter { !$0.isEmpty && !nonLexical.contains($0) && Set($0) != ["h", "a"] }    // "hahah", "ahah"
+    }
+
+    public static func hasWords(_ transcript: String) -> Bool { !lexicalWords(in: transcript).isEmpty }
+}
+
+/// Calm round 2: whether a re-synthesized sound replaces the seeded one
+/// (`voice-harness fixtures --resynth`). The candidate must pass the classifier bar on
+/// its own, beat the current rendering, and be heard as no words; otherwise the seeded
+/// (DSP) fixture stays. A candidate whose words could not be checked is rejected.
+public enum ResynthDecision: Equatable, Sendable {
+    case accept
+    case reject(String)
+
+    public static func decide(current: Double, candidate: Double, bar: Double = FixtureCatalog.soundCheckMin,
+                              candidateTranscript: String?) -> ResynthDecision {
+        guard let transcript = candidateTranscript else { return .reject("no word check (on-device recogniser unavailable)") }
+        let words = SoundWords.lexicalWords(in: transcript)
+        if !words.isEmpty { return .reject("speaks words: “\(transcript)”") }
+        if candidate < bar - 1e-9 { return .reject(String(format: "below the classifier bar (%.2f < %.1f)", candidate, bar)) }
+        if candidate <= current + 1e-9 { return .reject(String(format: "not better (%.2f ≤ %.2f)", candidate, current)) }
+        return .accept
     }
 }

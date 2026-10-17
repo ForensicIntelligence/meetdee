@@ -75,6 +75,79 @@ for a held turn the user finishes later, `faultDuringReply {kind, afterMs}`, `ex
 `echo {gainDB, delayMs, reverb}`, `aecOff`, `leadIn`, `family`, `state` (the judge's view of Dee's state), `person {name,
 knownDays}` / `stranger`, and `session {rolloverAfter, forceRolloverAfter, secretTTL}`.
 
+**Calm: Dee ducks for sounds and stops only for real interruptions (mode 1).**
+
+- Fixtures: `nonspeech` sounds over Dee, with a `class` (`short` ≤ 0.6 s, or `long`) in the manifest. ns01–ns07, ns10
+  and ns11 are synthesized offline and seeded (`HarnessCore.Nonspeech`: coughs, a throat clear, a breath, a sigh, a
+  closed-mouth "hmm", laughs; no recorded material). ns08 and ns09 are TTS laughs. There are also more continuers
+  (bc03–bc12) and two stop fixtures, c07 "Hold on, what time is it?" and c08 "Wait.".
+- `$H sounds [--synth]` is the offline SoundAnalysis check (no key). ns07, ns09 and ns10 must be labelled laughter,
+  and ns01, ns02 and ns11 cough, each at confidence ≥ 0.4. The seeded laughs pass. The DSP coughs do not: `.version1`
+  hears "gunshot / hammer". `$H fixtures --only ns01,ns02,ns11 --force --resynth` re-renders a failing sound through
+  TTS and keeps it only if it classifies better.
+- In a scenario, `bargeIn` takes `nonspeech: true`, which scores the event like a backchannel (Dee must carry on), and
+  `gainDB`: +7 gives the loud −17 dBFS variant. `moreBargeIns` adds more events over the same reply, each `atMs` after
+  its first audio. An event that comes after Dee's reply has ended is not spoken.
+- The runner keeps every CloudVoice note with its time (`timeline[].events`). From those, the metrics give each event
+  over Dee its yield (first `duck`/`hold`), its silence (first `hold`), the seconds paused and ducked, and whether the
+  reply was cut. A report from before calm has no timed notes, so it is scored approximately (a hold at about onset
+  + 0.15 s, no ducks) and labelled "approximate".
+- New gates:
+  - `false_pause`: short sounds and single-clause continuers over Dee; an audible pause (≥ 0.10 s) or a stop is allowed
+    in ≤ 5 % of them, pooled n ≥ 40, and a sound may never stop Dee.
+  - `false_pause_long`: 0 stops.
+  - `false_barge`: pauses or cuts while Dee talks with no scripted user audio within ±0.3 s, counted per 10
+    Dee-talking minutes and per condition. Each condition allows 0 stops and ≤ 1 pause per 10 Dee-min (≤ 2 at
+    tv10/tvlong10).
+  - `silence`: onset → Dee silent. Multi-word p90 ≤ 0.75 s, lone stop words p90 ≤ 1.1 s, and every stop or command
+    fixture silent for good within 1.5 s.
+  - `duck_time`: p90 ≤ 1.5 s.
+  - `barge_in` now measures onset → first yield, a dip or a pause (`Thresholds.bargeInMeasuresYield`, D1).
+- `Scenarios/calm.json` (`Suite.calm()`, written by `suite --write`) is the focused live suite: about 21 min and
+  about $0.45 projected. Run it with `--wake always-open`.
+
+Calm round 2 (harness):
+- Sounds that are words are not sounds. `fixtures --resynth` keeps a TTS rendering only if it passes the classifier
+  bar on its own, beats the current one, and Apple's on-device recogniser hears no words in it (`ResynthDecision`,
+  `SoundWords`); otherwise the seeded DSP sound stays. Round 1 kept a TTS "cough" that said "Cough, cough.". A
+  rendering that is digital silence is never written, and `validate` fails a scenario that uses one (round 1's TTS
+  bc10 was all zeros; bc10 is now `say` Karen, soft). `fixtures --force --only ids` no longer re-renders the beds or
+  the IR (a bare `--force` does).
+- `sounds` scores each sound at six alignments of the classifier's 1.5 s windows and gates on the median (one
+  alignment flattered ns07: 0.57 best, 0.09 median), and transcribes each one offline. It exits 1 for a sound heard as
+  words or an undocumented label miss (`FixtureCatalog.knownUnlabelled`: the DSP coughs ns01/ns02/ns11, ns07, ns09).
+  `sounds --try "Voice|rate|text;…" --as ns12` scores `say` candidates through the fixture pipeline.
+- Coughs the classifier labels as coughs: ns12 (single), ns13 (double, short) and ns14 (a fit, long), macOS `say`
+  voice Albert on a non-lexical "khukh / hukh", median cough 0.42 / 0.52 / 0.46, heard as no words. They are free and
+  offline (`fixtures --only ns12,ns13,ns14`).
+- The metrics flag a sound fixture the live server transcribed as words (`false_pause` note: "heard as WORDS").
+- A sound or continuer whose "stop" was Dee's own reply limit (`sentenceCapStop` / `tokenLimitStop` at the flush) is
+  scored as carried on (records with timed notes), unless Dee then answered the event with a fresh reply, which stays
+  a stop ("answered after Dee's own cap end").
+- Every `run`, `replay` and `wake` claims its own `Reports/<id>` folder atomically; a second start in the same second
+  gets `<id>-2`. `pool` keeps two reports with one id apart (`<id>#2`).
+- D1 gates: `barge_in` = onset → Dee audibly dips, p90 ≤ 0.4 s (`yieldP90`); `silence` = end of the stop / command
+  phrase (`FixtureCatalog.stopWordEnds`: c01 c08 at their end, c04 c06 c07 at their first span, c03 "Wait" at
+  onset + 0.40 s) → Dee fully silent, p90 ≤ 1.0 s, and every stop / command fixture silent for good within 1.5 s of
+  it; other interruptions' onset → silent is reported only (`silenceFromOnset = true` restores round 1's bounds).
+  `false_barge` allows 0 pauses in any TV room (`tv…`); other rooms ≤ 1 per 10 Dee-min. `false_pause` ≤ 5 % pooled.
+- `Scenarios/calm2.json` (`Suite.calm2()`) is the calm suite with the voiced coughs over two more replies per sound
+  scenario, plus the tune-2 subset (backchannel fan15/kitchen15/echo20/echo10, interrupt clean/fan15/kitchen15/echo20,
+  stop-mood clean/echo20): 18 scenarios, about 43 min, about $1.00 projected. Accept on `pool` over two runs.
+
+Calm round 3 (harness, C3):
+- A real interruption is no longer "stopped" only within onset + 2.0 s (`bargeMissAfter`). D2 lets a question pause
+  Dee only from its words, and gpt-transcribe sends no delta before the commit, so long questions paused Dee at
+  about 2.0–2.1 s and were scored "kept talking over the question". `Metrics.rescoredStops` (records with timed notes)
+  re-scores every `.missed` real interruption from the record: a question (`expect: reply`) stopped Dee when Dee went
+  silent (the hold that ended in the flush, else the flush) before the answer's first audio, or by EoS + 1.6 s when
+  there is no answer; a stop / command fixture when Dee went silent within 1.5 s of its stop phrase (D1); the old
+  2.0 s window still counts. The runner's stored outcome is unchanged (the record is raw); its live log line can say
+  "missed" for an event the report scores as stopped.
+- A silence after that deadline is reported at its real time (`silence`: "silent after X s"), not as 99 s.
+- `idle_tv_answers` (status INFO, never fails): phantom turns answered while Dee was idle, TV rooms per 10 idle
+  minutes, and the other rooms apart.
+
 Gate semantics (beyond §7.1):
 - **Latency** is measured from the end of a *complete* turn. Fixtures where waiting is right (`c06` "hold on", the
   trailing "and…" `t01`–`t03`) have no latency of their own: the scenario finishes them with a continuation (`then`), and

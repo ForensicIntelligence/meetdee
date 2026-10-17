@@ -197,6 +197,17 @@ public final class PCMStreamPlayer: @unchecked Sendable {
         var held = false
         var holdAtBoundary = false
         var gain: Float = 1
+        /// Calm: the gain the render ramps toward while not held (1, or the duck gain).
+        var duckTarget: Float = 1
+        /// Per-sample ramp steps: down to `duckTarget` (the duck's attack) and up to it
+        /// (the 5 ms fade-in after a hold, or the duck's release).
+        var downStep: Float = 1 / Float(PCMStreamPlayer.fadeFrames)
+        var upStep: Float = 1 / Float(PCMStreamPlayer.fadeFrames)
+        /// A duck was applied since the last flush / resume: a flush fades out from the
+        /// current gain (never a 5 ms burst at full level over a ducked voice).
+        var ducked = false
+        /// The flush fade's level (the gain when flushed; 1 unless ducked).
+        var fadeScale: Float = 1
         /// Frames the node has rendered (silence included).
         var renderedFrames: Int64 = 0
         /// Echo reference ring: energy of each 10 ms bin, its last frame, and the
@@ -336,11 +347,15 @@ public final class PCMStreamPlayer: @unchecked Sendable {
             if left > 0, !s.buffering {
                 s.fadePos = s.readPos
                 s.fadeLeft = Int(min(Int64(Self.fadeFrames), left))
+                s.fadeScale = s.ducked ? s.gain : 1
             }
             s.readPos = s.writePos
             s.buffering = true
             s.held = false
             s.gain = 1
+            s.duckTarget = 1
+            s.ducked = false
+            s.upStep = 1 / Float(Self.fadeFrames)
             for name in s.gatedNames { if let old = s.ended(name) { garbage.append(old) } }
             s.gatedNames.removeAll(keepingCapacity: true)
             return cut
@@ -455,10 +470,46 @@ public final class PCMStreamPlayer: @unchecked Sendable {
         shared.state.withLock { $0.held = true }
     }
 
-    /// Goes on after `hold()` (fading back in).
+    /// Goes on after `hold()` (fading back in, 5 ms, to full level: a duck under the
+    /// hold is over).
     public func resume() {
-        shared.state.withLock { $0.held = false }
+        shared.state.withLock { s in
+            s.held = false
+            if s.ducked || s.duckTarget != 1 {
+                s.duckTarget = 1
+                s.ducked = false
+            }
+            s.upStep = 1 / Float(Self.fadeFrames)
+        }
     }
+
+    /// Calm: lowers Dee's voice to `gainDB` (ramping over `CalmTuning.duckAttack`) while it
+    /// keeps playing. Sentence boundaries are not held; the next utterance starts at the
+    /// duck gain. The echo reference and the level are post-gain. `hold()` from here fades
+    /// to 0 in 5 ms as always; `resume()` returns to full level.
+    public func duck(gainDB: Double) {
+        let target = min(1, max(0, CalmTuning.gain(gainDB)))
+        shared.state.withLock { s in
+            s.duckTarget = target
+            s.ducked = true
+            s.downStep = max(1e-6, (1 - target) / Float(Self.sampleRate * CalmTuning.duckAttack))
+        }
+    }
+
+    /// Calm: back to full level (ramping over `CalmTuning.duckRelease`).
+    public func unduck() {
+        shared.state.withLock { s in
+            let from = s.duckTarget
+            s.duckTarget = 1
+            s.upStep = max(1e-6, (1 - min(from, s.gain)) / Float(Self.sampleRate * CalmTuning.duckRelease))
+        }
+    }
+
+    /// The gain playback ramps toward while not held (1 unless ducked).
+    public var duckGain: Float { shared.state.withLock { $0.duckTarget } }
+
+    /// The gain applied right now (tests).
+    var currentGain: Float { shared.state.withLock { $0.gain } }
 
     /// Held by `hold()`.
     public var isHeld: Bool { shared.state.withLock { $0.held } }
@@ -542,6 +593,14 @@ public final class PCMStreamPlayer: @unchecked Sendable {
         return events
     }
 
+    /// Tests: renders `n` samples (24 kHz) straight from the ring, as the node would,
+    /// with no engine (silence after the real audio, as the node zeroes it).
+    func renderForTesting(frames n: Int) -> [Float] {
+        var out = [Float](repeating: 0, count: n)
+        out.withUnsafeMutableBufferPointer { b in _ = Self.render(shared, into: b.baseAddress!, frames: n, hostTime: 0) }
+        return out
+    }
+
     // MARK: Render thread
 
     /// Fills `out` with up to `frames` samples; returns how many were real audio
@@ -553,7 +612,7 @@ public final class PCMStreamPlayer: @unchecked Sendable {
             if s.fadeLeft > 0 {
                 let k = min(s.fadeLeft, n)
                 for i in 0..<k {
-                    let g = Float(s.fadeLeft - i) / Float(Self.fadeFrames + 1)
+                    let g = Float(s.fadeLeft - i) / Float(Self.fadeFrames + 1) * s.fadeScale
                     out[i] = Float(shared.ring[Int((s.fadePos + Int64(i)) & shared.mask)]) / 32768 * g
                 }
                 s.fadePos += Int64(k)
@@ -606,11 +665,18 @@ public final class PCMStreamPlayer: @unchecked Sendable {
                 }
                 var k = Int(min(available, Int64(n - produced)))
                 var r = s.readPos
-                if s.held || s.gain < 1 {
-                    // Fading out for a hold (or back in after one), sample by sample.
+                if s.held || s.gain < 1 || s.duckTarget < 1 {
+                    // Fading out for a hold (or back in after one), or ramping to / holding /
+                    // leaving the duck gain (calm), sample by sample.
                     var j = 0
                     while j < k {
-                        if s.held { s.gain = max(0, s.gain - step) } else { s.gain = min(1, s.gain + step) }
+                        if s.held {
+                            s.gain = max(0, s.gain - step)
+                        } else if s.gain > s.duckTarget {
+                            s.gain = max(s.duckTarget, s.gain - s.downStep)
+                        } else if s.gain < s.duckTarget {
+                            s.gain = min(s.duckTarget, s.gain + s.upStep)
+                        }
                         let v = Float(shared.ring[Int(r & shared.mask)]) / 32768 * s.gain
                         out[produced + j] = v
                         sumSq += Double(v * v)

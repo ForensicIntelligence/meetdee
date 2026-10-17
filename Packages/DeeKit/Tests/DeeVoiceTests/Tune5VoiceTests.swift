@@ -197,7 +197,8 @@ private let f2Lines = ["f01", "f02", "f03", "f04", "f05", "t03", "k03", "t04", "
     /// waits while item 2 is still being said; Dee goes on once its words say
     /// "go on" too, and both items are backchannels.
     @Test func sheepGoingThenImListeningIsOneBackchannel() async throws {
-        let rig = try LoopRig()
+        // Pins 0.6.0's pause and grace (calm round 2 ducks through a continuer instead).
+        let rig = try LoopRig(duckOnOnset: false)
         let holds = Collector(rig.voice.holdEvents)
         try await rig.start()
         try await rig.pausedBy("item_u2", talk: 0.7)

@@ -55,6 +55,22 @@ public struct HarnessReport: Codable, Sendable {
         return md
     }
 
+    /// Calm: what Dee did with each event said over Dee's reply (onset → first dip or
+    /// pause, onset → silent, seconds paused / ducked, cut).
+    static func calmSection(_ m: Metrics, runs: [RunRecord]) -> String {
+        let rows = m.utterances.filter { $0.role == .bargeIn && ($0.yield != nil || $0.stopped != nil) }
+        guard !rows.isEmpty else { return "" }
+        let flags = runs.compactMap(\.duckOnOnset)
+        var md = "\n### Over Dee's reply (calm)\n\n"
+        md += "- Duck on onset: \(flags.isEmpty ? "not recorded" : "\(flags.filter { $0 }.count) of \(flags.count) runs")"
+        if !m.floorApproximateRuns.isEmpty { md += "; approximate (no timed notes): \(m.floorApproximateRuns.count) runs" }
+        md += "\n\n| Scenario | Fixture | Yield s | Silent s | Paused s | Ducked s | Cut |\n|---|---|---|---|---|---|---|\n"
+        for r in rows {
+            md += "| \(r.scenario) | \(r.fixture)\(r.nonspeech == true ? " (sound)" : r.backchannel == true ? " (continuer)" : "") | \(f(r.yield)) | \(f(r.silence)) | \(f(r.pausedSeconds)) | \(f(r.duckedSeconds)) | \(r.stopped == true ? "**yes**" : "no") |\n"
+        }
+        return md
+    }
+
     public func markdown() -> String {
         var md = "# Dee voice harness — \(runID)\n\n"
         md += "- Model: `\(model)` · brain: `\(brain)` · started \(started) · finished \(finished)\n"
@@ -108,6 +124,7 @@ public struct HarnessReport: Codable, Sendable {
         if !metrics.leaksUnspoken.isEmpty {
             md += "- Generated but never said aloud (information, not gated): " + metrics.leaksUnspoken.map { "\($0.scenario) \($0.itemID) [\($0.rules.joined(separator: ", "))] “\(Self.cell($0.text))”" }.joined(separator: "; ") + "\n"
         }
+        md += Self.calmSection(metrics, runs: runs)
         if !metrics.truncations.isEmpty {
             md += "\n### Truncations\n\n| Scenario | Item | audio_end_ms | played ms | ok | history = heard |\n|---|---|---|---|---|---|\n"
             for t in metrics.truncations {

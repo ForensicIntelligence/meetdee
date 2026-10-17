@@ -29,6 +29,12 @@ public enum Suite {
         .init(id: "echo10", noise: nil, echo: EchoConfig(gainDB: -10, delayMs: 80), aecOff: true),
     ]
 
+    /// Calm: conditions outside the acoustic matrix (a louder TV, the 120 s TV bed).
+    public static let extraConditions: [Condition] = [
+        .init(id: "tv10", noise: .init(bed: "tv", snrDb: 10), echo: nil, aecOff: false),
+        .init(id: "tvlong10", noise: .init(bed: "tvlong", snrDb: 10), echo: nil, aecOff: false),
+    ]
+
     typealias Step = Scenario.Step
 
     /// The 8 conversations that together speak every one of the 62 fixtures once.
@@ -208,7 +214,7 @@ public enum Suite {
                                       "few days", "welcome back", "you're back", "you are back", "long time", "so long",
                                       "been away", "were away", "while since"]
 
-    static func condition(_ id: String) -> Condition { conditions.first { $0.id == id }! }
+    static func condition(_ id: String) -> Condition { (conditions + extraConditions).first { $0.id == id }! }
 
     /// One tune-2 scenario under a condition: echo conditions start with an echo-only line.
     static func t2(_ name: String, _ c: String, _ steps: [Step], echoLine: Int = 0, family: String = "acoustic",
@@ -405,6 +411,136 @@ public enum Suite {
         ]
     }
 
+    // MARK: Calm suite (too sensitive to interruptions)
+
+    /// Long asks: Dee's reply runs 8–12 s, room for two events over it.
+    static let calmAsks = ["l01", "l04", "two02", "d02", "l06", "l02"]
+    /// When the first event lands in Dee's reply (ms after its first audio); the second
+    /// comes `calmSecondAfter` later.
+    static let calmFirstAt: [Double] = [1200, 1600, 2000, 1400, 1800, 2400]
+    public static let calmSecondAfter = 3500.0
+    /// The loud variant of a −24 dBFS sound (−17 dBFS, close to the phone).
+    public static let calmLoudGain = 7.0
+
+    /// One event over Dee: a sound (nonspeech), a continuer, or an interruption.
+    static func calmEvent(_ id: String, at ms: Double, loud: Bool = false) -> Scenario.BargeIn {
+        if TurnShape.isNonspeech(id) {
+            return .init(say: id, atMs: ms, nonspeech: true, gainDB: loud ? calmLoudGain : nil)
+        }
+        if TurnShape.isBackchannel(id) { return .init(say: id, atMs: ms, backchannel: true, gainDB: loud ? calmLoudGain : nil) }
+        let question = FixtureCatalog.spec(id)?.category == .shortQuestion || id == "c07"
+        return .init(say: id, atMs: ms, expect: question ? .reply : nil, rubric: question ? Judge.interruptRubric : nil)
+    }
+
+    /// Six long asks, each with two events (`pairs`: fixture, loud) over Dee's reply.
+    static func calmPairs(_ pairs: [((String, Bool), (String, Bool))], rotate: Int) -> [Step] {
+        pairs.enumerated().map { k, p in
+            let ask = calmAsks[(k + rotate) % calmAsks.count]
+            let first = calmFirstAt[(k + rotate) % calmFirstAt.count]
+            return Step(say: ask, events: [calmEvent(p.0.0, at: first, loud: p.0.1),
+                                           calmEvent(p.1.0, at: first + calmSecondAfter, loud: p.1.1)])
+        }
+    }
+
+    /// The focused calm live suite (`Scenarios/calm.json`, spec "calm" §9): Dee yields
+    /// to sounds by ducking and stops only for real interruptions. ≈ 21 min, ≈ $0.70;
+    /// run with `--wake always-open`, no judge. 44 short events (`false_pause` n ≥ 40),
+    /// 2 long sounds, 12 interruptions, ≈ 4 Dee-minutes under TV (`false_barge`).
+    public static func calm() -> [Scenario] {
+        let alex = Scenario.PersonSetup(name: "Alex", knownDays: 20)
+        let chat = "Ordinary chat with Alex, whom Dee likes. While Dee talks, Alex coughs, laughs, says \"mm-hm\" or \"yeah\" (Dee carries on), and sometimes really cuts in (Dee stops; a question gets an answer)."
+        // Sounds: ns01–ns09 once, ns07 again loud, ns10 and ns11 (long) once each.
+        let sounds: [((String, Bool), (String, Bool))] = [
+            (("ns01", true), ("ns06", false)),
+            (("ns02", false), ("ns10", false)),
+            (("ns03", true), ("ns07", false)),
+            (("ns04", false), ("ns08", true)),
+            (("ns05", false), ("ns11", false)),
+            (("ns09", true), ("ns07", true)),
+        ]
+        let soundsTV: [((String, Bool), (String, Bool))] = [
+            (("ns07", true), ("ns02", true)),
+            (("ns06", true), ("ns11", false)),
+            (("ns08", false), ("ns01", false)),
+            (("ns10", false), ("ns05", true)),
+            (("ns03", false), ("ns09", false)),
+            (("ns04", true), ("ns07", false)),
+        ]
+        let bc: [((String, Bool), (String, Bool))] = [
+            (("bc02", false), ("bc03", false)), (("bc04", false), ("bc05", false)), (("bc06", false), ("bc07", false)),
+            (("bc08", false), ("bc09", false)), (("bc10", false), ("bc11", false)), (("bc12", false), ("bc01", false)),
+        ]
+        let bcTV: [((String, Bool), (String, Bool))] = [
+            (("bc11", false), ("bc06", false)), (("bc01", false), ("bc09", false)), (("bc03", false), ("bc12", false)),
+            (("bc07", false), ("bc02", false)), (("bc05", false), ("bc10", false)), (("bc08", false), ("bc04", false)),
+        ]
+        // Real interruptions, one per reply (Dee stops; questions get an answer).
+        func asks(_ ids: [String], rotate: Int) -> [Step] {
+            ids.enumerated().map { k, id in
+                Step(say: calmAsks[(k + rotate) % calmAsks.count], events: [calmEvent(id, at: calmFirstAt[(k + rotate) % calmFirstAt.count])])
+            }
+        }
+        let tvBed = calmAsks.map { Step(say: $0) }
+        let echo: [((String, Bool), (String, Bool))] = [(("bc03", false), ("ns01", false)), (("bc04", false), ("ns07", false))]
+        return [
+            t2("sounds", "clean", calmPairs(sounds, rotate: 0), family: "calm", state: chat, person: alex,
+               why: "Coughs, breaths, a throat clear, a sigh, a hmm, laughs over Dee: Dee dips and carries on, never silent (false_pause); two long sounds (false_pause_long).")
+                .renamed("calm-sounds-clean"),
+            t2("sounds", "tv15", calmPairs(soundsTV, rotate: 2), family: "calm", state: chat, person: alex,
+               why: "The same sounds with a TV on (15 dB SNR), another order.").renamed("calm-sounds-tv15"),
+            t2("bc", "clean", calmPairs(bc, rotate: 1), family: "calm", state: chat, person: alex,
+               why: "Single-clause continuers (go on, mm-hm, yeah, uh-huh, right, okay, mm, oh wow, haha yeah; soft; a second voice) over Dee.")
+                .renamed("calm-bc-clean"),
+            t2("bc", "tv15", calmPairs(bcTV, rotate: 3), family: "calm", state: chat, person: alex,
+               why: "The same continuers with a TV on, another order.").renamed("calm-bc-tv15"),
+            t2("tv-bed", "tvlong10", tvBed, family: "calm", state: chat, person: alex,
+               why: "A loud TV (120 s bed, 10 dB SNR) and nothing said over Dee: no pause, no cut (false_barge).").renamed("calm-tv-bed"),
+            t2("ask", "clean", asks(["c01", "c03", "c07", "c08", "q01", "q03"], rotate: 0), family: "calm", state: chat, person: alex,
+               why: "Real interruptions over Dee: Stop. / Wait, stop talking… / Hold on, what time is it? / Wait. / two questions (barge_in yield, silence, interrupt_questions).")
+                .renamed("calm-ask-clean"),
+            t2("ask", "tv15", asks(["q03", "c08", "c03", "q01", "c01", "c07"], rotate: 3), family: "calm", state: chat, person: alex,
+               why: "The same interruptions with a TV on, another order (the TV-room ambient rule must not drop them).").renamed("calm-ask-tv15"),
+            t2("bc-echo", "echo20", calmPairs(echo, rotate: 4), echoLine: 2, family: "calm", state: chat, person: alex,
+               why: "Continuers and sounds with Dee's echo at −20 dB and no AEC: no self-trigger under ducks.").renamed("calm-bc-echo20"),
+        ]
+    }
+
+    // MARK: Calm round 2
+
+    /// The tune-2 regression subset of the calm live check (`live.md`, report
+    /// 20261016-195702): backchannels, interruptions and stop moods across the rooms.
+    public static let calm2Tune2Subset = [
+        "t2-backchannel-fan15", "t2-backchannel-kitchen15", "t2-backchannel-echo20", "t2-backchannel-echo10",
+        "t2-interrupt-clean", "t2-interrupt-fan15", "t2-interrupt-kitchen15", "t2-interrupt-echo20",
+        "t2-stop-mood-clean", "t2-stop-mood-echo20",
+    ]
+    /// Two more long asks for the voiced coughs (not in `calmAsks`, so no ask repeats).
+    static let calm2ExtraAsks = ["l03", "l05"]
+
+    /// Round 2 (`Scenarios/calm2.json`): the calm suite, with the classifier-labelled
+    /// voiced coughs (ns12–ns14) over two more replies in each sound scenario, plus the
+    /// tune-2 subset — one live run of round 2's acceptance; `pool` two of them.
+    /// Run with `--wake always-open`, no judge.
+    public static func calm2() -> [Scenario] {
+        let extra: [String: [((String, Bool), (String, Bool))]] = [
+            "calm-sounds-clean": [(("ns12", true), ("ns13", false)), (("ns13", true), ("ns14", false))],
+            "calm-sounds-tv15": [(("ns13", false), ("ns12", false)), (("ns12", true), ("ns14", false))],
+        ]
+        let calm = calm().map { sc -> Scenario in
+            guard let pairs = extra[sc.name] else { return sc }
+            var sc = sc
+            for (k, p) in pairs.enumerated() {
+                let first = calmFirstAt[(k + 3) % calmFirstAt.count]
+                sc.steps.append(Step(say: calm2ExtraAsks[k], events: [calmEvent(p.0.0, at: first, loud: p.0.1),
+                                                                      calmEvent(p.1.0, at: first + calmSecondAfter, loud: p.1.1)]))
+            }
+            sc.description = (sc.description ?? "") + " Round 2: voiced coughs (ns12–ns14) the classifier labels as coughs."
+            return sc
+        }
+        let t2 = tune2().filter { calm2Tune2Subset.contains($0.name) }
+        return calm + calm2Tune2Subset.compactMap { n in t2.first { $0.name == n } }
+    }
+
     /// Which tune-1 gate each tune-2 scenario re-tests (report column).
     public static let tune2Targets: [String: [String]] = [
         "latency": ["latency", "dropped", "self_trigger"],
@@ -447,9 +583,14 @@ public enum RunEstimate {
                 t += dur(id)
                 t += manifest.utterance(id)?.category == .longTurn ? perLongTurn : perTurn
                 if let c = st.then { t += c.afterMs / 1000 + dur(c.say) }
-                if let b = st.bargeIn {
-                    t += dur(b.say) + b.atMs / 1000 + (b.isBackchannel ? 0 : perBargeIn)
-                    if b.expected == .reply { t += perTurn }     // then Dee answers it
+                // Events over one reply overlap it: the reply runs to the last one (+ its length).
+                let events = st.bargeIns
+                if let last = events.last {
+                    t += dur(last.say) + last.atMs / 1000
+                    for b in events {
+                        if !b.isBackchannel { t += perBargeIn }
+                        if b.expected == .reply { t += perTurn }     // then Dee answers it
+                    }
                 }
                 if st.faultDuringReply != nil { t += perFault }
             } else if let x = st.silence {
@@ -464,4 +605,9 @@ public enum RunEstimate {
         }
         return t
     }
+}
+
+extension Scenario {
+    /// The same scenario under another name.
+    func renamed(_ name: String) -> Scenario { var s = self; s.name = name; return s }
 }

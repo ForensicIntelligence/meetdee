@@ -6,7 +6,7 @@ import HarnessRunner
 
 // voice-harness — Dee's live voice loopback harness. See Tools/voice-harness/README.md.
 //
-//   voice-harness fixtures [--force] [--only q01,l01] [--max-usd 0.5]
+//   voice-harness fixtures [--force] [--only q01,l01] [--max-usd 0.5] [--resynth]
 //   voice-harness suite    [--write]                      (regenerates Scenarios/{full,dna,fallback,smoke-brain}.json)
 //   voice-harness validate --scenarios Scenarios/smoke.json
 //   voice-harness run      --scenarios Scenarios/smoke.json [--brain realtime|minimal] [--model gpt-realtime-2.1-mini]
@@ -17,6 +17,7 @@ import HarnessRunner
 //   (run / replay / gates / judge: [--baseline Reports/<run>/report.json | --no-baseline], default tune 7)
 //   voice-harness judge    --report Reports/<run>/report.json [--judge-model M] [--write]
 //   voice-harness pool     --reports Reports/<runA>,Reports/<runB>[,…]   (gates on pooled counts; offline)
+//   voice-harness sounds   [--synth] [--only ns01,ns07] [--try …]   (calm: offline SoundAnalysis + word check of the sounds)
 //
 // Exit codes: 0 all gates pass · 1 a gate failed · 2 usage / setup error · 3 aborted (spend cap, no connection).
 
@@ -156,14 +157,16 @@ func main() async -> Int32 {
         switch args.command {
         case "fixtures":
             let gen = FixtureGenerator(root: toolRoot, force: args.switches.contains("force"), only: args.list("only"),
-                                       maxUSD: args.double("max-usd", default: 0.50), log: { logger($0) })
+                                       maxUSD: args.double("max-usd", default: 0.50), resynth: args.switches.contains("resynth"),
+                                       log: { logger($0) })
             try await gen.run()
             return 0
 
         case "suite":
             let files: [(String, [Scenario])] = [("full.json", Suite.full()), ("dna.json", Suite.dna()),
                                                  ("fallback.json", Suite.fallback()), ("smoke-brain.json", Suite.smokeBrain()),
-                                                 ("tune2.json", Suite.tune2()), ("wake.json", WakeSuite.liveScenarios())]
+                                                 ("tune2.json", Suite.tune2()), ("wake.json", WakeSuite.liveScenarios()),
+                                                 ("calm.json", Suite.calm()), ("calm2.json", Suite.calm2())]
             let core = Set(FixtureCatalog.core.map(\.id))
             for c in Suite.conditions {
                 let used = Set(Suite.acoustic().filter { $0.name.hasSuffix("-\(c.id)") }.flatMap(\.fixtureIDs))
@@ -178,6 +181,78 @@ func main() async -> Int32 {
                 }
             }
             return 0
+
+        case "sounds":
+            // Calm: the offline SoundAnalysis pass over the non-speech fixtures (no key,
+            // no network). `--synth`: classify the DSP recipes in memory, nothing written.
+            // Round 2: `--try "Voice|rate|text;…" [--as ns12] [--level -24]` renders `say`
+            // candidates through the fixture pipeline and scores them (offline tuning of
+            // the voiced coughs; nothing is written).
+            if let tries = args.flags["try"] {
+                let want = args.flags["as"] ?? "ns12"
+                let level = args.double("level", default: -24)
+                let gen = FixtureGenerator(root: toolRoot, force: false, only: [], maxUSD: 0, log: { _ in })
+                for c in tries.split(separator: ";") {
+                    let f = c.split(separator: "|", maxSplits: 2).map(String.init)
+                    guard f.count == 3 else { print("bad candidate \(c) (Voice|rate|text)"); continue }
+                    let raw = try gen.say(f[2], voice: f[0], rate: Int(f[1]))
+                    let a = FixtureAssembler.assemble([.audio(raw)], sampleRate: 24_000, levelDB: level)
+                    let r = try SoundCheck.row(id: want, samples: a.samples)
+                    let heard = await WordCheck.transcript(a.samples) ?? "?"
+                    print(String(format: "%.3f %.3f  %@  %.2f s  heard “%@”", r.confidence ?? 0, r.best ?? 0, c as CVarArg,
+                                 Double(a.endOfSpeech - a.onset) / 24_000, heard))
+                }
+                return 0
+            }
+            var rows: [SoundCheck.Row] = []
+            let only = args.list("only")
+            let specs = FixtureCatalog.all.filter { $0.category == .nonspeech && (only?.contains($0.id) ?? true) }
+            if args.switches.contains("synth") {
+                for spec in specs where spec.engine == .dsp {
+                    guard let raw = Nonspeech.render(spec.voice, sampleRate: 24_000) else { continue }
+                    let a = FixtureAssembler.assemble([.audio(raw)], sampleRate: 24_000, levelDB: spec.style.levelDB)
+                    rows.append(try SoundCheck.row(id: spec.id, samples: a.samples))
+                }
+            } else {
+                let library = try FixtureLibrary(directory: args.url("fixtures", default: "Fixtures"))
+                for spec in specs {
+                    guard library.manifest.utterance(spec.id) != nil else { print("MISS \(spec.id) not rendered (voice-harness fixtures --only \(spec.id))"); continue }
+                    let (_, samples) = try library.utterance(spec.id)
+                    rows.append(try SoundCheck.row(id: spec.id, samples: samples))
+                }
+            }
+            // Round 2: every sound is also transcribed offline (on-device recogniser):
+            // a sound fixture that is heard as words fails, whatever its label score.
+            var worded: [String] = []
+            let lib = args.switches.contains("synth") ? nil : try FixtureLibrary(directory: args.url("fixtures", default: "Fixtures"))
+            for r in rows {
+                print(SoundCheck.describe(r))
+                let samples: [Float]
+                if args.switches.contains("synth") {
+                    guard let spec = FixtureCatalog.spec(r.id), let raw = Nonspeech.render(spec.voice, sampleRate: 24_000) else { continue }
+                    samples = FixtureAssembler.assemble([.audio(raw)], sampleRate: 24_000, levelDB: spec.style.levelDB).samples
+                } else {
+                    guard let lib else { continue }
+                    samples = try lib.utterance(r.id).1
+                }
+                if let heard = await WordCheck.transcript(samples) {
+                    let words = SoundWords.lexicalWords(in: heard)
+                    print("      heard “\(heard)”" + (words.isEmpty ? " (no words)" : " — WORDS: " + words.joined(separator: " ")))
+                    if !words.isEmpty { worded.append(r.id) }
+                } else {
+                    print("      heard: on-device recogniser unavailable (word check skipped)")
+                }
+            }
+            let failed = rows.filter { !$0.ok }
+            let unlabelled = Set(failed.map(\.id))
+            let notLabelled: String = failed.isEmpty ? "" : " (not: " + failed.map(\.id).joined(separator: ", ") + ")"
+            let wordedList: String = worded.isEmpty ? "none" : worded.joined(separator: ", ")
+            print("sounds: \(rows.count - failed.count)/\(rows.count) labelled as meant\(notLabelled); heard as words: \(wordedList)")
+            // Exit 1 only for a sound heard as words, or a labelled-family sound that is not
+            // one of the documented misses (`FixtureCatalog.knownUnlabelled`).
+            let unexpected = unlabelled.subtracting(FixtureCatalog.knownUnlabelled)
+            if !unexpected.isEmpty { print("sounds: unexpected label failures: " + unexpected.sorted().joined(separator: ", ")) }
+            return worded.isEmpty && unexpected.isEmpty ? 0 : 1
 
         case "judge":
             guard args.flags["report"] != nil else { throw HarnessError("judge needs --report FILE") }
@@ -203,7 +278,7 @@ func main() async -> Int32 {
             var total = 0.0, utterances = 0, seconds = 0.0
             for s in scenarios {
                 let userSeconds = s.fixtureIDs.compactMap { library.manifest.utterance($0)?.speechSeconds }.reduce(0, +)
-                let replies = s.userUtteranceCount + s.echoOnlyCount
+                let replies = s.expectedReplyCount
                 let p = pricing.projected(replies: replies, userSeconds: userSeconds)
                 let t = RunEstimate.seconds(s, manifest: library.manifest)
                 total += p
@@ -223,7 +298,6 @@ func main() async -> Int32 {
             let brainName = args.flags["brain"] ?? (args.command == "replay" ? "minimal" : "realtime")
             let maxUSD = args.double("max-usd", default: 2.00)
             let pricing = Pricing.forModel(model)
-            let id = (args.command == "replay" ? "replay-" : "") + runID()
             let started = ISO8601DateFormatter().string(from: Date())
 
             // 0.6: the wake mode is explicit on `run` (the tune2 baseline is `always-open`).
@@ -236,6 +310,9 @@ func main() async -> Int32 {
             } else {
                 throw HarnessError("run needs --wake always-open (the tune2 baseline) or --wake phrase (Scenarios/wake.json)")
             }
+            // Round 2: a unique folder per run / replay, even in the same second.
+            let id = try RunIDs.claim((args.command == "replay" ? "replay-" : "") + runID(),
+                                      in: args.url("reports", default: "Reports"), alsoFree: [args.url("traces", default: "Traces")])
             let providerName = args.flags["provider"] ?? "openai"
             var scenarios: [Scenario]
             var connection: HarnessConnection
@@ -262,7 +339,7 @@ func main() async -> Int32 {
                 if !wrongMode.isEmpty { throw HarnessError(wrongMode.joined(separator: "\n")) }
                 let projected = scenarios.reduce(0.0) { acc, s in
                     let userSeconds = s.fixtureIDs.compactMap { library.manifest.utterance($0)?.speechSeconds }.reduce(0, +)
-                    return acc + pricing.projected(replies: s.userUtteranceCount + s.echoOnlyCount, userSeconds: userSeconds)
+                    return acc + pricing.projected(replies: s.expectedReplyCount, userSeconds: userSeconds)
                 }
                 logger(String(format: "run %@: %d scenarios, projected ≈ $%.3f (cap $%.2f)", id, scenarios.count, projected, maxUSD))
                 switch SpendPlan.check(projected: projected, cap: maxUSD,
@@ -372,7 +449,7 @@ func main() async -> Int32 {
         case "wake":
             // 0.6 wake suite. On the device only (W1): no key, no network for the on-device part.
             let library = try FixtureLibrary(directory: args.url("fixtures", default: "Fixtures"))
-            let id = "wake-" + runID()
+            let id = try RunIDs.claim("wake-" + runID(), in: args.url("reports", default: "Reports"))
             let started = ISO8601DateFormatter().string(from: Date())
             var options = WakeBench.Options()
             options.pace = WakeBench.Pace(rawValue: args.flags["pace"] ?? "fast") ?? .fast
@@ -444,13 +521,14 @@ func main() async -> Int32 {
             let aborted = sources.contains { $0.aborted != nil }
             let failed = pooled.failed || aborted
             print("pooled verdict \(failed ? "FAIL" : "PASS"): \(pooled.gates.filter { $0.status == .pass }.count) pass, "
-                  + "\(pooled.gates.filter { $0.status == .fail }.count) fail, \(pooled.gates.filter { $0.status == .skip }.count) skip")
+                  + "\(pooled.gates.filter { $0.status == .fail }.count) fail, \(pooled.gates.filter { $0.status == .skip }.count) skip"
+                  + "\(pooled.gates.contains { $0.status == .info } ? ", \(pooled.gates.filter { $0.status == .info }.count) info" : "")")
             return failed ? 1 : 0
 
         default:
             print("""
             usage: voice-harness fixtures|suite|validate|run|replay|gates|judge|pool [options]
-              fixtures  [--force] [--only id,id] [--max-usd 0.50]
+              fixtures  [--force] [--only id,id] [--max-usd 0.50] [--resynth]
               suite     [--write]
               validate  --scenarios FILE
               run       --scenarios FILE [--brain realtime|minimal] [--model gpt-realtime-2.1-mini] [--max-usd 2.00]
@@ -461,6 +539,8 @@ func main() async -> Int32 {
               (run, replay, gates, judge: --baseline Reports/<run>/report.json | --no-baseline; default the tune-7 run)
               judge     --report Reports/<run>/report.json [--judge-model M] [--judge-max-usd 0.50] [--write]
               pool      --reports Reports/<runA>,Reports/<runB>[,…]   (every gate on the pooled counts; offline)
+              sounds    [--synth] [--only ns01,ns07]   (offline SoundAnalysis + on-device word check of the non-speech fixtures)
+                        [--try "Albert|185|Khukh!;…" --as ns12 --level -24]   (score `say` candidates; nothing written)
             """)
             return args.command == "help" ? 0 : 2
         }

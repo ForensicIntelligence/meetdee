@@ -296,7 +296,7 @@ extension LoopRig {
     /// are "Keep going, I'm listening." — Dee goes on from exactly where Dee
     /// paused. Nothing is cut or cancelled, no `.bargeIn`, the item plays whole.
     @Test func keepGoingResumesWhereSheStopped() async throws {
-        let rig = try LoopRig()
+        let rig = try LoopRig(duckOnOnset: false)   // calm off: pins 0.6.0's pause (see CalmVoiceTests)
         try await rig.start()
         try rig.quiet(0.3)
         try await rig.answerWith([("item_a1", 2000)])
@@ -430,7 +430,7 @@ extension LoopRig {
     /// Dee's reply ends where Dee paused, announced as the barge-in it was (timed
     /// when Dee paused).
     @Test func aHoldWithoutWordsEndsAsABargeIn() async throws {
-        let rig = try LoopRig()
+        let rig = try LoopRig(duckOnOnset: false)   // calm off: pins 0.6.0's pause (see CalmVoiceTests)
         try await rig.start()
         try rig.quiet(0.3)
         try await rig.answerWith([("item_a1", 3000)])
@@ -494,7 +494,7 @@ extension LoopRig {
     /// later). Now the second item waits at the boundary while an onset with
     /// near-end voice is undecided; the user's "Mm-hm." then lets it play whole.
     @Test func theNextItemWaitsWhileTheUserMayBeTalking() async throws {
-        let rig = try LoopRig()
+        let rig = try LoopRig(duckOnOnset: false)   // calm off: pins 0.6.0's pause (see CalmVoiceTests)
         try await rig.start()
         try rig.quiet(0.3)
         try await rig.answerWith([("item_a1", 600), ("item_a2", 1500)])

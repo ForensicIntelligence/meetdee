@@ -311,6 +311,55 @@ public enum Backchannel {
             && (w.contains("m") || !w.contains("u"))
     }
 
+    // MARK: Calm (spec §4.1): sounds that mean "go on" inside a hold
+
+    /// Laughs as transcription writes them.
+    public static let laughTokens: Set<String> = ["ha", "hah", "haha", "hahaha", "heh", "hehe", "lol"]
+    /// Filler-only clauses ("Uh.", "Hm.") — a cough or a throat clear often comes back so.
+    public static let fillerTokens: Set<String> = ["uh", "um", "er", "huh", "hm", "hmm", "ah", "ahem", "oh"]
+    /// What a bracketed, parenthesized or asterisked sound tag must mention.
+    static let soundTagWords = ["laugh", "chuckl", "cough", "sneez", "breath", "sigh", "sniff", "clears throat",
+                                "clearing throat", "throat clear"]
+
+    /// Calm: `text`, said **inside a hold** (either phase) in a short burst
+    /// (`CalmTuning.tokenBurstMax`, the caller's test), is a sound that means "go on": laugh
+    /// tokens ("Ha ha.", "Heh.", "lol"), sound tags ("(coughs)", "[laughter]", "*sighs*") or
+    /// filler-only words ("Uh.", "Um."); with continuer clauses ("Haha, yeah."). Laugh tokens
+    /// and tags skip the syllable rule (a laugh has three or more: `questionLike`). Never with a
+    /// "?" ("Huh?", "Haha, what?"), nor a filler whose pitch rises at the end (`sound`).
+    /// Outside a hold nothing changes: `isBackchannel` never calls this.
+    public static func isHoldSoundToken(_ text: String, sound: FragmentSound?) -> Bool {
+        var t = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !t.isEmpty, !t.contains("?") else { return false }
+        var saw = false
+        // Sound tags: every one must be a body sound ("[music]" is not).
+        if let tags = try? NSRegularExpression(pattern: #"[\[\(\*][^\]\)\*]{1,40}[\]\)\*]"#) {
+            let ns = t as NSString
+            for m in tags.matches(in: t, range: NSRange(location: 0, length: ns.length)).reversed() {
+                let inner = ns.substring(with: m.range)
+                guard soundTagWords.contains(where: inner.contains) else { return false }
+                saw = true
+                t = (t as NSString).replacingCharacters(in: m.range, with: ",")
+            }
+        }
+        let clauses = t.replacingOccurrences(of: "\u{2019}", with: "'").replacingOccurrences(of: "-", with: " ")
+            .split { ",.!;…".contains($0) }
+            .map { words(String($0)) }
+            .filter { !$0.isEmpty }
+        for w in clauses {
+            let joined = w.joined(separator: " ")
+            if w.allSatisfy(laughTokens.contains) || joined == "he he" || joined == "he he he" {
+                saw = true
+            } else if w.allSatisfy(fillerTokens.contains) {
+                guard sound?.pitchEnd != .rising else { return false }
+                saw = true
+            } else if !isBackchannel(joined, inHold: true, final: false) {
+                return false
+            }
+        }
+        return saw
+    }
+
     static func words(_ text: String) -> [String] {
         text.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
             .split { !($0.isLetter || $0.isNumber || $0 == "'") }

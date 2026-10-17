@@ -21,6 +21,11 @@ import Foundation
 /// - The first two slices are heard with nothing to tell the user's voice from
 ///   the bed yet (someone may be talking right away): they set a provisional
 ///   ceiling and are dropped once two slices heard with it are in.
+/// - Calm (`tvLike`): each slice also keeps the share of its frames that were voice-like
+///   (pitched, voice-band). The bed is a TV once the median share over the window's slices
+///   reaches `CalmTuning.tvVoiceShare` with at least `CalmTuning.tvMinSpan` of slices, and
+///   stays one until `CalmTuning.tvHold` passed with no slice that qualified (hysteresis:
+///   while Dee talks no slice is heard, and the TV is still there).
 public struct RoomBed: Sendable, Equatable {
     public static let window = 8.0
     public static let slice = 1.0
@@ -33,7 +38,13 @@ public struct RoomBed: Sendable, Equatable {
     private var current: [Double] = []
     private var currentStart: Double?
     private var currentSpan = 0.0
-    private var slices: [(end: Double, ceiling: Double, floor: Double, provisional: Bool)] = []
+    /// Seconds of the current slice's frames that were voice-like (`markVoiceLike`).
+    private var currentVoice = 0.0
+    private var slices: [(end: Double, ceiling: Double, floor: Double, provisional: Bool, voiceShare: Double)] = []
+    /// Calm: the bed sounds like a TV (talkers), see the type's notes.
+    public private(set) var tvLike = false
+    /// When the TV test last held at a slice's close.
+    private var tvQualifiedAt = -Double.infinity
     /// The bed's ceiling (dBFS) once two slices were heard.
     public private(set) var ceilingDB: Double?
     /// The bed's quiet level (dBFS), with the ceiling.
@@ -52,6 +63,18 @@ public struct RoomBed: Sendable, Equatable {
         if currentStart == nil { currentStart = t - dt }
         current.append(db)
         currentSpan += dt
+        expireTV(at: t)
+    }
+
+    /// The frame just `add`ed was voice-like (pitched, voice-band): counted for `tvLike`.
+    /// Bookkeeping only: the ceiling and the floor never depend on it.
+    public mutating func markVoiceLike(duration dt: Double) {
+        guard currentStart != nil, dt > 0 else { return }
+        currentVoice += dt
+    }
+
+    private mutating func expireTV(at t: Double) {
+        if tvLike, t - tvQualifiedAt >= CalmTuning.tvHold - 1e-9 { tvLike = false }
     }
 
     /// Time passes without frames (Dee talking, the user talking): a slice that
@@ -61,6 +84,7 @@ public struct RoomBed: Sendable, Equatable {
         let before = slices.count
         slices.removeAll { t - $0.end > Self.window }
         if slices.count != before { recompute() }
+        expireTV(at: t)
     }
 
     /// A bed that changed (a tap turned off) is followed once its old slices left
@@ -78,17 +102,30 @@ public struct RoomBed: Sendable, Equatable {
             current.removeAll(keepingCapacity: true)
             currentStart = nil
             currentSpan = 0
+            currentVoice = 0
         }
         guard currentSpan >= Self.slice * Self.minCoverage - 1e-9, !current.isEmpty else { return }
         let sorted = current.sorted()
         func at(_ p: Double) -> Double { sorted[min(sorted.count - 1, Int((Double(sorted.count - 1) * p).rounded()))] }
-        slices.append((t, at(Self.percentile), at(Self.floorPercentile), ceilingDB == nil))
+        slices.append((t, at(Self.percentile), at(Self.floorPercentile), ceilingDB == nil,
+                       min(1, currentVoice / max(currentSpan, 1e-9))))
         if slices.contains(where: \.provisional), slices.filter({ !$0.provisional }).count >= 2 {
             slices.removeAll(where: \.provisional)
         }
         slices.removeAll { t - $0.end > Self.window }
         if slices.count > Self.maxSlices { slices.removeFirst(slices.count - Self.maxSlices) }
         recompute()
+        // Calm: the TV test, at every slice heard.
+        if Double(slices.count) * Self.slice >= CalmTuning.tvMinSpan - 1e-9 {
+            let shares = slices.map(\.voiceShare).sorted()
+            let n = shares.count
+            let median = n % 2 == 1 ? shares[n / 2] : (shares[n / 2 - 1] + shares[n / 2]) / 2
+            if median >= CalmTuning.tvVoiceShare - 1e-9 {
+                tvLike = true
+                tvQualifiedAt = t
+            }
+        }
+        expireTV(at: t)
     }
 }
 
